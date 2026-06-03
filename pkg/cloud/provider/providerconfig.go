@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	gopath "path"
-	"strconv"
 	"sync"
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
@@ -191,13 +190,6 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*models.CustomPric
 		for k, v := range a {
 			// Just so we consistently supply / receive the same values, uppercase the first letter.
 			kUpper := utils.ToTitle.String(k)
-			if kUpper == "CPU" || kUpper == "SpotCPU" || kUpper == "RAM" || kUpper == "SpotRAM" || kUpper == "GPU" || kUpper == "Storage" {
-				val, err := strconv.ParseFloat(v, 64)
-				if err != nil {
-					return fmt.Errorf("unable to parse CPU from string to float: %s", err.Error())
-				}
-				v = fmt.Sprintf("%f", val/730)
-			}
 
 			err := models.SetCustomPricingField(c, kUpper, v)
 			if err != nil {

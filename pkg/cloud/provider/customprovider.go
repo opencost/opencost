@@ -73,6 +73,8 @@ type customProviderKey struct {
 	SpotLabelValue string
 	GPULabel       string
 	GPULabelValue  string
+	GPUTypeName    string
+	GPUCountValue  int
 	Labels         map[string]string
 }
 
@@ -179,8 +181,12 @@ func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, models.Pric
 		k = "default"
 	}
 	if key.GPUType() != "" {
-		k += ",gpu"    // TODO: support multiple custom gpu types.
-		gpuCount = "1" // TODO: support more than one gpu.
+		k += ",gpu" // TODO: support multiple custom gpu types.
+		if key.GPUCount() > 0 {
+			gpuCount = strconv.Itoa(key.GPUCount())
+		} else {
+			gpuCount = "1"
+		}
 	}
 
 	var cpuCost, ramCost, gpuCost string
@@ -236,11 +242,25 @@ func (cp *CustomProvider) DownloadPricingData() error {
 }
 
 func (cp *CustomProvider) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
+	gpuTypeName := ""
+	gpuCount := 0
+	if n != nil {
+		if gpu, ok := n.Status.Capacity["nvidia.com/gpu"]; ok && gpu.Value() > 0 {
+			gpuTypeName = "nvidia.com/gpu"
+			gpuCount = int(gpu.Value())
+		} else if vgpu, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok && vgpu.Value() > 0 {
+			gpuTypeName = "k8s.amazonaws.com/vgpu"
+			gpuCount = int(vgpu.Value())
+		}
+	}
+
 	return &customProviderKey{
 		SpotLabel:      cp.SpotLabel,
 		SpotLabelValue: cp.SpotLabelValue,
 		GPULabel:       cp.GPULabel,
 		GPULabelValue:  cp.GPULabelValue,
+		GPUTypeName:    gpuTypeName,
+		GPUCountValue:  gpuCount,
 		Labels:         labels,
 	}
 }
@@ -375,14 +395,16 @@ func (key *customPVKey) Features() string {
 }
 
 func (k *customProviderKey) GPUCount() int {
-	return 0
+	return k.GPUCountValue
 }
 
 func (cpk *customProviderKey) GPUType() string {
-	if t, ok := cpk.Labels[cpk.GPULabel]; ok {
-		return t
+	if cpk.GPULabel != "" {
+		if t, ok := cpk.Labels[cpk.GPULabel]; ok {
+			return t
+		}
 	}
-	return ""
+	return cpk.GPUTypeName
 }
 
 func (cpk *customProviderKey) ID() string {
