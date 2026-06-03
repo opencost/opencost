@@ -65,30 +65,31 @@ func (pm *PricingModule) SetCurrency(ctx context.Context, currency unit.Currency
 		return fmt.Errorf("getting node pricing: %w", err)
 	}
 
-	// Set up new Prices entry for the new currency
-	np.Prices[currency] = []pricing.Price{}
+	// Set up new Prices for the new currency
+	newPrices := []pricing.Price{}
 
 	// Convert all existing prices to the new currency
-	prices, ok := np.Prices[prevCurrency]
+	oldPrices, ok := np.Prices[prevCurrency]
 	if !ok {
 		log.Warnf("setting currency to '%s': no node prices found for existing currency '%s'", currency, pm.currency)
 		// There are no prices for the current currency.
 		// Set default prices using the new currency.
-		np = GetDefaultNodePricing(currency)
+		newPrices = GetDefaultNodePricing(currency).Prices[currency]
 	}
 
-	for _, price := range prices {
-		np.Prices[currency] = append(np.Prices[currency], pricing.Price{
+	for _, price := range oldPrices {
+		newPrices = append(newPrices, pricing.Price{
 			Currency: currency,
 			Unit:     price.Unit,
 			Price:    price.Price,
 		})
 	}
 
-	// Clear previous currency
-	delete(np.Prices, prevCurrency)
+	// Set new prices under new currency
+	np.Prices = make(pricing.Prices, 1)
+	np.Prices[currency] = newPrices
 
-	// Set node pricing
+	// Set node pricing on the module
 	err = pm.setNodePricing(ctx, np)
 	if err != nil {
 		return fmt.Errorf("setting node pricing: %w", err)
@@ -97,36 +98,37 @@ func (pm *PricingModule) SetCurrency(ctx context.Context, currency unit.Currency
 	// 2. Convert existing volume pricing to new currency
 	vp, err := pm.getVolumePricing(ctx)
 	if err != nil {
-		return fmt.Errorf("getting volume pricing: %w", err)
+		return fmt.Errorf("getting node pricing: %w", err)
 	}
 
-	// Set up new Prices entry for the new currency
-	vp.Prices[currency] = []pricing.Price{}
+	// Set up new Prices for the new currency
+	newPrices = []pricing.Price{}
 
 	// Convert all existing prices to the new currency
-	prices, ok = vp.Prices[prevCurrency]
+	oldPrices, ok = vp.Prices[prevCurrency]
 	if !ok {
-		log.Warnf("setting currency to '%s': no volume prices found for existing currency '%s'", currency, pm.currency)
+		log.Warnf("setting currency to '%s': no node prices found for existing currency '%s'", currency, pm.currency)
 		// There are no prices for the current currency.
 		// Set default prices using the new currency.
-		vp = GetDefaultVolumePricing(currency)
+		newPrices = GetDefaultVolumePricing(currency).Prices[currency]
 	}
 
-	for _, price := range prices {
-		vp.Prices[currency] = append(vp.Prices[currency], pricing.Price{
+	for _, price := range oldPrices {
+		newPrices = append(newPrices, pricing.Price{
 			Currency: currency,
 			Unit:     price.Unit,
 			Price:    price.Price,
 		})
 	}
 
-	// Clear previous currency
-	delete(vp.Prices, prevCurrency)
+	// Set new prices under new currency
+	vp.Prices = make(pricing.Prices, 1)
+	vp.Prices[currency] = newPrices
 
-	// Set Volume pricing
+	// Set node pricing on the module
 	err = pm.setVolumePricing(ctx, vp)
 	if err != nil {
-		return fmt.Errorf("setting volume pricing: %w", err)
+		return fmt.Errorf("setting node pricing: %w", err)
 	}
 
 	return nil
