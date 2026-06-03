@@ -39,6 +39,9 @@ func NewPricingModule(config PricingModuleConfig) (*PricingModule, error) {
 		return nil, fmt.Errorf("failed to load pricing: %w", err)
 	}
 
+	// Store the pricing set for reader access
+	pm.pricingSet = pricingSet
+
 	err = pm.indexPricingSet(ctx, pricingSet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load pricing: %w", err)
