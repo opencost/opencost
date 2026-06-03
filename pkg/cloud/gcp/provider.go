@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net/http"
 	"os"
 	"path"
 	"regexp"
@@ -16,6 +15,7 @@ import (
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 
@@ -968,9 +968,9 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 
 	url := gcp.getBillingAPIURL(gcp.APIKey, c.CurrencyCode)
 
-	// Each page is a bounded JSON response, so a total 30s timeout per request is
-	// fine and stops a stalled billing API from hanging the pricing refresh.
-	client := &http.Client{Timeout: 30 * time.Second}
+	// Each page is a bounded JSON response, so the shared bounded client (with a
+	// total request timeout) stops a stalled billing API from hanging the refresh.
+	client := httputil.BoundedClient()
 
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {

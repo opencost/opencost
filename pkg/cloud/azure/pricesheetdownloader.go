@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 )
 
 type PriceSheetDownloader struct {
@@ -79,13 +80,10 @@ func (d PriceSheetDownloader) saveData(ctx context.Context, url, tempName string
 		return nil, fmt.Errorf("creating %s temp file: %w", tempName, err)
 	}
 
-	// The price sheet can be large, so avoid a total client timeout that could
-	// truncate a slow download. Clone the default transport (keeping its dial/TLS
-	// timeouts) and add a response-header timeout to bail on a hung endpoint.
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.ResponseHeaderTimeout = 30 * time.Second
-	client := &http.Client{Transport: transport}
-	resp, err := client.Get(url)
+	// The price sheet can be large, so the streaming client bounds connect/TLS/
+	// response-header time but not the body read, avoiding truncation of a slow
+	// download. Pass the caller's context so the download is cancelable.
+	resp, err := httputil.StreamingGet(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("downloading: %w", err)
 	}
