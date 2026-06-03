@@ -448,7 +448,6 @@ func (s3 *S3Storage) Write(name string, data []byte) error {
 	// the sub-parts. To remain consistent with other storage implementations,
 	// we would rather attempt to lower cost fast upload and fast-fail.
 	var partSize uint64 = 0
-
 	r := bytes.NewReader(data)
 	_, err = s3.client.PutObject(ctx, s3.name, name, r, int64(size), minio.PutObjectOptions{
 		PartSize:             partSize,
@@ -461,6 +460,32 @@ func (s3 *S3Storage) Write(name string, data []byte) error {
 	}
 
 	return nil
+}
+
+// Upload the contents of the reader as an object into the bucket. The returned `io.WriteCloser` must
+// be closed to finalize the write.
+func (s3 *S3Storage) WriteStream(name string) (io.WriteCloser, error) {
+	name = trimLeading(name)
+
+	log.Debugf("S3Storage::WriteStream::%s(%s)", s3.protocol(), name)
+
+	ctx := context.Background()
+	sse, err := s3.getServerSideEncryption(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	r, w := io.Pipe()
+
+	go func() {
+		_, err = s3.client.PutObject(ctx, s3.name, name, r, -1, minio.PutObjectOptions{
+			ServerSideEncryption: sse,
+			UserMetadata:         s3.putUserMetadata,
+		})
+		r.CloseWithError(errors.Wrap(err, "upload s3 object"))
+	}()
+
+	return w, nil
 }
 
 // Attributes returns information about the specified object.

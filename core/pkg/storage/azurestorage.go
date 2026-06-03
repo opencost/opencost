@@ -337,6 +337,29 @@ func (b *AzureStorage) Write(name string, data []byte) error {
 	return nil
 }
 
+// WriteStream uses the relative path of the storage combined with the provided path
+// to write a new file or overwrite an existing file. The returned `io.WriteCloser` _must_
+// be closed to complete the write.
+func (b *AzureStorage) WriteStream(name string) (io.WriteCloser, error) {
+	name = trimLeading(name)
+	ctx := context.Background()
+
+	log.Debugf("AzureStorage::WriteStream::HTTPS(%s)", name)
+
+	r, w := io.Pipe()
+	blobClient := b.containerClient.NewBlockBlobClient(name)
+
+	go func() {
+		_, err := blobClient.UploadStream(ctx, r, &blockblob.UploadStreamOptions{
+			BlockSize:   4 * 1024 * 1024,
+			Concurrency: 4,
+		})
+		r.CloseWithError(errors.Wrapf(err, "cannot upload Azure blob, address: %s", name))
+	}()
+
+	return w, nil
+}
+
 // Remove uses the relative path of the storage combined with the provided path to
 // remove a file from storage permanently.
 func (b *AzureStorage) Remove(name string) error {

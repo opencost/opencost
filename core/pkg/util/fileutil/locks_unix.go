@@ -14,6 +14,22 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 )
 
+// LockFile directly attempts to flock SH the file instance provided.
+func LockFile(f *os.File) error {
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH); err != nil {
+		return fmt.Errorf("unexpected error flock()-ing FD: %d directly: %w", f.Fd(), err)
+	}
+	return nil
+}
+
+// UnlockFile directly attempts to flock UN the file instance provided.
+func UnlockFile(f *os.File) error {
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_UN); err != nil {
+		return fmt.Errorf("unexpected error flock()-ing FD %d with UN: %w", f.Fd(), err)
+	}
+	return nil
+}
+
 // WriteLockedFD uses the flock() syscall to safely write to an open file as
 // long as other users of the file are also using flock()-based access.
 //

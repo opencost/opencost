@@ -236,6 +236,16 @@ func (gs *GCSStorage) Write(name string, data []byte) error {
 	return nil
 }
 
+// Write uses the relative path of the storage combined with the provided path
+// to write a new file or overwrite an existing file.
+func (gs *GCSStorage) WriteStream(name string) (io.WriteCloser, error) {
+	name = trimLeading(name)
+	log.Debugf("GCSStorage::WriteStream::HTTPS(%s)", name)
+
+	ctx := context.Background()
+	return gs.bucket.Object(name).NewWriter(ctx), nil
+}
+
 // Remove uses the relative path of the storage combined with the provided path to
 // remove a file from storage permanently.
 func (gs *GCSStorage) Remove(name string) error {

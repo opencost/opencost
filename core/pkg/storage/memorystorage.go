@@ -132,6 +132,32 @@ func (ms *MemoryStorage) Write(path string, data []byte) error {
 	return nil
 }
 
+// Write uses the relative path of the storage combined with the provided path
+// to write a new file or overwrite an existing file.
+func (ms *MemoryStorage) WriteStream(path string) (io.WriteCloser, error) {
+	r, w := io.Pipe()
+
+	go func() {
+		data, err := io.ReadAll(r)
+		if err != nil {
+			r.CloseWithError(err)
+		}
+
+		ms.lock.Lock()
+		defer ms.lock.Unlock()
+
+		paths, pFile := memfile.Split(path)
+
+		f := memfile.NewMemoryFile(pFile, data)
+		currentDir := memfile.CreateSubdirectory(ms.fileTree, paths)
+
+		currentDir.AddFile(f)
+		ms.directPaths[path] = f
+	}()
+
+	return w, nil
+}
+
 // Remove uses the relative path of the storage combined with the provided path to
 // remove a file from storage permanently.
 func (ms *MemoryStorage) Remove(path string) error {
