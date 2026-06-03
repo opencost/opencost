@@ -25,12 +25,12 @@ func NewStoragePricingStore(store storage.Storage, path string) *StoragePricingS
 	}
 }
 
-func (sps *StoragePricingStore) GetCurrencies(ctx context.Context) ([]unit.Currency, error) {
+func (sps *StoragePricingStore) GetCurrencies(ctx context.Context) []unit.Currency {
 	currencies := map[unit.Currency]struct{}{}
 
 	pricing, err := sps.GetPricingSet(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("getting pricing: %w", err)
+		return []unit.Currency{}
 	}
 
 	for _, np := range pricing.Nodes {
@@ -45,7 +45,7 @@ func (sps *StoragePricingStore) GetCurrencies(ctx context.Context) ([]unit.Curre
 		}
 	}
 
-	return slices.Collect(maps.Keys(currencies)), nil
+	return slices.Collect(maps.Keys(currencies))
 }
 
 func (sps *StoragePricingStore) GetPricingSet(ctx context.Context) (*pricing.PricingSet, error) {

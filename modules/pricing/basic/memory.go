@@ -14,7 +14,13 @@ type MemoryPricingStore struct {
 	pricing *pricing.PricingSet
 }
 
-func (mps *MemoryPricingStore) GetCurrencies(ctx context.Context) ([]unit.Currency, error) {
+func NewMemoryPricingStore() *MemoryPricingStore {
+	return &MemoryPricingStore{
+		pricing: &pricing.PricingSet{},
+	}
+}
+
+func (mps *MemoryPricingStore) GetCurrencies(ctx context.Context) []unit.Currency {
 	currencies := map[unit.Currency]struct{}{}
 
 	for _, np := range mps.pricing.Nodes {
@@ -29,7 +35,7 @@ func (mps *MemoryPricingStore) GetCurrencies(ctx context.Context) ([]unit.Curren
 		}
 	}
 
-	return slices.Collect(maps.Keys(currencies)), nil
+	return slices.Collect(maps.Keys(currencies))
 }
 
 func (mps *MemoryPricingStore) GetPricingSet(ctx context.Context) (*pricing.PricingSet, error) {

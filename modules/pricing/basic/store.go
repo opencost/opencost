@@ -8,7 +8,7 @@ import (
 )
 
 type PricingStore interface {
-	GetCurrencies(ctx context.Context) ([]unit.Currency, error)
+	GetCurrencies(ctx context.Context) []unit.Currency
 	GetPricingSet(ctx context.Context) (*pricing.PricingSet, error)
 	SetPricingSet(ctx context.Context, pricing *pricing.PricingSet) error
 }
