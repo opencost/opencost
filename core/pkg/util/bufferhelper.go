@@ -491,3 +491,113 @@ func writeFloat64(w *bytes.Buffer, data float64) error {
 	_, err := w.Write(bs)
 	return err
 }
+
+func writeBuffBool(w *bufio.Writer, data bool) error {
+	if data {
+		w.WriteByte(1)
+		return nil
+	}
+
+	w.WriteByte(0)
+	return nil
+}
+
+func writeBuffInt8(w *bufio.Writer, data int8) error {
+	w.WriteByte(byte(data))
+	return nil
+}
+
+func writeBuffUint8(w *bufio.Writer, data uint8) error {
+	w.WriteByte(byte(data))
+	return nil
+}
+
+func writeBuffInt16(w *bufio.Writer, data int16) error {
+	var b [2]byte
+	bs := b[:]
+
+	binary.LittleEndian.PutUint16(bs, uint16(data))
+	_, err := w.Write(bs)
+	return err
+}
+
+func writeBuffUint16(w *bufio.Writer, data uint16) error {
+	var b [2]byte
+	bs := b[:]
+
+	binary.LittleEndian.PutUint16(bs, data)
+	_, err := w.Write(bs)
+	return err
+}
+
+func writeBuffInt32(w *bufio.Writer, data int32) error {
+	var b [4]byte
+	bs := b[:]
+
+	binary.LittleEndian.PutUint32(bs, uint32(data))
+	_, err := w.Write(bs)
+	return err
+}
+
+func writeBuffUint32(w *bufio.Writer, data uint32) error {
+	var b [4]byte
+	bs := b[:]
+
+	binary.LittleEndian.PutUint32(bs, data)
+	_, err := w.Write(bs)
+	return err
+}
+
+func writeBuffInt(w *bufio.Writer, data int) error {
+	var b [4]byte
+	bs := b[:]
+
+	binary.LittleEndian.PutUint32(bs, uint32(int32(data)))
+	_, err := w.Write(bs)
+	return err
+}
+
+func writeBuffUint(w *bufio.Writer, data uint) error {
+	var b [4]byte
+	bs := b[:]
+
+	binary.LittleEndian.PutUint32(bs, uint32(data))
+	_, err := w.Write(bs)
+	return err
+}
+
+func writeBuffInt64(w *bufio.Writer, data int64) error {
+	var b [8]byte
+	bs := b[:]
+
+	binary.LittleEndian.PutUint64(bs, uint64(data))
+	_, err := w.Write(bs)
+	return err
+}
+
+func writeBuffUint64(w *bufio.Writer, data uint64) error {
+	var b [8]byte
+	bs := b[:]
+
+	binary.LittleEndian.PutUint64(bs, data)
+	_, err := w.Write(bs)
+	return err
+}
+
+func writeBuffFloat32(w *bufio.Writer, data float32) error {
+	var b [4]byte
+	bs := b[:]
+
+	binary.LittleEndian.PutUint32(bs, math.Float32bits(data))
+	_, err := w.Write(bs)
+	return err
+}
+
+func writeBuffFloat64(w *bufio.Writer, data float64) error {
+	var b [8]byte
+	bs := b[:]
+
+	binary.LittleEndian.PutUint64(bs, math.Float64bits(data))
+	_, err := w.Write(bs)
+	return err
+}
