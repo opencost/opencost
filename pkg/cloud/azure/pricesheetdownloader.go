@@ -79,7 +79,13 @@ func (d PriceSheetDownloader) saveData(ctx context.Context, url, tempName string
 		return nil, fmt.Errorf("creating %s temp file: %w", tempName, err)
 	}
 
-	resp, err := http.Get(url)
+	// The price sheet can be large, so avoid a total client timeout that could
+	// truncate a slow download. Clone the default transport (keeping its dial/TLS
+	// timeouts) and add a response-header timeout to bail on a hung endpoint.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = 30 * time.Second
+	client := &http.Client{Transport: transport}
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("downloading: %w", err)
 	}

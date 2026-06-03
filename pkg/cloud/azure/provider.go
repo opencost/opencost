@@ -302,7 +302,10 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 	pricingURL := buildAzureRetailPricesURL(region, skuName, currencyCode)
 	log.Infof("starting download retail price payload from \"%s\"", pricingURL)
 
-	resp, err := http.Get(pricingURL)
+	// Single SKU lookup returns a small payload, so a 30s total timeout keeps a
+	// hung endpoint from blocking pricing without risking truncation.
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(pricingURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch retail price with URL \"%s\": %v", pricingURL, err)
 	}

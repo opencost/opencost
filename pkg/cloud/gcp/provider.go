@@ -968,6 +968,10 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 
 	url := gcp.getBillingAPIURL(gcp.APIKey, c.CurrencyCode)
 
+	// Each page is a bounded JSON response, so a total 30s timeout per request is
+	// fine and stops a stalled billing API from hanging the pricing refresh.
+	client := &http.Client{Timeout: 30 * time.Second}
+
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {
 		if pageToken == "done" {
@@ -975,7 +979,7 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 		} else if pageToken != "" {
 			url = url + "&pageToken=" + pageToken
 		}
-		resp, err := http.Get(url)
+		resp, err := client.Get(url)
 		if err != nil {
 			return err
 		}

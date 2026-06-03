@@ -858,7 +858,14 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 	}
 
 	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
-	resp, err := http.Get(pricingURL)
+	// This file is large and can take a while to stream, so we don't want a total
+	// client timeout that could cut off a legitimate slow download. Cloning the
+	// default transport keeps its dial/TLS timeouts and adds a response-header
+	// timeout, which is enough to bail on a hung or unreachable endpoint.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = 30 * time.Second
+	client := &http.Client{Transport: transport}
+	resp, err := client.Get(pricingURL)
 	if err != nil {
 		log.Errorf("Bogus fetch of \"%s\": %v", pricingURL, err)
 		return nil, pricingURL, err

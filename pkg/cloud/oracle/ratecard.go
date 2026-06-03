@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/opencost/opencost/pkg/cloud/models"
 )
@@ -52,8 +53,10 @@ func NewRateCardStore(url, currencyCode string) *RateCardStore {
 	return &RateCardStore{
 		url:          url,
 		currencyCode: currencyCode,
-		client:       &http.Client{},
-		prices:       map[string]Price{},
+		// Zero-value http.Client has no timeout; bound it so a stalled rate-card
+		// endpoint can't hang ingestion. 30s matches fargate.go / ovh.
+		client: &http.Client{Timeout: 30 * time.Second},
+		prices: map[string]Price{},
 	}
 }
 

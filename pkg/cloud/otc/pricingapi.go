@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 )
 
-var otcHTTPClient = http.DefaultClient
+// http.DefaultClient has no timeout, so a hung pricing endpoint would block the
+// paginated fetch loop forever. 30s matches the clients in fargate.go / ovh.
+var otcHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 // Fetches and flattens all product entries across multiple services with pagination
 func (otc *OTC) fetchPaginatedProducts(serviceNames []string) ([]Product, error) {
