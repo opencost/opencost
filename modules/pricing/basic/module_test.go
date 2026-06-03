@@ -50,6 +50,10 @@ func testPricingModuleWithStore(store PricingStore) func(t *testing.T) {
 			testSetPricePerGPUHour(t, ctx, pm)
 		})
 
+		t.Run("SetPricePerLocalDiskGiBHour", func(t *testing.T) {
+			testSetPricePerLocalDiskGiBHour(t, ctx, pm)
+		})
+
 		t.Run("NewNodePricingReader", func(t *testing.T) {
 			testNewNodePricingReader(t, ctx, pm)
 		})
@@ -111,7 +115,7 @@ func testDefaultPricing(t *testing.T, ctx context.Context, pm *PricingModule) {
 			if price.Price != DefaultNodePricePerVCPUHour {
 				t.Errorf("Expected CPU price to be %f, got %f", DefaultNodePricePerVCPUHour, price.Price)
 			}
-		case unit.GiBHour:
+		case unit.RAMGiBHour:
 			foundRAM = true
 			if price.Price != DefaultNodePricePerRAMGiBHour {
 				t.Errorf("Expected RAM price to be %f, got %f", DefaultNodePricePerRAMGiBHour, price.Price)
@@ -151,7 +155,7 @@ func testDefaultPricing(t *testing.T, ctx context.Context, pm *PricingModule) {
 
 	foundVolume := false
 	for _, price := range volumePrices {
-		if price.Unit == unit.GiBHour {
+		if price.Unit == unit.StorageGiBHour {
 			foundVolume = true
 			if price.Price != DefaultVolumePricePerGiBHour {
 				t.Errorf("Expected volume price to be %f, got %f", DefaultVolumePricePerGiBHour, price.Price)
@@ -332,7 +336,7 @@ func testSetPricePerRAMGiBHour(t *testing.T, ctx context.Context, pm *PricingMod
 
 	found := false
 	for _, price := range prices {
-		if price.Unit == unit.GiBHour {
+		if price.Unit == unit.RAMGiBHour {
 			found = true
 			if price.Price != newPrice {
 				t.Errorf("Expected RAM price to be %f, got %f", newPrice, price.Price)
@@ -377,6 +381,41 @@ func testSetPricePerGPUHour(t *testing.T, ctx context.Context, pm *PricingModule
 
 	if !found {
 		t.Error("Expected to find GPU pricing")
+	}
+}
+
+// testSetPricePerLocalDiskGiBHour tests the SetPricePerLocalDiskGiBHour function
+func testSetPricePerLocalDiskGiBHour(t *testing.T, ctx context.Context, pm *PricingModule) {
+	newPrice := 0.0007
+
+	err := pm.SetPricePerLocalDiskGiBHour(ctx, newPrice)
+	if err != nil {
+		t.Fatalf("Failed to set GPU price: %v", err)
+	}
+
+	// Verify the price was set
+	np, err := pm.getNodePricing(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get node pricing: %v", err)
+	}
+
+	prices, err := np.Prices.GetPricesInCurrency(pm.GetCurrency())
+	if err != nil {
+		t.Fatalf("Failed to get prices: %v", err)
+	}
+
+	found := false
+	for _, price := range prices {
+		if price.Unit == unit.StorageGiBHour {
+			found = true
+			if price.Price != newPrice {
+				t.Errorf("Expected local disk price to be %f, got %f", newPrice, price.Price)
+			}
+		}
+	}
+
+	if !found {
+		t.Error("Expected to find local disk pricing")
 	}
 }
 

@@ -7,11 +7,11 @@ nodes:
           unit: vCPU-hr
         - price: 0.004237
           currency: USD
-          unit: GiB-hr
+          unit: RAM-GiB-hr
 volumes:
   - properties: {}
     prices:
       USD:
         - price: 0.0000581
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr

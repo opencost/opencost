@@ -33,34 +33,38 @@ const (
 	GPU  Unit = "GPU"
 
 	// Compute resources cumulative over time
-	VCPUHour Unit = "vCPU-hr"
-	GiBHour  Unit = "GiB-hr"
-	GPUHour  Unit = "GPU-hr"
+	VCPUHour   Unit = "vCPU-hr"
+	RAMGiBHour Unit = "RAM-GiB-hr"
+	GPUHour    Unit = "GPU-hr"
+
+	// Storage resources cumulative over time
+	StorageGiBHour Unit = "storage-GiB-hr"
 )
 
 // validUnits is a map of all valid unit strings for quick lookup
 var validUnits = map[string]Unit{
-	string(Millisecond): Millisecond,
-	string(Second):      Second,
-	string(Minute):      Minute,
-	string(Hour):        Hour,
-	string(Byte):        Byte,
-	string(KB):          KB,
-	string(KiB):         KiB,
-	string(MB):          MB,
-	string(MiB):         MiB,
-	string(GB):          GB,
-	string(GiB):         GiB,
-	string(TB):          TB,
-	string(TiB):         TiB,
-	string(PB):          PB,
-	string(PiB):         PiB,
-	string(MCPU):        MCPU,
-	string(VCPU):        VCPU,
-	string(GPU):         GPU,
-	string(VCPUHour):    VCPUHour,
-	string(GiBHour):     GiBHour,
-	string(GPUHour):     GPUHour,
+	string(Millisecond):    Millisecond,
+	string(Second):         Second,
+	string(Minute):         Minute,
+	string(Hour):           Hour,
+	string(Byte):           Byte,
+	string(KB):             KB,
+	string(KiB):            KiB,
+	string(MB):             MB,
+	string(MiB):            MiB,
+	string(GB):             GB,
+	string(GiB):            GiB,
+	string(TB):             TB,
+	string(TiB):            TiB,
+	string(PB):             PB,
+	string(PiB):            PiB,
+	string(MCPU):           MCPU,
+	string(VCPU):           VCPU,
+	string(GPU):            GPU,
+	string(VCPUHour):       VCPUHour,
+	string(RAMGiBHour):     RAMGiBHour,
+	string(GPUHour):        GPUHour,
+	string(StorageGiBHour): StorageGiBHour,
 }
 
 // ParseUnit parses a string into a Unit type.

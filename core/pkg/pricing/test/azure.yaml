@@ -128,7 +128,7 @@ volumes:
       USD:
         - price: 0.0002192
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr
   - properties:
       provider: Azure
       region: eastus
@@ -137,7 +137,7 @@ volumes:
       USD:
         - price: 0.0001096
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr
   - properties:
       provider: Azure
       region: eastus
@@ -146,7 +146,7 @@ volumes:
       USD:
         - price: 0.0000685
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr
   - properties:
       provider: Azure
       region: westus2
@@ -155,7 +155,7 @@ volumes:
       USD:
         - price: 0.0002466
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr
   - properties:
       provider: Azure
       region: westus2
@@ -164,7 +164,7 @@ volumes:
       USD:
         - price: 0.0001233
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr
   - properties:
       provider: Azure
       region: westus2
@@ -173,4 +173,4 @@ volumes:
       USD:
         - price: 0.0000767
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr

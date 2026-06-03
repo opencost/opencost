@@ -39,7 +39,7 @@ func TestGetPrices(t *testing.T) {
 					},
 					{
 						Currency: unit.USD,
-						Unit:     unit.GiBHour,
+						Unit:     unit.RAMGiBHour,
 						Price:    0.004237,
 					},
 				},
@@ -56,7 +56,7 @@ func TestGetPrices(t *testing.T) {
 					},
 					{
 						Currency: unit.USD,
-						Unit:     unit.GiBHour,
+						Unit:     unit.RAMGiBHour,
 						Price:    0.004237,
 					},
 				},
@@ -68,7 +68,7 @@ func TestGetPrices(t *testing.T) {
 					},
 					{
 						Currency: unit.CNY,
-						Unit:     unit.GiBHour,
+						Unit:     unit.RAMGiBHour,
 						Price:    0.4237,
 					},
 				},
@@ -160,7 +160,7 @@ func TestGetPricesInCurrency(t *testing.T) {
 				unit.GBP: []Price{
 					{
 						Currency: unit.GBP,
-						Unit:     unit.GiBHour,
+						Unit:     unit.RAMGiBHour,
 						Price:    0.025,
 					},
 				},

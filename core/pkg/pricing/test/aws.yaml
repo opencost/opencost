@@ -128,7 +128,7 @@ volumes:
       USD:
         - price: 0.0001096
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr
   - properties:
       provider: AWS
       region: us-east-1
@@ -137,7 +137,7 @@ volumes:
       USD:
         - price: 0.000137
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr
   - properties:
       provider: AWS
       region: us-east-1
@@ -146,7 +146,7 @@ volumes:
       USD:
         - price: 0.0000205
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr
   - properties:
       provider: AWS
       region: us-west-1
@@ -155,7 +155,7 @@ volumes:
       USD:
         - price: 0.0001315
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr
   - properties:
       provider: AWS
       region: us-west-1
@@ -164,7 +164,7 @@ volumes:
       USD:
         - price: 0.0001644
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr
   - properties:
       provider: AWS
       region: us-west-1
@@ -173,4 +173,4 @@ volumes:
       USD:
         - price: 0.0000247
           currency: USD
-          unit: GiB-hr
+          unit: storage-GiB-hr

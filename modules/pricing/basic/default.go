@@ -8,8 +8,7 @@ import (
 const DefaultNodePricePerVCPUHour float64 = 0.031611
 const DefaultNodePricePerRAMGiBHour float64 = 0.004237
 const DefaultNodePricePerGPUHour float64 = 0.95
-
-// TODO: LocalStorageGBHour?
+const DefaultNodePricePerLocalDiskGiBHour float64 = 0.0001096
 
 const DefaultVolumePricePerGiBHour float64 = 0.00005479452
 
@@ -25,13 +24,18 @@ func GetDefaultNodePricing(currency unit.Currency) *pricing.NodePricing {
 				},
 				{
 					Currency: currency,
-					Unit:     unit.GiBHour,
+					Unit:     unit.RAMGiBHour,
 					Price:    DefaultNodePricePerRAMGiBHour,
 				},
 				{
 					Currency: currency,
 					Unit:     unit.GPUHour,
 					Price:    DefaultNodePricePerGPUHour,
+				},
+				{
+					Currency: currency,
+					Unit:     unit.StorageGiBHour,
+					Price:    DefaultNodePricePerLocalDiskGiBHour,
 				},
 			},
 		},
@@ -45,7 +49,7 @@ func GetDefaultVolumePricing(currency unit.Currency) *pricing.VolumePricing {
 			currency: []pricing.Price{
 				{
 					Currency: currency,
-					Unit:     unit.GiBHour,
+					Unit:     unit.StorageGiBHour,
 					Price:    DefaultVolumePricePerGiBHour,
 				},
 			},

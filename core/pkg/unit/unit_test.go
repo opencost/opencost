@@ -39,8 +39,9 @@ func TestParseUnit_Strings(t *testing.T) {
 
 		// Compute resources over time
 		{name: "vCPU-hr", input: "vCPU-hr", expect: VCPUHour, expectErr: false},
-		{name: "GiB-hr", input: "GiB-hr", expect: GiBHour, expectErr: false},
+		{name: "RAM-GiB-hr", input: "RAM-GiB-hr", expect: RAMGiBHour, expectErr: false},
 		{name: "GPU-hr", input: "GPU-hr", expect: GPUHour, expectErr: false},
+		{name: "storage-GiB-hr", input: "storage-GiB-hr", expect: StorageGiBHour, expectErr: false},
 
 		// Case insensitive tests
 		{name: "uppercase ms", input: "MS", expect: Millisecond, expectErr: false},

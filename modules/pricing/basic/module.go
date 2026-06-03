@@ -133,112 +133,19 @@ func (pm *PricingModule) SetCurrency(ctx context.Context, currency unit.Currency
 }
 
 func (pm *PricingModule) SetPricePerCPUCoreHour(ctx context.Context, price float64) error {
-	np, err := pm.getNodePricing(ctx)
-	if err != nil {
-		return fmt.Errorf("getting node pricing: %w", err)
-	}
-
-	prices, ok := np.Prices[pm.currency]
-	if !ok {
-		log.Warnf("setting price per VCPU-hour to '%f': no node prices found for existing currency '%s'", price, pm.currency)
-		// There are no prices for the current currency.
-		// Set default prices using the new currency.
-		np = GetDefaultNodePricing(pm.currency)
-	}
-
-	// Set the price with unit VCPUHour to the given price
-	for i, p := range prices {
-		if p.Unit == unit.VCPUHour {
-			prices[i] = pricing.Price{
-				Currency: p.Currency,
-				Unit:     p.Unit,
-				Price:    price,
-			}
-		}
-	}
-
-	// Set the new node pricing
-	err = pm.setNodePricing(ctx, np)
-	if err != nil {
-		return fmt.Errorf("setting node pricing: %w", err)
-	}
-
-	return nil
+	return pm.setNodePrice(ctx, unit.VCPUHour, price)
 }
 
 func (pm *PricingModule) SetPricePerRAMGiBHour(ctx context.Context, price float64) error {
-	np, err := pm.getNodePricing(ctx)
-	if err != nil {
-		return fmt.Errorf("getting node pricing: %w", err)
-	}
-
-	prices, ok := np.Prices[pm.currency]
-	if !ok {
-		log.Warnf("setting price per RAM GiB-hour to '%f': no node prices found for existing currency '%s'", price, pm.currency)
-		// There are no prices for the current currency.
-		// Set default prices using the new currency.
-		np = GetDefaultNodePricing(pm.currency)
-	}
-
-	// TODO: does this need to be RAMGiBHour?
-
-	// Set the price with unit GiBHour to the given price
-	for i, p := range prices {
-		if p.Unit == unit.GiBHour {
-			prices[i] = pricing.Price{
-				Currency: p.Currency,
-				Unit:     p.Unit,
-				Price:    price,
-			}
-		}
-	}
-
-	// Set the new node pricing
-	err = pm.setNodePricing(ctx, np)
-	if err != nil {
-		return fmt.Errorf("setting node pricing: %w", err)
-	}
-
-	return nil
+	return pm.setNodePrice(ctx, unit.RAMGiBHour, price)
 }
 
 func (pm *PricingModule) SetPricePerGPUHour(ctx context.Context, price float64) error {
-	np, err := pm.getNodePricing(ctx)
-	if err != nil {
-		return fmt.Errorf("getting node pricing: %w", err)
-	}
-
-	prices, ok := np.Prices[pm.currency]
-	if !ok {
-		log.Warnf("setting price per GPU-hour to '%f': no node prices found for existing currency '%s'", price, pm.currency)
-		// There are no prices for the current currency.
-		// Set default prices using the new currency.
-		np = GetDefaultNodePricing(pm.currency)
-	}
-
-	// Set the price with unit GPUHour to the given price
-	for i, p := range prices {
-		if p.Unit == unit.GPUHour {
-			prices[i] = pricing.Price{
-				Currency: p.Currency,
-				Unit:     p.Unit,
-				Price:    price,
-			}
-		}
-	}
-
-	// Set the new node pricing
-	err = pm.setNodePricing(ctx, np)
-	if err != nil {
-		return fmt.Errorf("setting node pricing: %w", err)
-	}
-
-	return nil
+	return pm.setNodePrice(ctx, unit.GPUHour, price)
 }
 
 func (pm *PricingModule) SetPricePerLocalDiskGiBHour(ctx context.Context, price float64) error {
-	// TODO: cannot implement without disambiguating RAMGiBHour from LocalStorageGiBHour
-	return errors.New("not implemented")
+	return pm.setNodePrice(ctx, unit.StorageGiBHour, price)
 }
 
 func (pm *PricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*pricing.NodePricing], error) {
@@ -255,6 +162,74 @@ func (pm *PricingModule) NewVolumePricingReader(ctx context.Context) (reader.Rea
 		return nil, fmt.Errorf("getting volume pricing: %w", err)
 	}
 	return reader.NewSliceReader([]*pricing.VolumePricing{vp}), nil
+}
+
+func (pm *PricingModule) setNodePrice(ctx context.Context, unit unit.Unit, price float64) error {
+	np, err := pm.getNodePricing(ctx)
+	if err != nil {
+		return fmt.Errorf("getting node pricing: %w", err)
+	}
+
+	prices, ok := np.Prices[pm.currency]
+	if !ok {
+		log.Warnf("setting price per %s to '%f': no node prices found for existing currency '%s'", unit, price, pm.currency)
+		// There are no prices for the current currency.
+		// Set default prices using the new currency.
+		np = GetDefaultNodePricing(pm.currency)
+	}
+
+	// Set the price with unit GiBHour to the given price
+	for i, p := range prices {
+		if p.Unit == unit {
+			prices[i] = pricing.Price{
+				Currency: p.Currency,
+				Unit:     p.Unit,
+				Price:    price,
+			}
+		}
+	}
+
+	// Set the new node pricing
+	err = pm.setNodePricing(ctx, np)
+	if err != nil {
+		return fmt.Errorf("setting node pricing: %w", err)
+	}
+
+	return nil
+}
+
+func (pm *PricingModule) setVolumePrice(ctx context.Context, unit unit.Unit, price float64) error {
+	vp, err := pm.getVolumePricing(ctx)
+	if err != nil {
+		return fmt.Errorf("getting volume pricing: %w", err)
+	}
+
+	prices, ok := vp.Prices[pm.currency]
+	if !ok {
+		log.Warnf("setting price per %s to '%f': no volume prices found for existing currency '%s'", unit, price, pm.currency)
+		// There are no prices for the current currency.
+		// Set default prices using the new currency.
+		vp = GetDefaultVolumePricing(pm.currency)
+	}
+
+	// Set the price with unit GiBHour to the given price
+	for i, p := range prices {
+		if p.Unit == unit {
+			prices[i] = pricing.Price{
+				Currency: p.Currency,
+				Unit:     p.Unit,
+				Price:    price,
+			}
+		}
+	}
+
+	// Set the new volume pricing
+	err = pm.setVolumePricing(ctx, vp)
+	if err != nil {
+		return fmt.Errorf("setting node pricing: %w", err)
+	}
+
+	return nil
 }
 
 func (pm *PricingModule) getNodePricing(ctx context.Context) (*pricing.NodePricing, error) {
