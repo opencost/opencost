@@ -12,28 +12,35 @@ const DefaultNodePricePerLocalDiskGiBHour float64 = 0.0001096
 
 const DefaultVolumePricePerGiBHour float64 = 0.00005479452
 
-func GetDefaultNodePricing(currency unit.Currency) *pricing.NodePricing {
+func GetDefaultPricingSet() *pricing.PricingSet {
+	return &pricing.PricingSet{
+		Nodes:   []*pricing.NodePricing{GetDefaultNodePricing()},
+		Volumes: []*pricing.VolumePricing{GetDefaultVolumePricing()},
+	}
+}
+
+func GetDefaultNodePricing() *pricing.NodePricing {
 	return &pricing.NodePricing{
 		Properties: pricing.NodePricingProperties{},
 		Prices: pricing.Prices{
-			currency: []pricing.Price{
+			unit.USD: []pricing.Price{
 				{
-					Currency: currency,
+					Currency: unit.USD,
 					Unit:     unit.VCPUHour,
 					Price:    DefaultNodePricePerVCPUHour,
 				},
 				{
-					Currency: currency,
+					Currency: unit.USD,
 					Unit:     unit.RAMGiBHour,
 					Price:    DefaultNodePricePerRAMGiBHour,
 				},
 				{
-					Currency: currency,
+					Currency: unit.USD,
 					Unit:     unit.GPUHour,
 					Price:    DefaultNodePricePerGPUHour,
 				},
 				{
-					Currency: currency,
+					Currency: unit.USD,
 					Unit:     unit.StorageGiBHour,
 					Price:    DefaultNodePricePerLocalDiskGiBHour,
 				},
@@ -42,13 +49,13 @@ func GetDefaultNodePricing(currency unit.Currency) *pricing.NodePricing {
 	}
 }
 
-func GetDefaultVolumePricing(currency unit.Currency) *pricing.VolumePricing {
+func GetDefaultVolumePricing() *pricing.VolumePricing {
 	return &pricing.VolumePricing{
 		Properties: pricing.VolumePricingProperties{},
 		Prices: pricing.Prices{
-			currency: []pricing.Price{
+			unit.USD: []pricing.Price{
 				{
-					Currency: currency,
+					Currency: unit.USD,
 					Unit:     unit.StorageGiBHour,
 					Price:    DefaultVolumePricePerGiBHour,
 				},

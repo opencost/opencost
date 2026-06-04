@@ -13,9 +13,14 @@ import (
 )
 
 func TestPricingModule(t *testing.T) {
-	stores := map[string]PricingStore{
-		"MemoryPricingStore":  NewMemoryPricingStore(),
-		"StoragePricingStore": NewStoragePricingStore(newFileStorage(t), "pricing.json"),
+	memoryPricingStore := pricing.NewMemoryPricingStore()
+
+	filePricingStore, err := pricing.NewStoragePricingStore(t.Context(), newFileStorage(t), "pricing.json")
+	require.NoError(t, err)
+
+	stores := map[string]pricing.PricingStore{
+		"MemoryPricingStore":  memoryPricingStore,
+		"StoragePricingStore": filePricingStore,
 	}
 
 	for name, store := range stores {
@@ -23,7 +28,7 @@ func TestPricingModule(t *testing.T) {
 	}
 }
 
-func testPricingModuleWithStore(store PricingStore) func(t *testing.T) {
+func testPricingModuleWithStore(store pricing.PricingStore) func(t *testing.T) {
 	return func(t *testing.T) {
 		ctx := t.Context()
 
@@ -38,20 +43,24 @@ func testPricingModuleWithStore(store PricingStore) func(t *testing.T) {
 			testSetCurrency(t, ctx, pm)
 		})
 
-		t.Run("SetPricePerCPUCoreHour", func(t *testing.T) {
-			testSetPricePerCPUCoreHour(t, ctx, pm)
+		t.Run("SetNodePricePerCPUCoreHour", func(t *testing.T) {
+			testSetNodePricePerCPUCoreHour(t, ctx, pm)
 		})
 
-		t.Run("SetPricePerRAMGiBHour", func(t *testing.T) {
-			testSetPricePerRAMGiBHour(t, ctx, pm)
+		t.Run("SetNodePricePerRAMGiBHour", func(t *testing.T) {
+			testSetNodePricePerRAMGiBHour(t, ctx, pm)
 		})
 
-		t.Run("SetPricePerGPUHour", func(t *testing.T) {
-			testSetPricePerGPUHour(t, ctx, pm)
+		t.Run("SetNodePricePerGPUHour", func(t *testing.T) {
+			testSetNodePricePerGPUHour(t, ctx, pm)
 		})
 
-		t.Run("SetPricePerLocalDiskGiBHour", func(t *testing.T) {
-			testSetPricePerLocalDiskGiBHour(t, ctx, pm)
+		t.Run("SetNodePricePerLocalDiskGiBHour", func(t *testing.T) {
+			testSetNodePricePerLocalDiskGiBHour(t, ctx, pm)
+		})
+
+		t.Run("SetVolumePricePerStorageGiBHour", func(t *testing.T) {
+			testSetVolumePricePerStorageGiBHour(t, ctx, pm)
 		})
 
 		t.Run("NewNodePricingReader", func(t *testing.T) {
@@ -279,11 +288,11 @@ func testSetCurrency(t *testing.T, ctx context.Context, pm *PricingModule) {
 	}
 }
 
-// testSetPricePerCPUCoreHour tests the SetPricePerCPUCoreHour function
-func testSetPricePerCPUCoreHour(t *testing.T, ctx context.Context, pm *PricingModule) {
+// testSetNodePricePerCPUCoreHour tests the SetNodePricePerCPUCoreHour function
+func testSetNodePricePerCPUCoreHour(t *testing.T, ctx context.Context, pm *PricingModule) {
 	newPrice := 0.075
 
-	err := pm.SetPricePerCPUCoreHour(ctx, newPrice)
+	err := pm.SetNodePricePerCPUCoreHour(ctx, newPrice)
 	if err != nil {
 		t.Fatalf("Failed to set CPU price: %v", err)
 	}
@@ -314,11 +323,11 @@ func testSetPricePerCPUCoreHour(t *testing.T, ctx context.Context, pm *PricingMo
 	}
 }
 
-// testSetPricePerRAMGiBHour tests the SetPricePerRAMGiBHour function
-func testSetPricePerRAMGiBHour(t *testing.T, ctx context.Context, pm *PricingModule) {
+// testSetNodePricePerRAMGiBHour tests the SetNodePricePerRAMGiBHour function
+func testSetNodePricePerRAMGiBHour(t *testing.T, ctx context.Context, pm *PricingModule) {
 	newPrice := 0.008
 
-	err := pm.SetPricePerRAMGiBHour(ctx, newPrice)
+	err := pm.SetNodePricePerRAMGiBHour(ctx, newPrice)
 	if err != nil {
 		t.Fatalf("Failed to set RAM price: %v", err)
 	}
@@ -349,11 +358,11 @@ func testSetPricePerRAMGiBHour(t *testing.T, ctx context.Context, pm *PricingMod
 	}
 }
 
-// testSetPricePerGPUHour tests the SetPricePerGPUHour function
-func testSetPricePerGPUHour(t *testing.T, ctx context.Context, pm *PricingModule) {
+// testSetNodePricePerGPUHour tests the SetNodePricePerGPUHour function
+func testSetNodePricePerGPUHour(t *testing.T, ctx context.Context, pm *PricingModule) {
 	newPrice := 2.0
 
-	err := pm.SetPricePerGPUHour(ctx, newPrice)
+	err := pm.SetNodePricePerGPUHour(ctx, newPrice)
 	if err != nil {
 		t.Fatalf("Failed to set GPU price: %v", err)
 	}
@@ -384,13 +393,13 @@ func testSetPricePerGPUHour(t *testing.T, ctx context.Context, pm *PricingModule
 	}
 }
 
-// testSetPricePerLocalDiskGiBHour tests the SetPricePerLocalDiskGiBHour function
-func testSetPricePerLocalDiskGiBHour(t *testing.T, ctx context.Context, pm *PricingModule) {
+// testSetNodePricePerLocalDiskGiBHour tests the SetNodePricePerLocalDiskGiBHour function
+func testSetNodePricePerLocalDiskGiBHour(t *testing.T, ctx context.Context, pm *PricingModule) {
 	newPrice := 0.0007
 
-	err := pm.SetPricePerLocalDiskGiBHour(ctx, newPrice)
+	err := pm.SetNodePricePerLocalDiskGiBHour(ctx, newPrice)
 	if err != nil {
-		t.Fatalf("Failed to set GPU price: %v", err)
+		t.Fatalf("Failed to set local disk price: %v", err)
 	}
 
 	// Verify the price was set
@@ -416,6 +425,41 @@ func testSetPricePerLocalDiskGiBHour(t *testing.T, ctx context.Context, pm *Pric
 
 	if !found {
 		t.Error("Expected to find local disk pricing")
+	}
+}
+
+// testSetVolumePricePerStorageGiBHour tests the SetVolumePricePerStorageGiBHour function
+func testSetVolumePricePerStorageGiBHour(t *testing.T, ctx context.Context, pm *PricingModule) {
+	newPrice := 0.0003
+
+	err := pm.SetVolumePricePerStorageGiBHour(ctx, newPrice)
+	if err != nil {
+		t.Fatalf("Failed to set volume storage price: %v", err)
+	}
+
+	// Verify the price was set
+	vp, err := pm.getVolumePricing(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get volume pricing: %v", err)
+	}
+
+	prices, err := vp.Prices.GetPricesInCurrency(pm.GetCurrency())
+	if err != nil {
+		t.Fatalf("Failed to get prices: %v", err)
+	}
+
+	found := false
+	for _, price := range prices {
+		if price.Unit == unit.StorageGiBHour {
+			found = true
+			if price.Price != newPrice {
+				t.Errorf("Expected volume storage price to be %f, got %f", newPrice, price.Price)
+			}
+		}
+	}
+
+	if !found {
+		t.Error("Expected to find volume storage pricing")
 	}
 }
 
