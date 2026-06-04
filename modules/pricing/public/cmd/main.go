@@ -18,7 +18,7 @@ var (
 	provider    string
 	currency    string
 	output      string
-	compareFile string
+	compare     bool
 )
 
 func main() {
@@ -39,7 +39,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&provider, "provider", "p", "aws", "Cloud provider (aws, azure, gcp). Default: aws")
 	rootCmd.Flags().StringVarP(&currency, "currency", "c", "USD", "Currency code (e.g. USD, EUR, CNY). Default: USD")
 	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (optional). Default: stdout")
-	rootCmd.Flags().StringVarP(&compareFile, "compare", "x", "", "Compare generated data with this file. Exit 0 if identical, 2 if different")
+	rootCmd.Flags().BoolVarP(&compare, "compare", "x", false, "Compare with existing file at -o location and overwrite if different")
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -74,9 +74,12 @@ func run(cmd *cobra.Command, args []string) error {
 	log.Infof("Generated %d node pricing entries and %d volume pricing entries",
 		len(pricingSet.Nodes), len(pricingSet.Volumes))
 
-	// Compare mode: check if generated data differs from existing file
-	if compareFile != "" {
-		return handleCompareMode(data, compareFile, output)
+	// if comparing, check if file at -o differs and overwrite if needed
+	if compare {
+		if output == "" {
+			return fmt.Errorf("compare mode (-x) requires output file (-o) to be specified")
+		}
+		return handleCompareMode(data, output)
 	}
 
 	// Normal mode: write output
@@ -92,36 +95,41 @@ func run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func handleCompareMode(newData []byte, compareFilePath string, outputPath string) error {
-	// Read the file to compare against
-	existingData, err := os.ReadFile(compareFilePath)
+func handleCompareMode(newData []byte, outputPath string) error {
+	// Try to read existing file
+	existingData, err := os.ReadFile(outputPath)
 	if err != nil {
-		return fmt.Errorf("failed to read compare file '%s': %w", compareFilePath, err)
+		// File doesn't exist or can't be read, write new data
+		if os.IsNotExist(err) {
+			log.Infof("File does not exist, creating: %s", outputPath)
+		} else {
+			log.Warnf("Could not read existing file: %v, overwriting", err)
+		}
+		if err := os.WriteFile(outputPath, newData, 0644); err != nil {
+			return fmt.Errorf("failed to write output file: %w", err)
+		}
+		log.Infof("Wrote pricing data to %s", outputPath)
+		return nil
 	}
 
 	// Compute checksums
 	existingChecksum := computeChecksum(existingData)
 	newChecksum := computeChecksum(newData)
 
-	log.Infof("Compare file checksum: %s", existingChecksum)
-	log.Infof("New data checksum:     %s", newChecksum)
+	log.Infof("Existing file checksum: %s", existingChecksum)
+	log.Infof("New data checksum:      %s", newChecksum)
 
-	// Write output if specified
-	if outputPath != "" {
-		if err := os.WriteFile(outputPath, newData, 0644); err != nil {
-			return fmt.Errorf("failed to write output file: %w", err)
-		}
-		log.Infof("Wrote pricing data to %s", outputPath)
-	}
-
-	// Compare and exit with appropriate code
+	// Compare and overwrite if different
 	if existingChecksum == newChecksum {
-		log.Infof("Pricing data is identical")
+		log.Infof("Pricing data is identical, no update needed")
 		return nil
 	}
 
-	log.Infof("Pricing data is different")
-	os.Exit(2) // Exit 2 to indicate difference
+	log.Infof("Pricing data is different, updating file")
+	if err := os.WriteFile(outputPath, newData, 0644); err != nil {
+		return fmt.Errorf("failed to write output file: %w", err)
+	}
+	log.Infof("Updated pricing data at %s", outputPath)
 	return nil
 }
 

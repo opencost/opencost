@@ -1,0 +1,35 @@
+name: Cloud Pricing Update
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  update-pricing:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - currency: usd
+            provider: aws
+          - currency: cny
+            provider: aws
+          - currency: usd
+            provider: azure
+          - currency: eur
+            provider: azure
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 'stable'
+
+    - name: Run Pricing Generator
+      id: run_cli
+      run: |
+        go run main.go fetch-pricing -c ${{ matrix.currency }} -p ${{ matrix.provider }} -o modules/pricing/public/pricing-data/${{ matrix.provider }}/${{ matrix.provider }}-${{ matrix.currency }}.json -x
