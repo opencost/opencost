@@ -71,8 +71,8 @@ var diagnosticDefinitions = map[string]*diagnosticDefinition{
 	},
 	CPUThrottlingDiagnosticMetricID: {
 		ID: CPUThrottlingDiagnosticMetricID,
-		QueryFmt: `avg(increase(container_cpu_cfs_throttled_periods_total{container="cost-model",%s}[10m] %s)) by (container_name,pod_name,namespace)
-	/ avg(increase(container_cpu_cfs_periods_total{container="cost-model",%s}[10m] %s)) by (container_name,pod_name,namespace) > 0.2`,
+		QueryFmt: `avg(increase(container_cpu_cfs_throttled_periods_total{k8s_container_name="cost-model",%s}[10m] %s)) by (k8s_container_name,k8s_pod_name,k8s_namespace_name)
+	/ avg(increase(container_cpu_cfs_periods_total{k8s_container_name="cost-model",%s}[10m] %s)) by (k8s_container_name,k8s_pod_name,k8s_namespace_name) > 0.2`,
 		Label:       "Kubecost is not CPU throttled",
 		Description: "Kubecost loading slowly? A kubecost component might be CPU throttled",
 	},

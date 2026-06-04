@@ -35,6 +35,9 @@ const (
 	epConfig          = apiPrefix + "/status/config"
 	epFlags           = apiPrefix + "/status/flags"
 	epRules           = apiPrefix + "/rules"
+
+	// FrontendContextName is the query context name for frontend proxy requests
+	FrontendContextName = "frontend"
 )
 
 // helper for query range proxy requests
@@ -300,16 +303,17 @@ func (pds *PrometheusOTelDataSource) prometheusQuery(w http.ResponseWriter, r *h
 		}
 	}
 
-	ctx := pds.promContexts.NewNamedContext(promsource.FrontendContextName)
+	ctx := pds.promContexts.NewNamedContext(FrontendContextName)
 	body, err := ctx.RawQuery(query, timeVal)
 	if err != nil {
 		proto.WriteResponse(w, proto.ToResponse(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
 		return
 	}
 
-	w.Write(body) // prometheusQueryRange is a proxy for /query_range against prometheus
+	w.Write(body)
 }
 
+// prometheusQueryRange is a proxy for /query_range against prometheus
 func (pds *PrometheusOTelDataSource) prometheusQueryRange(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -327,7 +331,7 @@ func (pds *PrometheusOTelDataSource) prometheusQueryRange(w http.ResponseWriter,
 		return
 	}
 
-	ctx := pds.promContexts.NewNamedContext(promsource.FrontendContextName)
+	ctx := pds.promContexts.NewNamedContext(FrontendContextName)
 	body, err := ctx.RawQueryRange(query, start, end, duration)
 	if err != nil {
 		fmt.Fprintf(w, "Error running query %s. Error: %s", query, err)

@@ -75,7 +75,7 @@ func (pds *PrometheusMetricsQuerier) QueryNodeCPUModeTotal(start, end time.Time)
 	cfg := pds.promConfig
 	m := cfg.DataResolutionMinutes
 	d := pds.durationStringFor(start, end, m, false)
-	q := fmt.Sprintf(`sum(rate(system_cpu_time{%s}[%s:%dm])) by (kubernetes_node, %s, state)`, cfg.ClusterFilter, d, m, cfg.ClusterLabel)
+	q := fmt.Sprintf(`sum(rate(system_cpu_time{%s}[%s:%dm])) by (k8s_node_name, %s, state)`, cfg.ClusterFilter, d, m, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryNodeCPUModeTotal", end.Unix(), q)
 	return source.NewFuture(source.DecodeNodeCPUModeTotalResult, pds.NewNamedContext(promsource.ClusterContextName).QueryAtTime(q, end))
 }

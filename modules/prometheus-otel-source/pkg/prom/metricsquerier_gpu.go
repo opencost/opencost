@@ -13,7 +13,7 @@ import (
 func (pds *PrometheusMetricsQuerier) QueryGPUsRequested(start, end time.Time) *source.Future[source.GPUsRequestedResult] {
 	cfg := pds.promConfig
 	d := timeutil.DurationString(end.Sub(start))
-	q := fmt.Sprintf(`avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu",k8s_container_name!="",container!="POD",k8s_node_name!="",%s}[%s])) by (k8s_container_name,k8s_pod_name,k8s_namespace_name,k8s_node_name,%s)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
+	q := fmt.Sprintf(`avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu",k8s_container_name!="",k8s_container_name!="POD",k8s_node_name!="",%s}[%s])) by (k8s_container_name,k8s_pod_name,k8s_namespace_name,k8s_node_name,%s)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryGPUsRequested", end.Unix(), q)
 	return source.NewFuture(source.DecodeGPUsRequestedResult, pds.NewNamedContext(promsource.AllocationContextName).QueryAtTime(q, end))
 }
@@ -45,7 +45,7 @@ func (pds *PrometheusMetricsQuerier) QueryGPUsAllocated(start, end time.Time) *s
 func (pds *PrometheusMetricsQuerier) QueryIsGPUShared(start, end time.Time) *source.Future[source.IsGPUSharedResult] {
 	cfg := pds.promConfig
 	d := timeutil.DurationString(end.Sub(start))
-	q := fmt.Sprintf(`avg(avg_over_time(kube_pod_container_resource_requests{k8s_container_name!="",node!="",pod!="",k8s_container_name!="",unit="integer",%s}[%s])) by (k8s_container_name,k8s_pod_name,k8s_namespace_name,k8s_node_name,resource,%s)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
+	q := fmt.Sprintf(`avg(avg_over_time(kube_pod_container_resource_requests{k8s_container_name!="",k8s_node_name!="",k8s_pod_name!="",k8s_container_name!="",unit="integer",%s}[%s])) by (k8s_container_name,k8s_pod_name,k8s_namespace_name,k8s_node_name,resource,%s)`, cfg.ClusterFilter, d, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, "QueryIsGPUShared", end.Unix(), q)
 	return source.NewFuture(source.DecodeIsGPUSharedResult, pds.NewNamedContext(promsource.AllocationContextName).QueryAtTime(q, end))
 }
