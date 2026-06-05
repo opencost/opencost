@@ -265,6 +265,10 @@ func (a *AzurePricingSource) includeDiskItem(item AzurePricingAttributes) bool {
 		return false
 	}
 	productLower := strings.ToLower(item.ProductName)
+	// Exclude unmanaged disks explicitly (weird case where "Unmanaged disk" still has managed "managed disk" :\)
+	if strings.Contains(productLower, "unmanaged") {
+		return false
+	}
 	// Only include managed disks
 	return strings.Contains(productLower, "managed disk")
 }

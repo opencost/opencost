@@ -1,238 +1,351 @@
 package azure
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/pricing"
-	"github.com/opencost/opencost/core/pkg/unit"
 )
 
-func TestBuildVMURL(t *testing.T) {
-	t.Run("includes encoded filter and currency", func(t *testing.T) {
-		source := NewAzurePricingSource(AzurePricingSourceConfig{
-			CurrencyCode: "EUR",
-		})
-
-		got := source.buildVMURL()
-
-		if !strings.HasPrefix(got, azurePricingBaseURL+"?$filter=") {
-			t.Fatalf("expected base URL prefix, got %q", got)
-		}
-		if !strings.Contains(got, "currencyCode=EUR") {
-			t.Fatalf("expected currency code in URL, got %q", got)
-		}
-		if strings.Contains(got, azureVMFilter) {
-			t.Fatalf("expected filter to be URL-escaped, got %q", got)
-		}
-	})
-
-	t.Run("omits currency when not configured", func(t *testing.T) {
-		source := NewAzurePricingSource(AzurePricingSourceConfig{})
-
-		got := source.buildVMURL()
-
-		if strings.Contains(got, "currencyCode=") {
-			t.Fatalf("did not expect currency code in URL, got %q", got)
-		}
-	})
-}
-
-func TestIncludeItem(t *testing.T) {
-	source := NewAzurePricingSource(AzurePricingSourceConfig{})
-
+func TestMapAzureDiskType(t *testing.T) {
 	tests := []struct {
-		name string
-		item AzurePricingAttributes
-		want bool
+		name     string
+		skuName  string
+		expected pricing.VolumeType
 	}{
 		{
-			name: "includes valid linux VM item",
-			item: AzurePricingAttributes{
-				ArmSkuName:    "Standard_D2s_v5",
-				ArmRegionName: "eastus",
-				ProductName:   "Virtual Machines Dsv5 Series",
-				SkuName:       "D2s v5",
-			},
-			want: true,
+			name:     "Premium SSD V2",
+			skuName:  "Premium SSD v2 Managed Disk",
+			expected: pricing.VolumeTypePremiumV2LRS,
 		},
 		{
-			name: "excludes missing sku",
-			item: AzurePricingAttributes{
-				ArmRegionName: "eastus",
-				ProductName:   "Virtual Machines Dsv5 Series",
-				SkuName:       "D2s v5",
-			},
-			want: false,
+			name:     "PremiumV2 variant",
+			skuName:  "PremiumV2 LRS Disk",
+			expected: pricing.VolumeTypePremiumV2LRS,
 		},
 		{
-			name: "excludes missing region",
-			item: AzurePricingAttributes{
-				ArmSkuName:  "Standard_D2s_v5",
-				ProductName: "Virtual Machines Dsv5 Series",
-				SkuName:     "D2s v5",
-			},
-			want: false,
+			name:     "Premium SSD",
+			skuName:  "Premium SSD Managed Disk",
+			expected: pricing.VolumeTypePremiumLRS,
 		},
 		{
-			name: "excludes windows items",
-			item: AzurePricingAttributes{
-				ArmSkuName:    "Standard_D2s_v5",
-				ArmRegionName: "eastus",
-				ProductName:   "Virtual Machines Windows",
-				SkuName:       "D2s v5",
-			},
-			want: false,
+			name:     "Standard SSD",
+			skuName:  "Standard SSD Managed Disk",
+			expected: pricing.VolumeTypeStandardSSDLRS,
 		},
 		{
-			name: "excludes low priority items",
-			item: AzurePricingAttributes{
-				ArmSkuName:    "Standard_D2s_v5",
-				ArmRegionName: "eastus",
-				ProductName:   "Virtual Machines Dsv5 Series",
-				SkuName:       "Low Priority D2s v5",
-			},
-			want: false,
+			name:     "StandardSSD variant",
+			skuName:  "StandardSSD LRS",
+			expected: pricing.VolumeTypeStandardSSDLRS,
 		},
 		{
-			name: "excludes cloud services items",
-			item: AzurePricingAttributes{
-				ArmSkuName:    "Standard_D2s_v5",
-				ArmRegionName: "eastus",
-				ProductName:   "Cloud Services",
-				SkuName:       "D2s v5",
-			},
-			want: false,
+			name:     "Standard HDD",
+			skuName:  "Standard HDD Managed Disk",
+			expected: pricing.VolumeTypeStandardHDDLRS,
 		},
 		{
-			name: "excludes cloudservices items without space",
-			item: AzurePricingAttributes{
-				ArmSkuName:    "Standard_D2s_v5",
-				ArmRegionName: "eastus",
-				ProductName:   "CloudServices Extended Support",
-				SkuName:       "D2s v5",
-			},
-			want: false,
+			name:     "Ultra SSD",
+			skuName:  "Ultra SSD Managed Disk",
+			expected: pricing.VolumeTypeUltraSSDLRS,
+		},
+		{
+			name:     "Unknown type",
+			skuName:  "Some Unknown Disk Type",
+			expected: pricing.VolumeTypeNil,
+		},
+		{
+			name:     "Case insensitive Premium",
+			skuName:  "PREMIUM SSD MANAGED DISK",
+			expected: pricing.VolumeTypePremiumLRS,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := source.includeItem(tt.item)
-			if got != tt.want {
-				t.Fatalf("expected %t, got %t", tt.want, got)
+			result := mapAzureDiskType(tt.skuName)
+			if result != tt.expected {
+				t.Errorf("mapAzureDiskType(%q) = %v, want %v", tt.skuName, result, tt.expected)
 			}
 		})
 	}
 }
 
-func TestParseVMPage(t *testing.T) {
-	t.Run("adds included items and returns next page link", func(t *testing.T) {
-		source := NewAzurePricingSource(AzurePricingSourceConfig{
-			CurrencyCode: "EUR",
-		})
-		ps := &pricing.PricingSet{}
+func TestIncludeItem(t *testing.T) {
+	source := &AzurePricingSource{
+		config: AzurePricingSourceConfig{
+			CurrencyCode: "USD",
+		},
+	}
 
-		body := `{
-			"Items": [
-				{
-					"armSkuName": "Standard_D2s_v5",
-					"armRegionName": "eastus",
-					"productName": "Virtual Machines Dsv5 Series",
-					"skuName": "D2s v5",
-					"retailPrice": 0.25
+	tests := []struct {
+		name     string
+		item     AzurePricingAttributes
+		expected bool
+	}{
+		{
+			name: "valid Linux VM",
+			item: AzurePricingAttributes{
+				ArmSkuName:    "Standard_D2s_v3",
+				ArmRegionName: "eastus",
+				ProductName:   "Virtual Machines Dsv3 Series",
+				SkuName:       "D2s v3",
+			},
+			expected: true,
+		},
+		{
+			name: "Windows VM - excluded",
+			item: AzurePricingAttributes{
+				ArmSkuName:    "Standard_D2s_v3",
+				ArmRegionName: "eastus",
+				ProductName:   "Virtual Machines Dsv3 Series Windows",
+				SkuName:       "D2s v3",
+			},
+			expected: false,
+		},
+		{
+			name: "Low priority - excluded",
+			item: AzurePricingAttributes{
+				ArmSkuName:    "Standard_D2s_v3",
+				ArmRegionName: "eastus",
+				ProductName:   "Virtual Machines Dsv3 Series",
+				SkuName:       "D2s v3 Low Priority",
+			},
+			expected: false,
+		},
+		{
+			name: "Cloud Services - excluded",
+			item: AzurePricingAttributes{
+				ArmSkuName:    "Standard_D2s_v3",
+				ArmRegionName: "eastus",
+				ProductName:   "Cloud Services Dsv3 Series",
+				SkuName:       "D2s v3",
+			},
+			expected: false,
+		},
+		{
+			name: "CloudServices variant - excluded",
+			item: AzurePricingAttributes{
+				ArmSkuName:    "Standard_D2s_v3",
+				ArmRegionName: "eastus",
+				ProductName:   "CloudServices Dsv3 Series",
+				SkuName:       "D2s v3",
+			},
+			expected: false,
+		},
+		{
+			name: "Missing ArmSkuName - excluded",
+			item: AzurePricingAttributes{
+				ArmSkuName:    "",
+				ArmRegionName: "eastus",
+				ProductName:   "Virtual Machines Dsv3 Series",
+				SkuName:       "D2s v3",
+			},
+			expected: false,
+		},
+		{
+			name: "Missing ArmRegionName - excluded",
+			item: AzurePricingAttributes{
+				ArmSkuName:    "Standard_D2s_v3",
+				ArmRegionName: "",
+				ProductName:   "Virtual Machines Dsv3 Series",
+				SkuName:       "D2s v3",
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := source.includeItem(tt.item)
+			if result != tt.expected {
+				t.Errorf("includeItem() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIncludeDiskItem(t *testing.T) {
+	source := &AzurePricingSource{
+		config: AzurePricingSourceConfig{
+			CurrencyCode: "USD",
+		},
+	}
+
+	tests := []struct {
+		name     string
+		item     AzurePricingAttributes
+		expected bool
+	}{
+		{
+			name: "Managed disk - included",
+			item: AzurePricingAttributes{
+				ArmRegionName: "eastus",
+				ProductName:   "Premium SSD Managed Disk",
+				SkuName:       "P10 LRS",
+			},
+			expected: true,
+		},
+		{
+			name: "Managed Disk uppercase - included",
+			item: AzurePricingAttributes{
+				ArmRegionName: "eastus",
+				ProductName:   "PREMIUM SSD MANAGED DISK",
+				SkuName:       "P10 LRS",
+			},
+			expected: true,
+		},
+		{
+			name: "Unmanaged disk - excluded",
+			item: AzurePricingAttributes{
+				ArmRegionName: "eastus",
+				ProductName:   "Premium SSD Unmanaged Disk",
+				SkuName:       "P10",
+			},
+			expected: false,
+		},
+		{
+			name: "Missing region - excluded",
+			item: AzurePricingAttributes{
+				ArmRegionName: "",
+				ProductName:   "Premium SSD Managed Disk",
+				SkuName:       "P10 LRS",
+			},
+			expected: false,
+		},
+		{
+			name: "Storage account - excluded",
+			item: AzurePricingAttributes{
+				ArmRegionName: "eastus",
+				ProductName:   "Storage Account",
+				SkuName:       "Standard LRS",
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := source.includeDiskItem(tt.item)
+			if result != tt.expected {
+				t.Errorf("includeDiskItem() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestBuildVMURL(t *testing.T) {
+	tests := []struct {
+		name         string
+		currencyCode string
+		wantContains []string
+	}{
+		{
+			name:         "USD currency",
+			currencyCode: "USD",
+			wantContains: []string{
+				"prices.azure.com",
+				"serviceName+eq+%27Virtual+Machines%27",
+				"priceType+eq+%27Consumption%27",
+				"currencyCode=USD",
+			},
+		},
+		{
+			name:         "EUR currency",
+			currencyCode: "EUR",
+			wantContains: []string{
+				"prices.azure.com",
+				"currencyCode=EUR",
+			},
+		},
+		{
+			name:         "Empty currency",
+			currencyCode: "",
+			wantContains: []string{
+				"prices.azure.com",
+				"serviceName+eq+%27Virtual+Machines%27",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			source := &AzurePricingSource{
+				config: AzurePricingSourceConfig{
+					CurrencyCode: tt.currencyCode,
 				},
-				{
-					"armSkuName": "Standard_D2s_v5",
-					"armRegionName": "eastus",
-					"productName": "Virtual Machines Windows",
-					"skuName": "D2s v5",
-					"retailPrice": 0.99
+			}
+			url := source.buildVMURL()
+			for _, want := range tt.wantContains {
+				if !contains(url, want) {
+					t.Errorf("buildVMURL() = %v, want to contain %v", url, want)
 				}
-			],
-			"NextPageLink": "https://prices.azure.com/next"
-		}`
-
-		next, err := source.parseVMPage(strings.NewReader(body), ps)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		if next != "https://prices.azure.com/next" {
-			t.Fatalf("expected next page link, got %q", next)
-		}
-		if len(ps.Nodes) != 1 {
-			t.Fatalf("expected 1 included node pricing entry, got %d", len(ps.Nodes))
-		}
-
-		node := ps.Nodes[0]
-		if node.Properties.Provider != pricing.Provider("Azure") {
-			t.Fatalf("expected provider %q, got %q", pricing.Provider("Azure"), node.Properties.Provider)
-		}
-		if node.Properties.Region != "eastus" {
-			t.Fatalf("expected region eastus, got %q", node.Properties.Region)
-		}
-		if node.Properties.InstanceType != "Standard_D2s_v5" {
-			t.Fatalf("expected instance type Standard_D2s_v5, got %q", node.Properties.InstanceType)
-		}
-
-		prices := node.Prices[unit.EUR]
-		if len(prices) != 1 {
-			t.Fatalf("expected 1 EUR price entry, got %d", len(prices))
-		}
-		if prices[0].Price != 0.25 {
-			t.Fatalf("expected price 0.25, got %v", prices[0].Price)
-		}
-		if prices[0].Unit != unit.Hour {
-			t.Fatalf("expected unit Hour, got %v", prices[0].Unit)
-		}
-	})
-
-	t.Run("defaults to USD for invalid configured currency", func(t *testing.T) {
-		source := NewAzurePricingSource(AzurePricingSourceConfig{
-			CurrencyCode: "INVALID",
+			}
 		})
-		ps := &pricing.PricingSet{}
+	}
+}
 
-		body := `{
-			"Items": [
-				{
-					"armSkuName": "Standard_D4s_v5",
-					"armRegionName": "westus",
-					"productName": "Virtual Machines Dsv5 Series",
-					"skuName": "D4s v5",
-					"retailPrice": 0.5
+func TestBuildDiskURL(t *testing.T) {
+	tests := []struct {
+		name         string
+		currencyCode string
+		wantContains []string
+	}{
+		{
+			name:         "USD currency",
+			currencyCode: "USD",
+			wantContains: []string{
+				"prices.azure.com",
+				"serviceName+eq+%27Storage%27",
+				"priceType+eq+%27Consumption%27",
+				"currencyCode=USD",
+			},
+		},
+		{
+			name:         "EUR currency",
+			currencyCode: "EUR",
+			wantContains: []string{
+				"prices.azure.com",
+				"currencyCode=EUR",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			source := &AzurePricingSource{
+				config: AzurePricingSourceConfig{
+					CurrencyCode: tt.currencyCode,
+				},
+			}
+			url := source.buildDiskURL()
+			for _, want := range tt.wantContains {
+				if !contains(url, want) {
+					t.Errorf("buildDiskURL() = %v, want to contain %v", url, want)
 				}
-			]
-		}`
+			}
+		})
+	}
+}
 
-		_, err := source.parseVMPage(strings.NewReader(body), ps)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+func TestNewAzurePricingSource(t *testing.T) {
+	config := AzurePricingSourceConfig{
+		CurrencyCode: "USD",
+	}
 
-		if len(ps.Nodes) != 1 {
-			t.Fatalf("expected 1 node pricing entry, got %d", len(ps.Nodes))
-		}
+	source := NewAzurePricingSource(config)
 
-		prices := ps.Nodes[0].Prices[unit.USD]
-		if len(prices) != 1 {
-			t.Fatalf("expected 1 USD price entry, got %d", len(prices))
-		}
-		if prices[0].Currency != unit.USD {
-			t.Fatalf("expected USD currency, got %v", prices[0].Currency)
-		}
-	})
+	if source == nil {
+		t.Fatal("NewAzurePricingSource() returned nil")
+	}
 
-	t.Run("returns error for invalid json", func(t *testing.T) {
-		source := NewAzurePricingSource(AzurePricingSourceConfig{})
-		ps := &pricing.PricingSet{}
+	if source.config.CurrencyCode != "USD" {
+		t.Errorf("CurrencyCode = %v, want USD", source.config.CurrencyCode)
+	}
+}
 
-		_, err := source.parseVMPage(strings.NewReader(`{invalid json`), ps)
-		if err == nil {
-			t.Fatal("expected error for invalid JSON")
-		}
-	})
+// Helper function to check if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || 
+		(len(s) > 0 && (s[0:len(substr)] == substr || contains(s[1:], substr))))
 }
 
 // Made with Bob

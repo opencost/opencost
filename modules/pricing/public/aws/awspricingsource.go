@@ -37,6 +37,12 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	var productCount, termCount int
 	const logInterval = 50000
 
+	region := ""
+	if strings.ToUpper(p.config.CurrencyCode) == "CNY" {
+		region = "cn-north-1"
+		log.Infof("PricingSource (AWS): Using China pricing endpoint for CNY currency")
+	}
+
 	// When parsing product we create keys based off of product attributes and link those to a SKU.
 	handleProduct := func(product *PriceListEC2Product) {
 		productCount++
@@ -190,7 +196,7 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 		}
 	}
 
-	err := QueryEC2PriceList("", handleProduct, handleTerm)
+	err := QueryEC2PriceList(region, handleProduct, handleTerm)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query list pricing data %w", err)
 	}

@@ -79,6 +79,7 @@ func (pm *PricingModule) loadPricingSet(_ context.Context) (*pricing.PricingSet,
 func (pm *PricingModule) indexPricingSet(_ context.Context, pricingSet *pricing.PricingSet) error {
 	providers := make(ProviderPricing)
 
+	// Index nodes
 	for _, node := range pricingSet.Nodes {
 		provider := node.Properties.Provider
 		instanceType := node.Properties.InstanceType
@@ -98,9 +99,29 @@ func (pm *PricingModule) indexPricingSet(_ context.Context, pricingSet *pricing.
 		(*(*providers[provider])[instanceType])[region] = &node.Prices
 	}
 
+	// Index volumes
+	for _, volume := range pricingSet.Volumes {
+		provider := volume.Properties.Provider
+		volumeType := string(volume.Properties.VolumeType)
+		region := volume.Properties.Region
+
+		// Instance type map
+		if providers[provider] == nil {
+			instanceMap := make(InstanceTypePricing)
+			providers[provider] = &instanceMap
+		}
+		// Region map
+		if (*providers[provider])[volumeType] == nil {
+			regionMap := make(RegionPricing)
+			(*providers[provider])[volumeType] = &regionMap
+		}
+
+		(*(*providers[provider])[volumeType])[region] = &volume.Prices
+	}
+
 	pm.Providers = &providers
-	log.Infof("Indexed %d node pricing records for provider %s (%s)",
-		len(pricingSet.Nodes), pm.config.Provider, pm.config.Currency)
+	log.Infof("Indexed %d node pricing records and %d volume pricing records for provider %s (%s)",
+		len(pricingSet.Nodes), len(pricingSet.Volumes), pm.config.Provider, pm.config.Currency)
 
 	return nil
 }
