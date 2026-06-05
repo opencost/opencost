@@ -32,4 +32,7 @@ jobs:
     - name: Run Pricing Generator
       id: run_cli
       run: |
-        go run main.go fetch-pricing -c ${{ matrix.currency }} -p ${{ matrix.provider }} -o modules/pricing/public/pricing-data/${{ matrix.provider }}/${{ matrix.provider }}-${{ matrix.currency }}.json -x
+        cd modules/pricing/public
+        go run cmd/main.go fetch-pricing -c ${{ matrix.currency }} -p ${{ matrix.provider }} -x
+        # TODO: There should be more here, probably
+    

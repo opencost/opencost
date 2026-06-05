@@ -38,8 +38,8 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.Flags().StringVarP(&provider, "provider", "p", "aws", "Cloud provider (aws, azure, gcp). Default: aws")
 	rootCmd.Flags().StringVarP(&currency, "currency", "c", "USD", "Currency code (e.g. USD, EUR, CNY). Default: USD")
-	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (optional). Default: stdout")
-	rootCmd.Flags().BoolVarP(&compare, "compare", "x", false, "Compare with existing file at -o location and overwrite if different")
+	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path. Default: /pricing-data/{provider}-{currency}.json. Use 'stdout' to print to console")
+	rootCmd.Flags().BoolVarP(&compare, "compare", "x", false, "Compare with existing file and overwrite if different")
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -74,23 +74,27 @@ func run(cmd *cobra.Command, args []string) error {
 	log.Infof("Generated %d node pricing entries and %d volume pricing entries",
 		len(pricingSet.Nodes), len(pricingSet.Volumes))
 
-	// if comparing, check if file at -o differs and overwrite if needed
+	// Set default output path if not specified
+	if output == "" {
+		output = fmt.Sprintf("pricing-data/%s/%s-%s.json", provider, provider, currency)
+	}
+
+	// Check if user wants stdout
+	if output == "stdout" {
+		fmt.Println(string(data))
+		return nil
+	}
+
+	// if comparing, check if file differs and overwrite if needed
 	if compare {
-		if output == "" {
-			return fmt.Errorf("compare mode (-x) requires output file (-o) to be specified")
-		}
 		return handleCompareMode(data, output)
 	}
 
-	// Normal mode: write output
-	if output != "" {
-		if err := os.WriteFile(output, data, 0644); err != nil {
-			return fmt.Errorf("failed to write output file: %w", err)
-		}
-		log.Infof("Wrote pricing data to %s", output)
-	} else {
-		fmt.Println(string(data))
+	// Normal mode: write to file
+	if err := os.WriteFile(output, data, 0644); err != nil {
+		return fmt.Errorf("failed to write output file: %w", err)
 	}
+	log.Infof("Wrote pricing data to %s", output)
 
 	return nil
 }
