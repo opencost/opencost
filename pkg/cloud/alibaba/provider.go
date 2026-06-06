@@ -966,9 +966,9 @@ func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, erro
 	request.Version = ALIBABA_ECS_VERSION
 	request.Scheme = requests.HTTPS
 	request.ApiName = ALIBABA_DESCRIBE_PRICE_API_ACTION
-	switch i.(type) {
+	switch i := i.(type) {
 	case *SlimK8sNode:
-		node := i.(*SlimK8sNode)
+		node := i
 		request.QueryParams["RegionId"] = node.RegionID
 		request.QueryParams["ResourceType"] = ALIBABA_INSTANCE_RESOURCE_TYPE
 		request.QueryParams["InstanceType"] = node.InstanceType
@@ -994,7 +994,7 @@ func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, erro
 		request.TransToAcsRequest()
 		return request, nil
 	case *SlimK8sDisk:
-		disk := i.(*SlimK8sDisk)
+		disk := i
 		request.QueryParams["RegionId"] = disk.RegionID
 		request.QueryParams["PriceUnit"] = disk.PriceUnit
 		request.QueryParams["ResourceType"] = ALIBABA_DISK_RESOURCE_TYPE
@@ -1033,9 +1033,9 @@ func determineKeyForPricing(i interface{}) (string, error) {
 	if i == nil {
 		return "", fmt.Errorf("nil component passed to determine key")
 	}
-	switch i.(type) {
+	switch i := i.(type) {
 	case *SlimK8sNode:
-		node := i.(*SlimK8sNode)
+		node := i
 		var diskCategory, diskSizeInGiB, diskPerformanceLevel string
 		if node.SystemDisk != nil {
 			diskCategory = node.SystemDisk.DiskCategory
@@ -1050,7 +1050,7 @@ func determineKeyForPricing(i interface{}) (string, error) {
 			return strings.Join(keyLookup, "::"), nil
 		}
 	case *SlimK8sDisk:
-		disk := i.(*SlimK8sDisk)
+		disk := i
 		keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{disk.RegionID, disk.DiskType, disk.DiskCategory, disk.PerformanceLevel, disk.SizeInGiB})
 		return strings.Join(keyLookup, "::"), nil
 	default:
@@ -1088,9 +1088,9 @@ func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface
 	if i == nil {
 		return nil, fmt.Errorf("nil component passed to process the pricing information")
 	}
-	switch i.(type) {
+	switch i := i.(type) {
 	case *SlimK8sNode:
-		node := i.(*SlimK8sNode)
+		node := i
 		req, err := createDescribePriceACSRequest(node)
 		if err != nil {
 			return nil, err
@@ -1117,7 +1117,7 @@ func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface
 			pricing.PricingTerms = NewAlibabaPricingTerms(ALIBABA_PAY_AS_YOU_GO_BILLING, NewAlibabaPricingDetails(response.PriceInfo.Price.TradePrice, ALIBABA_HOUR_PRICE_UNIT, response.PriceInfo.Price.TradePrice, response.PriceInfo.Price.Currency))
 		}
 	case *SlimK8sDisk:
-		disk := i.(*SlimK8sDisk)
+		disk := i
 		req, err := createDescribePriceACSRequest(disk)
 		if err != nil {
 			return nil, err

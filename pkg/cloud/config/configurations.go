@@ -126,37 +126,37 @@ func (c *Configurations) Equals(that *Configurations) bool {
 }
 
 func (c *Configurations) Insert(keyedConfig cloud.Config) error {
-	switch keyedConfig.(type) {
+	switch keyedConfig := keyedConfig.(type) {
 	case *aws.AthenaConfiguration:
 		if c.AWS == nil {
 			c.AWS = &AWSConfigs{}
 		}
-		c.AWS.Athena = append(c.AWS.Athena, keyedConfig.(*aws.AthenaConfiguration))
+		c.AWS.Athena = append(c.AWS.Athena, keyedConfig)
 	case *aws.S3Configuration:
 		if c.AWS == nil {
 			c.AWS = &AWSConfigs{}
 		}
-		c.AWS.S3 = append(c.AWS.S3, keyedConfig.(*aws.S3Configuration))
+		c.AWS.S3 = append(c.AWS.S3, keyedConfig)
 	case *gcp.BigQueryConfiguration:
 		if c.GCP == nil {
 			c.GCP = &GCPConfigs{}
 		}
-		c.GCP.BigQuery = append(c.GCP.BigQuery, keyedConfig.(*gcp.BigQueryConfiguration))
+		c.GCP.BigQuery = append(c.GCP.BigQuery, keyedConfig)
 	case *azure.StorageConfiguration:
 		if c.Azure == nil {
 			c.Azure = &AzureConfigs{}
 		}
-		c.Azure.Storage = append(c.Azure.Storage, keyedConfig.(*azure.StorageConfiguration))
+		c.Azure.Storage = append(c.Azure.Storage, keyedConfig)
 	case *alibaba.BOAConfiguration:
 		if c.Alibaba == nil {
 			c.Alibaba = &AlibabaConfigs{}
 		}
-		c.Alibaba.BOA = append(c.Alibaba.BOA, keyedConfig.(*alibaba.BOAConfiguration))
+		c.Alibaba.BOA = append(c.Alibaba.BOA, keyedConfig)
 	case *oracle.UsageApiConfiguration:
 		if c.OCI == nil {
 			c.OCI = &OCIConfigs{}
 		}
-		c.OCI.UsageAPI = append(c.OCI.UsageAPI, keyedConfig.(*oracle.UsageApiConfiguration))
+		c.OCI.UsageAPI = append(c.OCI.UsageAPI, keyedConfig)
 	default:
 		return fmt.Errorf("Configurations: Insert: failed to insert config of type: %T", keyedConfig)
 	}
