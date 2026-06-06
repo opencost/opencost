@@ -260,6 +260,74 @@ func TestBuildSingleDomain_DispenseError(t *testing.T) {
 	ingestor.BuildWindow(now.Add(-time.Hour), now)
 }
 
+// TestIngestor_Status_ReturnsCopyOfCoverage deterministically proves Status()
+// hands back a copy, not the live map: mutating the returned Coverage must not
+// leak into the ingestor's internal state. Unlike the concurrent test below,
+// this fails without needing the race detector.
+func TestIngestor_Status_ReturnsCopyOfCoverage(t *testing.T) {
+	ingestor := &CustomCostIngestor{
+		coverage: map[string]opencost.Window{},
+	}
+	start := time.Now().UTC()
+	end := start.Add(time.Hour)
+	ingestor.expandCoverage(opencost.NewWindow(&start, &end), "plugin-a")
+
+	status := ingestor.Status()
+	if len(status.Coverage) != 1 {
+		t.Fatalf("expected 1 coverage entry, got %d", len(status.Coverage))
+	}
+
+	// Mutating the returned map must not affect the ingestor.
+	status.Coverage["plugin-b"] = opencost.NewWindow(&start, &end)
+	delete(status.Coverage, "plugin-a")
+
+	again := ingestor.Status()
+	if _, ok := again.Coverage["plugin-a"]; !ok {
+		t.Error("plugin-a should remain in the ingestor's coverage; Status() leaked a live reference")
+	}
+	if _, ok := again.Coverage["plugin-b"]; ok {
+		t.Error("plugin-b leaked into the ingestor's coverage; Status() returned a live reference")
+	}
+}
+
+// TestIngestor_Status_ConcurrentWithExpandCoverage guards against a data race:
+// Status() returns the coverage map by reference while expandCoverage() writes
+// to it under coverageLock. The /customCost/status handler serializes the
+// returned map (which iterates it), racing the writer and crashing the process
+// with "concurrent map iteration and map write". Run with -race to detect it.
+func TestIngestor_Status_ConcurrentWithExpandCoverage(t *testing.T) {
+	ingestor := &CustomCostIngestor{
+		coverage: map[string]opencost.Window{},
+	}
+
+	start := time.Now().UTC()
+	end := start.Add(time.Hour)
+	window := opencost.NewWindow(&start, &end)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// writer: continuously expands coverage under the lock
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 2000; i++ {
+			ingestor.expandCoverage(window, fmt.Sprintf("plugin-%d", i%16))
+		}
+	}()
+
+	// reader: reads Status() and iterates the returned map, mimicking the JSON
+	// serialization the /customCost/status handler performs on the response
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 2000; i++ {
+			for range ingestor.Status().Coverage {
+			}
+		}
+	}()
+
+	wg.Wait()
+}
+
 func TestBuildSingleDomain_ClientError(t *testing.T) {
 	mock := &mockPluginConnector{
 		clientErr: fmt.Errorf("connection failed"),
