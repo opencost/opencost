@@ -64,23 +64,25 @@ func TestInstanceIDFromProviderID(t *testing.T) {
 // equal the effective rate.
 // ---------------------------------------------------------------------------
 
-func mustParseFloat(s string) float64 {
+func parseFloat(t *testing.T, s string) float64 {
+	t.Helper()
 	f, err := strconv.ParseFloat(s, 64)
 	if err != nil {
-		return 0
+		t.Fatalf("could not parse float %q: %v", s, err)
 	}
 	return f
 }
 
-const gib = 1024 * 1024 * 1024
+const gib int64 = 1 << 30
 
-func nodeTotal(node *models.Node) float64 {
-	vcpus := mustParseFloat(node.VCPU)
-	ramGiB := mustParseFloat(node.RAMBytes) / gib
-	gpus := mustParseFloat(node.GPU)
-	return mustParseFloat(node.VCPUCost)*vcpus +
-		mustParseFloat(node.RAMCost)*ramGiB +
-		mustParseFloat(node.GPUCost)*gpus
+func nodeTotal(t *testing.T, node *models.Node) float64 {
+	t.Helper()
+	vcpus := parseFloat(t, node.VCPU)
+	ramGiB := parseFloat(t, node.RAMBytes) / float64(gib)
+	gpus := parseFloat(t, node.GPU)
+	return parseFloat(t, node.VCPUCost)*vcpus +
+		parseFloat(t, node.RAMCost)*ramGiB +
+		parseFloat(t, node.GPUCost)*gpus
 }
 
 func TestApplyEffectiveRate_PerUnitAndRatioPreserved(t *testing.T) {
@@ -88,7 +90,7 @@ func TestApplyEffectiveRate_PerUnitAndRatioPreserved(t *testing.T) {
 	// => node totals: CPU $0.40, RAM $0.10 => 80%:20% ratio.
 	node := &models.Node{
 		VCPU:     "4",
-		RAMBytes: strconv.Itoa(16 * gib),
+		RAMBytes: strconv.FormatInt(16*gib, 10),
 		VCPUCost: "0.10",
 		RAMCost:  "0.00625",
 		GPUCost:  "0",
@@ -102,20 +104,20 @@ func TestApplyEffectiveRate_PerUnitAndRatioPreserved(t *testing.T) {
 	}
 
 	// Reconstructed node total must equal the effective rate.
-	if diff := nodeTotal(node) - effectiveRate; diff > 1e-9 || diff < -1e-9 {
-		t.Errorf("reconstructed total = %f, want %f", nodeTotal(node), effectiveRate)
+	if diff := nodeTotal(t, node) - effectiveRate; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("reconstructed total = %f, want %f", nodeTotal(t, node), effectiveRate)
 	}
-	if diff := mustParseFloat(node.Cost) - effectiveRate; diff > 1e-9 || diff < -1e-9 {
+	if diff := parseFloat(t, node.Cost) - effectiveRate; diff > 1e-9 || diff < -1e-9 {
 		t.Errorf("Cost = %s, want %f", node.Cost, effectiveRate)
 	}
 
 	// Ratio preserved: CPU carries 80% of the rate => per-unit = 0.30*0.8/4
 	wantCPUUnit := effectiveRate * 0.8 / 4
 	wantRAMUnit := effectiveRate * 0.2 / 16
-	if diff := mustParseFloat(node.VCPUCost) - wantCPUUnit; diff > 1e-9 || diff < -1e-9 {
+	if diff := parseFloat(t, node.VCPUCost) - wantCPUUnit; diff > 1e-9 || diff < -1e-9 {
 		t.Errorf("VCPUCost = %s, want %f", node.VCPUCost, wantCPUUnit)
 	}
-	if diff := mustParseFloat(node.RAMCost) - wantRAMUnit; diff > 1e-9 || diff < -1e-9 {
+	if diff := parseFloat(t, node.RAMCost) - wantRAMUnit; diff > 1e-9 || diff < -1e-9 {
 		t.Errorf("RAMCost = %s, want %f", node.RAMCost, wantRAMUnit)
 	}
 }
@@ -124,7 +126,7 @@ func TestApplyEffectiveRate_GPUFixedCostPreserved(t *testing.T) {
 	// 1 GPU @ $1/hr fixed. CPU/RAM remainder = $0.20, split 80/20.
 	node := &models.Node{
 		VCPU:     "4",
-		RAMBytes: strconv.Itoa(16 * gib),
+		RAMBytes: strconv.FormatInt(16*gib, 10),
 		VCPUCost: "0.10",
 		RAMCost:  "0.00625",
 		GPUCost:  "1.00",
@@ -137,17 +139,17 @@ func TestApplyEffectiveRate_GPUFixedCostPreserved(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if diff := nodeTotal(node) - effectiveRate; diff > 1e-9 || diff < -1e-9 {
-		t.Errorf("reconstructed total = %f, want %f", nodeTotal(node), effectiveRate)
+	if diff := nodeTotal(t, node) - effectiveRate; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("reconstructed total = %f, want %f", nodeTotal(t, node), effectiveRate)
 	}
 
 	remainder := effectiveRate - 1.00
 	wantCPUUnit := remainder * 0.8 / 4
 	wantRAMUnit := remainder * 0.2 / 16
-	if diff := mustParseFloat(node.VCPUCost) - wantCPUUnit; diff > 1e-9 || diff < -1e-9 {
+	if diff := parseFloat(t, node.VCPUCost) - wantCPUUnit; diff > 1e-9 || diff < -1e-9 {
 		t.Errorf("VCPUCost = %s, want %f", node.VCPUCost, wantCPUUnit)
 	}
-	if diff := mustParseFloat(node.RAMCost) - wantRAMUnit; diff > 1e-9 || diff < -1e-9 {
+	if diff := parseFloat(t, node.RAMCost) - wantRAMUnit; diff > 1e-9 || diff < -1e-9 {
 		t.Errorf("RAMCost = %s, want %f", node.RAMCost, wantRAMUnit)
 	}
 }
@@ -156,7 +158,7 @@ func TestApplyEffectiveRate_ZeroExistingCosts(t *testing.T) {
 	// No existing per-unit prices => 50/50 split across CPU and RAM.
 	node := &models.Node{
 		VCPU:     "4",
-		RAMBytes: strconv.Itoa(16 * gib),
+		RAMBytes: strconv.FormatInt(16*gib, 10),
 		VCPUCost: "0",
 		RAMCost:  "0",
 		GPUCost:  "0",
@@ -169,11 +171,11 @@ func TestApplyEffectiveRate_ZeroExistingCosts(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if diff := nodeTotal(node) - effectiveRate; diff > 1e-9 || diff < -1e-9 {
-		t.Errorf("reconstructed total = %f, want %f", nodeTotal(node), effectiveRate)
+	if diff := nodeTotal(t, node) - effectiveRate; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("reconstructed total = %f, want %f", nodeTotal(t, node), effectiveRate)
 	}
 	wantCPUUnit := effectiveRate * 0.5 / 4
-	if diff := mustParseFloat(node.VCPUCost) - wantCPUUnit; diff > 1e-9 || diff < -1e-9 {
+	if diff := parseFloat(t, node.VCPUCost) - wantCPUUnit; diff > 1e-9 || diff < -1e-9 {
 		t.Errorf("VCPUCost = %s, want %f", node.VCPUCost, wantCPUUnit)
 	}
 }
@@ -192,7 +194,7 @@ func TestApplyEffectiveRate_RAMFromGiBFallback(t *testing.T) {
 	if err := applyEffectiveRate(node, effectiveRate); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	got := mustParseFloat(node.VCPUCost)*2 + mustParseFloat(node.RAMCost)*8
+	got := parseFloat(t, node.VCPUCost)*2 + parseFloat(t, node.RAMCost)*8
 	if diff := got - effectiveRate; diff > 1e-9 || diff < -1e-9 {
 		t.Errorf("reconstructed total = %f, want %f", got, effectiveRate)
 	}

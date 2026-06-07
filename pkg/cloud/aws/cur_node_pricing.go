@@ -23,27 +23,19 @@ type curNodePricingCache struct {
 	refreshing  bool // guards against concurrent background refreshes
 }
 
-// curPricingCache is embedded in the AWS provider struct via the pointer below;
-// it is allocated lazily on first use so that nil-initialised AWS structs are safe.
-//
-// NOTE: The AWS struct is defined in provider.go which we do not modify. Instead,
-// we attach the cache to a package-level map keyed on the provider pointer. This
-// avoids touching the struct definition while keeping state per provider instance.
-var (
-	curCacheMu sync.Mutex
-	curCaches  = map[*AWS]*curNodePricingCache{}
-)
+// curCacheInitMu guards lazy initialisation of the provider-held cache pointer.
+var curCacheInitMu sync.Mutex
 
-// getCURCache returns (creating if needed) the curNodePricingCache for this provider.
+// getCURCache returns (lazily creating) the curNodePricingCache held on the
+// provider instance, so the cache's lifetime is tied to the provider and is
+// garbage-collected with it.
 func getCURCache(a *AWS) *curNodePricingCache {
-	curCacheMu.Lock()
-	defer curCacheMu.Unlock()
-	if c, ok := curCaches[a]; ok {
-		return c
+	curCacheInitMu.Lock()
+	defer curCacheInitMu.Unlock()
+	if a.curNodePricing == nil {
+		a.curNodePricing = &curNodePricingCache{rates: make(map[string]float64)}
 	}
-	c := &curNodePricingCache{rates: make(map[string]float64)}
-	curCaches[a] = c
-	return c
+	return a.curNodePricing
 }
 
 // instanceIDFromProviderID extracts the EC2 instance ID from a Kubernetes
@@ -69,6 +61,9 @@ func (a *AWS) queryCUREffectiveRates(rates map[string]float64) error {
 	if err != nil {
 		return fmt.Errorf("queryCUREffectiveRates: GetAWSAthenaInfo: %w", err)
 	}
+	// AthenaDatabase is not referenced in the query text: QueryAthenaPaginated
+	// applies it via the Athena QueryExecutionContext, so the unqualified table
+	// name below resolves against it.
 	if athenaInfo.AthenaDatabase == "" || athenaInfo.AthenaTable == "" ||
 		athenaInfo.AthenaRegion == "" || athenaInfo.AthenaBucketName == "" {
 		return fmt.Errorf("queryCUREffectiveRates: Athena configuration incomplete")
@@ -99,8 +94,13 @@ GROUP BY 1`
 	log.Debugf("CUR node pricing: granularity mode %q", granularity)
 	log.Debugf("CUR node pricing: running Athena query against table %s", athenaInfo.AthenaTable)
 
+	// Bound the background refresh so a stuck Athena query cannot hold the
+	// refreshing flag forever and starve future refresh attempts.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
 	pageNum := 0
-	err = a.QueryAthenaPaginated(context.Background(), query, func(page *athena.GetQueryResultsOutput) bool {
+	err = a.QueryAthenaPaginated(ctx, query, func(page *athena.GetQueryResultsOutput) bool {
 		if page == nil || page.ResultSet == nil {
 			log.Errorf("queryCUREffectiveRates: nil page or ResultSet")
 			return false
@@ -179,9 +179,10 @@ func (a *AWS) triggerCURRefreshIfStale(cache *curNodePricingCache) {
 //   - Non-blocking: if the cache is stale a background refresh is started; the
 //     current (possibly empty) cache is applied immediately.
 //   - CPU/RAM cost ratio is preserved: the effective rate is distributed across
-//     VCPUCost and RAMCost proportionally to their current values, and Cost is
-//     updated to the new total. If VCPUCost and RAMCost are both zero or
-//     unset, the full effective rate is placed on VCPUCost.
+//     the per-unit VCPUCost and RAMCost proportionally to the node totals they
+//     imply, and Cost is updated to the new total. If VCPUCost and RAMCost are
+//     both zero or unset, the rate is split 50/50 between CPU and RAM (or fully
+//     onto whichever capacity exists when the other is absent).
 func (a *AWS) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
 	if !env.IsCURNodePricingEnabled() {
 		return

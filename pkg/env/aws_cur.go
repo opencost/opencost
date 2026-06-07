@@ -1,6 +1,7 @@
 package env
 
 import (
+	"strings"
 	"time"
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
@@ -41,7 +42,7 @@ func GetCURNodePricingRefreshHours() time.Duration {
 // GetCURNodePricingGranularity returns the configured CUR export granularity:
 // "auto", "hourly" or "daily". Invalid values fall back to "auto".
 func GetCURNodePricingGranularity() string {
-	g := coreenv.Get(CURNodePricingGranularityEnvVar, "auto")
+	g := strings.ToLower(strings.TrimSpace(coreenv.Get(CURNodePricingGranularityEnvVar, "auto")))
 	switch g {
 	case "auto", "hourly", "daily":
 		return g

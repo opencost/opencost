@@ -196,6 +196,7 @@ var awsRegions = []string{
 // AWS represents an Amazon Provider
 type AWS struct {
 	Pricing                     map[string]*AWSProductTerms
+	curNodePricing              *curNodePricingCache // CUR-based effective node pricing cache (see cur_node_pricing.go)
 	SpotPricingByInstanceID     map[string]*spotInfo
 	SpotPricingUpdatedAt        *time.Time
 	SpotRefreshRunning          bool
