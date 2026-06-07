@@ -2686,9 +2686,7 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 	return spots, nil
 }
 
-// ApplyReservedInstancePricing TODO
-func (aws *AWS) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
-}
+// ApplyReservedInstancePricing is implemented in cur_node_pricing.go.
 
 func (aws *AWS) ServiceAccountStatus() *models.ServiceAccountStatus {
 	return aws.ServiceAccountChecks.GetStatus()
