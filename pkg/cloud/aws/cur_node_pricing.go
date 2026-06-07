@@ -77,15 +77,15 @@ func (a *AWS) queryCUREffectiveRates(rates map[string]float64) error {
 	// This query computes the effective $/hr for each EC2 instance over the last 2 days.
 	// For Savings Plan covered hours we use savings_plan_savings_plan_effective_cost,
 	// for Reserved Instance hours we use reservation_effective_cost, and for on-demand /
-	// spot hours we use line_item_unblended_cost. Dividing the sum by the distinct number
-	// of hourly periods gives an average effective hourly rate.
+	// spot hours we use line_item_unblended_cost. The denominator (covered hours)
+	// depends on the CUR export granularity — see curHoursDenominator.
 	q := `SELECT
 	line_item_resource_id,
 	sum(CASE line_item_line_item_type
 		WHEN 'SavingsPlanCoveredUsage' THEN savings_plan_savings_plan_effective_cost
 		WHEN 'DiscountedUsage' THEN reservation_effective_cost
 		ELSE line_item_unblended_cost
-	END) / nullif(count(distinct line_item_usage_start_date), 0) AS hourly
+	END) / nullif(%s, 0) AS hourly
 FROM %s
 WHERE line_item_product_code = 'AmazonEC2'
   AND (line_item_usage_type LIKE '%%BoxUsage%%' OR line_item_usage_type LIKE '%%SpotUsage%%')
@@ -94,7 +94,9 @@ WHERE line_item_product_code = 'AmazonEC2'
   AND line_item_usage_start_date >= now() - interval '2' day
 GROUP BY 1`
 
-	query := fmt.Sprintf(q, athenaInfo.AthenaTable)
+	granularity := env.GetCURNodePricingGranularity()
+	query := fmt.Sprintf(q, curHoursDenominator(granularity), athenaInfo.AthenaTable)
+	log.Debugf("CUR node pricing: granularity mode %q", granularity)
 	log.Debugf("CUR node pricing: running Athena query against table %s", athenaInfo.AthenaTable)
 
 	pageNum := 0
@@ -223,17 +225,50 @@ func (a *AWS) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
 	}
 }
 
-// applyEffectiveRate distributes effectiveRate across the node's cost fields while
-// preserving the existing VCPUCost:RAMCost ratio. GPUCost is treated as fixed.
+// curHoursDenominator returns the SQL expression for the number of covered hours
+// per instance, according to the configured CUR export granularity.
+//
+//   - "auto" (default): derives hours from usage_start/usage_end per row — exact
+//     for hourly, daily and mixed-granularity exports.
+//   - "hourly": one row per instance-hour; distinct start timestamps == hours.
+//   - "daily": one row per instance-day; distinct start timestamps x 24 == hours.
+func curHoursDenominator(granularity string) string {
+	switch granularity {
+	case "hourly":
+		return "count(distinct line_item_usage_start_date)"
+	case "daily":
+		return "count(distinct line_item_usage_start_date) * 24"
+	default: // auto
+		return "sum(greatest(1, date_diff('hour', line_item_usage_start_date, line_item_usage_end_date)))"
+	}
+}
+
+// applyEffectiveRate reconciles the node's PER-UNIT cost fields to the actual
+// effective total hourly rate.
+//
+// IMPORTANT: models.Node.VCPUCost is $/vCPU/hr and models.Node.RAMCost is
+// $/GiB/hr (json names CPUHourlyCost / RAMGBHourlyCost). The effective rate is a
+// node-TOTAL $/hr, so the per-unit fields must be divided by the node's vCPU
+// count and RAM GiB respectively. (Writing totals into these fields inflates
+// node cost by roughly vCPUs+GiB x — production incident 2026-06-07.)
+//
+// The node-total CPU:RAM cost ratio implied by the existing per-unit prices is
+// preserved; GPU cost is treated as fixed and subtracted first.
 func applyEffectiveRate(node *models.Node, effectiveRate float64) error {
-	cpuCost, cpuErr := strconv.ParseFloat(node.VCPUCost, 64)
-	ramCost, ramErr := strconv.ParseFloat(node.RAMCost, 64)
-	gpuCost, gpuErr := strconv.ParseFloat(node.GPUCost, 64)
+	vcpus, _ := strconv.ParseFloat(node.VCPU, 64)
+	ramGiB := 0.0
+	if rb, err := strconv.ParseFloat(node.RAMBytes, 64); err == nil && rb > 0 {
+		ramGiB = rb / (1024 * 1024 * 1024)
+	} else if r, err := strconv.ParseFloat(node.RAM, 64); err == nil && r > 0 {
+		ramGiB = r
+	}
+	if vcpus <= 0 && ramGiB <= 0 {
+		return fmt.Errorf("node has no parsable vCPU or RAM capacity")
+	}
 
 	// GPU cost is fixed and not redistributed.
 	var gpuTotal float64
-	if gpuErr == nil {
-		gpuCost, _ = strconv.ParseFloat(node.GPUCost, 64)
+	if gpuCost, err := strconv.ParseFloat(node.GPUCost, 64); err == nil {
 		gpuCount, _ := strconv.ParseFloat(node.GPU, 64)
 		gpuTotal = gpuCost * gpuCount
 	}
@@ -243,30 +278,38 @@ func applyEffectiveRate(node *models.Node, effectiveRate float64) error {
 		remainder = 0
 	}
 
-	if cpuErr != nil || ramErr != nil {
-		// Cannot parse existing costs — put everything on VCPUCost.
-		node.VCPUCost = strconv.FormatFloat(remainder, 'f', -1, 64)
-		node.RAMCost = "0"
-		node.Cost = strconv.FormatFloat(effectiveRate, 'f', -1, 64)
-		return nil
+	// Node-total CPU and RAM cost implied by current per-unit prices.
+	cpuUnit, cpuErr := strconv.ParseFloat(node.VCPUCost, 64)
+	ramUnit, ramErr := strconv.ParseFloat(node.RAMCost, 64)
+	cpuTotal, ramTotal := 0.0, 0.0
+	if cpuErr == nil {
+		cpuTotal = cpuUnit * vcpus
+	}
+	if ramErr == nil {
+		ramTotal = ramUnit * ramGiB
 	}
 
-	total := cpuCost + ramCost
-	if total <= 0 {
-		// No existing ratio — assign all remainder to VCPUCost.
-		node.VCPUCost = strconv.FormatFloat(remainder, 'f', -1, 64)
-		node.RAMCost = "0"
-		node.Cost = strconv.FormatFloat(effectiveRate, 'f', -1, 64)
-		return nil
+	cpuFraction := 0.5
+	if total := cpuTotal + ramTotal; total > 0 {
+		cpuFraction = cpuTotal / total
+	} else if vcpus <= 0 {
+		cpuFraction = 0
+	} else if ramGiB <= 0 {
+		cpuFraction = 1
 	}
+	ramFraction := 1 - cpuFraction
 
-	cpuFraction := cpuCost / total
-	ramFraction := ramCost / total
-
-	node.VCPUCost = strconv.FormatFloat(remainder*cpuFraction, 'f', -1, 64)
-	node.RAMCost = strconv.FormatFloat(remainder*ramFraction, 'f', -1, 64)
+	if vcpus > 0 {
+		node.VCPUCost = strconv.FormatFloat(remainder*cpuFraction/vcpus, 'f', -1, 64)
+	} else {
+		node.VCPUCost = "0"
+	}
+	if ramGiB > 0 {
+		node.RAMCost = strconv.FormatFloat(remainder*ramFraction/ramGiB, 'f', -1, 64)
+	} else {
+		node.RAMCost = "0"
+	}
 	node.Cost = strconv.FormatFloat(effectiveRate, 'f', -1, 64)
 
-	_ = gpuCost // already accounted for in gpuTotal
 	return nil
 }
