@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
@@ -19,7 +20,7 @@ func TestRepositoryQuerier_QueryCloudCostAutocomplete(t *testing.T) {
 	}
 	rq := NewRepositoryQuerier(repo)
 
-	resp, err := rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+	resp, err := rq.QueryCloudCostAutocomplete(context.Background(), autocomplete.Request{
 		Field:  opencost.CloudCostServiceProp,
 		Window: opencost.NewClosedWindow(start, end),
 	})
@@ -30,7 +31,7 @@ func TestRepositoryQuerier_QueryCloudCostAutocomplete(t *testing.T) {
 		t.Fatalf("expected 2 service values, got %d: %+v", len(resp.Data), resp.Data)
 	}
 
-	labelResp, err := rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+	labelResp, err := rq.QueryCloudCostAutocomplete(context.Background(), autocomplete.Request{
 		Field:  "label:label1",
 		Search: "value1",
 		Window: opencost.NewClosedWindow(start, end),
@@ -42,30 +43,30 @@ func TestRepositoryQuerier_QueryCloudCostAutocomplete(t *testing.T) {
 		t.Fatalf("unexpected label autocomplete response: %+v", labelResp.Data)
 	}
 
-	_, err = rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+	_, err = rq.QueryCloudCostAutocomplete(context.Background(), autocomplete.Request{
 		Field:  opencost.CloudCostServiceProp,
-		Limit:  MaxAutocompleteResultLimit + 1,
+		Limit:  autocomplete.MaxResultLimit + 1,
 		Window: opencost.NewClosedWindow(start, end),
 	})
 	if err == nil {
 		t.Fatal("expected error for excessive limit")
 	}
-	if !IsAutocompleteBadRequest(err) {
+	if !autocomplete.IsBadRequest(err) {
 		t.Fatalf("expected bad request error, got: %v", err)
 	}
 
-	_, err = rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+	_, err = rq.QueryCloudCostAutocomplete(context.Background(), autocomplete.Request{
 		Field:  "not-a-real-field",
 		Window: opencost.NewClosedWindow(start, end),
 	})
 	if err == nil {
 		t.Fatal("expected error for invalid field")
 	}
-	if !IsAutocompleteBadRequest(err) {
+	if !autocomplete.IsBadRequest(err) {
 		t.Fatalf("expected bad request error, got: %v", err)
 	}
 
-	mixedCaseResp, err := rq.QueryCloudCostAutocomplete(context.Background(), CloudCostAutocompleteRequest{
+	mixedCaseResp, err := rq.QueryCloudCostAutocomplete(context.Background(), autocomplete.Request{
 		Field:  "label:Label1",
 		Search: "value1",
 		Window: opencost.NewClosedWindow(start, end),
