@@ -1,176 +1,158 @@
-nodes:
+nodePricing:
   - properties:
       provider: AWS
       region: us-east-1
       instanceType: m5.large
       provisioning: on-demand
     prices:
-      USD:
-        - price: 0.096
-          currency: USD
-          unit: hr
+      node:
+        unit: hr
+        price: 0.096
   - properties:
       provider: AWS
       region: us-east-1
       instanceType: m5.large
       provisioning: spot
     prices:
-      USD:
-        - price: 0.043
-          currency: USD
-          unit: hr
+      node:
+        unit: hr
+        price: 0.043
   - properties:
       provider: AWS
       region: us-east-1
       instanceType: m5.xlarge
       provisioning: on-demand
     prices:
-      USD:
-        - price: 0.192
-          currency: USD
-          unit: hr
+      node:
+        unit: hr
+        price: 0.192
   - properties:
       provider: AWS
       region: us-east-1
       instanceType: m5.xlarge
       provisioning: spot
     prices:
-      USD:
-        - price: 0.192
-          currency: USD
-          unit: hr
+      node:
+        unit: hr
+        price: 0.192
   - properties:
       provider: AWS
       region: us-east-1
       instanceType: m5.2xlarge
       provisioning: on-demand
     prices:
-      USD:
-        - price: 0.384
-          currency: USD
-          unit: hr
+      node:
+        unit: hr
+        price: 0.384
   - properties:
       provider: AWS
       region: us-east-1
       instanceType: m5.2xlarge
       provisioning: spot
     prices:
-      USD:
-        - price: 0.189
-          currency: USD
-          unit: hr
+      node:
+        unit: hr
+        price: 0.189
   - properties:
       provider: AWS
       region: us-west-1
       instanceType: m5.large
       provisioning: on-demand
     prices:
-      USD:
-        - price: 0.112
-          currency: USD
-          unit: hr
+      node:
+        unit: hr
+        price: 0.112
   - properties:
       provider: AWS
       region: us-west-1
       instanceType: m5.large
       provisioning: spot
     prices:
-      USD:
-        - price: 0.037
-          currency: USD
-          unit: hr
+      node:
+        unit: hr
+        price: 0.037
   - properties:
       provider: AWS
       region: us-west-1
       instanceType: m5.xlarge
       provisioning: on-demand
     prices:
-      USD:
-        - price: 0.224
-          currency: USD
-          unit: hr
+      node:
+        unit: hr
+        price: 0.224
   - properties:
       provider: AWS
       region: us-west-1
       instanceType: m5.xlarge
       provisioning: spot
     prices:
-      USD:
-        - price: 0.069
-          currency: USD
-          unit: hr
+      node:
+        unit: hr
+        price: 0.069
   - properties:
       provider: AWS
       region: us-west-1
       instanceType: m5.2xlarge
       provisioning: on-demand
     prices:
-      USD:
-        - price: 0.448
-          currency: USD
-          unit: hr
+      node:
+        unit: hr
+        price: 0.448
   - properties:
       provider: AWS
       region: us-west-1
       instanceType: m5.2xlarge
       provisioning: spot
     prices:
-      USD:
-        - price: 0.152
-          currency: USD
-          unit: hr
-volumes:
+      node:
+        unit: hr
+        price: 0.152
+persistentVolumePricing:
   - properties:
       provider: AWS
       region: us-east-1
       volumeType: gp3
     prices:
-      USD:
-        - price: 0.0001096
-          currency: USD
-          unit: storage-GiB-hr
+      storage:
+        unit: GiB-hr
+        price: 0.0001096
   - properties:
       provider: AWS
       region: us-east-1
       volumeType: gp2
     prices:
-      USD:
-        - price: 0.000137
-          currency: USD
-          unit: storage-GiB-hr
+      storage:
+        unit: GiB-hr
+        price: 0.000137
   - properties:
       provider: AWS
       region: us-east-1
       volumeType: standard
     prices:
-      USD:
-        - price: 0.0000205
-          currency: USD
-          unit: storage-GiB-hr
+      storage:
+        unit: GiB-hr
+        price: 0.0000205
   - properties:
       provider: AWS
       region: us-west-1
       volumeType: gp3
     prices:
-      USD:
-        - price: 0.0001315
-          currency: USD
-          unit: storage-GiB-hr
+      storage:
+        unit: GiB-hr
+        price: 0.0001315
   - properties:
       provider: AWS
       region: us-west-1
       volumeType: gp2
     prices:
-      USD:
-        - price: 0.0001644
-          currency: USD
-          unit: storage-GiB-hr
+      storage:
+        unit: GiB-hr
+        price: 0.0001644
   - properties:
       provider: AWS
       region: us-west-1
       volumeType: standard
     prices:
-      USD:
-        - price: 0.0000247
-          currency: USD
-          unit: storage-GiB-hr
+      storage:
+        unit: GiB-hr
+        price: 0.0000247

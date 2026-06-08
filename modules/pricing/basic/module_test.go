@@ -8,9 +8,25 @@ import (
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/reader"
 	"github.com/opencost/opencost/core/pkg/storage"
-	"github.com/opencost/opencost/core/pkg/unit"
 	"github.com/stretchr/testify/require"
 )
+
+// TestNewBasicPricingModuleEmptyStore verifies the constructor populates a
+// default pricing set when given an empty store.
+func TestNewBasicPricingModuleEmptyStore(t *testing.T) {
+	store := pricing.NewMemoryPricingStore()
+
+	pm, err := NewBasicPricingModule(store)
+	require.NoError(t, err)
+
+	ps, err := store.GetPricingSet(t.Context())
+	require.NoError(t, err)
+	require.False(t, ps.IsEmpty())
+
+	np, err := pm.getNodePricing(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, np)
+}
 
 func TestPricingModule(t *testing.T) {
 	memoryPricingStore := pricing.NewMemoryPricingStore()
@@ -37,10 +53,6 @@ func testPricingModuleWithStore(store pricing.PricingStore) func(t *testing.T) {
 
 		t.Run("DefaultPricing", func(t *testing.T) {
 			testDefaultPricing(t, ctx, pm)
-		})
-
-		t.Run("SetCurrency", func(t *testing.T) {
-			testSetCurrency(t, ctx, pm)
 		})
 
 		t.Run("SetNodePricePerCPUCoreHour", func(t *testing.T) {
@@ -91,12 +103,6 @@ func testPricingModuleWithStore(store pricing.PricingStore) func(t *testing.T) {
 
 // testDefaultPricing verifies that a freshly created PricingModule contains default pricing
 func testDefaultPricing(t *testing.T, ctx context.Context, pm *PricingModule) {
-	// Test default currency
-	currency := pm.GetCurrency()
-	if currency != unit.USD {
-		t.Errorf("Expected default currency to be USD, got %s", currency)
-	}
-
 	// Test default node pricing
 	np, err := pm.getNodePricing(ctx)
 	if err != nil {
@@ -107,48 +113,30 @@ func testDefaultPricing(t *testing.T, ctx context.Context, pm *PricingModule) {
 		t.Fatal("Expected node pricing to exist")
 	}
 
-	prices, err := np.Prices.GetPricesInCurrency(unit.USD)
-	if err != nil {
-		t.Fatalf("Failed to get prices in USD: %v", err)
+	// Prices are keyed by Resource. RAM and local disk share the GiB-hr unit,
+	// so the Resource key is what distinguishes them.
+	nodeChecks := []struct {
+		resource pricing.Resource
+		want     float64
+	}{
+		{pricing.ResourceCPU, DefaultNodePricePerVCPUHour},
+		{pricing.ResourceRAM, DefaultNodePricePerRAMGiBHour},
+		{pricing.ResourceGPU, DefaultNodePricePerGPUHour},
+		{pricing.ResourceStorage, DefaultNodePricePerLocalDiskGiBHour},
 	}
-
-	// Verify default prices exist
-	foundCPU := false
-	foundRAM := false
-	foundGPU := false
-
-	for _, price := range prices {
-		switch price.Unit {
-		case unit.VCPUHour:
-			foundCPU = true
-			if price.Price != DefaultNodePricePerVCPUHour {
-				t.Errorf("Expected CPU price to be %f, got %f", DefaultNodePricePerVCPUHour, price.Price)
-			}
-		case unit.RAMGiBHour:
-			foundRAM = true
-			if price.Price != DefaultNodePricePerRAMGiBHour {
-				t.Errorf("Expected RAM price to be %f, got %f", DefaultNodePricePerRAMGiBHour, price.Price)
-			}
-		case unit.GPUHour:
-			foundGPU = true
-			if price.Price != DefaultNodePricePerGPUHour {
-				t.Errorf("Expected GPU price to be %f, got %f", DefaultNodePricePerGPUHour, price.Price)
-			}
+	for _, c := range nodeChecks {
+		price, ok := np.Prices[c.resource]
+		if !ok {
+			t.Errorf("Expected to find %s pricing", c.resource)
+			continue
+		}
+		if price.Price != c.want {
+			t.Errorf("Expected %s price to be %f, got %f", c.resource, c.want, price.Price)
 		}
 	}
 
-	if !foundCPU {
-		t.Error("Expected to find CPU pricing")
-	}
-	if !foundRAM {
-		t.Error("Expected to find RAM pricing")
-	}
-	if !foundGPU {
-		t.Error("Expected to find GPU pricing")
-	}
-
 	// Test default volume pricing
-	vp, err := pm.getVolumePricing(ctx)
+	vp, err := pm.getPersistentVolumePricing(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get volume pricing: %v", err)
 	}
@@ -157,134 +145,12 @@ func testDefaultPricing(t *testing.T, ctx context.Context, pm *PricingModule) {
 		t.Fatal("Expected volume pricing to exist")
 	}
 
-	volumePrices, err := vp.Prices.GetPricesInCurrency(unit.USD)
-	if err != nil {
-		t.Fatalf("Failed to get volume prices in USD: %v", err)
+	volumePrice, ok := vp.Prices[pricing.ResourceStorage]
+	if !ok {
+		t.Fatal("Expected to find volume storage pricing")
 	}
-
-	foundVolume := false
-	for _, price := range volumePrices {
-		if price.Unit == unit.StorageGiBHour {
-			foundVolume = true
-			if price.Price != DefaultVolumePricePerGiBHour {
-				t.Errorf("Expected volume price to be %f, got %f", DefaultVolumePricePerGiBHour, price.Price)
-			}
-		}
-	}
-
-	if !foundVolume {
-		t.Error("Expected to find volume pricing")
-	}
-}
-
-// testSetCurrency tests the SetCurrency function
-func testSetCurrency(t *testing.T, ctx context.Context, pm *PricingModule) {
-	// Get current pricing to compare later
-	npBefore, err := pm.getNodePricing(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get node pricing before currency change: %v", err)
-	}
-
-	pricesBefore, err := npBefore.Prices.GetPricesInCurrency(pm.GetCurrency())
-	if err != nil {
-		t.Fatalf("Failed to get prices before currency change: %v", err)
-	}
-
-	vpBefore, err := pm.getVolumePricing(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get volume pricing before currency change: %v", err)
-	}
-
-	volumePricesBefore, err := vpBefore.Prices.GetPricesInCurrency(pm.GetCurrency())
-	if err != nil {
-		t.Fatalf("Failed to get volume prices before currency change: %v", err)
-	}
-
-	// Change currency to EUR
-	err = pm.SetCurrency(ctx, unit.EUR)
-	if err != nil {
-		t.Fatalf("Failed to set currency: %v", err)
-	}
-
-	// Verify currency changed
-	currency := pm.GetCurrency()
-	if currency != unit.EUR {
-		t.Errorf("Expected currency to be EUR, got %s", currency)
-	}
-
-	// Verify node pricing units and prices remain the same, only currency changed
-	npAfter, err := pm.getNodePricing(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get node pricing after currency change: %v", err)
-	}
-
-	pricesAfter, err := npAfter.Prices.GetPricesInCurrency(unit.EUR)
-	if err != nil {
-		t.Fatalf("Failed to get prices after currency change: %v", err)
-	}
-
-	if len(pricesBefore) != len(pricesAfter) {
-		t.Errorf("Expected same number of prices, got %d before and %d after", len(pricesBefore), len(pricesAfter))
-	}
-
-	// Create maps for easier comparison
-	beforeMap := make(map[unit.Unit]float64)
-	for _, p := range pricesBefore {
-		beforeMap[p.Unit] = p.Price
-	}
-
-	afterMap := make(map[unit.Unit]float64)
-	for _, p := range pricesAfter {
-		afterMap[p.Unit] = p.Price
-		if p.Currency != unit.EUR {
-			t.Errorf("Expected currency to be EUR, got %s", p.Currency)
-		}
-	}
-
-	// Verify units and prices match
-	for unit, priceBefore := range beforeMap {
-		priceAfter, ok := afterMap[unit]
-		if !ok {
-			t.Errorf("Unit %s not found after currency change", unit)
-			continue
-		}
-		if priceBefore != priceAfter {
-			t.Errorf("Price for unit %s changed from %f to %f", unit, priceBefore, priceAfter)
-		}
-	}
-
-	// Verify volume pricing units and prices remain the same
-	vpAfter, err := pm.getVolumePricing(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get volume pricing after currency change: %v", err)
-	}
-
-	volumePricesAfter, err := vpAfter.Prices.GetPricesInCurrency(unit.EUR)
-	if err != nil {
-		t.Fatalf("Failed to get volume prices after currency change: %v", err)
-	}
-
-	if len(volumePricesBefore) != len(volumePricesAfter) {
-		t.Errorf("Expected same number of volume prices, got %d before and %d after", len(volumePricesBefore), len(volumePricesAfter))
-	}
-
-	for i, priceBefore := range volumePricesBefore {
-		priceAfter := volumePricesAfter[i]
-		if priceAfter.Currency != unit.EUR {
-			t.Errorf("Expected currency to be EUR, got %s", priceAfter.Currency)
-		}
-		if priceBefore.Unit != priceAfter.Unit {
-			t.Errorf("Unit changed from %s to %s", priceBefore.Unit, priceAfter.Unit)
-		}
-		if priceBefore.Price != priceAfter.Price {
-			t.Errorf("Price changed from %f to %f", priceBefore.Price, priceAfter.Price)
-		}
-	}
-
-	// Change back to USD for other tests
-	err = pm.SetCurrency(ctx, unit.USD)
-	if err != nil {
-		t.Fatalf("Failed to set currency back to USD: %v", err)
+	if volumePrice.Price != DefaultPersistentVolumePricePerGiBHour {
+		t.Errorf("Expected volume price to be %f, got %f", DefaultPersistentVolumePricePerGiBHour, volumePrice.Price)
 	}
 }
 
@@ -303,23 +169,12 @@ func testSetNodePricePerCPUCoreHour(t *testing.T, ctx context.Context, pm *Prici
 		t.Fatalf("Failed to get node pricing: %v", err)
 	}
 
-	prices, err := np.Prices.GetPricesInCurrency(pm.GetCurrency())
-	if err != nil {
-		t.Fatalf("Failed to get prices: %v", err)
+	price, ok := np.Prices[pricing.ResourceCPU]
+	if !ok {
+		t.Fatal("Expected to find CPU pricing")
 	}
-
-	found := false
-	for _, price := range prices {
-		if price.Unit == unit.VCPUHour {
-			found = true
-			if price.Price != newPrice {
-				t.Errorf("Expected CPU price to be %f, got %f", newPrice, price.Price)
-			}
-		}
-	}
-
-	if !found {
-		t.Error("Expected to find CPU pricing")
+	if price.Price != newPrice {
+		t.Errorf("Expected CPU price to be %f, got %f", newPrice, price.Price)
 	}
 }
 
@@ -338,23 +193,12 @@ func testSetNodePricePerRAMGiBHour(t *testing.T, ctx context.Context, pm *Pricin
 		t.Fatalf("Failed to get node pricing: %v", err)
 	}
 
-	prices, err := np.Prices.GetPricesInCurrency(pm.GetCurrency())
-	if err != nil {
-		t.Fatalf("Failed to get prices: %v", err)
+	price, ok := np.Prices[pricing.ResourceRAM]
+	if !ok {
+		t.Fatal("Expected to find RAM pricing")
 	}
-
-	found := false
-	for _, price := range prices {
-		if price.Unit == unit.RAMGiBHour {
-			found = true
-			if price.Price != newPrice {
-				t.Errorf("Expected RAM price to be %f, got %f", newPrice, price.Price)
-			}
-		}
-	}
-
-	if !found {
-		t.Error("Expected to find RAM pricing")
+	if price.Price != newPrice {
+		t.Errorf("Expected RAM price to be %f, got %f", newPrice, price.Price)
 	}
 }
 
@@ -373,23 +217,12 @@ func testSetNodePricePerGPUHour(t *testing.T, ctx context.Context, pm *PricingMo
 		t.Fatalf("Failed to get node pricing: %v", err)
 	}
 
-	prices, err := np.Prices.GetPricesInCurrency(pm.GetCurrency())
-	if err != nil {
-		t.Fatalf("Failed to get prices: %v", err)
+	price, ok := np.Prices[pricing.ResourceGPU]
+	if !ok {
+		t.Fatal("Expected to find GPU pricing")
 	}
-
-	found := false
-	for _, price := range prices {
-		if price.Unit == unit.GPUHour {
-			found = true
-			if price.Price != newPrice {
-				t.Errorf("Expected GPU price to be %f, got %f", newPrice, price.Price)
-			}
-		}
-	}
-
-	if !found {
-		t.Error("Expected to find GPU pricing")
+	if price.Price != newPrice {
+		t.Errorf("Expected GPU price to be %f, got %f", newPrice, price.Price)
 	}
 }
 
@@ -408,23 +241,12 @@ func testSetNodePricePerLocalDiskGiBHour(t *testing.T, ctx context.Context, pm *
 		t.Fatalf("Failed to get node pricing: %v", err)
 	}
 
-	prices, err := np.Prices.GetPricesInCurrency(pm.GetCurrency())
-	if err != nil {
-		t.Fatalf("Failed to get prices: %v", err)
+	price, ok := np.Prices[pricing.ResourceStorage]
+	if !ok {
+		t.Fatal("Expected to find local disk pricing")
 	}
-
-	found := false
-	for _, price := range prices {
-		if price.Unit == unit.StorageGiBHour {
-			found = true
-			if price.Price != newPrice {
-				t.Errorf("Expected local disk price to be %f, got %f", newPrice, price.Price)
-			}
-		}
-	}
-
-	if !found {
-		t.Error("Expected to find local disk pricing")
+	if price.Price != newPrice {
+		t.Errorf("Expected local disk price to be %f, got %f", newPrice, price.Price)
 	}
 }
 
@@ -438,28 +260,17 @@ func testSetVolumePricePerStorageGiBHour(t *testing.T, ctx context.Context, pm *
 	}
 
 	// Verify the price was set
-	vp, err := pm.getVolumePricing(ctx)
+	vp, err := pm.getPersistentVolumePricing(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get volume pricing: %v", err)
 	}
 
-	prices, err := vp.Prices.GetPricesInCurrency(pm.GetCurrency())
-	if err != nil {
-		t.Fatalf("Failed to get prices: %v", err)
+	price, ok := vp.Prices[pricing.ResourceStorage]
+	if !ok {
+		t.Fatal("Expected to find volume storage pricing")
 	}
-
-	found := false
-	for _, price := range prices {
-		if price.Unit == unit.StorageGiBHour {
-			found = true
-			if price.Price != newPrice {
-				t.Errorf("Expected volume storage price to be %f, got %f", newPrice, price.Price)
-			}
-		}
-	}
-
-	if !found {
-		t.Error("Expected to find volume storage pricing")
+	if price.Price != newPrice {
+		t.Errorf("Expected volume storage price to be %f, got %f", newPrice, price.Price)
 	}
 }
 
@@ -511,7 +322,7 @@ func testNewNodePricingReader(t *testing.T, ctx context.Context, pm *PricingModu
 // testNewVolumePricingReader tests the NewVolumePricingReader function
 func testNewVolumePricingReader(t *testing.T, ctx context.Context, pm *PricingModule) {
 	// Test that NewVolumePricingReader always produces a reader
-	rdr, err := pm.NewVolumePricingReader(ctx)
+	rdr, err := pm.NewPersistentVolumePricingReader(ctx)
 	if err != nil {
 		t.Fatalf("Failed to create volume pricing reader: %v", err)
 	}
@@ -521,7 +332,7 @@ func testNewVolumePricingReader(t *testing.T, ctx context.Context, pm *PricingMo
 	}
 
 	// Test that the reader produces precisely one *VolumePricing struct
-	dst := make([]*pricing.VolumePricing, 10) // Buffer larger than expected
+	dst := make([]*pricing.PersistentVolumePricing, 10) // Buffer larger than expected
 	count := 0
 
 	for {

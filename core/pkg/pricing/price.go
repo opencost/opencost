@@ -2,6 +2,9 @@ package pricing
 
 import (
 	"errors"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/opencost/opencost/core/pkg/unit"
 )
@@ -9,44 +12,36 @@ import (
 var NotFound = errors.New("Not found")
 
 type Price struct {
-	Currency unit.Currency `json:"currency" yaml:"currency"`
-	Unit     unit.Unit     `json:"unit" yaml:"unit"`
-	Price    float64       `json:"price" yaml:"price"`
+	Unit  unit.Unit `json:"unit" yaml:"unit"`
+	Price float64   `json:"price" yaml:"price"`
 }
 
-type Prices map[unit.Currency][]Price
+type Prices map[Resource]Price
 
-func (p Prices) GetPrices() []Price {
-	prices := make([]Price, 0, len(p))
-
-	for _, price := range p {
-		prices = append(prices, price...)
+// canonical returns a deterministic string representation of the prices,
+// independent of map iteration order. It is used to make pricing checksums
+// sensitive to price values (not just properties).
+func (p Prices) canonical() string {
+	if len(p) == 0 {
+		return ""
 	}
 
-	return prices
-}
+	resources := make([]string, 0, len(p))
+	for r := range p {
+		resources = append(resources, string(r))
+	}
+	sort.Strings(resources)
 
-func (p Prices) GetPricesInCurrency(currency unit.Currency) ([]Price, error) {
-	result := []Price{}
-
-	for curr, prices := range p {
-		if curr == currency {
-			result = append(result, prices...)
-		}
+	var b strings.Builder
+	for _, r := range resources {
+		price := p[Resource(r)]
+		b.WriteString(r)
+		b.WriteByte('=')
+		b.WriteString(string(price.Unit))
+		b.WriteByte('=')
+		b.WriteString(strconv.FormatFloat(price.Price, 'f', -1, 64))
+		b.WriteByte(';')
 	}
 
-	if len(result) == 0 {
-		return nil, NotFound
-	}
-
-	return result, nil
-}
-
-func (p Prices) GetPricesInCurrencyWithDefault(currency, defaultCurrency unit.Currency) ([]Price, error) {
-	prices, err := p.GetPricesInCurrency(currency)
-	if len(prices) > 0 && err == nil {
-		return prices, nil
-	}
-
-	return p.GetPricesInCurrency(defaultCurrency)
+	return b.String()
 }
