@@ -1,0 +1,17 @@
+nodes:
+  - properties: {}
+    prices:
+      USD:
+        - price: 0.031611
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.004237
+          currency: USD
+          unit: RAM-GiB-hr
+volumes:
+  - properties: {}
+    prices:
+      USD:
+        - price: 0.0000581
+          currency: USD
+          unit: storage-GiB-hr

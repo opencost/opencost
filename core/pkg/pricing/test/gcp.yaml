@@ -1,0 +1,240 @@
+nodes:
+  - properties:
+      provider: GCP
+      provisioning: on-demand
+    prices:
+      USD:
+        - price: 0.031611
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.004237
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      provisioning: spot
+    prices:
+      USD:
+        - price: 0.006655
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.000892
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: n2-standard-2
+      provisioning: on-demand
+    prices:
+      USD:
+        - price: 0.031611
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.004237
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: n2-standard-2
+      provisioning: spot
+    prices:
+      USD:
+        - price: 0.009483
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.001271
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: n2-standard-4
+      provisioning: on-demand
+    prices:
+      USD:
+        - price: 0.031611
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.004237
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: n2-standard-4
+      provisioning: spot
+    prices:
+      USD:
+        - price: 0.009483
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.001271
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: e2-standard-2
+      provisioning: on-demand
+    prices:
+      USD:
+        - price: 0.031611
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.004237
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: e2-standard-2
+      provisioning: spot
+    prices:
+      USD:
+        - price: 0.009483
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.001271
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: n2-standard-2
+      provisioning: on-demand
+    prices:
+      USD:
+        - price: 0.033646
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.004511
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: n2-standard-2
+      provisioning: spot
+    prices:
+      USD:
+        - price: 0.010094
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.001353
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: n2-standard-4
+      provisioning: on-demand
+    prices:
+      USD:
+        - price: 0.033646
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.004511
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: n2-standard-4
+      provisioning: spot
+    prices:
+      USD:
+        - price: 0.010094
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.001353
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: e2-standard-2
+      provisioning: on-demand
+    prices:
+      USD:
+        - price: 0.033646
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.004511
+          currency: USD
+          unit: RAM-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: e2-standard-2
+      provisioning: spot
+    prices:
+      USD:
+        - price: 0.010094
+          currency: USD
+          unit: vCPU-hr
+        - price: 0.001353
+          currency: USD
+          unit: RAM-GiB-hr
+volumes:
+  - properties: {}
+    prices:
+      USD:
+        - price: 0.0000581
+          currency: USD
+          unit: storage-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-central1
+      volumeType: pd-ssd
+    prices:
+      USD:
+        - price: 0.0002329
+          currency: USD
+          unit: storage-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-central1
+      volumeType: pd-balanced
+    prices:
+      USD:
+        - price: 0.000137
+          currency: USD
+          unit: storage-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-central1
+      volumeType: pd-standard
+    prices:
+      USD:
+        - price: 0.0000548
+          currency: USD
+          unit: storage-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-west1
+      volumeType: pd-ssd
+    prices:
+      USD:
+        - price: 0.0002466
+          currency: USD
+          unit: storage-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-west1
+      volumeType: pd-balanced
+    prices:
+      USD:
+        - price: 0.0001452
+          currency: USD
+          unit: storage-GiB-hr
+  - properties:
+      provider: GCP
+      region: us-west1
+      volumeType: pd-standard
+    prices:
+      USD:
+        - price: 0.0000581
+          currency: USD
+          unit: storage-GiB-hr
