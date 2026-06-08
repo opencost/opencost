@@ -126,7 +126,17 @@ func (rcs *RateCardStore) ForPVK(pvk models.PVKey, defaultPricing DefaultPricing
 // ForKey retrieves costing metadata for a key.
 func (rcs *RateCardStore) ForKey(key models.Key, defaultPricing DefaultPricing) (*models.Node, models.PricingMetadata, error) {
 	features := strings.Split(key.Features(), ",")
-	product := instanceProducts.get(features[0])
+	shape := features[0]
+	cpuPriceMultiplier := 1.0
+	product := instanceProducts.get(shape)
+	if baseShape, multiplier, ok := normalizeOCIInstanceShape(shape); ok {
+		baseProduct := instanceProducts.get(baseShape)
+		if !baseProduct.isEmpty() {
+			shape = baseShape
+			cpuPriceMultiplier = multiplier
+			product = baseProduct
+		}
+	}
 	var node *models.Node
 	// Use the default pricing if the instance product is unknown
 	if product.isEmpty() {
@@ -151,7 +161,7 @@ func (rcs *RateCardStore) ForKey(key models.Key, defaultPricing DefaultPricing) 
 			GPU:      defaultPricing.GPU,
 		}
 	} else {
-		ocpuPrice := rcs.prices[product.OCPU].UnitPrice
+		ocpuPrice := rcs.prices[product.OCPU].UnitPrice * cpuPriceMultiplier
 		if !isARMArch(features) {
 			// Non-ARM architectures have 2 VCPU per OCPU
 			ocpuPrice /= 2
