@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/filter/ast"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 )
@@ -40,6 +41,19 @@ func TestNormalizeRequest(t *testing.T) {
 	}
 	if req.LabelConfig == nil {
 		t.Fatal("expected default label config")
+	}
+
+	nilFilterReq := &Request{
+		TenantID: "t1",
+		Field:    "label",
+		Window:   opencost.NewClosedWindow(start, start.Add(24*time.Hour)),
+	}
+	_, err = NormalizeRequest(nilFilterReq, validateTestField, NormalizeOptions{RequireTenantID: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if nilFilterReq.Filter == nil || nilFilterReq.Filter.Op() != ast.FilterOpVoid {
+		t.Fatalf("expected nil filter normalized to void op, got %+v", nilFilterReq.Filter)
 	}
 
 	_, err = NormalizeRequest(nil, validateTestField, NormalizeOptions{})
@@ -95,6 +109,9 @@ func TestParseRequest(t *testing.T) {
 	}
 	if got.Field != "cluster" || got.Search != "ns" || got.TenantID != "t1" {
 		t.Fatalf("unexpected request: %+v", got)
+	}
+	if got.Filter == nil || got.Filter.Op() != ast.FilterOpVoid {
+		t.Fatalf("expected void filter when filter param omitted, got %+v", got.Filter)
 	}
 
 	_, err = ParseRequest(httputil.NewQueryParams(map[string][]string{"field": {"cluster"}}), ParseOptions{}, validateTestField, nil)
