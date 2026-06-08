@@ -17,6 +17,7 @@ type BigQueryConfiguration struct {
 	Table                string     `json:"table"`
 	ExcludePartitionTime bool       `json:"excludePartitionTime"`
 	Location             string     `json:"location"`
+	QueryProjectID       string     `json:"queryProjectID"`
 	Authorizer           Authorizer `json:"authorizer"`
 }
 
@@ -81,16 +82,29 @@ func (bqc *BigQueryConfiguration) Equals(config cloud.Config) bool {
 		return false
 	}
 
+	bqcEffective := bqc.QueryProjectID
+	if bqcEffective == "" {
+		bqcEffective = bqc.ProjectID
+	}
+	thatEffective := thatConfig.QueryProjectID
+	if thatEffective == "" {
+		thatEffective = thatConfig.ProjectID
+	}
+	if bqcEffective != thatEffective {
+		return false
+	}
+
 	return true
 }
 
 func (bqc *BigQueryConfiguration) Sanitize() cloud.Config {
 	return &BigQueryConfiguration{
-		ProjectID:  bqc.ProjectID,
-		Dataset:    bqc.Dataset,
-		Table:      bqc.Table,
-		Location:   bqc.Location,
-		Authorizer: bqc.Authorizer.Sanitize().(Authorizer),
+		ProjectID:      bqc.ProjectID,
+		Dataset:        bqc.Dataset,
+		Table:          bqc.Table,
+		Location:       bqc.Location,
+		QueryProjectID: bqc.QueryProjectID,
+		Authorizer:     bqc.Authorizer.Sanitize().(Authorizer),
 	}
 }
 
@@ -113,7 +127,12 @@ func (bqc *BigQueryConfiguration) GetBigQueryClient(ctx context.Context) (*bigqu
 		return nil, err
 	}
 
-	client, err := bigquery.NewClient(ctx, bqc.ProjectID, clientOpts...)
+	queryProjectID := bqc.QueryProjectID
+	if queryProjectID == "" {
+		queryProjectID = bqc.ProjectID
+	}
+
+	client, err := bigquery.NewClient(ctx, queryProjectID, clientOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +176,14 @@ func (bqc *BigQueryConfiguration) UnmarshalJSON(b []byte) error {
 			return fmt.Errorf("BigQueryConfiguration: FromInterface: %s", err.Error())
 		}
 		bqc.Location = location
+	}
+
+	if _, ok := fmap["queryProjectID"]; ok {
+		queryProjectID, err := cloud.GetInterfaceValue[string](fmap, "queryProjectID")
+		if err != nil {
+			return fmt.Errorf("BigQueryConfiguration: UnmarshalJSON: %w", err)
+		}
+		bqc.QueryProjectID = queryProjectID
 	}
 
 	authAny, ok := fmap["authorizer"]
