@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,10 +13,9 @@ import (
 )
 
 var (
-	provider    string
-	currency    string
-	output      string
-	compare     bool
+	provider string
+	currency string
+	output   string
 )
 
 func main() {
@@ -36,10 +33,9 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&provider, "provider", "p", "aws", "Cloud provider (aws, azure, gcp). Default: aws")
+	rootCmd.Flags().StringVarP(&provider, "provider", "p", "aws", "Cloud provider (aws, azure, gcp, all). Default: aws")
 	rootCmd.Flags().StringVarP(&currency, "currency", "c", "USD", "Currency code (e.g. USD, EUR, CNY). Default: USD")
 	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path. Default: /pricing-data/{provider}-{currency}.json. Use 'stdout' to print to console")
-	rootCmd.Flags().BoolVarP(&compare, "compare", "x", false, "Compare with existing file and overwrite if different")
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -50,6 +46,8 @@ func run(cmd *cobra.Command, args []string) error {
 
 	var prov pricing.Provider
 	switch provider {
+	case "all":
+		prov = pricing.AllProvider
 	case "aws":
 		prov = pricing.AWSProvider
 	case "azure":
@@ -85,59 +83,11 @@ func run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// if comparing, check if file differs and overwrite if needed
-	if compare {
-		return handleCompareMode(data, output)
-	}
-
-	// Normal mode: write to file
+	// Write to file
 	if err := os.WriteFile(output, data, 0644); err != nil {
 		return fmt.Errorf("failed to write output file: %w", err)
 	}
 	log.Infof("Wrote pricing data to %s", output)
 
 	return nil
-}
-
-func handleCompareMode(newData []byte, outputPath string) error {
-	// Try to read existing file
-	existingData, err := os.ReadFile(outputPath)
-	if err != nil {
-		// File doesn't exist or can't be read, write new data
-		if os.IsNotExist(err) {
-			log.Infof("File does not exist, creating: %s", outputPath)
-		} else {
-			log.Warnf("Could not read existing file: %v, overwriting", err)
-		}
-		if err := os.WriteFile(outputPath, newData, 0644); err != nil {
-			return fmt.Errorf("failed to write output file: %w", err)
-		}
-		log.Infof("Wrote pricing data to %s", outputPath)
-		return nil
-	}
-
-	// Compute checksums
-	existingChecksum := computeChecksum(existingData)
-	newChecksum := computeChecksum(newData)
-
-	log.Infof("Existing file checksum: %s", existingChecksum)
-	log.Infof("New data checksum:      %s", newChecksum)
-
-	// Compare and overwrite if different
-	if existingChecksum == newChecksum {
-		log.Infof("Pricing data is identical, no update needed")
-		return nil
-	}
-
-	log.Infof("Pricing data is different, updating file")
-	if err := os.WriteFile(outputPath, newData, 0644); err != nil {
-		return fmt.Errorf("failed to write output file: %w", err)
-	}
-	log.Infof("Updated pricing data at %s", outputPath)
-	return nil
-}
-
-func computeChecksum(data []byte) string {
-	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:])
 }

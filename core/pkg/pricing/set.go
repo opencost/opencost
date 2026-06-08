@@ -41,3 +41,70 @@ func (ps *PricingSet) Currencies() []unit.Currency {
 
 	return slices.Collect(maps.Keys(currencies))
 }
+
+
+// Sort sorts the pricing data to ensure deterministic serialization.
+// Sorted by: Provider, Region, <Instance/Volume>Type
+func (ps *PricingSet) Sort() {
+	if ps == nil {
+		return
+	}
+
+	// Sort nodes
+	slices.SortFunc(ps.Nodes, func(a, b *NodePricing) int {
+		// Compare by Provider
+		if a.Properties.Provider != b.Properties.Provider {
+			if a.Properties.Provider < b.Properties.Provider {
+				return -1
+			}
+			return 1
+		}
+
+		// Compare by Region
+		if a.Properties.Region != b.Properties.Region {
+			if a.Properties.Region < b.Properties.Region {
+				return -1
+			}
+			return 1
+		}
+
+		// Compare by InstanceType
+		if a.Properties.InstanceType != b.Properties.InstanceType {
+			if a.Properties.InstanceType < b.Properties.InstanceType {
+				return -1
+			}
+			return 1
+		}
+
+		return 0
+	})
+
+	// Sort volumes
+	slices.SortFunc(ps.Volumes, func(a, b *VolumePricing) int {
+		// Compare by Provider
+		if a.Properties.Provider != b.Properties.Provider {
+			if a.Properties.Provider < b.Properties.Provider {
+				return -1
+			}
+			return 1
+		}
+
+		// Compare by Region
+		if a.Properties.Region != b.Properties.Region {
+			if a.Properties.Region < b.Properties.Region {
+				return -1
+			}
+			return 1
+		}
+
+		// Compare by VolumeType
+		if a.Properties.VolumeType < b.Properties.VolumeType {
+			return -1
+		}
+		if a.Properties.VolumeType > b.Properties.VolumeType {
+			return 1
+		}
+
+		return 0
+	})
+}
