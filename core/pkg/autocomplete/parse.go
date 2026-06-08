@@ -63,6 +63,9 @@ func ParseRequest(qp httputil.QueryParams, opts ParseOptions, validateField Fiel
 		if err != nil {
 			return nil, fmt.Errorf("%w: invalid 'filter' parameter: %w", ErrBadRequest, err)
 		}
+		if parsedFilter == nil {
+			parsedFilter = &ast.VoidOp{}
+		}
 	}
 
 	tenantID := qp.Get("tenantId", opts.DefaultTenantID)

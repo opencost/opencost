@@ -172,4 +172,7 @@ func TestParseRequest(t *testing.T) {
 	if got.Field != "cluster" {
 		t.Fatalf("unexpected request: %+v", got)
 	}
+	if got.Filter == nil || got.Filter.Op() != ast.FilterOpVoid {
+		t.Fatalf("expected nil parse result normalized to void filter, got %+v", got.Filter)
+	}
 }
