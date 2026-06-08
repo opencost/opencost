@@ -13,6 +13,7 @@ type Config struct {
 	CloudCostEnabled       bool
 	CustomCostEnabled      bool
 	MCPServerEnabled       bool
+	InferenceCostEnabled   bool
 }
 
 func DefaultConfig() *Config {
@@ -23,6 +24,7 @@ func DefaultConfig() *Config {
 		CloudCostEnabled:       env.IsCloudCostEnabled(),
 		MCPServerEnabled:       env.IsMCPServerEnabled(),
 		CustomCostEnabled:      env.IsCustomCostEnabled(),
+		InferenceCostEnabled:   env.IsInferenceCostEnabled(),
 	}
 }
 
@@ -33,4 +35,5 @@ func (c *Config) log() {
 	log.Infof("Custom Costs enabled: %t", c.CustomCostEnabled)
 	log.Infof("MCP Server enabled: %t", c.MCPServerEnabled)
 	log.Infof("Custom Costs enabled: %t", c.CustomCostEnabled)
+	log.Infof("Inference Cost enabled: %t", c.InferenceCostEnabled)
 }

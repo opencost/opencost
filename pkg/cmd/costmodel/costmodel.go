@@ -23,6 +23,7 @@ import (
 	"github.com/opencost/opencost/pkg/costmodel"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/filemanager"
+	"github.com/opencost/opencost/pkg/inferencecost"
 	opencost_mcp "github.com/opencost/opencost/pkg/mcp"
 	"github.com/opencost/opencost/pkg/metrics"
 )
@@ -48,6 +49,12 @@ func Execute(conf *Config) error {
 		err := StartExportWorker(context.Background(), a.Model)
 		if err != nil {
 			log.Errorf("couldn't start CSV export worker: %v", err)
+		}
+
+		if conf.InferenceCostEnabled {
+			if err := StartInferenceCostCollector(ctx, a); err != nil {
+				log.Errorf("Failed to start inference cost collector: %v", err)
+			}
 		}
 
 		// Register OpenCost Specific Endpoints
@@ -139,6 +146,30 @@ func Execute(conf *Config) error {
 		log.Infof("Graceful shutdown completed")
 		return nil
 	}
+}
+
+// StartInferenceCostCollector initialises and starts the inference cost
+// collection loop as a background goroutine. It is a no-op if the collector
+// cannot be initialised (error is logged, existing functionality unaffected).
+func StartInferenceCostCollector(ctx context.Context, a *costmodel.Accesses) error {
+	cfg := inferencecost.DefaultConfig()
+
+	collector, err := inferencecost.NewCollector(cfg, a.Model)
+	if err != nil {
+		return err
+	}
+
+	exporter := inferencecost.NewExporter()
+	if err := exporter.Register(); err != nil {
+		return err
+	}
+
+	calculator := inferencecost.NewCalculator(cfg)
+	runner := inferencecost.NewRunner(collector, calculator, exporter, cfg.CollectionInterval)
+
+	go runner.Start(ctx)
+	log.Infof("InferenceCost: collector started (interval=%s)", cfg.CollectionInterval)
+	return nil
 }
 
 func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {

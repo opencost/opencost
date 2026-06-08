@@ -109,6 +109,13 @@ const (
 
 	// Metrics Emitter
 	MetricsEmitterQueryWindowEnvVar = "METRICS_EMITTER_QUERY_WINDOW"
+
+	// Inference Cost
+	InferenceCostEnabledEnvVar          = "INFERENCE_COST_ENABLED"
+	InferenceModelLabelEnvVar           = "INFERENCE_MODEL_LABEL"
+	InferenceSharedInfraLabelEnvVar     = "INFERENCE_SHARED_INFRA_LABEL"
+	InferenceSharedInfraLabelValueEnvVar = "INFERENCE_SHARED_INFRA_LABEL_VALUE"
+	InferenceKVCacheBlockSizeEnvVar     = "INFERENCE_KV_CACHE_BLOCK_SIZE"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -457,4 +464,30 @@ func GetMCPHTTPPort() int {
 // Default is 2m.
 func GetMetricsEmitterQueryWindow() time.Duration {
 	return env.GetDuration(MetricsEmitterQueryWindowEnvVar, 2*time.Minute)
+}
+
+// IsInferenceCostEnabled returns whether the inference cost collector is enabled.
+func IsInferenceCostEnabled() bool {
+	return env.GetBool(InferenceCostEnabledEnvVar, false)
+}
+
+// GetInferenceModelLabel returns the Kubernetes pod label used to identify model name.
+func GetInferenceModelLabel() string {
+	return env.Get(InferenceModelLabelEnvVar, "llm-d.ai/model")
+}
+
+// GetInferenceSharedInfraLabel returns the label key identifying shared inference infra pods.
+func GetInferenceSharedInfraLabel() string {
+	return env.Get(InferenceSharedInfraLabelEnvVar, "llm-d.ai/inference-serving")
+}
+
+// GetInferenceSharedInfraLabelValue returns the label value identifying shared inference infra pods.
+func GetInferenceSharedInfraLabelValue() string {
+	return env.Get(InferenceSharedInfraLabelValueEnvVar, "true")
+}
+
+// GetInferenceKVCacheBlockSize returns the KV cache block size in tokens.
+// Zero (default) disables KV cache denominator correction.
+func GetInferenceKVCacheBlockSize() float64 {
+	return float64(env.GetInt(InferenceKVCacheBlockSizeEnvVar, 0))
 }
