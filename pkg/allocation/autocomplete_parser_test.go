@@ -3,8 +3,8 @@ package allocation
 import (
 	"testing"
 
-	coreallocation "github.com/opencost/opencost/core/pkg/autocomplete/allocation"
 	"github.com/opencost/opencost/core/pkg/autocomplete"
+	coreallocation "github.com/opencost/opencost/core/pkg/autocomplete/allocation"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 )
 

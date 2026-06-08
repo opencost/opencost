@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
 	"github.com/opencost/opencost/core/pkg/autocomplete"
+	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )

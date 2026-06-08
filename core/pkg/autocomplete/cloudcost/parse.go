@@ -1,8 +1,8 @@
 package cloudcost
 
 import (
-	cloudcostfilter "github.com/opencost/opencost/core/pkg/filter/cloudcost"
 	"github.com/opencost/opencost/core/pkg/autocomplete"
+	cloudcostfilter "github.com/opencost/opencost/core/pkg/filter/cloudcost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 )
 

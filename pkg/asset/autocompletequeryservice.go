@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	coreasset "github.com/opencost/opencost/core/pkg/autocomplete/asset"
 	"github.com/opencost/opencost/core/pkg/autocomplete"
+	coreasset "github.com/opencost/opencost/core/pkg/autocomplete/asset"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
@@ -18,7 +18,7 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req autocomplete
 		return nil, err
 	}
 
-	route, labelKey, err := coreasset.RouteField(field)
+	route, _, err := coreasset.RouteField(field)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", autocomplete.ErrBadRequest, err)
 	}
@@ -34,8 +34,6 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req autocomplete
 			autocomplete.ToSet(coreasset.FilterStaticValues(coreasset.StaticCategories(), req.Search)),
 			req.Limit,
 		)}, nil
-	case coreasset.RouteLabelKeys, coreasset.RouteLabelValue:
-		_ = labelKey
 	}
 
 	var matcher opencost.AssetMatcher

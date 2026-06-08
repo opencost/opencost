@@ -1,8 +1,8 @@
 package allocation
 
 import (
-	allocationfilter "github.com/opencost/opencost/core/pkg/filter/allocation"
 	"github.com/opencost/opencost/core/pkg/autocomplete"
+	allocationfilter "github.com/opencost/opencost/core/pkg/filter/allocation"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 )
 

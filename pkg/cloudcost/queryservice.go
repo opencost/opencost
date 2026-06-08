@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
-	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
 	"github.com/opencost/opencost/core/pkg/autocomplete"
+	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"go.opentelemetry.io/otel"

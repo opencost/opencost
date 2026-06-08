@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	coreasset "github.com/opencost/opencost/core/pkg/autocomplete/asset"
 	"github.com/opencost/opencost/core/pkg/autocomplete"
+	coreasset "github.com/opencost/opencost/core/pkg/autocomplete/asset"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 

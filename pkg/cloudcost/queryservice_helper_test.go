@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
 	"github.com/opencost/opencost/core/pkg/autocomplete"
+	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
 	"github.com/opencost/opencost/core/pkg/filter/cloudcost"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"

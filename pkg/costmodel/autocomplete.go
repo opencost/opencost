@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/opencost/opencost/core/pkg/autocomplete"
 	coreallocation "github.com/opencost/opencost/core/pkg/autocomplete/allocation"
 	coreasset "github.com/opencost/opencost/core/pkg/autocomplete/asset"
-	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/allocation"
@@ -58,7 +58,7 @@ func (a *Accesses) ComputeAssetsAutocompleteHandler(w http.ResponseWriter, r *ht
 
 	offset := env.GetParsedUTCOffset()
 	req, err := coreasset.ParseRequest(qp, autocomplete.ParseOptions{
-		DefaultTenantID: qp.Get("tenantId", "opencost"),
+		DefaultTenantID: "opencost",
 		UTCOffset:       &offset,
 	})
 	if err != nil {

@@ -1,8 +1,8 @@
 package asset
 
 import (
-	assetfilter "github.com/opencost/opencost/core/pkg/filter/asset"
 	"github.com/opencost/opencost/core/pkg/autocomplete"
+	assetfilter "github.com/opencost/opencost/core/pkg/filter/asset"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 )
 

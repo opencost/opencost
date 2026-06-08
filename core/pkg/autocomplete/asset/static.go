@@ -1,8 +1,6 @@
 package asset
 
 import (
-	"strings"
-
 	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
@@ -10,21 +8,23 @@ import (
 // StaticTypes returns canonical asset type strings for autocomplete.
 func StaticTypes() []string {
 	return []string{
+		"cloud",
 		"clustermanagement",
 		"disk",
 		"loadbalancer",
 		"network",
 		"node",
+		"shared",
 	}
 }
 
 // StaticCategories returns canonical asset category strings for autocomplete.
 func StaticCategories() []string {
 	return []string{
-		strings.ToLower(opencost.ComputeCategory),
-		strings.ToLower(opencost.StorageCategory),
-		strings.ToLower(opencost.NetworkCategory),
-		strings.ToLower(opencost.ManagementCategory),
+		opencost.ComputeCategory,
+		opencost.StorageCategory,
+		opencost.NetworkCategory,
+		opencost.ManagementCategory,
 	}
 }
 
