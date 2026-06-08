@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
@@ -24,7 +25,7 @@ func TestQueryAssetAutocompleteFromSet(t *testing.T) {
 
 	assetSet := opencost.NewAssetSet(start, end, nodeA, nodeB)
 
-	resp, err := QueryAssetAutocompleteFromSet(assetSet, AssetAutocompleteRequest{
+	resp, err := QueryAssetAutocompleteFromSet(assetSet, autocomplete.Request{
 		TenantID: "opencost",
 		Field:    "cluster",
 		Window:   window,
@@ -36,7 +37,7 @@ func TestQueryAssetAutocompleteFromSet(t *testing.T) {
 		t.Fatalf("unexpected cluster autocomplete response: %+v", resp.Data)
 	}
 
-	labelResp, err := QueryAssetAutocompleteFromSet(assetSet, AssetAutocompleteRequest{
+	labelResp, err := QueryAssetAutocompleteFromSet(assetSet, autocomplete.Request{
 		TenantID: "opencost",
 		Field:    "label:team",
 		Search:   "plat",
@@ -49,17 +50,17 @@ func TestQueryAssetAutocompleteFromSet(t *testing.T) {
 		t.Fatalf("unexpected label autocomplete response: %+v", labelResp.Data)
 	}
 
-	_, err = QueryAssetAutocompleteFromSet(assetSet, AssetAutocompleteRequest{
+	_, err = QueryAssetAutocompleteFromSet(assetSet, autocomplete.Request{
 		Field: "cluster",
 	})
 	if err == nil {
 		t.Fatal("expected error when tenant ID is missing")
 	}
-	if !IsAutocompleteBadRequest(err) {
+	if !autocomplete.IsBadRequest(err) {
 		t.Fatalf("expected bad request error, got: %v", err)
 	}
 
-	_, err = QueryAssetAutocompleteFromSet(assetSet, AssetAutocompleteRequest{
+	_, err = QueryAssetAutocompleteFromSet(assetSet, autocomplete.Request{
 		TenantID: "opencost",
 		Field:    "labels",
 		Window:   window,
@@ -67,12 +68,12 @@ func TestQueryAssetAutocompleteFromSet(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for invalid field prefix")
 	}
-	if !IsAutocompleteBadRequest(err) {
+	if !autocomplete.IsBadRequest(err) {
 		t.Fatalf("expected bad request error, got: %v", err)
 	}
 
 	openWindow := opencost.NewWindow(&start, nil)
-	_, err = QueryAssetAutocompleteFromSet(assetSet, AssetAutocompleteRequest{
+	_, err = QueryAssetAutocompleteFromSet(assetSet, autocomplete.Request{
 		TenantID: "opencost",
 		Field:    "name",
 		Window:   openWindow,
@@ -80,7 +81,7 @@ func TestQueryAssetAutocompleteFromSet(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for open window")
 	}
-	if !IsAutocompleteBadRequest(err) {
+	if !autocomplete.IsBadRequest(err) {
 		t.Fatalf("expected bad request error, got: %v", err)
 	}
 }

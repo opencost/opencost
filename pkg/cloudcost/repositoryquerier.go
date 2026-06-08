@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
 	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -69,8 +70,8 @@ func (rq *RepositoryQuerier) Query(ctx context.Context, request QueryRequest) (*
 	return ccsr, nil
 }
 
-func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, request CloudCostAutocompleteRequest) (*CloudCostAutocompleteResponse, error) {
-	field, err := NormalizeCloudCostAutocompleteRequest(&request)
+func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, request autocomplete.Request) (*autocomplete.Response, error) {
+	field, err := autocomplete.NormalizeRequest(&request, corecloudcost.ValidateField, autocomplete.NormalizeOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +108,7 @@ func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, req
 		}
 	}
 
-	return &CloudCostAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(results, limit)}, nil
+	return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(results, limit)}, nil
 }
 
 func cloudCostAutocompleteValues(cc *opencost.CloudCost, field string) []string {

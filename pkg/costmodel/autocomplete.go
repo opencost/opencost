@@ -6,6 +6,9 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	coreallocation "github.com/opencost/opencost/core/pkg/autocomplete/allocation"
+	coreasset "github.com/opencost/opencost/core/pkg/autocomplete/asset"
+	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/allocation"
@@ -18,10 +21,10 @@ func (a *Accesses) ComputeAllocationAutocompleteHandler(w http.ResponseWriter, r
 	qp := httputil.NewQueryParams(r.URL.Query())
 
 	offset := env.GetParsedUTCOffset()
-	req, err := allocation.ParseAllocationAutocompleteRequest(qp, allocation.ParseAllocationAutocompleteOptions{
+	req, err := coreallocation.ParseRequest(qp, autocomplete.ParseOptions{
 		LabelConfig: opencost.NewLabelConfig(),
 		UTCOffset:   &offset,
-	}, nil)
+	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid allocation autocomplete request: %s", err), http.StatusBadRequest)
 		return
@@ -31,7 +34,7 @@ func (a *Accesses) ComputeAllocationAutocompleteHandler(w http.ResponseWriter, r
 	resp, err := a.QueryAllocationAutocomplete(*req, filterString, r.Context())
 	if err != nil {
 		status := http.StatusInternalServerError
-		if allocation.IsAutocompleteBadRequest(err) {
+		if autocomplete.IsBadRequest(err) {
 			status = http.StatusBadRequest
 		}
 		http.Error(w, fmt.Sprintf("Error getting allocation autocomplete: %s", err), status)
@@ -41,7 +44,7 @@ func (a *Accesses) ComputeAllocationAutocompleteHandler(w http.ResponseWriter, r
 	WriteData(w, resp, nil)
 }
 
-func (a *Accesses) QueryAllocationAutocomplete(req allocation.AllocationAutocompleteRequest, filterString string, ctx context.Context) (*allocation.AllocationAutocompleteResponse, error) {
+func (a *Accesses) QueryAllocationAutocomplete(req autocomplete.Request, filterString string, ctx context.Context) (*autocomplete.Response, error) {
 	asr, err := a.Model.QueryAllocation(req.Window, req.Window.Duration(), nil, false, false, false, false, false, opencost.AccumulateOptionNone, false, filterString)
 	if err != nil {
 		return nil, fmt.Errorf("error querying allocations: %w", err)
@@ -54,10 +57,10 @@ func (a *Accesses) ComputeAssetsAutocompleteHandler(w http.ResponseWriter, r *ht
 	qp := httputil.NewQueryParams(r.URL.Query())
 
 	offset := env.GetParsedUTCOffset()
-	req, err := asset.ParseAssetAutocompleteRequest(qp, asset.ParseAssetAutocompleteOptions{
+	req, err := coreasset.ParseRequest(qp, autocomplete.ParseOptions{
 		DefaultTenantID: qp.Get("tenantId", "opencost"),
 		UTCOffset:       &offset,
-	}, nil)
+	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid asset autocomplete request: %s", err), http.StatusBadRequest)
 		return
@@ -66,7 +69,7 @@ func (a *Accesses) ComputeAssetsAutocompleteHandler(w http.ResponseWriter, r *ht
 	resp, err := a.QueryAssetAutocomplete(*req, r.Context())
 	if err != nil {
 		status := http.StatusInternalServerError
-		if asset.IsAutocompleteBadRequest(err) {
+		if autocomplete.IsBadRequest(err) {
 			status = http.StatusBadRequest
 		}
 		http.Error(w, fmt.Sprintf("Error getting asset autocomplete: %s", err), status)
@@ -76,9 +79,9 @@ func (a *Accesses) ComputeAssetsAutocompleteHandler(w http.ResponseWriter, r *ht
 	WriteData(w, resp, nil)
 }
 
-func (a *Accesses) QueryAssetAutocomplete(req asset.AssetAutocompleteRequest, ctx context.Context) (*asset.AssetAutocompleteResponse, error) {
+func (a *Accesses) QueryAssetAutocomplete(req autocomplete.Request, ctx context.Context) (*autocomplete.Response, error) {
 	if req.Window.IsOpen() || req.Window.Start() == nil || req.Window.End() == nil {
-		return nil, fmt.Errorf("%w: invalid window: %s", asset.ErrAutocompleteBadRequest, req.Window.String())
+		return nil, fmt.Errorf("%w: invalid window: %s", autocomplete.ErrBadRequest, req.Window.String())
 	}
 	assetSet, err := a.Model.ComputeAssets(*req.Window.Start(), *req.Window.End())
 	if err != nil {

@@ -28,7 +28,7 @@ func ValidateField(field string) (string, error) {
 	return "", fmt.Errorf("unrecognized field: %s", field)
 }
 
-func validateWindow(window opencost.Window) error {
+func ValidateWindow(window opencost.Window) error {
 	if window.IsOpen() {
 		return fmt.Errorf("%w: invalid window: %s", autocomplete.ErrBadRequest, window.String())
 	}

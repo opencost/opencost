@@ -4,34 +4,37 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/opencost/opencost/core/pkg/autocomplete"
 	coreasset "github.com/opencost/opencost/core/pkg/autocomplete/asset"
+	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
-func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocompleteRequest) (*AssetAutocompleteResponse, error) {
-	field, err := NormalizeAssetAutocompleteRequest(&req)
+func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req autocomplete.Request) (*autocomplete.Response, error) {
+	field, err := autocomplete.NormalizeRequest(&req, coreasset.ValidateField, autocomplete.NormalizeOptions{
+		RequireTenantID: true,
+		WindowValidator: coreasset.ValidateWindow,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	route, labelKey, err := RouteAssetAutocompleteField(field)
+	route, labelKey, err := coreasset.RouteField(field)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrAutocompleteBadRequest, err)
+		return nil, fmt.Errorf("%w: %w", autocomplete.ErrBadRequest, err)
 	}
 
 	switch route {
-	case AssetAutocompleteRouteStaticType:
-		return &AssetAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(
-			autocomplete.ToSet(FilterStaticAutocompleteValues(StaticAssetTypes(), req.Search)),
+	case coreasset.RouteStaticType:
+		return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(
+			autocomplete.ToSet(coreasset.FilterStaticValues(coreasset.StaticTypes(), req.Search)),
 			req.Limit,
 		)}, nil
-	case AssetAutocompleteRouteStaticCategory:
-		return &AssetAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(
-			autocomplete.ToSet(FilterStaticAutocompleteValues(StaticAssetCategories(), req.Search)),
+	case coreasset.RouteStaticCategory:
+		return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(
+			autocomplete.ToSet(coreasset.FilterStaticValues(coreasset.StaticCategories(), req.Search)),
 			req.Limit,
 		)}, nil
-	case AssetAutocompleteRouteLabelKeys, AssetAutocompleteRouteLabelValue:
+	case coreasset.RouteLabelKeys, coreasset.RouteLabelValue:
 		_ = labelKey
 	}
 
@@ -40,7 +43,7 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocom
 		compiler := opencost.NewAssetMatchCompiler()
 		matcher, err = compiler.Compile(req.Filter)
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to compile filter: %w", ErrAutocompleteBadRequest, err)
+			return nil, fmt.Errorf("%w: failed to compile filter: %w", autocomplete.ErrBadRequest, err)
 		}
 	}
 
@@ -66,7 +69,7 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocom
 		}
 	}
 
-	return &AssetAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(results, req.Limit)}, nil
+	return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(results, req.Limit)}, nil
 }
 
 func assetAutocompleteValues(asset opencost.Asset, field string) []string {
@@ -103,6 +106,3 @@ func assetAutocompleteValues(asset opencost.Asset, field string) []string {
 	}
 	return nil
 }
-
-// Ensure core asset package is referenced for documentation.
-var _ = coreasset.DefaultAutocompleteResultLimit

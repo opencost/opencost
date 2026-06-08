@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
+	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"go.opentelemetry.io/otel"
@@ -85,7 +87,7 @@ func (s *QueryService) GetCloudCostAutocompleteHandler() func(w http.ResponseWri
 		}
 
 		qp := httputil.NewQueryParams(r.URL.Query())
-		request, err := ParseCloudCostAutocompleteRequestFromQueryParams(qp)
+		request, err := corecloudcost.ParseRequest(qp, autocomplete.ParseOptions{})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -93,7 +95,7 @@ func (s *QueryService) GetCloudCostAutocompleteHandler() func(w http.ResponseWri
 
 		resp, err := s.Querier.QueryCloudCostAutocomplete(ctx, *request)
 		if err != nil {
-			if errors.Is(err, ErrAutocompleteBadRequest) {
+			if errors.Is(err, autocomplete.ErrBadRequest) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}

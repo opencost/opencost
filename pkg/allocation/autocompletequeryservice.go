@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"strings"
 
+	coreallocation "github.com/opencost/opencost/core/pkg/autocomplete/allocation"
 	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
-func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, req AllocationAutocompleteRequest) (*AllocationAutocompleteResponse, error) {
-	field, err := NormalizeAllocationAutocompleteRequest(&req)
+func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, req autocomplete.Request) (*autocomplete.Response, error) {
+	field, err := autocomplete.NormalizeRequest(&req, coreallocation.ValidateField, autocomplete.NormalizeOptions{
+		EnsureLabelConfig: true,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -19,7 +22,7 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 		compiler := opencost.NewAllocationMatchCompiler(req.LabelConfig)
 		matcher, err = compiler.Compile(req.Filter)
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to compile filter: %w", ErrAutocompleteBadRequest, err)
+			return nil, fmt.Errorf("%w: failed to compile filter: %w", autocomplete.ErrBadRequest, err)
 		}
 	}
 
@@ -50,7 +53,7 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 		}
 	}
 
-	return &AllocationAutocompleteResponse{Data: autocomplete.UniqueSortedLimited(results, req.Limit)}, nil
+	return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(results, req.Limit)}, nil
 }
 
 func allocationAutocompleteValues(props *opencost.AllocationProperties, field string) []string {
