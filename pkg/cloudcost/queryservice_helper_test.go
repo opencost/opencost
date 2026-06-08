@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/autocomplete"
+	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
 	"github.com/opencost/opencost/core/pkg/filter/cloudcost"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
@@ -143,7 +145,7 @@ func TestParseCloudCostAutocompleteRequest(t *testing.T) {
 
 	tests := map[string]struct {
 		values  map[string][]string
-		want    *CloudCostAutocompleteRequest
+		want    *autocomplete.Request
 		wantErr bool
 	}{
 		"missing window": {
@@ -184,7 +186,7 @@ func TestParseCloudCostAutocompleteRequest(t *testing.T) {
 				"search": {"ec2"},
 				"limit":  {"25"},
 			},
-			want: &CloudCostAutocompleteRequest{
+			want: &autocomplete.Request{
 				Search: "ec2",
 				Field:  "service",
 				Limit:  25,
@@ -197,9 +199,9 @@ func TestParseCloudCostAutocompleteRequest(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			qp := httputil.NewQueryParams(tt.values)
-			got, err := ParseCloudCostAutocompleteRequest(qp)
+			got, err := corecloudcost.ParseRequest(qp, autocomplete.ParseOptions{})
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("ParseCloudCostAutocompleteRequest() error = %v, wantErr %v", err, tt.wantErr)
+				t.Fatalf("ParseRequest() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if tt.wantErr {
 				return

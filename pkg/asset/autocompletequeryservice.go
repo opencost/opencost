@@ -1,63 +1,39 @@
 package asset
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"sort"
 	"strings"
 
-	"github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/autocomplete"
+	coreasset "github.com/opencost/opencost/core/pkg/autocomplete/asset"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
-// ErrAutocompleteBadRequest indicates a client error in an autocomplete request.
-var ErrAutocompleteBadRequest = errors.New("autocomplete bad request")
-
-// IsAutocompleteBadRequest reports whether err is a client validation error.
-func IsAutocompleteBadRequest(err error) bool {
-	return errors.Is(err, ErrAutocompleteBadRequest)
-}
-
-const DefaultAutocompleteResultLimit = 100
-const MaxAutocompleteResultLimit = 1000
-
-type AssetAutocompleteRequest struct {
-	TenantID string
-	Search   string
-	Field    string
-	Limit    int
-	Window   opencost.Window
-	Filter   filter.Filter
-}
-
-type AssetAutocompleteResponse struct {
-	Data []string `json:"data"`
-}
-
-type AutocompleteQueryService interface {
-	QueryAssetAutocomplete(AssetAutocompleteRequest, context.Context) (*AssetAutocompleteResponse, error)
-}
-
-func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocompleteRequest) (*AssetAutocompleteResponse, error) {
-	if err := validateAssetAutocompleteWindow(req.Window); err != nil {
+func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req autocomplete.Request) (*autocomplete.Response, error) {
+	field, err := autocomplete.NormalizeRequest(&req, coreasset.ValidateField, autocomplete.NormalizeOptions{
+		RequireTenantID: true,
+		WindowValidator: coreasset.ValidateWindow,
+	})
+	if err != nil {
 		return nil, err
 	}
-	if req.TenantID == "" {
-		return nil, fmt.Errorf("%w: tenant ID is required", ErrAutocompleteBadRequest)
-	}
 
-	field, err := validateAutocompleteField(req.Field)
+	route, _, err := coreasset.RouteField(field)
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid field: %w", ErrAutocompleteBadRequest, err)
+		return nil, fmt.Errorf("%w: %w", autocomplete.ErrBadRequest, err)
 	}
 
-	limit := req.Limit
-	if limit <= 0 {
-		limit = DefaultAutocompleteResultLimit
-	}
-	if limit > MaxAutocompleteResultLimit {
-		return nil, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrAutocompleteBadRequest, MaxAutocompleteResultLimit)
+	switch route {
+	case coreasset.RouteStaticType:
+		return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(
+			autocomplete.ToSet(coreasset.FilterStaticValues(coreasset.StaticTypes(), req.Search)),
+			req.Limit,
+		)}, nil
+	case coreasset.RouteStaticCategory:
+		return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(
+			autocomplete.ToSet(coreasset.FilterStaticValues(coreasset.StaticCategories(), req.Search)),
+			req.Limit,
+		)}, nil
 	}
 
 	var matcher opencost.AssetMatcher
@@ -65,7 +41,7 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocom
 		compiler := opencost.NewAssetMatchCompiler()
 		matcher, err = compiler.Compile(req.Filter)
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to compile filter: %w", ErrAutocompleteBadRequest, err)
+			return nil, fmt.Errorf("%w: failed to compile filter: %w", autocomplete.ErrBadRequest, err)
 		}
 	}
 
@@ -91,41 +67,7 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req AssetAutocom
 		}
 	}
 
-	data := make([]string, 0, len(results))
-	for value := range results {
-		data = append(data, value)
-	}
-	sort.Strings(data)
-	if len(data) > limit {
-		data = data[:limit]
-	}
-	return &AssetAutocompleteResponse{Data: data}, nil
-}
-
-func validateAutocompleteField(field string) (string, error) {
-	f := strings.ToLower(field)
-	switch f {
-	case "account", "cluster", "name", "provider", "providerid", "type", "category":
-		return f, nil
-	}
-	if f == "label" {
-		return f, nil
-	}
-	if strings.HasPrefix(f, "label:") {
-		_, labelKey, _ := strings.Cut(f, ":")
-		return "label:" + labelKey, nil
-	}
-	return "", fmt.Errorf("unrecognized field: %s", field)
-}
-
-func validateAssetAutocompleteWindow(window opencost.Window) error {
-	if window.IsOpen() {
-		return fmt.Errorf("%w: invalid window: %s", ErrAutocompleteBadRequest, window.String())
-	}
-	if window.Start() == nil || window.End() == nil {
-		return fmt.Errorf("%w: invalid window: missing start or end", ErrAutocompleteBadRequest)
-	}
-	return nil
+	return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(results, req.Limit)}, nil
 }
 
 func assetAutocompleteValues(asset opencost.Asset, field string) []string {
@@ -156,21 +98,9 @@ func assetAutocompleteValues(asset opencost.Asset, field string) []string {
 		return keys
 	case strings.HasPrefix(field, "label:"):
 		labelName := strings.TrimPrefix(field, "label:")
-		if value, ok := mapValueFold(asset.GetLabels(), labelName); ok {
+		if value, ok := autocomplete.MapValueFold(asset.GetLabels(), labelName); ok {
 			return []string{value}
 		}
 	}
 	return nil
-}
-
-func mapValueFold(values map[string]string, key string) (string, bool) {
-	if v, ok := values[key]; ok {
-		return v, true
-	}
-	for k, v := range values {
-		if strings.EqualFold(k, key) {
-			return v, true
-		}
-	}
-	return "", false
 }

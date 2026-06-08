@@ -2,22 +2,15 @@ package cloudcost
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/opencost/opencost/core/pkg/autocomplete"
+	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
-
-// ErrAutocompleteBadRequest indicates a client error in an autocomplete request.
-var ErrAutocompleteBadRequest = errors.New("autocomplete bad request")
-
-// IsAutocompleteBadRequest reports whether err is a client validation error.
-func IsAutocompleteBadRequest(err error) bool {
-	return errors.Is(err, ErrAutocompleteBadRequest)
-}
 
 // RepositoryQuerier is an implementation of Querier and ViewQuerier which pulls directly from a Repository
 type RepositoryQuerier struct {
@@ -77,23 +70,12 @@ func (rq *RepositoryQuerier) Query(ctx context.Context, request QueryRequest) (*
 	return ccsr, nil
 }
 
-func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, request CloudCostAutocompleteRequest) (*CloudCostAutocompleteResponse, error) {
-	if request.Window.IsOpen() {
-		return nil, fmt.Errorf("%w: invalid window for autocomplete query: %s", ErrAutocompleteBadRequest, request.Window.String())
-	}
-
-	limit := request.Limit
-	if limit <= 0 {
-		limit = DefaultAutocompleteResultLimit
-	}
-	if limit > MaxAutocompleteResultLimit {
-		return nil, fmt.Errorf("%w: exceeded maximum autocomplete result limit of %d", ErrAutocompleteBadRequest, MaxAutocompleteResultLimit)
-	}
-
-	field, err := validateCloudCostAutocompleteField(request.Field)
+func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, request autocomplete.Request) (*autocomplete.Response, error) {
+	field, err := autocomplete.NormalizeRequest(&request, corecloudcost.ValidateField, autocomplete.NormalizeOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid field: %w", ErrAutocompleteBadRequest, err)
+		return nil, err
 	}
+	limit := request.Limit
 
 	ccsr, err := rq.Query(ctx, QueryRequest{
 		Start:      *request.Window.Start(),
@@ -126,37 +108,7 @@ func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, req
 		}
 	}
 
-	data := make([]string, 0, len(results))
-	for result := range results {
-		data = append(data, result)
-	}
-	sort.Strings(data)
-	if len(data) > limit {
-		data = data[:limit]
-	}
-
-	return &CloudCostAutocompleteResponse{Data: data}, nil
-}
-
-func validateCloudCostAutocompleteField(field string) (string, error) {
-	if field == "" {
-		return "", fmt.Errorf("field is required")
-	}
-
-	f := strings.ToLower(field)
-	if f == "label" {
-		return f, nil
-	}
-	if strings.HasPrefix(f, "label:") {
-		_, labelKey, _ := strings.Cut(f, ":")
-		return "label:" + labelKey, nil
-	}
-
-	property, err := opencost.ParseCloudCostProperty(field)
-	if err != nil {
-		return "", err
-	}
-	return string(property), nil
+	return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(results, limit)}, nil
 }
 
 func cloudCostAutocompleteValues(cc *opencost.CloudCost, field string) []string {

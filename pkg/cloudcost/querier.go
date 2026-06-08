@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
@@ -13,7 +14,7 @@ import (
 // Querier allows for querying ranges of CloudCost data
 type Querier interface {
 	Query(context.Context, QueryRequest) (*opencost.CloudCostSetRange, error)
-	QueryCloudCostAutocomplete(context.Context, CloudCostAutocompleteRequest) (*CloudCostAutocompleteResponse, error)
+	QueryCloudCostAutocomplete(context.Context, autocomplete.Request) (*autocomplete.Response, error)
 }
 
 type QueryRequest struct {
@@ -22,21 +23,6 @@ type QueryRequest struct {
 	AggregateBy []string
 	Accumulate  opencost.AccumulateOption
 	Filter      filter.Filter
-}
-
-const DefaultAutocompleteResultLimit = 100
-const MaxAutocompleteResultLimit = 1000
-
-type CloudCostAutocompleteRequest struct {
-	Search string
-	Field  string
-	Limit  int
-	Window opencost.Window
-	Filter filter.Filter
-}
-
-type CloudCostAutocompleteResponse struct {
-	Data []string `json:"data"`
 }
 
 // DefaultChartItemsLength the default max number of items for a ViewGraphDataSet
