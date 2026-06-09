@@ -73,13 +73,13 @@ func (c *Collector) CollectMetrics(ctx context.Context) ([]*InferenceCost, error
 	}
 
 	// --- Timing metrics (optional — degraded gracefully) ---
-	inputProcessingTime, err := c.queryMetric(ctx, `sum by (model_name, namespace) (rate(vllm:request_prefill_time_seconds[5m]) * 300)`)
+	inputProcessingTime, err := c.queryMetric(ctx, `sum by (model_name, namespace) (rate(vllm:request_prefill_time_seconds_sum[5m]) * 300)`)
 	if err != nil {
 		log.Warnf("InferenceCost: failed to query input processing time (will use multiplier fallback): %v", err)
 		inputProcessingTime = make(map[string]float64)
 	}
 
-	outputProcessingTime, err := c.queryMetric(ctx, `sum by (model_name, namespace) (rate(vllm:time_per_output_token_seconds[5m]) * 300)`)
+	outputProcessingTime, err := c.queryMetric(ctx, `sum by (model_name, namespace) (rate(vllm:request_time_per_output_token_seconds_sum[5m]) * 300)`)
 	if err != nil {
 		log.Warnf("InferenceCost: failed to query output processing time (will use multiplier fallback): %v", err)
 		outputProcessingTime = make(map[string]float64)
