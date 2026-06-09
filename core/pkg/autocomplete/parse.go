@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/filter"
+	"github.com/opencost/opencost/core/pkg/filter/ast"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 )
@@ -53,7 +54,7 @@ func ParseRequest(qp httputil.QueryParams, opts ParseOptions, validateField Fiel
 	}
 
 	filterString := qp.Get("filter", "")
-	var parsedFilter filter.Filter
+	var parsedFilter filter.Filter = &ast.VoidOp{}
 	if filterString != "" {
 		if parseFilter == nil {
 			return nil, fmt.Errorf("%w: invalid 'filter' parameter: filter parser is required", ErrBadRequest)
@@ -61,6 +62,9 @@ func ParseRequest(qp httputil.QueryParams, opts ParseOptions, validateField Fiel
 		parsedFilter, err = parseFilter(filterString)
 		if err != nil {
 			return nil, fmt.Errorf("%w: invalid 'filter' parameter: %w", ErrBadRequest, err)
+		}
+		if parsedFilter == nil {
+			parsedFilter = &ast.VoidOp{}
 		}
 	}
 

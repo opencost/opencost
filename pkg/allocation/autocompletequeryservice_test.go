@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/autocomplete"
+	"github.com/opencost/opencost/core/pkg/filter/ast"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
@@ -41,6 +42,7 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 		Field:  "label",
 		Limit:  10,
 		Window: window,
+		Filter: &ast.VoidOp{},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/autocomplete"
+	"github.com/opencost/opencost/core/pkg/filter/ast"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
@@ -29,6 +30,7 @@ func TestQueryAssetAutocompleteFromSet(t *testing.T) {
 		TenantID: "opencost",
 		Field:    "cluster",
 		Window:   window,
+		Filter:   &ast.VoidOp{},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
