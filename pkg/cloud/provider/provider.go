@@ -143,9 +143,6 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		}, nil
 	case opencost.GCPProvider:
 		log.Info("Found ProviderID starting with \"gce\", using GCP Provider")
-		if apiKey == "" {
-			return nil, errors.New("Supply a GCP Key to start getting data")
-		}
 		return &gcp.GCP{
 			Clientset:        cache,
 			APIKey:           apiKey,
