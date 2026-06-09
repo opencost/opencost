@@ -29,16 +29,12 @@ type GCPPricingSource struct {
 	config GCPPricingSourceConfig
 }
 
-func NewAWSPricingSource(cfg GCPPricingSourceConfig) *GCPPricingSource {
+func NewGCPPricingSource(cfg GCPPricingSourceConfig) *GCPPricingSource {
 	return &GCPPricingSource{config: cfg}
 }
 
-func NewAzurePricingSource(cfg GCPPricingSourceConfig) *GCPPricingSource {
-	return &GCPPricingSource{config: cfg}
-}
-
-func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
-	log.Infof("PricingSource (Azure): starting pricing download")
+func (g *GCPPricingSource) GetPricing() (*pricing.PricingSet, error) {
+	log.Infof("PricingSource (GCP): starting pricing download")
 	start := time.Now()
 
 	ps := &pricing.PricingSet{
@@ -47,13 +43,13 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 	}
 
 	// Fetch VM pricing
-	url := a.buildVMURL()
+	url := g.buildVMURL()
 	pageCount := 0
 
 	for url != "" {
 		resp, err := azureHTTPClient.Get(url)
 		if err != nil {
-			return nil, fmt.Errorf("PricingSource (Azure): GET %s: %w", url, err)
+			return nil, fmt.Errorf("PricingSource (GCP): GET %s: %w", url, err)
 		}
 
 		if resp.StatusCode != http.StatusOK {
@@ -62,24 +58,24 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 			if closeErr != nil {
 				log.Warnf("failed to close response body: %v", closeErr)
 			}
-			return nil, fmt.Errorf("PricingSource (Azure): unexpected status %d on VM page %d: %s", resp.StatusCode, pageCount, string(body))
+			return nil, fmt.Errorf("PricingSource (GCP): unexpected status %d on VM page %d: %s", resp.StatusCode, pageCount, string(body))
 		}
 
-		next, err := a.parseVMPage(resp.Body, ps)
+		next, err := g.parseVMPage(resp.Body, ps)
 		closeErr := resp.Body.Close()
 		if closeErr != nil {
 			log.Warnf("failed to close response body: %v", closeErr)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("PricingSource (Azure): parsing VM page %d: %w", pageCount, err)
+			return nil, fmt.Errorf("PricingSource (GCP): parsing VM page %d: %w", pageCount, err)
 		}
 
 		pageCount++
 		url = next
-		log.Debugf("PricingSource (Azure): fetched VM page %d, next: %s", pageCount, url)
+		log.Debugf("PricingSource (GCP): fetched VM page %d, next: %s", pageCount, url)
 	}
 
-	log.Infof("PricingSource (Azure): fetched %d VM pricing entries across %d pages", len(ps.Nodes), pageCount)
+	log.Infof("PricingSource (GCP): fetched %d VM pricing entries across %d pages", len(ps.Nodes), pageCount)
 
 	// Fetch disk pricing
 	url = a.buildDiskURL()
@@ -88,7 +84,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 	for url != "" {
 		resp, err := azureHTTPClient.Get(url)
 		if err != nil {
-			log.Warnf("PricingSource (Azure): failed to fetch disk pricing: %v", err)
+			log.Warnf("PricingSource (GCP): failed to fetch disk pricing: %v", err)
 			break
 		}
 
@@ -98,7 +94,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 			if closeErr != nil {
 				log.Warnf("failed to close response body: %v", closeErr)
 			}
-			log.Warnf("PricingSource (Azure): unexpected status %d on disk page %d: %s", resp.StatusCode, diskPageCount, string(body))
+			log.Warnf("PricingSource (GCP): unexpected status %d on disk page %d: %s", resp.StatusCode, diskPageCount, string(body))
 			break
 		}
 
@@ -108,16 +104,16 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 			log.Warnf("failed to close response body: %v", closeErr)
 		}
 		if err != nil {
-			log.Warnf("PricingSource (Azure): error parsing disk page %d: %v", diskPageCount, err)
+			log.Warnf("PricingSource (GCP): error parsing disk page %d: %v", diskPageCount, err)
 			break
 		}
 
 		diskPageCount++
 		url = next
-		log.Debugf("PricingSource (Azure): fetched disk page %d, next: %s", diskPageCount, url)
+		log.Debugf("PricingSource (GCP): fetched disk page %d, next: %s", diskPageCount, url)
 	}
 
-	log.Infof("PricingSource (Azure): completed in %s — %d node pricing, %d volume pricing",
+	log.Infof("PricingSource (GCP): completed in %s — %d node pricing, %d volume pricing",
 		time.Since(start).Round(time.Second), len(ps.Nodes), len(ps.Volumes))
 
 	return ps, nil
