@@ -22,7 +22,7 @@ type PricingInfo struct {
 	Summary                string             `json:"summary"`
 	PricingExpression      *PricingExpression `json:"pricingExpression"`
 	CurrencyConversionRate float64            `json:"currencyConversionRate"`
-	EffectiveTime          string             `json:"effectiveTime"`
+	EffectiveTime          string             `json:"-"`
 }
 
 // PricingExpression contains the actual pricing rates
@@ -30,7 +30,7 @@ type PricingExpression struct {
 	UsageUnit                string         `json:"usageUnit"`
 	UsageUnitDescription     string         `json:"usageUnitDescription"`
 	BaseUnit                 string         `json:"baseUnit"`
-	BaseUnitConversionFactor int64          `json:"baseUnitConversionFactor"`
+	BaseUnitConversionFactor int64          `json:"-"`
 	DisplayQuantity          int            `json:"displayQuantity"`
 	TieredRates              []*TieredRates `json:"tieredRates"`
 }

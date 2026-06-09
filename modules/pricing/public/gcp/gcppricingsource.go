@@ -31,7 +31,9 @@ type GCPPricingSource struct {
 }
 
 func NewGCPPricingSource(cfg GCPPricingSourceConfig) *GCPPricingSource {
-	return &GCPPricingSource{config: cfg}
+	return &GCPPricingSource{
+		config: cfg,
+	}
 }
 
 func (g *GCPPricingSource) GetPricing() (*pricing.PricingSet, error) {
@@ -293,16 +295,10 @@ func (g *GCPPricingSource) buildNodePricing(ps *pricing.PricingSet, nodeCPUCosts
 		}
 
 		// Determine provisioning type
-		// NOTE: Determine if this is correct behavior. Preemptible?
+		// NOTE: Both preemptible and spot map to spot type
 		provisioning := pricing.ProvisioningOnDemand
 		if key.UsageType == "preemptible" || key.UsageType == "spot" {
 			provisioning = pricing.ProvisioningSpot
-		}
-
-		priceObj := pricing.Price{
-			Currency: currency,
-			Unit:     unit.Hour,
-			Price:    cpuCost,
 		}
 
 		nodePricing := &pricing.NodePricing{
@@ -313,7 +309,16 @@ func (g *GCPPricingSource) buildNodePricing(ps *pricing.PricingSet, nodeCPUCosts
 				Provisioning: provisioning,
 			},
 			Prices: pricing.Prices{
-				currency: []pricing.Price{priceObj},
+				currency: []pricing.Price{{
+					Currency: currency,
+					Unit:     unit.VCPUHour,
+					Price:    cpuCost,
+				},
+				{
+					Currency: currency,
+					Unit:     unit.RAMGiBHour,
+					Price:    ramCost,
+				}},
 			},
 		}
 
@@ -333,12 +338,6 @@ func (g *GCPPricingSource) buildVolumePricing(
 	}
 
 	for key, cost := range volumeCosts {
-		priceObj := pricing.Price{
-			Currency: currency,
-			Unit:     unit.Hour,
-			Price:    cost,
-		}
-
 		volumePricing := &pricing.VolumePricing{
 			Properties: pricing.VolumePricingProperties{
 				Provider:   pricing.GCPProvider,
@@ -346,7 +345,11 @@ func (g *GCPPricingSource) buildVolumePricing(
 				VolumeType: key.VolumeType,
 			},
 			Prices: pricing.Prices{
-				currency: []pricing.Price{priceObj},
+				currency: []pricing.Price{{
+					Currency: currency,
+					Unit:     unit.StorageGiBHour,
+					Price:    cost,
+				}},
 			},
 		}
 

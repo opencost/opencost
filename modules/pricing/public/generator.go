@@ -2,12 +2,14 @@ package public
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/unit"
 	"github.com/opencost/opencost/modules/pricing/public/aws"
 	"github.com/opencost/opencost/modules/pricing/public/azure"
+	"github.com/opencost/opencost/modules/pricing/public/gcp"
 )
 
 // GenerateAWSPricing fetches AWS pricing data in the specified currency
@@ -50,6 +52,27 @@ func GenerateAzurePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 	return pricingSet, nil
 }
 
+// GenerateGCPPricing fetches GCP pricing data in the specified currency
+func GenerateGCPPricing(currency unit.Currency) (*pricing.PricingSet, error) {
+	log.Infof("Generating Azure pricing for currency: %s", currency)
+
+	source := gcp.NewGCPPricingSource(gcp.GCPPricingSourceConfig{
+		CurrencyCode: string(currency),
+		APIKey: os.Getenv("GCP_API_KEY"),
+	})
+
+	pricingSet, err := source.GetPricing()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GCP pricing: %w", err)
+	}
+
+	// Sort to ensure deterministic output for checksums
+	pricingSet.Sort()
+
+	log.Infof("Generated %d GCP node pricing entries", len(pricingSet.Nodes))
+	return pricingSet, nil
+}
+
 // GenerateAllProvidersPricing fetches pricing data for all supported providers
 // and combines them into a single PricingSet
 func GenerateAllProvidersPricing(currency unit.Currency) (*pricing.PricingSet, error) {
@@ -80,6 +103,16 @@ func GenerateAllProvidersPricing(currency unit.Currency) (*pricing.PricingSet, e
 		combinedSet.Volumes = append(combinedSet.Volumes, azureSet.Volumes...)
 		log.Infof("Added %d Azure node pricing entries", len(azureSet.Nodes))
 	}
+
+	// Fetch GCP pricing
+	gcpSet, err := GenerateGCPPricing(currency)
+	if err != nil {
+		log.Warnf("Failed to get GCP pricing: %v", err)
+	} else {
+		combinedSet.Nodes = append(combinedSet.Nodes, gcpSet.Nodes...)
+		combinedSet.Volumes = append(combinedSet.Volumes, gcpSet.Volumes...)
+		log.Infof("Added %d GCP node pricing entries", len(gcpSet.Nodes))
+	}
 	
 	// Sort the combined set to ensure deterministic output
 	combinedSet.Sort()
@@ -101,8 +134,7 @@ func GeneratePricingForProvider(provider pricing.Provider, currency unit.Currenc
 	case pricing.AzureProvider:
 		return GenerateAzurePricing(currency)
 	case pricing.GCPProvider:
-		return nil, fmt.Errorf("not implemented")
-		// return GenerateGCPPricing(currency)
+		return GenerateGCPPricing(currency)
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", provider)
 	}

@@ -149,12 +149,6 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 
 		// Handle node pricing
 		if isNode {
-			priceObj := pricing.Price{
-				Currency: currency,
-				Unit:     unit.Hour,
-				Price:    price,
-			}
-
 			nodePricing := &pricing.NodePricing{
 				Properties: pricing.NodePricingProperties{
 					Provider:     pricing.AWSProvider,
@@ -163,7 +157,11 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 					Provisioning: pricing.ProvisioningOnDemand,
 				},
 				Prices: pricing.Prices{
-					currency: []pricing.Price{priceObj},
+					currency: []pricing.Price{{
+						Currency: currency,
+						Unit:     unit.Hour,
+						Price:    price,
+					}},
 				},
 			}
 

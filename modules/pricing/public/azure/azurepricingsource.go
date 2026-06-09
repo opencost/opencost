@@ -163,12 +163,6 @@ func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet)
 			currency = unit.USD
 		}
 
-		priceObj := pricing.Price{
-			Currency: currency,
-			Unit:     unit.Hour,
-			Price:    float64(item.RetailPrice),
-		}
-
 		nodePricing := &pricing.NodePricing{
 			Properties: pricing.NodePricingProperties{
 				Provider:     pricing.Provider(shared.ProviderAzure),
@@ -177,9 +171,11 @@ func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet)
 				Provisioning: pricing.ProvisioningOnDemand,
 			},
 			Prices: pricing.Prices{
-				currency: []pricing.Price{
-					priceObj,
-				},
+				currency: []pricing.Price{{
+					Currency: currency,
+					Unit:     unit.Hour,
+					Price:    float64(item.RetailPrice),
+				}},
 			},
 		}
 
