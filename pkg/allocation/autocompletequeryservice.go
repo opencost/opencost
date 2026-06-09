@@ -18,7 +18,7 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 	}
 
 	var matcher opencost.AllocationMatcher
-	if req.Filter != nil {
+	if autocomplete.HasFilter(req.Filter) {
 		compiler := opencost.NewAllocationMatchCompiler(req.LabelConfig)
 		matcher, err = compiler.Compile(req.Filter)
 		if err != nil {
