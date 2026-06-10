@@ -48,6 +48,8 @@ const (
 	OVHSubsidiaryEnvVar    = "OVH_SUBSIDIARY"
 	OVHMonthlyNodepoolsVar = "OVH_MONTHLY_NODEPOOLS"
 
+	HcloudTokenEnvVar = "HCLOUD_TOKEN"
+
 	ClusterProfileEnvVar    = "CLUSTER_PROFILE"
 	RemoteEnabledEnvVar     = "REMOTE_WRITE_ENABLED"
 	RemotePWEnvVar          = "REMOTE_WRITE_PASSWORD"
@@ -438,6 +440,15 @@ func GetOVHMonthlyNodepools() []string {
 		}
 	}
 	return pools
+}
+
+func GetHcloudToken() string {
+	// Try HCLOUD_TOKEN first, then fall back to CLOUD_PROVIDER_API_KEY
+	token := env.Get(HcloudTokenEnvVar, "")
+	if token == "" {
+		token = env.Get(CloudProviderAPIKeyEnvVar, "")
+	}
+	return token
 }
 
 // IsMCPServerEnabled returns the environment variable value for MCPServerEnabledEnvVar which represents

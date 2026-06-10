@@ -17,6 +17,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/digitalocean"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/hcloud"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
 	"github.com/opencost/opencost/pkg/cloud/otc"
@@ -229,6 +230,14 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Clientset:             cache,
 			ClusterManagementCost: 0.0,
 		}, nil
+	case opencost.HCloudProvider:
+		log.Info("Using Hetzner Cloud Provider")
+		return hcloud.NewHCloudProvider(
+			cache,
+			cp.region,
+			cp.accountID,
+			NewProviderConfig(config, cp.configFileName),
+		), nil
 	default:
 		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
@@ -312,6 +321,10 @@ func getClusterProperties(node *clustercache.Node) clusterProperties {
 		log.Debug("using DigitalOcean provider")
 		cp.provider = opencost.DigitalOceanProvider
 		cp.configFileName = "digitalocean.json"
+	} else if strings.HasPrefix(providerID, "hcloud") {
+		log.Debug("using Hetzner Cloud provider")
+		cp.provider = opencost.HCloudProvider
+		cp.configFileName = "hcloud.json"
 	}
 	// Override provider to CSV if CSVProvider is used and custom provider is not set
 	if env.IsUseCSVProvider() {
