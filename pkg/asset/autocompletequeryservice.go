@@ -37,7 +37,7 @@ func QueryAssetAutocompleteFromSet(assetSet *opencost.AssetSet, req autocomplete
 	}
 
 	var matcher opencost.AssetMatcher
-	if req.Filter != nil {
+	if autocomplete.HasFilter(req.Filter) {
 		compiler := opencost.NewAssetMatchCompiler()
 		matcher, err = compiler.Compile(req.Filter)
 		if err != nil {
