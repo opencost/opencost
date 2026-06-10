@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/autocomplete"
+	"github.com/opencost/opencost/core/pkg/filter/ast"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
@@ -34,10 +36,13 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 	}))
 
 	asr := opencost.NewAllocationSetRange(as)
+	window := opencost.NewClosedWindow(start, start.Add(24*time.Hour))
 
-	resp, err := QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
-		Field: "label",
-		Limit: 10,
+	resp, err := QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{
+		Field:  "label",
+		Limit:  10,
+		Window: window,
+		Filter: &ast.VoidOp{},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -46,9 +51,10 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 		t.Fatalf("unexpected label autocomplete response: %+v", resp.Data)
 	}
 
-	valueResp, err := QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
+	valueResp, err := QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{
 		Field:  "label:team",
 		Search: "plat",
+		Window: window,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -57,8 +63,9 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 		t.Fatalf("unexpected label value autocomplete response: %+v", valueResp.Data)
 	}
 
-	mixedCaseResp, err := QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
-		Field: "label:Team",
+	mixedCaseResp, err := QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{
+		Field:  "label:Team",
+		Window: window,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -67,24 +74,26 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 		t.Fatalf("expected label:team to match Team label values, got %+v", mixedCaseResp.Data)
 	}
 
-	_, err = QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
-		Field: "account",
+	accountResp, err := QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{
+		Field:  "account",
+		Window: window,
 	})
-	if err == nil {
-		t.Fatal("expected error for unsupported account field")
+	if err != nil {
+		t.Fatalf("unexpected error for account field: %v", err)
 	}
-	if !IsAutocompleteBadRequest(err) {
-		t.Fatalf("expected bad request error, got: %v", err)
+	if len(accountResp.Data) != 0 {
+		t.Fatalf("expected empty account autocomplete response, got %+v", accountResp.Data)
 	}
 
-	_, err = QueryAllocationAutocompleteFromSetRange(asr, AllocationAutocompleteRequest{
-		Field: "namespace",
-		Limit: MaxAutocompleteResultLimit + 1,
+	_, err = QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{
+		Field:  "namespace",
+		Limit:  autocomplete.MaxResultLimit + 1,
+		Window: window,
 	})
 	if err == nil {
 		t.Fatal("expected error for excessive limit")
 	}
-	if !IsAutocompleteBadRequest(err) {
+	if !autocomplete.IsBadRequest(err) {
 		t.Fatalf("expected bad request error, got: %v", err)
 	}
 }
