@@ -351,6 +351,7 @@ func (c *ClusterStorage) WriteStream(path string) (io.WriteCloser, error) {
 	}
 
 	r, w := io.Pipe()
+	doneCh := make(chan error, 1)
 
 	go func() {
 		err := c.makeRequest(
@@ -359,10 +360,15 @@ func (c *ClusterStorage) WriteStream(path string) (io.WriteCloser, error) {
 			r,
 			fn,
 		)
-		r.CloseWithError(fmt.Errorf("ClusterStorage: WriteStream: %w", err))
+		var uploadErr error
+		if err != nil {
+			uploadErr = fmt.Errorf("ClusterStorage: WriteStream: %w", err)
+			r.CloseWithError(uploadErr)
+		}
+		doneCh <- uploadErr
 	}()
 
-	return w, nil
+	return newAsyncPipeWriter(w, doneCh), nil
 }
 
 func (c *ClusterStorage) Remove(path string) error {

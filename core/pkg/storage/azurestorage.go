@@ -348,16 +348,19 @@ func (b *AzureStorage) WriteStream(name string) (io.WriteCloser, error) {
 
 	r, w := io.Pipe()
 	blobClient := b.containerClient.NewBlockBlobClient(name)
+	doneCh := make(chan error, 1)
 
 	go func() {
 		_, err := blobClient.UploadStream(ctx, r, &blockblob.UploadStreamOptions{
 			BlockSize:   4 * 1024 * 1024,
 			Concurrency: 4,
 		})
-		r.CloseWithError(errors.Wrapf(err, "cannot upload Azure blob, address: %s", name))
+		wrapped := errors.Wrapf(err, "cannot upload Azure blob, address: %s", name)
+		r.CloseWithError(wrapped)
+		doneCh <- wrapped
 	}()
 
-	return w, nil
+	return newAsyncPipeWriter(w, doneCh), nil
 }
 
 // Remove uses the relative path of the storage combined with the provided path to

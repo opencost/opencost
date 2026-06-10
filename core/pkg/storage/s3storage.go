@@ -476,16 +476,19 @@ func (s3 *S3Storage) WriteStream(name string) (io.WriteCloser, error) {
 	}
 
 	r, w := io.Pipe()
+	doneCh := make(chan error, 1)
 
 	go func() {
 		_, err = s3.client.PutObject(ctx, s3.name, name, r, -1, minio.PutObjectOptions{
 			ServerSideEncryption: sse,
 			UserMetadata:         s3.putUserMetadata,
 		})
-		r.CloseWithError(errors.Wrap(err, "upload s3 object"))
+		wrapped := errors.Wrap(err, "upload s3 object")
+		r.CloseWithError(wrapped)
+		doneCh <- wrapped
 	}()
 
-	return w, nil
+	return newAsyncPipeWriter(w, doneCh), nil
 }
 
 // Attributes returns information about the specified object.
