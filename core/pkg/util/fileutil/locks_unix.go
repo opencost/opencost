@@ -14,8 +14,16 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 )
 
-// LockFile directly attempts to flock SH the file instance provided.
+// LockFile directly attempts to flock EX the file instance provided.
 func LockFile(f *os.File) error {
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return fmt.Errorf("unexpected error flock()-ing with EX: %w", err)
+	}
+	return nil
+}
+
+// ReadLockFile directly attempts to flock SH the file instance provided.
+func ReadLockFile(f *os.File) error {
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH); err != nil {
 		return fmt.Errorf("unexpected error flock()-ing FD: %d directly: %w", f.Fd(), err)
 	}
