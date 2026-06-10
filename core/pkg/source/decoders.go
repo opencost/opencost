@@ -755,7 +755,10 @@ func DecodeOwnerResult(result *QueryResult) *OwnerResult {
 	cluster, _ := result.GetCluster()
 	ownerUID, _ := result.GetString(OwnerUIDLabel)
 	ownerKind, _ := result.GetString(OwnerKindLabel)
-	controller, _ := result.GetBool(ControllerLabel)
+	controller, err := result.GetBool(ControllerLabel)
+	if err != nil {
+		log.Errorf("DecodeOwnerResult: %s", err.Error())
+	}
 
 	return &OwnerResult{
 		UID:        uid,
@@ -1269,6 +1272,7 @@ type PVInfoResult struct {
 	StorageClass     string
 	ProviderID       string
 	CSIVolumeHandle  string
+	Data             []*util.Vector
 }
 
 func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
@@ -1286,6 +1290,8 @@ func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
 		StorageClass:     storageClass,
 		ProviderID:       providerId,
 		CSIVolumeHandle:  csiVolumeHandle,
+
+		Data: result.Values,
 	}
 }
 

@@ -308,7 +308,6 @@ func resourceUnitValue(resource, unit string, value float64) (kubemodel.Resource
 	}
 }
 
-// computeDevices must take place after computePod and computeNode
 func (km *KubeModel) computeNamespaces(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
@@ -1382,7 +1381,7 @@ func (km *KubeModel) computePersistentVolumes(kms *kubemodel.KubeModelSet, start
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
 
-	pvInfoResultFuture := source.WithGroup(grp, metrics.QueryPVInfo(start, end))
+	pvInfoResultFuture := source.WithGroup(grp, metrics.QueryKMPVInfo(start, end))
 	pvUptimeResultFuture := source.WithGroup(grp, metrics.QueryPVUptime(start, end))
 	pvBytesResultFuture := source.WithGroup(grp, metrics.QueryPVBytes(start, end))
 
@@ -1439,6 +1438,8 @@ func (km *KubeModel) computePersistentVolumeClaims(kms *kubemodel.KubeModelSet, 
 	pvcInfoResultFuture := source.WithGroup(grp, metrics.QueryKMPVCInfo(start, end))
 	pvcUptimeResultFuture := source.WithGroup(grp, metrics.QueryPVCUptime(start, end))
 	pvcBytesRequestedResultFuture := source.WithGroup(grp, metrics.QueryPVCBytesRequested(start, end))
+	pvcBytesUsedAvgResultFuture := source.WithGroup(grp, metrics.QueryPVCBytesUsedAverage(start, end))
+	pvcBytesUsedMaxResultFuture := source.WithGroup(grp, metrics.QueryPVCBytesUsedMax(start, end))
 
 	pvcMap := make(map[string]*kubemodel.PersistentVolumeClaim)
 
@@ -1475,6 +1476,26 @@ func (km *KubeModel) computePersistentVolumeClaims(kms *kubemodel.KubeModelSet, 
 		if len(res.Data) > 0 {
 			pvc.RequestedBytes = res.Data[0].Value
 		}
+	}
+
+	pvcBytesUsedAvgResult, _ := pvcBytesUsedAvgResultFuture.Await()
+	for _, res := range pvcBytesUsedAvgResult {
+		pvc, ok := pvcMap[res.UID]
+		if !ok {
+			log.Warnf("persistent volume claim with UID '%s' has not been initialized to add bytes used average", res.UID)
+			continue
+		}
+		pvc.RequestedBytes = res.Value
+	}
+
+	pvcBytesUsedMaxResult, _ := pvcBytesUsedMaxResultFuture.Await()
+	for _, res := range pvcBytesUsedMaxResult {
+		pvc, ok := pvcMap[res.UID]
+		if !ok {
+			log.Warnf("persistent volume claim with UID '%s' has not been initialized to add bytes used max", res.UID)
+			continue
+		}
+		pvc.RequestedBytes = res.Value
 	}
 
 	for _, pvc := range pvcMap {
