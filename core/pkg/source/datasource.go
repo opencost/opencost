@@ -99,15 +99,18 @@ type MetricsQuerier interface {
 	QueryPVCInfo(start, end time.Time) *Future[PVCInfoResult]
 	QueryKMPVCInfo(start, end time.Time) *Future[PVCInfoResult]
 	QueryPVCUptime(start, end time.Time) *Future[UptimeResult]
+	QueryPVCBytesUsedAverage(start, end time.Time) *Future[PVCUIDValueResult]
+	QueryPVCBytesUsedMax(start, end time.Time) *Future[PVCUIDValueResult]
 
 	// PV
 	QueryPVBytes(start, end time.Time) *Future[PVBytesResult]
 	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
 	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
-	QueryPVUptime(start, end time.Time) *Future[UptimeResult]
 	QueryPVActiveMinutes(start, end time.Time) *Future[PVActiveMinutesResult]
 	QueryPVUsedAverage(start, end time.Time) *Future[PVUsedAvgResult]
 	QueryPVUsedMax(start, end time.Time) *Future[PVUsedMaxResult]
+	QueryKMPVInfo(start, end time.Time) *Future[PVInfoResult]
+	QueryPVUptime(start, end time.Time) *Future[UptimeResult]
 
 	// Deployment
 	QueryDeploymentInfo(start, end time.Time) *Future[DeploymentInfoResult]

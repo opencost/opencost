@@ -416,6 +416,18 @@ func (c *collectorMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Futu
 	return queryCollector(c, start, end, metric.PVInfoID, source.DecodePVInfoResult)
 }
 
+func (c *collectorMetricsQuerier) QueryKMPVInfo(start, end time.Time) *source.Future[source.PVInfoResult] {
+	return queryCollector(c, start, end, metric.KMPVInfoID, source.DecodePVInfoResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPVCBytesUsedAverage(start, end time.Time) *source.Future[source.PVCUIDValueResult] {
+	return queryCollector(c, start, end, metric.PVCBytesUsedAverageID, source.DecodePVCUIDValueResult)
+}
+
+func (c *collectorMetricsQuerier) QueryPVCBytesUsedMax(start, end time.Time) *source.Future[source.PVCUIDValueResult] {
+	return queryCollector(c, start, end, metric.PVCBytesUsedMaxID, source.DecodePVCUIDValueResult)
+}
+
 func (c *collectorMetricsQuerier) QueryPVUptime(start, end time.Time) *source.Future[source.UptimeResult] {
 	return queryCollector(c, start, end, metric.PVUptimeID, source.DecodeUptimeResult)
 }

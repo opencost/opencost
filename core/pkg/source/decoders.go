@@ -83,6 +83,12 @@ func DecodeNodeUIDValueResult(result *QueryResult) *NodeUIDValueResult {
 	return (*NodeUIDValueResult)(decodeValueResult(result, NodeUIDLabel))
 }
 
+type PVCUIDValueResult UIDValueResult
+
+func DecodePVCUIDValueResult(result *QueryResult) *PVCUIDValueResult {
+	return (*PVCUIDValueResult)(decodeValueResult(result, PVCUIDLabel))
+}
+
 func decodeValueResult(result *QueryResult, uidLabel string) *UIDValueResult {
 	uid, _ := result.GetString(uidLabel)
 	var value float64
@@ -1263,7 +1269,6 @@ type PVInfoResult struct {
 	StorageClass     string
 	ProviderID       string
 	CSIVolumeHandle  string
-	Data             []*util.Vector
 }
 
 func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
@@ -1281,8 +1286,6 @@ func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
 		StorageClass:     storageClass,
 		ProviderID:       providerId,
 		CSIVolumeHandle:  csiVolumeHandle,
-
-		Data: result.Values,
 	}
 }
 
