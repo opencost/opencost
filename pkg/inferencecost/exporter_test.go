@@ -14,7 +14,10 @@ import (
 func newTestExporter(t *testing.T) (*Exporter, *prometheus.Registry) {
 	t.Helper()
 	reg := prometheus.NewRegistry()
-	e := NewExporter()
+	cfg := &Config{
+		UsageCostShareSplit: UsageCostShareSplitNone, // Default for tests
+	}
+	e := NewExporter(cfg)
 	for _, c := range []prometheus.Collector{
 		e.totalCost,
 		e.costPerMillionTokens,

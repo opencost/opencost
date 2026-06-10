@@ -269,3 +269,36 @@ func TestCalculator_MultiplierFallback_ZeroTokens(t *testing.T) {
 		t.Error("expected zero derived costs when tokens are zero")
 	}
 }
+
+func TestCalculator_IncompleteTimingData_FallsBackToMultiplier(t *testing.T) {
+	cfg := &Config{
+		AllocationMode:            AllocationModeComputeTime,
+		OutputTokenCostMultiplier: 2.5,
+	}
+	m := &InferenceCost{
+		AllocationTotalCost:  5.0,
+		UsageTotalCost:       2.0,
+		PromptTokens:         800_000,
+		GenerationTokens:     200_000,
+		TotalTokens:          1_000_000,
+		EffectiveInputTokens: 800_000,
+		InputProcessingTime:  60,
+		OutputProcessingTime: 0, // incomplete timing data
+	}
+	newCalc(cfg).CalculateCosts([]*InferenceCost{m})
+
+	if m.AllocationMethod != AllocationMethodMultiplier {
+		t.Fatalf("expected multiplier fallback for incomplete timing data, got %s", m.AllocationMethod)
+	}
+
+	weighted := 800_000.0 + 200_000.0*2.5
+	wantInput := (2.0 / weighted) * 1_000_000
+	wantOutput := wantInput * 2.5
+
+	if !floatEq(m.InputCostPerMillionTokens[CostBasisUsage], wantInput) {
+		t.Errorf("usage input want %f got %f", wantInput, m.InputCostPerMillionTokens[CostBasisUsage])
+	}
+	if !floatEq(m.OutputCostPerMillionTokens[CostBasisUsage], wantOutput) {
+		t.Errorf("usage output want %f got %f", wantOutput, m.OutputCostPerMillionTokens[CostBasisUsage])
+	}
+}

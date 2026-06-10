@@ -94,6 +94,8 @@ type Config struct {
 	PrometheusURL string
 
 	// CollectionInterval is how often metrics are collected.
+	// Configurable via INFERENCE_COLLECTION_INTERVAL environment variable.
+	// Default is 2 minutes to match the core metrics emitter query window.
 	CollectionInterval time.Duration
 
 	// Enabled controls whether the inference cost collector runs.
@@ -140,7 +142,6 @@ const (
 	UsageCostShareSplitEven     = "even"
 
 	defaultOutputTokenCostMultiplier = 2.5
-	defaultCollectionInterval        = 5 * time.Minute
 	defaultModelLabel                = "llm-d.ai/model"
 	defaultSharedInfraLabel          = "llm-d.ai/inference-serving"
 	defaultSharedInfraLabelValue     = "true"
@@ -152,7 +153,7 @@ const (
 func DefaultConfig() *Config {
 	return &Config{
 		PrometheusURL:             getPrometheusURL(),
-		CollectionInterval:        defaultCollectionInterval,
+		CollectionInterval:        getCollectionInterval(),
 		Enabled:                   isInferenceCostEnabled(),
 		ModelLabel:                getModelLabel(),
 		SharedInfraLabel:          getSharedInfraLabel(),

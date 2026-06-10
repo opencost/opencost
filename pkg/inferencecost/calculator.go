@@ -32,13 +32,15 @@ func (c *Calculator) calculateModelCosts(m *InferenceCost) {
 	}
 
 	// Input/output split — choose the allocation method.
-	hasTimingData := m.InputProcessingTime > 0 || m.OutputProcessingTime > 0
-	if c.config.AllocationMode == AllocationModeComputeTime && hasTimingData {
+	// Require both timing components to be present for compute-time allocation.
+	// One-sided timing data is treated as incomplete and falls back to multiplier.
+	hasCompleteTimingData := m.InputProcessingTime > 0 && m.OutputProcessingTime > 0
+	if c.config.AllocationMode == AllocationModeComputeTime && hasCompleteTimingData {
 		c.calculateComputeTimeSplit(m)
 	} else {
-		if c.config.AllocationMode == AllocationModeComputeTime && !hasTimingData {
-			log.Debugf("InferenceCost: no timing data for model %s/%s, using multiplier fallback",
-				m.Properties.ModelName, m.Properties.Namespace)
+		if c.config.AllocationMode == AllocationModeComputeTime && !hasCompleteTimingData {
+			log.Debugf("InferenceCost: incomplete timing data for model %s/%s (input=%f output=%f), using multiplier fallback",
+				m.Properties.ModelName, m.Properties.Namespace, m.InputProcessingTime, m.OutputProcessingTime)
 		}
 		c.calculateMultiplierSplit(m)
 	}

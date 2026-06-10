@@ -61,32 +61,41 @@ func (c *Collector) CollectMetrics(ctx context.Context) ([]*InferenceCost, error
 	}
 	log.Infof("InferenceCost: collected allocation costs for %d model/namespace combinations", len(allocationCosts))
 
+	// Build dynamic query window matching CollectionInterval
+	// This ensures Prometheus queries capture the same time range as allocation costs
+	queryWindow := c.buildQueryWindow()
+	log.Debugf("InferenceCost: using Prometheus query window: %s", queryWindow)
+
 	// --- Token metrics from Prometheus ---
-	promptTokens, err := c.queryMetric(ctx, `sum by (model_name, namespace) (rate(vllm:prompt_tokens_total[5m]) * 300)`)
+	// Use increase() to get total tokens in the window, not per-second rate.
+	promptTokens, err := c.queryMetric(ctx, fmt.Sprintf(`sum by (model_name, namespace) (increase(vllm:prompt_tokens_total%s))`, queryWindow))
 	if err != nil {
 		return nil, fmt.Errorf("failed to query prompt tokens: %w", err)
 	}
 
-	generationTokens, err := c.queryMetric(ctx, `sum by (model_name, namespace) (rate(vllm:generation_tokens_total[5m]) * 300)`)
+	generationTokens, err := c.queryMetric(ctx, fmt.Sprintf(`sum by (model_name, namespace) (increase(vllm:generation_tokens_total%s))`, queryWindow))
 	if err != nil {
 		return nil, fmt.Errorf("failed to query generation tokens: %w", err)
 	}
 
 	// --- Timing metrics (optional — degraded gracefully) ---
-	inputProcessingTime, err := c.queryMetric(ctx, `sum by (model_name, namespace) (rate(vllm:request_prefill_time_seconds_sum[5m]) * 300)`)
+	// Use increase() to get total seconds of processing time in the window.
+	// Dynamic window ensures we capture activity across the full collection interval.
+	inputProcessingTime, err := c.queryMetric(ctx, fmt.Sprintf(`sum by (model_name, namespace) (increase(vllm:request_prefill_time_seconds_sum%s))`, queryWindow))
 	if err != nil {
 		log.Warnf("InferenceCost: failed to query input processing time (will use multiplier fallback): %v", err)
 		inputProcessingTime = make(map[string]float64)
 	}
 
-	outputProcessingTime, err := c.queryMetric(ctx, `sum by (model_name, namespace) (rate(vllm:request_time_per_output_token_seconds_sum[5m]) * 300)`)
+	outputProcessingTime, err := c.queryMetric(ctx, fmt.Sprintf(`sum by (model_name, namespace) (increase(vllm:request_time_per_output_token_seconds_sum%s))`, queryWindow))
 	if err != nil {
 		log.Warnf("InferenceCost: failed to query output processing time (will use multiplier fallback): %v", err)
 		outputProcessingTime = make(map[string]float64)
 	}
 
 	// --- KV cache hits (optional — degraded gracefully) ---
-	cacheHitBlocks, err := c.queryMetric(ctx, `sum by (model_name, namespace) (rate(vllm:prefix_cache_hits_total[5m]) * 300)`)
+	// Use increase() to get total cache hit blocks in the window.
+	cacheHitBlocks, err := c.queryMetric(ctx, fmt.Sprintf(`sum by (model_name, namespace) (increase(vllm:prefix_cache_hits_total%s))`, queryWindow))
 	if err != nil {
 		log.Warnf("InferenceCost: failed to query KV cache hits (cache denominator correction disabled): %v", err)
 		cacheHitBlocks = make(map[string]float64)
@@ -94,6 +103,17 @@ func (c *Collector) CollectMetrics(ctx context.Context) ([]*InferenceCost, error
 
 	return c.combineMetrics(allocationCosts, promptTokens, generationTokens,
 		inputProcessingTime, outputProcessingTime, cacheHitBlocks, now), nil
+}
+
+// buildQueryWindow constructs a Prometheus time range selector matching the CollectionInterval.
+// Returns a string like "[5m]" or "[10m]" that can be appended to metric names in increase() queries.
+func (c *Collector) buildQueryWindow() string {
+	minutes := int(c.config.CollectionInterval.Minutes())
+	if minutes < 1 {
+		// Minimum 1 minute window for Prometheus queries
+		minutes = 1
+	}
+	return fmt.Sprintf("[%dm]", minutes)
 }
 
 // allocationResult holds the two cost figures derived from one Allocation.
@@ -108,6 +128,8 @@ type allocationResult struct {
 // once with idle sharing (for allocation costs) and once without (for usage costs).
 // This ensures allocation costs reconcile to the bill while usage costs reflect
 // only active compute without idle or waste.
+// This approach was chosen rather than doing a single call and deducting idle and optionally shared, so that
+// core logic is not duplicated.  A performance penalty is paid though.
 func (c *Collector) queryAllocationCosts(ctx context.Context, start, end time.Time) (map[string]*allocationResult, error) {
 	// Query 1: Allocation costs with idle sharing (reconciles to bill)
 	allocationCosts, err := c.queryAllocationCostsWithIdle(ctx, start, end)
@@ -275,41 +297,70 @@ func extractModelName(alloc *opencost.Allocation, _ string) string {
 	return alloc.Name
 }
 
-// reconcileTokenKeys re-keys entries in a token map whose model name contains a
-// slash-prefixed org (e.g. "MiniMaxAI/MiniMax-M2.7") when no direct allocation
-// key exists but an allocation key with the short name (after the last "/") does.
-// Re-keying only happens on a confirmed mismatch; unaffected entries are left as-is.
-// A warning is logged for every remapped key so the mismatch is auditable.
-// Returns both the reconciled map and a set of keys that were remapped (to be excluded later).
+// canonicalModelName normalizes a model name by stripping any org/vendor prefix
+// before the last "/".
+// Examples:
+//   - "MiniMaxAI/MiniMax-M2.7" -> "MiniMax-M2.7"
+//   - "google/gemma-4-31B" -> "gemma-4-31B"
+func canonicalModelName(modelName string) string {
+	if idx := strings.LastIndex(modelName, "/"); idx >= 0 {
+		return modelName[idx+1:]
+	}
+	return modelName
+}
+
+// reconcileTokenKeys re-keys entries only when there is a confirmed mismatch
+// between the metric key and the allocation-backed model key for the same
+// namespace.
+//
+// Two common mismatch examples:
+//   1. Fully-qualified vLLM model name vs short allocation label:
+//      "google/gemma-4-31B:llm-d-pic" -> "gemma-4-31B:llm-d-pic"
+//   2. Fully-qualified vLLM model name vs short allocation label with a
+//      different vendor/org prefix:
+//      "MiniMaxAI/MiniMax-M2.7:llm-d-pic" -> "MiniMax-M2.7:llm-d-pic"
+//
+// Exact matches are preserved. Keys with no matching allocation-backed target
+// are also preserved unchanged. A warning is logged for every remapped key so
+// the mismatch is auditable.
+//
+// Returns both the reconciled map and a set of keys that were remapped (to be
+// excluded later).
 func reconcileTokenKeys(tokens map[string]float64, allocCosts map[string]*allocationResult) (map[string]float64, map[string]struct{}) {
-	// Build secondary index: shortName:namespace → allocKey, only for alloc keys
-	// whose model name has no slash (i.e. the short form is the canonical label).
+	// Build index: normalizedShortName:namespace -> allocKey, preferring
+	// allocation keys that are already in short-name form.
 	shortIndex := make(map[string]string, len(allocCosts))
 	for allocKey := range allocCosts {
 		modelName, namespace := parseKey(allocKey)
-		if !strings.Contains(modelName, "/") {
-			shortIndex[modelNamespaceKey(modelName, namespace)] = allocKey
+		shortName := canonicalModelName(modelName)
+		shortKey := modelNamespaceKey(shortName, namespace)
+
+		if existing, found := shortIndex[shortKey]; found {
+			existingModelName, _ := parseKey(existing)
+			if existingModelName == shortName {
+				continue
+			}
 		}
+		shortIndex[shortKey] = allocKey
 	}
 
 	out := make(map[string]float64, len(tokens))
 	remappedKeys := make(map[string]struct{})
-	
+
 	for k, v := range tokens {
-		if _, directMatch := allocCosts[k]; directMatch {
-			out[k] = v
-			continue
-		}
 		modelName, namespace := parseKey(k)
-		if idx := strings.LastIndex(modelName, "/"); idx >= 0 {
-			shortKey := modelNamespaceKey(modelName[idx+1:], namespace)
-			if allocKey, found := shortIndex[shortKey]; found {
-				log.Warnf("InferenceCost: remapping token key %q → %q (org-prefix mismatch with pod label)", k, allocKey)
+		shortName := canonicalModelName(modelName)
+		shortKey := modelNamespaceKey(shortName, namespace)
+
+		if allocKey, found := shortIndex[shortKey]; found {
+			if k != allocKey {
+				log.Warnf("InferenceCost: remapping metric key %q → %q (model-name mismatch with allocation label)", k, allocKey)
 				out[allocKey] += v
-				remappedKeys[k] = struct{}{} // Track this key as remapped
+				remappedKeys[k] = struct{}{}
 				continue
 			}
 		}
+
 		out[k] = v
 	}
 	return out, remappedKeys
@@ -354,6 +405,8 @@ func (c *Collector) combineMetrics(
 	}
 
 	// Union of all keys across sources.
+	// Include timing/cache maps as well so models that only appear in those
+	// sources are not dropped before cost calculation.
 	keys := make(map[string]struct{})
 	for k := range allocCosts {
 		keys[k] = struct{}{}
@@ -362,6 +415,15 @@ func (c *Collector) combineMetrics(
 		keys[k] = struct{}{}
 	}
 	for k := range generationTokens {
+		keys[k] = struct{}{}
+	}
+	for k := range inputProcessingTime {
+		keys[k] = struct{}{}
+	}
+	for k := range outputProcessingTime {
+		keys[k] = struct{}{}
+	}
+	for k := range cacheHitBlocks {
 		keys[k] = struct{}{}
 	}
 
@@ -414,7 +476,7 @@ func (c *Collector) combineMetrics(
 	return results
 }
 
-// queryMetric runs a PromQL query and returns a map[model_name:namespace]value.
+// queryMetric runs a Prometheus query and returns a map[model_name:namespace]value.
 func (c *Collector) queryMetric(ctx context.Context, query string) (map[string]float64, error) {
 	result, _, err := c.promClient.Query(ctx, query, time.Now())
 	if err != nil {

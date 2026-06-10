@@ -214,25 +214,25 @@ func TestCollector_CombineMetrics_NoCacheHits_FallsBackToPromptTokens(t *testing
 	}
 }
 
-// TestReconcileTokenKeys_OrgPrefixMismatch verifies that a token key with a
+// TestReconcileTokenKeys_OrgPrefixMismatch verifies that a metric key with a
 // fully-qualified org/model name is re-keyed to match the allocation key that
 // uses only the short name, and that keys which already match are left unchanged.
 func TestReconcileTokenKeys_OrgPrefixMismatch(t *testing.T) {
 	allocCosts := map[string]*allocationResult{
 		"MiniMax-M2.7:llm-d-pic": {allocationTotalCost: 489.0, namespace: "llm-d-pic"},
-		"gpt-oss-120b:dolev-inf":  {allocationTotalCost: 453.0, namespace: "dolev-inf"},
-		// This alloc key already has a slash — should NOT be indexed as a short-name target.
+		"gpt-oss-120b:dolev-inf": {allocationTotalCost: 453.0, namespace: "dolev-inf"},
+		// This alloc key already has a slash and no short-name alternative.
 		"meta-llama/Llama-3:prod": {allocationTotalCost: 10.0, namespace: "prod"},
 	}
 
 	tokens := map[string]float64{
 		// Mismatch: vLLM uses full org/model, alloc uses short name.
-		"MiniMaxAI/MiniMax-M2.7:llm-d-pic":  4316.0,
-		"openai/gpt-oss-120b:dolev-inf":      4773.0,
+		"MiniMaxAI/MiniMax-M2.7:llm-d-pic": 4316.0,
+		"openai/gpt-oss-120b:dolev-inf":    4773.0,
 		// Already matches alloc key — should pass through unchanged.
-		"meta-llama/Llama-3:prod":            1000.0,
+		"meta-llama/Llama-3:prod": 1000.0,
 		// No alloc entry at all — should pass through unchanged.
-		"unknown-org/new-model:some-ns":      99.0,
+		"unknown-org/new-model:some-ns": 99.0,
 	}
 
 	out, remappedKeys := reconcileTokenKeys(tokens, allocCosts)
@@ -251,7 +251,7 @@ func TestReconcileTokenKeys_OrgPrefixMismatch(t *testing.T) {
 	if _, ok := out["openai/gpt-oss-120b:dolev-inf"]; ok {
 		t.Error("org-prefixed key openai/gpt-oss-120b:dolev-inf should have been removed")
 	}
-	// Verify remapped keys are tracked
+	// Verify remapped keys are tracked.
 	if _, ok := remappedKeys["MiniMaxAI/MiniMax-M2.7:llm-d-pic"]; !ok {
 		t.Error("MiniMaxAI/MiniMax-M2.7:llm-d-pic should be in remappedKeys")
 	}
@@ -264,6 +264,78 @@ func TestReconcileTokenKeys_OrgPrefixMismatch(t *testing.T) {
 	}
 	if v, ok := out["unknown-org/new-model:some-ns"]; !ok || !floatEq(v, 99.0) {
 		t.Errorf("unknown-org/new-model:some-ns want 99.0 got %v (ok=%v)", v, ok)
+	}
+}
+
+func TestReconcileTokenKeys_PrefersShortAllocationKeyWhenBothFormsExist(t *testing.T) {
+	allocCosts := map[string]*allocationResult{
+		"gemma-4-31B:llm-d-pic":        {allocationTotalCost: 10.0, namespace: "llm-d-pic"},
+		"google/gemma-4-31B:llm-d-pic": {allocationTotalCost: 1.0, namespace: "llm-d-pic"},
+	}
+
+	tokens := map[string]float64{
+		"google/gemma-4-31B:llm-d-pic": 123.0,
+	}
+
+	out, remappedKeys := reconcileTokenKeys(tokens, allocCosts)
+
+	if v, ok := out["gemma-4-31B:llm-d-pic"]; !ok || !floatEq(v, 123.0) {
+		t.Errorf("gemma-4-31B:llm-d-pic want 123.0 got %v (ok=%v)", v, ok)
+	}
+	if _, ok := out["google/gemma-4-31B:llm-d-pic"]; ok {
+		t.Error("google/gemma-4-31B:llm-d-pic should have been folded into gemma-4-31B:llm-d-pic")
+	}
+	if _, ok := remappedKeys["google/gemma-4-31B:llm-d-pic"]; !ok {
+		t.Error("google/gemma-4-31B:llm-d-pic should be in remappedKeys")
+	}
+}
+
+// TestCollector_BuildQueryWindow verifies that buildQueryWindow generates
+// correct Prometheus time range selectors based on CollectionInterval.
+func TestCollector_BuildQueryWindow(t *testing.T) {
+	tests := []struct {
+		name     string
+		interval time.Duration
+		want     string
+	}{
+		{
+			name:     "5 minutes",
+			interval: 5 * time.Minute,
+			want:     "[5m]",
+		},
+		{
+			name:     "10 minutes",
+			interval: 10 * time.Minute,
+			want:     "[10m]",
+		},
+		{
+			name:     "1 hour",
+			interval: 60 * time.Minute,
+			want:     "[60m]",
+		},
+		{
+			name:     "30 seconds (rounds to 1m minimum)",
+			interval: 30 * time.Second,
+			want:     "[1m]",
+		},
+		{
+			name:     "90 seconds (rounds to 1m)",
+			interval: 90 * time.Second,
+			want:     "[1m]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := baseConfig()
+			cfg.CollectionInterval = tt.interval
+			c := &Collector{config: cfg}
+			
+			got := c.buildQueryWindow()
+			if got != tt.want {
+				t.Errorf("buildQueryWindow() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -312,5 +384,37 @@ func TestCollector_CollectMetrics_PrometheusUnavailable(t *testing.T) {
 	// CollectMetrics should return an error from the prompt token query.
 	if err == nil {
 		t.Error("expected error when Prometheus is unreachable, got nil")
+	}
+}
+
+func TestCollector_CombineMetrics_IncludesTimingOnlyKeysInUnion(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+
+	allocCosts := map[string]*allocationResult{}
+	promptTokens := map[string]float64{}
+	genTokens := map[string]float64{}
+	inputTime := map[string]float64{"timing-only:ns1": 60}
+	outputTime := map[string]float64{"timing-only:ns1": 40}
+	cacheHits := map[string]float64{"timing-only:ns1": 2}
+
+	results := c.combineMetrics(allocCosts, promptTokens, genTokens, inputTime, outputTime, cacheHits, time.Now())
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	m := results[0]
+	if m.Properties.ModelName != "timing-only" || m.Properties.Namespace != "ns1" {
+		t.Fatalf("unexpected properties: model=%s namespace=%s", m.Properties.ModelName, m.Properties.Namespace)
+	}
+	if !floatEq(m.InputProcessingTime, 60) {
+		t.Errorf("InputProcessingTime want 60 got %f", m.InputProcessingTime)
+	}
+	if !floatEq(m.OutputProcessingTime, 40) {
+		t.Errorf("OutputProcessingTime want 40 got %f", m.OutputProcessingTime)
+	}
+	if !floatEq(m.CacheHitBlocks, 2) {
+		t.Errorf("CacheHitBlocks want 2 got %f", m.CacheHitBlocks)
 	}
 }

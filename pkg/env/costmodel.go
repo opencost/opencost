@@ -111,11 +111,12 @@ const (
 	MetricsEmitterQueryWindowEnvVar = "METRICS_EMITTER_QUERY_WINDOW"
 
 	// Inference Cost
-	InferenceCostEnabledEnvVar          = "INFERENCE_COST_ENABLED"
-	InferenceModelLabelEnvVar           = "INFERENCE_MODEL_LABEL"
-	InferenceSharedInfraLabelEnvVar     = "INFERENCE_SHARED_INFRA_LABEL"
-	InferenceSharedInfraLabelValueEnvVar = "INFERENCE_SHARED_INFRA_LABEL_VALUE"
-	InferenceKVCacheBlockSizeEnvVar     = "INFERENCE_KV_CACHE_BLOCK_SIZE"
+	InferenceCostEnabledEnvVar               = "INFERENCE_COST_ENABLED"
+	InferenceModelLabelEnvVar                = "INFERENCE_MODEL_LABEL"
+	InferenceSharedInfraLabelEnvVar          = "INFERENCE_SHARED_INFRA_LABEL"
+	InferenceSharedInfraLabelValueEnvVar     = "INFERENCE_SHARED_INFRA_LABEL_VALUE"
+	InferenceKVCacheBlockSizeEnvVar          = "INFERENCE_KV_CACHE_BLOCK_SIZE"
+	InferenceCollectionIntervalEnvVar        = "INFERENCE_COLLECTION_INTERVAL"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -490,4 +491,10 @@ func GetInferenceSharedInfraLabelValue() string {
 // Zero (default) disables KV cache denominator correction.
 func GetInferenceKVCacheBlockSize() float64 {
 	return float64(env.GetInt(InferenceKVCacheBlockSizeEnvVar, 0))
+}
+
+// GetInferenceCollectionInterval returns the time interval for inference cost collection.
+// Default is 2 minutes to match the core metrics emitter query window.
+func GetInferenceCollectionInterval() time.Duration {
+	return env.GetDuration(InferenceCollectionIntervalEnvVar, 2*time.Minute)
 }
