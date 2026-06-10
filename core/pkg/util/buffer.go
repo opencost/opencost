@@ -313,7 +313,9 @@ func (b *Buffer) Peek(length int) ([]byte, error) {
 // Flush will attempt to flush any pending writes if the buffer is in write-only mode.
 func (b *Buffer) Flush() {
 	if b.IsWriteOnly() {
-		_ = b.w.Flush()
+		if err := b.w.Flush(); err != nil {
+			fmt.Fprintf(os.Stderr, "Flushing io.Writer failed: %s\n", err)
+		}
 	}
 }
 
