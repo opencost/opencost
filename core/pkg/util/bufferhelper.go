@@ -384,22 +384,18 @@ func readFull(r *bytes.Buffer, buf []byte) (n int, err error) {
 
 func writeBool(w *bytes.Buffer, data bool) error {
 	if data {
-		w.WriteByte(1)
-		return nil
+		return w.WriteByte(1)
 	}
 
-	w.WriteByte(0)
-	return nil
+	return w.WriteByte(0)
 }
 
 func writeInt8(w *bytes.Buffer, data int8) error {
-	w.WriteByte(byte(data))
-	return nil
+	return w.WriteByte(byte(data))
 }
 
 func writeUint8(w *bytes.Buffer, data uint8) error {
-	w.WriteByte(byte(data))
-	return nil
+	return w.WriteByte(byte(data))
 }
 
 func writeInt16(w *bytes.Buffer, data int16) error {
@@ -494,22 +490,18 @@ func writeFloat64(w *bytes.Buffer, data float64) error {
 
 func writeBuffBool(w *bufio.Writer, data bool) error {
 	if data {
-		w.WriteByte(1)
-		return nil
+		return w.WriteByte(1)
 	}
 
-	w.WriteByte(0)
-	return nil
+	return w.WriteByte(0)
 }
 
 func writeBuffInt8(w *bufio.Writer, data int8) error {
-	w.WriteByte(byte(data))
-	return nil
+	return w.WriteByte(byte(data))
 }
 
 func writeBuffUint8(w *bufio.Writer, data uint8) error {
-	w.WriteByte(byte(data))
-	return nil
+	return w.WriteByte(byte(data))
 }
 
 func writeBuffInt16(w *bufio.Writer, data int16) error {
