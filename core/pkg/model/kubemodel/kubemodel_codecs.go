@@ -35,7 +35,7 @@ const (
 	BinaryTagStringTable string = "BGST"
 
 	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 2
+	DefaultCodecVersion uint8 = 3
 )
 
 //--------------------------------------------------------------------------
@@ -106,6 +106,7 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"CronJob":                 reflect.TypeFor[CronJob](),
 	"DCGMContainer":           reflect.TypeFor[DCGMContainer](),
 	"DCGMDevice":              reflect.TypeFor[DCGMDevice](),
+	"DCGMDeviceSaturation":    reflect.TypeFor[DCGMDeviceSaturation](),
 	"DCGMPod":                 reflect.TypeFor[DCGMPod](),
 	"DaemonSet":               reflect.TypeFor[DaemonSet](),
 	"Deployment":              reflect.TypeFor[Deployment](),
@@ -1798,6 +1799,20 @@ func (target *DCGMDevice) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 		// --- [end][write][map](map[string]DCGMPod) ---
 
 	}
+	if target.Saturation == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][struct](DCGMDeviceSaturation) ---
+		buff.WriteInt(0) // [compatibility, unused]
+		errD := target.Saturation.MarshalBinaryWithContext(ctx)
+		if errD != nil {
+			return errD
+		}
+		// --- [end][write][struct](DCGMDeviceSaturation) ---
+
+	}
 
 	return nil
 }
@@ -1937,6 +1952,27 @@ func (target *DCGMDevice) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 		}
 		target.PodUsages = s
 		// --- [end][read][map](map[string]DCGMPod) ---
+
+	}
+
+	// field version check
+	if uint8(3) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.Saturation = nil
+		} else {
+			// --- [begin][read][struct](DCGMDeviceSaturation) ---
+			sat := new(DCGMDeviceSaturation)
+			buff.ReadInt() // [compatibility, unused]
+			errD := sat.UnmarshalBinaryWithContext(ctx)
+			if errD != nil {
+				return errD
+			}
+			target.Saturation = sat
+			// --- [end][read][struct](DCGMDeviceSaturation) ---
+
+		}
+	} else {
+		target.Saturation = nil
 
 	}
 
@@ -10782,6 +10818,384 @@ func (target *Window) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		// --- [end][read][reference](time.Time) ---
 
 	} else {
+	}
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  DCGMDeviceSaturation
+//--------------------------------------------------------------------------
+//
+// NOTE: This block (and the Saturation field handling in the DCGMDevice
+// codec above) was written by hand: the public bingen generates code
+// against a newer core/pkg/util buffer API than this repository vendors,
+// so regenerating this file does not compile here. The wire format follows
+// the generator's conventions exactly (field order, nil bytes,
+// map/string-table encoding, version gating) and was previously verified
+// against bingen output for an identical struct shape. Replace wholesale
+// with generator output on the next real regeneration.
+
+// MarshalBinary serializes the internal properties of this DCGMDeviceSaturation instance
+// into a byte array
+func (target *DCGMDeviceSaturation) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this DCGMDeviceSaturation instance
+// into a byte array leveraging a predefined context.
+func (target *DCGMDeviceSaturation) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	if target.ThrottleViolationRatios == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]float64) ---
+		buff.WriteInt(len(target.ThrottleViolationRatios)) // map length
+		for v, z := range target.ThrottleViolationRatios {
+			if ctx.IsStringTable() {
+				a := ctx.Table.AddOrGet(v)
+				buff.WriteInt(a) // write table index
+			} else {
+				buff.WriteString(v) // write string
+			}
+
+			buff.WriteFloat64(z) // write float64
+
+		}
+		// --- [end][write][map](map[string]float64) ---
+
+	}
+	if target.ThrottleReasonRatios == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]float64) ---
+		buff.WriteInt(len(target.ThrottleReasonRatios)) // map length
+		for v, z := range target.ThrottleReasonRatios {
+			if ctx.IsStringTable() {
+				b := ctx.Table.AddOrGet(v)
+				buff.WriteInt(b) // write table index
+			} else {
+				buff.WriteString(v) // write string
+			}
+
+			buff.WriteFloat64(z) // write float64
+
+		}
+		// --- [end][write][map](map[string]float64) ---
+
+	}
+	if target.MemoryUsedRatioAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.MemoryUsedRatioAvg) // write float64
+
+	}
+	if target.MemoryUsedRatioMax == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.MemoryUsedRatioMax) // write float64
+
+	}
+	if target.MemoryPressureRatio == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.MemoryPressureRatio) // write float64
+
+	}
+	if target.XIDErrorCount == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.XIDErrorCount) // write float64
+
+	}
+	if target.DRAMActiveAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.DRAMActiveAvg) // write float64
+
+	}
+	if target.DRAMActiveMax == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.DRAMActiveMax) // write float64
+
+	}
+	if target.SMActiveAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.SMActiveAvg) // write float64
+
+	}
+	if target.SMOccupancyAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.SMOccupancyAvg) // write float64
+
+	}
+	if target.PCIeTxBytesAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.PCIeTxBytesAvg) // write float64
+
+	}
+	if target.PCIeRxBytesAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.PCIeRxBytesAvg) // write float64
+
+	}
+	if target.NVLinkTxBytesAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.NVLinkTxBytesAvg) // write float64
+
+	}
+	if target.NVLinkRxBytesAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.NVLinkRxBytesAvg) // write float64
+
+	}
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the DCGMDeviceSaturation type
+func (target *DCGMDeviceSaturation) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the DCGMDeviceSaturation type
+func (target *DCGMDeviceSaturation) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the DCGMDeviceSaturation type
+func (target *DCGMDeviceSaturation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("invalid version unmarshaling DCGMDeviceSaturation: expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.ThrottleViolationRatios = nil
+	} else {
+		// --- [begin][read][map](map[string]float64) ---
+		a := buff.ReadInt() // map len
+		b := make(map[string]float64, a)
+		for j := 0; j < a; j++ {
+			var v string
+			var d string
+			if ctx.IsStringTable() {
+				e := buff.ReadInt() // read string index
+				d = ctx.Table.At(e)
+			} else {
+				d = buff.ReadString() // read string
+			}
+			c := d
+			v = c
+
+			z := buff.ReadFloat64() // read float64
+			b[v] = z
+		}
+		target.ThrottleViolationRatios = b
+		// --- [end][read][map](map[string]float64) ---
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.ThrottleReasonRatios = nil
+	} else {
+		// --- [begin][read][map](map[string]float64) ---
+		f := buff.ReadInt() // map len
+		g := make(map[string]float64, f)
+		for j := 0; j < f; j++ {
+			var v string
+			var l string
+			if ctx.IsStringTable() {
+				m := buff.ReadInt() // read string index
+				l = ctx.Table.At(m)
+			} else {
+				l = buff.ReadString() // read string
+			}
+			h := l
+			v = h
+
+			z := buff.ReadFloat64() // read float64
+			g[v] = z
+		}
+		target.ThrottleReasonRatios = g
+		// --- [end][read][map](map[string]float64) ---
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.MemoryUsedRatioAvg = nil
+	} else {
+		n := buff.ReadFloat64() // read float64
+		target.MemoryUsedRatioAvg = &n
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.MemoryUsedRatioMax = nil
+	} else {
+		o := buff.ReadFloat64() // read float64
+		target.MemoryUsedRatioMax = &o
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.MemoryPressureRatio = nil
+	} else {
+		p := buff.ReadFloat64() // read float64
+		target.MemoryPressureRatio = &p
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.XIDErrorCount = nil
+	} else {
+		q := buff.ReadFloat64() // read float64
+		target.XIDErrorCount = &q
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.DRAMActiveAvg = nil
+	} else {
+		r := buff.ReadFloat64() // read float64
+		target.DRAMActiveAvg = &r
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.DRAMActiveMax = nil
+	} else {
+		sv := buff.ReadFloat64() // read float64
+		target.DRAMActiveMax = &sv
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.SMActiveAvg = nil
+	} else {
+		t := buff.ReadFloat64() // read float64
+		target.SMActiveAvg = &t
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.SMOccupancyAvg = nil
+	} else {
+		u := buff.ReadFloat64() // read float64
+		target.SMOccupancyAvg = &u
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.PCIeTxBytesAvg = nil
+	} else {
+		w := buff.ReadFloat64() // read float64
+		target.PCIeTxBytesAvg = &w
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.PCIeRxBytesAvg = nil
+	} else {
+		x := buff.ReadFloat64() // read float64
+		target.PCIeRxBytesAvg = &x
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.NVLinkTxBytesAvg = nil
+	} else {
+		y := buff.ReadFloat64() // read float64
+		target.NVLinkTxBytesAvg = &y
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.NVLinkRxBytesAvg = nil
+	} else {
+		zz := buff.ReadFloat64() // read float64
+		target.NVLinkRxBytesAvg = &zz
+
 	}
 
 	return nil
