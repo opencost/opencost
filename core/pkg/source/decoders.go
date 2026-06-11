@@ -1108,7 +1108,12 @@ type GPUSaturationResult struct {
 }
 
 func DecodeGPUSaturationResult(result *QueryResult) *GPUSaturationResult {
-	uid, _ := result.GetString(UIDLabel)
+	// DCGM series carry the pod UID as pod_uid in the kubemodel scrape
+	// convention; fall back to the legacy uid label for older configs
+	uid, err := result.GetString(PodUIDLabel)
+	if err != nil {
+		uid, _ = result.GetString(UIDLabel)
+	}
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()

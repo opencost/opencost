@@ -22,7 +22,7 @@ import (
 var gpuSaturationLabels = []string{
 	source.NamespaceLabel,
 	source.PodLabel,
-	source.UIDLabel,
+	source.PodUIDLabel,
 	source.ContainerLabel,
 	source.DeviceLabel,
 	source.ModelNameLabel,

@@ -18,7 +18,7 @@ func TestBuildGPUThrottleViolationQuery(t *testing.T) {
 	}
 
 	// one hour is 3.6e9 microseconds: each branch must normalize by it
-	wantBranch := `label_replace(avg(increase(DCGM_FI_DEV_POWER_VIOLATION{container!="",cluster_id="c1"}[1h])) by (container, pod, namespace, device, modelName, UUID, GPU_I_PROFILE, GPU_I_ID, uid, cluster_id) / 3.6e+09, "reason", "power", "", "")`
+	wantBranch := `label_replace(avg(increase(DCGM_FI_DEV_POWER_VIOLATION{container!="",cluster_id="c1"}[1h])) by (container, pod, namespace, device, modelName, UUID, GPU_I_PROFILE, GPU_I_ID, pod_uid, cluster_id) / 3.6e+09, "reason", "power", "", "")`
 	if branches[0] != wantBranch {
 		t.Errorf("violation branch mismatch:\n got %s\nwant %s", branches[0], wantBranch)
 	}
@@ -48,7 +48,7 @@ func TestBuildGPUThrottleReasonQuery(t *testing.T) {
 
 	// the first branch tests the sw_power_cap bit (0x4 == 4) per sample at
 	// the subquery resolution, then averages the 0/1 results over the window
-	wantBranch := `label_replace(avg(avg_over_time(((floor((DCGM_FI_DEV_CLOCK_THROTTLE_REASONS{container!="",cluster_id="c1"} or DCGM_FI_DEV_CLOCKS_EVENT_REASONS{container!="",cluster_id="c1"}) / 4)) % 2)[1h:5m])) by (container, pod, namespace, device, modelName, UUID, GPU_I_PROFILE, GPU_I_ID, uid, cluster_id), "reason", "sw_power_cap", "", "")`
+	wantBranch := `label_replace(avg(avg_over_time(((floor((DCGM_FI_DEV_CLOCK_THROTTLE_REASONS{container!="",cluster_id="c1"} or DCGM_FI_DEV_CLOCKS_EVENT_REASONS{container!="",cluster_id="c1"}) / 4)) % 2)[1h:5m])) by (container, pod, namespace, device, modelName, UUID, GPU_I_PROFILE, GPU_I_ID, pod_uid, cluster_id), "reason", "sw_power_cap", "", "")`
 	if !strings.HasPrefix(query, wantBranch+" or ") {
 		t.Errorf("reason query does not start with expected sw_power_cap branch:\n got %s\nwant prefix %s", query, wantBranch)
 	}

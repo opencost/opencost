@@ -23,7 +23,7 @@ func gpuSaturationMockProvider(t *testing.T) (StoreProvider, time.Time, time.Tim
 	gpuInfo := map[string]string{
 		source.NamespaceLabel:   "namespace1",
 		source.PodLabel:         "pod1",
-		source.UIDLabel:         "pod-uuid1",
+		source.PodUIDLabel:      "pod-uuid1",
 		source.ContainerLabel:   "container1",
 		source.DeviceLabel:      "nvidia0",
 		source.ModelNameLabel:   "Tesla T4",

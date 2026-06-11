@@ -87,7 +87,7 @@ type MetricsQuerier interface {
 	QueryGPUInfo(start, end time.Time) *Future[GPUInfoResult]
 	QueryIsGPUShared(start, end time.Time) *Future[IsGPUSharedResult]
 
-// Device
+	// Device
 	QueryDCGMDeviceInfo(start, end time.Time) *Future[DCGMDeviceInfoResult]
 	QueryDCGMDeviceUptime(start, end time.Time) *Future[DCGMDeviceUptimeResult]
 	QueryDCGMContainerUsageAvg(start, end time.Time) *Future[DCGMDeviceContainerUsageResult]

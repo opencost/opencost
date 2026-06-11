@@ -40,7 +40,7 @@ func gpuDeviceKey(labels map[string]string) string {
 	return strings.Join([]string{
 		labels[source.UUIDLabel],
 		labels[source.MIGInstanceLabel],
-		labels[source.UIDLabel],
+		labels[source.PodUIDLabel],
 		labels[source.ContainerLabel],
 	}, "|")
 }

@@ -24,7 +24,7 @@ func gpuFBUpdate(name string, uuid, migInstance string, value float64) *metric.U
 		Labels: map[string]string{
 			"UUID":      uuid,
 			"GPU_I_ID":  migInstance,
-			"uid":       "pod-uuid1",
+			"pod_uid":   "pod-uuid1",
 			"container": "container1",
 			"namespace": "namespace1",
 			"pod":       "pod1",

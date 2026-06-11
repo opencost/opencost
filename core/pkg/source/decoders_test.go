@@ -11,7 +11,7 @@ func TestDecodeGPUSaturationResult(t *testing.T) {
 
 	t.Run("all labels present", func(t *testing.T) {
 		result := NewQueryResult(map[string]any{
-			"uid":           "pod-uid-1",
+			"pod_uid":       "pod-uid-1",
 			"cluster_id":    "cluster-1",
 			"namespace":     "gpu-ns",
 			"pod":           "gpu-pod",
@@ -67,6 +67,8 @@ func TestDecodeGPUSaturationResult(t *testing.T) {
 	t.Run("optional labels absent", func(t *testing.T) {
 		// non-MIG GPU without a reason-labeled query: those labels simply
 		// do not exist on the series and must decode to empty strings
+		// legacy scrape configs label the pod UID as "uid"; the decoder
+		// falls back to it when pod_uid is absent
 		result := NewQueryResult(map[string]any{
 			"uid":        "pod-uid-1",
 			"cluster_id": "cluster-1",

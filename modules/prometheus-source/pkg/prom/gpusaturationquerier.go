@@ -35,7 +35,7 @@ import (
 // query: container attribution, GPU identity, and MIG instance labels.
 // Grouping by a label that is absent from a series yields an empty value,
 // so non-MIG series pass through unchanged.
-const gpuSaturationByLabels = `container, pod, namespace, device, modelName, UUID, GPU_I_PROFILE, GPU_I_ID, uid`
+const gpuSaturationByLabels = `container, pod, namespace, device, modelName, UUID, GPU_I_PROFILE, GPU_I_ID, pod_uid`
 
 // gpuThrottleViolationMetrics maps each DCGM violation counter to its
 // canonical reason name. The counters accumulate microseconds spent
