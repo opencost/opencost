@@ -147,6 +147,60 @@ func (pds *PrometheusMetricsQuerier) QueryKMPVCInfo(start, end time.Time) *sourc
 	return source.NewFuture(source.DecodePVCInfoResult, ctx.QueryAtTime(q, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryKMPVInfo(start, end time.Time) *source.Future[source.PVInfoResult] {
+	const queryName = "QueryKMPVInfo"
+	const queryFmt = `avg(avg_over_time(kubecost_pv_info{%s}[%s])) by (uid, storageclass, persistentvolume, provider_id, csi_volume_handle,  %s)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	q := fmt.Sprintf(queryFmt, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), q)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodePVInfoResult, ctx.QueryAtTime(q, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryPVCBytesUsedAverage(start, end time.Time) *source.Future[source.PVCUIDValueResult] {
+	const queryName = "QueryPVCBytesUsedAverage"
+	const queryFmt = `avg(avg_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim_uid)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	q := fmt.Sprintf(queryFmt, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), q)
+
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+	return source.NewFuture(source.DecodePVCUIDValueResult, ctx.QueryAtTime(q, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryPVCBytesUsedMax(start, end time.Time) *source.Future[source.PVCUIDValueResult] {
+	const queryName = "QueryPVCBytesUsedMax"
+	const queryFmt = `max(max_over_time(kubelet_volume_stats_used_bytes{%s}[%s])) by (%s, persistentvolumeclaim_uid)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	q := fmt.Sprintf(queryFmt, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), q)
+
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+	return source.NewFuture(source.DecodePVCUIDValueResult, ctx.QueryAtTime(q, end))
+}
+
 func (pds *PrometheusMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] {
 	const queryName = "QueryPVActiveMinutes"
 	const pvActiveMinsQuery = `avg(kube_persistentvolume_capacity_bytes{%s}) by (%s, persistentvolume, uid)[%s:%dm]`
@@ -743,7 +797,7 @@ func (pds *PrometheusMetricsQuerier) QueryPodUptime(start, end time.Time) *sourc
 
 func (pds *PrometheusMetricsQuerier) QueryPodOwners(start, end time.Time) *source.Future[source.OwnerResult] {
 	const queryName = "QueryPodOwners"
-	const queryFmtPodOwners = `avg(avg_over_time(kube_pod_owner{%s}[%s])) by (%s, uid, owner_uid, owner_kind)`
+	const queryFmtPodOwners = `avg(avg_over_time(kube_pod_owner{%s}[%s])) by (%s, uid, owner_uid, owner_kind, controller)`
 
 	cfg := pds.promConfig
 

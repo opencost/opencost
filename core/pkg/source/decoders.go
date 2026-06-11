@@ -83,6 +83,12 @@ func DecodeNodeUIDValueResult(result *QueryResult) *NodeUIDValueResult {
 	return (*NodeUIDValueResult)(decodeValueResult(result, NodeUIDLabel))
 }
 
+type PVCUIDValueResult UIDValueResult
+
+func DecodePVCUIDValueResult(result *QueryResult) *PVCUIDValueResult {
+	return (*PVCUIDValueResult)(decodeValueResult(result, PVCUIDLabel))
+}
+
 func decodeValueResult(result *QueryResult, uidLabel string) *UIDValueResult {
 	uid, _ := result.GetString(uidLabel)
 	var value float64

@@ -16,8 +16,11 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewPVUsedAverageMetricCollector())
 	memStore.Register(NewPVUsedMaxMetricCollector())
 	memStore.Register(NewPVCInfoMetricCollector())
+	memStore.Register(NewPVCBytesUsedAverageMetricCollector())
+	memStore.Register(NewPVCBytesUsedMaxMetricCollector())
 	memStore.Register(NewPVCUptimeMetricCollector())
 	memStore.Register(NewPVInfoMetricCollector())
+	memStore.Register(NewKMPVInfoMetricCollector())
 	memStore.Register(NewPVUptimeMetricCollector())
 	memStore.Register(NewPVActiveMinutesMetricCollector())
 	memStore.Register(NewPVBytesMetricCollector())
@@ -233,6 +236,30 @@ func NewPVUsedMaxMetricCollector() *metric.MetricCollector {
 	)
 }
 
+func NewPVCBytesUsedAverageMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PVCBytesUsedAverageID,
+		metric.KubeletVolumeStatsUsedBytes,
+		[]string{
+			source.PVCUIDLabel,
+		},
+		aggregator.AverageOverTime,
+		nil,
+	)
+}
+
+func NewPVCBytesUsedMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PVCBytesUsedMaxID,
+		metric.KubeletVolumeStatsUsedBytes,
+		[]string{
+			source.PVCUIDLabel,
+		},
+		aggregator.MaxOverTime,
+		nil,
+	)
+}
+
 //	avg(
 //		kube_persistentvolumeclaim_info{
 //			volumename != "",
@@ -270,18 +297,6 @@ func NewPVCUptimeMetricCollector() *metric.MetricCollector {
 	)
 }
 
-func NewPVUptimeMetricCollector() *metric.MetricCollector {
-	return metric.NewMetricCollector(
-		metric.PVUptimeID,
-		metric.KubecostPVInfo,
-		[]string{
-			source.UIDLabel,
-		},
-		aggregator.Uptime,
-		nil,
-	)
-}
-
 //	avg(
 //		kube_persistentvolume_capacity_bytes{
 //			<some_custom_filter>
@@ -295,6 +310,30 @@ func NewPVActiveMinutesMetricCollector() *metric.MetricCollector {
 		[]string{
 			source.UIDLabel,
 			source.PVLabel,
+		},
+		aggregator.Uptime,
+		nil,
+	)
+}
+
+func NewKMPVInfoMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.KMPVInfoID,
+		metric.KubecostPVInfo,
+		[]string{
+			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewPVUptimeMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.PVUptimeID,
+		metric.KubecostPVInfo,
+		[]string{
+			source.UIDLabel,
 		},
 		aggregator.Uptime,
 		nil,
