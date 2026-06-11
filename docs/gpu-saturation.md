@@ -133,6 +133,8 @@ configuration (the same mechanism as `node_gpu_count` et al.).
 - Non-NVIDIA GPUs (AMD ROCm SMI exporter, Intel XPU manager) — the signal
   taxonomy is vendor-neutral, the queries are not.
 - PCIe/NVLink capacity ratios, once link capacity can be derived per model.
-- Device-level saturation in the kubemodel pipeline is modeled
-  (`Device.Saturation`, `GPUDevice.saturation` in the protobuf) but not yet
-  populated; it will be wired when device population lands.
+- Device-level saturation in the kubemodel pipeline is modeled on the
+  vendor-specific device type (`DCGMDevice.Saturation`) behind the
+  vendor-neutral `DeviceInfo`/`DevicePerformance`/`DeviceSaturation`
+  interfaces, but not yet populated; it will be wired into the DCGM
+  hydration path alongside the existing device usage collection.
