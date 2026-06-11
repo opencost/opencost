@@ -40,6 +40,7 @@ const (
 	AzureRegionInfoEnvVar     = "AZURE_REGION_INFO"
 
 	DigitalOceanAccessTokenEnvVar = "DIGITALOCEAN_ACCESS_TOKEN"
+
 	// Azure rate card filter environment variables
 
 	// Currently being used for OCI and DigitalOcean
