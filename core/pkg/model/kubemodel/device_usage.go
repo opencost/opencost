@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// @bingen:generate:DeviceUsage
 type DeviceUsage struct {
 	ContainerUID          string      `json:"containerUid"`
 	DeviceUID             string      `json:"deviceUid"`

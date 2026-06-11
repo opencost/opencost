@@ -19,7 +19,6 @@ type ServicePort struct {
 	Protocol   string `json:"protocol"`
 }
 
-// @bingen:generate:Service
 // Service represents a Kubernetes Service with network traffic tracking for cost allocation.
 //
 // Network Cost Allocation Strategy:
