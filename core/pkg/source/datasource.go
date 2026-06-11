@@ -87,11 +87,28 @@ type MetricsQuerier interface {
 	QueryGPUInfo(start, end time.Time) *Future[GPUInfoResult]
 	QueryIsGPUShared(start, end time.Time) *Future[IsGPUSharedResult]
 
-	// Device
+// Device
 	QueryDCGMDeviceInfo(start, end time.Time) *Future[DCGMDeviceInfoResult]
 	QueryDCGMDeviceUptime(start, end time.Time) *Future[DCGMDeviceUptimeResult]
 	QueryDCGMContainerUsageAvg(start, end time.Time) *Future[DCGMDeviceContainerUsageResult]
 	QueryDCGMContainerUsageMax(start, end time.Time) *Future[DCGMDeviceContainerUsageResult]
+
+	// GPU saturation (USE method). Sources return no results when the
+	// underlying DCGM fields are unavailable; absence is never zero.
+	QueryGPUThrottleViolationRatio(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUThrottleReasonRatio(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUMemoryUsedRatioAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUMemoryUsedRatioMax(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUMemoryPressureRatio(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUXIDErrorCount(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUDRAMActiveAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUDRAMActiveMax(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUSMActiveAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUSMOccupancyAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUPCIeTxBytesAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUPCIeRxBytesAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUNVLinkTxBytesAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUNVLinkRxBytesAvg(start, end time.Time) *Future[GPUSaturationResult]
 
 	// PVC
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
