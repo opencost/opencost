@@ -61,7 +61,7 @@ func NewComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], S validat
 	), nil
 }
 
-// NewComputePipelineExporter creates a new `ComputeExporter[T]` instance which is used to export computed data
+// NewStreamingComputePipelineExporter creates a new `ComputeExporter[T]` instance which is used to export computed data
 // by window for a specific pipeline.
 func NewStreamingComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], S validator.SetConstraint[T]](
 	clusterId string,
