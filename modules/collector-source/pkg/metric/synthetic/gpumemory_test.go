@@ -8,6 +8,16 @@ import (
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 )
 
+// capturingUpdater records the UpdateSet handed to the next stage of the
+// synthesizer pipeline.
+type capturingUpdater struct {
+	set *metric.UpdateSet
+}
+
+func (c *capturingUpdater) Update(set *metric.UpdateSet) {
+	c.set = set
+}
+
 func gpuFBUpdate(name string, uuid, migInstance string, value float64) *metric.Update {
 	return &metric.Update{
 		Name: name,
@@ -100,6 +110,44 @@ func TestGPUMemoryUsedRatioSynthesizer(t *testing.T) {
 		s.Process(now, gpuFBUpdate(metric.DCGMFIPROFGRENGINEACTIVE, "GPU-1", "", 0.9))
 		if updates := s.Synthesize(); len(updates) != 0 {
 			t.Errorf("expected no updates for unrelated metric, got %v", updates)
+		}
+	})
+
+	t.Run("joins correctly through the MetricSynthesizers pipeline", func(t *testing.T) {
+		// Exercises the real dispatch path: MetricSynthesizers.Update copies
+		// each Update into a loop-body variable and passes its address to
+		// Process. The body-scoped declaration yields a distinct allocation
+		// per iteration, so stored pointers never alias; this test pins that
+		// by pushing two devices' used/free pairs through one UpdateSet and
+		// asserting each synthesized ratio reflects its own samples.
+		captured := &capturingUpdater{}
+		pipeline := NewMetricSynthesizers(captured, NewGPUMemoryUsedRatioSynthesizer())
+
+		pipeline.Update(&metric.UpdateSet{
+			Timestamp: now,
+			Updates: []metric.Update{
+				*gpuFBUpdate(metric.DCGMFIDEVFBUSED, "GPU-1", "", 12000),
+				*gpuFBUpdate(metric.DCGMFIDEVFBFREE, "GPU-1", "", 4000),
+				*gpuFBUpdate(metric.DCGMFIDEVFBUSED, "GPU-2", "", 2000),
+				*gpuFBUpdate(metric.DCGMFIDEVFBFREE, "GPU-2", "", 8000),
+			},
+		})
+
+		ratios := map[string]float64{}
+		for _, u := range captured.set.Updates {
+			if u.Name == metric.OpencostGPUMemoryUsedRatio {
+				ratios[u.Labels["UUID"]] = u.Value
+			}
+		}
+		if len(ratios) != 2 {
+			t.Fatalf("expected 2 synthesized ratios, got %d: %v", len(ratios), ratios)
+		}
+		if ratios["GPU-1"] != 0.75 || ratios["GPU-2"] != 0.2 {
+			t.Errorf("ratios = %v, want {GPU-1:0.75, GPU-2:0.2}", ratios)
+		}
+		// original updates must pass through untouched alongside synthetics
+		if len(captured.set.Updates) != 6 {
+			t.Errorf("expected 4 originals + 2 synthetics, got %d", len(captured.set.Updates))
 		}
 	})
 
