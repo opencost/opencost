@@ -63,6 +63,32 @@ const (
 	DCGMFIPROFGRENGINEACTIVE = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"
 	DCGMFIDEVDECUTIL         = "DCGM_FI_DEV_DEC_UTIL"
 
+	// DCGM saturation metrics (default dcgm-exporter configuration)
+	DCGMFIDEVPOWERVIOLATION      = "DCGM_FI_DEV_POWER_VIOLATION"
+	DCGMFIDEVTHERMALVIOLATION    = "DCGM_FI_DEV_THERMAL_VIOLATION"
+	DCGMFIDEVSYNCBOOSTVIOLATION  = "DCGM_FI_DEV_SYNC_BOOST_VIOLATION"
+	DCGMFIDEVBOARDLIMITVIOLATION = "DCGM_FI_DEV_BOARD_LIMIT_VIOLATION"
+	DCGMFIDEVFBUSED              = "DCGM_FI_DEV_FB_USED"
+	DCGMFIDEVFBFREE              = "DCGM_FI_DEV_FB_FREE"
+	DCGMFIDEVXIDERRORS           = "DCGM_FI_DEV_XID_ERRORS"
+
+	// DCGM saturation metrics requiring explicit enablement in the
+	// dcgm-exporter configuration. The clock throttle reasons bitmask was
+	// renamed in DCGM 3.3+; both names are scraped, at most one exists.
+	DCGMFIDEVCLOCKTHROTTLEREASONS = "DCGM_FI_DEV_CLOCK_THROTTLE_REASONS"
+	DCGMFIDEVCLOCKSEVENTREASONS   = "DCGM_FI_DEV_CLOCKS_EVENT_REASONS"
+
+	// DCGM DCP profiling saturation metrics (require Volta+ GPUs;
+	// SM_ACTIVE, SM_OCCUPANCY, and NVLINK additionally require explicit
+	// enablement in the dcgm-exporter configuration)
+	DCGMFIPROFDRAMACTIVE    = "DCGM_FI_PROF_DRAM_ACTIVE"
+	DCGMFIPROFSMACTIVE      = "DCGM_FI_PROF_SM_ACTIVE"
+	DCGMFIPROFSMOCCUPANCY   = "DCGM_FI_PROF_SM_OCCUPANCY"
+	DCGMFIPROFPCIETXBYTES   = "DCGM_FI_PROF_PCIE_TX_BYTES"
+	DCGMFIPROFPCIERXBYTES   = "DCGM_FI_PROF_PCIE_RX_BYTES"
+	DCGMFIPROFNVLINKTXBYTES = "DCGM_FI_PROF_NVLINK_TX_BYTES"
+	DCGMFIPROFNVLINKRXBYTES = "DCGM_FI_PROF_NVLINK_RX_BYTES"
+
 	// Network Metrics
 	KubecostPodNetworkEgressBytesTotal  = "kubecost_pod_network_egress_bytes_total"
 	KubecostPodNetworkIngressBytesTotal = "kubecost_pod_network_ingress_bytes_total"

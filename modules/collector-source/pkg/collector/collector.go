@@ -71,6 +71,9 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewDCGMUptimeMetricCollector())
 	memStore.Register(NewDCGMContainerUsageAvgMetricCollector())
 	memStore.Register(NewDCGMContainerUsageMaxMetricCollector())
+	for _, gpuSaturationCollector := range NewGPUSaturationMetricCollectors() {
+		memStore.Register(gpuSaturationCollector)
+	}
 	memStore.Register(NewNodeCPUPricePerHourMetricCollector())
 	memStore.Register(NewNodeRAMPricePerGiBHourMetricCollector())
 	memStore.Register(NewNodeGPUPricePerHourMetricCollector())

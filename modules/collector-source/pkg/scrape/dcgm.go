@@ -26,6 +26,24 @@ func newDCGMTargetScraper(provider target.TargetProvider) *TargetScraper {
 		[]string{
 			metric.DCGMFIPROFGRENGINEACTIVE,
 			metric.DCGMFIDEVDECUTIL,
+			// GPU saturation signals; fields absent from the dcgm-exporter
+			// configuration simply never appear in the scrape
+			metric.DCGMFIDEVPOWERVIOLATION,
+			metric.DCGMFIDEVTHERMALVIOLATION,
+			metric.DCGMFIDEVSYNCBOOSTVIOLATION,
+			metric.DCGMFIDEVBOARDLIMITVIOLATION,
+			metric.DCGMFIDEVFBUSED,
+			metric.DCGMFIDEVFBFREE,
+			metric.DCGMFIDEVXIDERRORS,
+			metric.DCGMFIDEVCLOCKTHROTTLEREASONS,
+			metric.DCGMFIDEVCLOCKSEVENTREASONS,
+			metric.DCGMFIPROFDRAMACTIVE,
+			metric.DCGMFIPROFSMACTIVE,
+			metric.DCGMFIPROFSMOCCUPANCY,
+			metric.DCGMFIPROFPCIETXBYTES,
+			metric.DCGMFIPROFPCIERXBYTES,
+			metric.DCGMFIPROFNVLINKTXBYTES,
+			metric.DCGMFIPROFNVLINKRXBYTES,
 		},
 		true)
 }
