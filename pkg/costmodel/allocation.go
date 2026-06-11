@@ -298,6 +298,11 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resChGPUsUsageMax := source.WithGroup(grp, ds.QueryGPUsUsageMax(start, end))
 	resChGetGPUInfo := source.WithGroup(grp, ds.QueryGPUInfo(start, end))
 
+	var gpuSaturation *gpuSaturationFutures
+	if env.IsGPUSaturationMetricsEnabled() {
+		gpuSaturation = startGPUSaturationQueries(grp, ds, start, end)
+	}
+
 	resChNodeCostPerCPUHr := source.WithGroup(grp, ds.QueryNodeCPUPricePerHr(start, end))
 	resChNodeCostPerRAMGiBHr := source.WithGroup(grp, ds.QueryNodeRAMPricePerGiBHr(start, end))
 	resChNodeCostPerGPUHr := source.WithGroup(grp, ds.QueryNodeGPUPricePerHr(start, end))
@@ -445,6 +450,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyGPUUsageShared(podMap, resIsGpuShared, podUIDKeyMap)
 	applyGPUInfo(podMap, resGetGPUInfo, podUIDKeyMap)
 	applyGPUsAllocated(podMap, resGPUsRequested, resGPUsAllocated, podUIDKeyMap)
+	gpuSaturation.awaitAndApply(podMap, podUIDKeyMap)
 	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes, podUIDKeyMap)
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZonePricePerGiB, podUIDKeyMap, applyCrossZoneNetworkAllocation)
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionPricePerGiB, podUIDKeyMap, applyCrossRegionNetworkAllocation)
