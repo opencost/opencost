@@ -34,6 +34,9 @@ type OpenCostPrometheusConfig struct {
 	ClusterFilter         string
 	DataResolution        time.Duration
 	DataResolutionMinutes int
+	// GPUMemorySaturationThreshold is the framebuffer occupancy ratio in
+	// (0, 1] above which GPU memory is considered pressured.
+	GPUMemorySaturationThreshold float64
 }
 
 func (ocpc *OpenCostPrometheusConfig) IsRateLimitRetryEnabled() bool {
@@ -151,5 +154,7 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		ClusterFilter:         clusterFilter,
 		DataResolution:        dataResolution,
 		DataResolutionMinutes: resolutionMinutes,
+
+		GPUMemorySaturationThreshold: env.GetGPUMemorySaturationThreshold(),
 	}, nil
 }
