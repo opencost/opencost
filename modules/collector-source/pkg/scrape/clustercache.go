@@ -411,7 +411,7 @@ func (ccs *ClusterCacheScraper) scrapePods(
 			ownerInfo[source.OwnerKindLabel] = owner.Kind
 			ownerInfo[source.OwnerNameLabel] = owner.Name
 			ownerInfo[source.OwnerUIDLabel] = string(owner.UID)
-			ownerInfo[source.ContainerLabel] = controller
+			ownerInfo[source.ControllerLabel] = controller
 			scrapeResults = append(scrapeResults, metric.Update{
 				Name:           metric.KubePodOwner,
 				Labels:         ownerInfo,
