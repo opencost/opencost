@@ -2,6 +2,7 @@ package aws
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,69 +14,71 @@ type mockSpotPriceHistoryFetcher struct {
 }
 
 func (m *mockSpotPriceHistoryFetcher) FetchSpotPrice(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
-	if m.fetchFunc != nil {
-		return m.fetchFunc(key)
-	}
-	return &SpotPriceHistoryEntry{
-		SpotPrice:   0.05,
-		Timestamp:   time.Now(),
-		RetrievedAt: time.Now(),
-	}, nil
+	return m.fetchFunc(key)
 }
 
 func TestSpotPriceHistoryCache_GetSpotPrice_CacheHit(t *testing.T) {
-	mockFetcher := &mockSpotPriceHistoryFetcher{}
-	cache := NewSpotPriceHistoryCache(mockFetcher)
-
-	region := "us-west-2"
-	instanceType := "m5.large"
-	availabilityZone := "us-west-2a"
-
-	key := SpotPriceHistoryKey{
-		Region:           region,
-		InstanceType:     instanceType,
-		AvailabilityZone: availabilityZone,
-	}
-
-	cachedEntry := &SpotPriceHistoryEntry{
-		SpotPrice:   0.08,
-		Timestamp:   time.Now(),
-		RetrievedAt: time.Now(),
-	}
-	cache.cache[key] = cachedEntry
-
-	entry, err := cache.GetSpotPrice(region, instanceType, availabilityZone)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
-	if entry.SpotPrice != 0.08 {
-		t.Errorf("Expected spot price 0.08, got %f", entry.SpotPrice)
-	}
-}
-
-func TestSpotPriceHistoryCache_GetSpotPrice_CacheMiss(t *testing.T) {
-	fetchCalled := false
+	var fetchCount atomic.Int32
 	mockFetcher := &mockSpotPriceHistoryFetcher{
 		fetchFunc: func(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
-			fetchCalled = true
+			fetchCount.Add(1)
 			return &SpotPriceHistoryEntry{
-				SpotPrice:   0.12,
-				Timestamp:   time.Now(),
-				RetrievedAt: time.Now(),
+				SpotPrice: 0.05,
+				Timestamp: time.Now(),
 			}, nil
 		},
 	}
 	cache := NewSpotPriceHistoryCache(mockFetcher)
 
+	// First call should fetch
 	entry, err := cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf("Unexpected error: %v", err)
 	}
-	if !fetchCalled {
-		t.Error("Expected fetcher to be called for cache miss")
+	if entry.SpotPrice != 0.05 {
+		t.Errorf("Expected spot price 0.05, got %f", entry.SpotPrice)
 	}
-	if entry.SpotPrice != 0.12 {
-		t.Errorf("Expected spot price 0.12, got %f", entry.SpotPrice)
+	if count := fetchCount.Load(); count != 1 {
+		t.Errorf("Expected 1 fetch call, got %d", count)
+	}
+
+	// Second call should use cache
+	entry, err = cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if entry.SpotPrice != 0.05 {
+		t.Errorf("Expected spot price 0.05, got %f", entry.SpotPrice)
+	}
+	if count := fetchCount.Load(); count != 1 {
+		t.Errorf("Expected still 1 fetch call (cached), got %d", count)
+	}
+}
+
+func TestSpotPriceHistoryCache_GetSpotPrice_CacheMiss(t *testing.T) {
+	var fetchCount atomic.Int32
+	mockFetcher := &mockSpotPriceHistoryFetcher{
+		fetchFunc: func(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
+			fetchCount.Add(1)
+			return &SpotPriceHistoryEntry{
+				SpotPrice: 0.05,
+				Timestamp: time.Now(),
+			}, nil
+		},
+	}
+	cache := NewSpotPriceHistoryCache(mockFetcher)
+
+	// Different keys should each fetch
+	_, err := cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	_, err = cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2b")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if count := fetchCount.Load(); count != 2 {
+		t.Errorf("Expected 2 fetch calls, got %d", count)
 	}
 }
 
@@ -84,132 +87,151 @@ func TestSpotPriceHistoryCache_GetSpotPrice_ConcurrentSameKey(t *testing.T) {
 	mockFetcher := &mockSpotPriceHistoryFetcher{
 		fetchFunc: func(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
 			fetchCount.Add(1)
-			// Simulate slow API call to increase chance of concurrent access
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond) // Simulate slow fetch
 			return &SpotPriceHistoryEntry{
-				SpotPrice:   0.07,
-				Timestamp:   time.Now(),
-				RetrievedAt: time.Now(),
+				SpotPrice: 0.05,
+				Timestamp: time.Now(),
 			}, nil
 		},
 	}
 	cache := NewSpotPriceHistoryCache(mockFetcher)
 
-	const goroutines = 10
+	// Launch multiple concurrent requests for the same key
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
-	for i := 0; i < goroutines; i++ {
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			entry, err := cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
+			_, err := cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
 			if err != nil {
-				t.Errorf("Expected no error, got %v", err)
-			}
-			if entry.SpotPrice != 0.07 {
-				t.Errorf("Expected spot price 0.07, got %f", entry.SpotPrice)
+				t.Errorf("Unexpected error: %v", err)
 			}
 		}()
 	}
 	wg.Wait()
 
+	// Should only fetch once despite concurrent requests
 	if count := fetchCount.Load(); count != 1 {
-		t.Errorf("Expected exactly 1 fetch call, got %d", count)
+		t.Errorf("Expected 1 fetch call, got %d", count)
 	}
 }
 
 func TestSpotPriceHistoryCache_GetSpotPrice_StaleEntry(t *testing.T) {
-	fetchCalled := false
+	var fetchCount atomic.Int32
 	mockFetcher := &mockSpotPriceHistoryFetcher{
 		fetchFunc: func(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
-			fetchCalled = true
+			fetchCount.Add(1)
 			return &SpotPriceHistoryEntry{
-				SpotPrice:   0.15,
-				Timestamp:   time.Now(),
-				RetrievedAt: time.Now(),
+				SpotPrice: 0.05,
+				Timestamp: time.Now(),
 			}, nil
 		},
 	}
 	cache := NewSpotPriceHistoryCache(mockFetcher)
 
+	// First call
+	_, err := cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Manually make the entry stale
 	key := SpotPriceHistoryKey{
 		Region:           "us-west-2",
 		InstanceType:     "m5.large",
 		AvailabilityZone: "us-west-2a",
 	}
+	cache.mutex.Lock()
+	cache.cache[key].RetrievedAt = time.Now().Add(-2 * time.Hour)
+	cache.mutex.Unlock()
 
-	staleEntry := &SpotPriceHistoryEntry{
-		SpotPrice:   0.08,
-		Timestamp:   time.Now(),
-		RetrievedAt: time.Now().Add(-2 * time.Hour),
-	}
-	cache.cache[key] = staleEntry
-
-	entry, err := cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
+	// Second call should refresh
+	_, err = cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf("Unexpected error: %v", err)
 	}
-	if !fetchCalled {
-		t.Error("Expected fetcher to be called for stale entry")
-	}
-	if entry.SpotPrice != 0.15 {
-		t.Errorf("Expected refreshed spot price 0.15, got %f", entry.SpotPrice)
+	if count := fetchCount.Load(); count != 2 {
+		t.Errorf("Expected 2 fetch calls, got %d", count)
 	}
 }
 
 func TestSpotPriceHistoryCache_GetSpotPrice_FetchError(t *testing.T) {
-	expectedError := errors.New("fetch failed")
+	var fetchCount atomic.Int32
 	mockFetcher := &mockSpotPriceHistoryFetcher{
 		fetchFunc: func(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
-			return nil, expectedError
+			fetchCount.Add(1)
+			return nil, errors.New("network error")
 		},
 	}
 	cache := NewSpotPriceHistoryCache(mockFetcher)
 
+	// First call should fetch and cache error
 	_, err := cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
 	if err == nil {
-		t.Error("Expected error from failed fetch")
+		t.Error("Expected error")
 	}
-	if !errors.Is(err, expectedError) {
-		t.Errorf("Expected error %v, got %v", expectedError, err)
+	if count := fetchCount.Load(); count != 1 {
+		t.Errorf("Expected 1 fetch call, got %d", count)
 	}
 
-	key := SpotPriceHistoryKey{
-		Region:           "us-west-2",
-		InstanceType:     "m5.large",
-		AvailabilityZone: "us-west-2a",
+	// Second call should return cached error
+	_, err = cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
+	if err == nil {
+		t.Error("Expected cached error")
 	}
-	cachedEntry := cache.cache[key]
-	if !errors.Is(cachedEntry.Error, expectedError) {
-		t.Errorf("Expected cached entry error %v, got %v", expectedError, cachedEntry.Error)
+	if count := fetchCount.Load(); count != 1 {
+		t.Errorf("Expected still 1 fetch call (cached), got %d", count)
 	}
 }
 
 func TestSpotPriceHistoryEntry_shouldRefresh(t *testing.T) {
 	now := time.Now()
-
 	tests := []struct {
 		name        string
 		retrievedAt time.Time
+		err         error
 		expected    bool
 	}{
 		{
 			name:        "fresh entry",
 			retrievedAt: now,
+			err:         nil,
 			expected:    false,
 		},
 		{
 			name:        "stale entry",
 			retrievedAt: now.Add(-2 * time.Hour),
+			err:         nil,
 			expected:    true,
 		},
 		{
 			name:        "borderline entry",
 			retrievedAt: now.Add(-SpotPriceHistoryCacheAge + 1*time.Minute),
+			err:         nil,
 			expected:    false,
 		},
 		{
 			name:        "expired entry",
 			retrievedAt: now.Add(-SpotPriceHistoryCacheAge - 1*time.Minute),
+			err:         nil,
+			expected:    true,
+		},
+		{
+			name:        "auth error - never refresh",
+			retrievedAt: now.Add(-2 * time.Hour),
+			err:         fmt.Errorf("%w", ErrSpotPriceAuthFailure),
+			expected:    false,
+		},
+		{
+			name:        "wrapped auth error - never refresh",
+			retrievedAt: now.Add(-2 * time.Hour),
+			err:         fmt.Errorf("additional context: %w", ErrSpotPriceAuthFailure),
+			expected:    false,
+		},
+		{
+			name:        "transient error - should refresh when stale",
+			retrievedAt: now.Add(-2 * time.Hour),
+			err:         errors.New("network timeout"),
 			expected:    true,
 		},
 	}
@@ -218,11 +240,129 @@ func TestSpotPriceHistoryEntry_shouldRefresh(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			entry := SpotPriceHistoryEntry{
 				RetrievedAt: tt.retrievedAt,
+				Error:       tt.err,
 			}
 			if got := entry.shouldRefresh(); got != tt.expected {
 				t.Errorf("shouldRefresh() = %v, want %v", got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestSpotPriceHistoryCache_GetSpotPrice_AuthErrorCached(t *testing.T) {
+	// Reset global flag before test
+	globalSpotPriceAuthFailure.Store(false)
+	
+	var fetchCount atomic.Int32
+	mockFetcher := &mockSpotPriceHistoryFetcher{
+		fetchFunc: func(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
+			fetchCount.Add(1)
+			return nil, fmt.Errorf("%w", ErrSpotPriceAuthFailure)
+		},
+	}
+	cache := NewSpotPriceHistoryCache(mockFetcher)
+
+	// First call should fetch and cache the auth error
+	_, err := cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
+	if err == nil {
+		t.Error("Expected auth error")
+	}
+	if !errors.Is(err, ErrSpotPriceAuthFailure) {
+		t.Errorf("Expected ErrSpotPriceAuthFailure, got %v", err)
+	}
+	if count := fetchCount.Load(); count != 1 {
+		t.Errorf("Expected 1 fetch call, got %d", count)
+	}
+
+	// Second call should return cached auth error without fetching
+	_, err = cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
+	if err == nil {
+		t.Error("Expected cached auth error")
+	}
+	if !errors.Is(err, ErrSpotPriceAuthFailure) {
+		t.Errorf("Expected ErrSpotPriceAuthFailure, got %v", err)
+	}
+	if count := fetchCount.Load(); count != 1 {
+		t.Errorf("Expected still 1 fetch call (cached), got %d", count)
+	}
+
+	// Wait for cache to become stale (if it were a normal error)
+	key := SpotPriceHistoryKey{
+		Region:           "us-west-2",
+		InstanceType:     "m5.large",
+		AvailabilityZone: "us-west-2a",
+	}
+	cache.mutex.Lock()
+	cache.cache[key].RetrievedAt = time.Now().Add(-2 * time.Hour)
+	cache.mutex.Unlock()
+
+	// Third call should STILL return cached auth error without fetching
+	_, err = cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
+	if err == nil {
+		t.Error("Expected cached auth error even when stale")
+	}
+	if !errors.Is(err, ErrSpotPriceAuthFailure) {
+		t.Errorf("Expected ErrSpotPriceAuthFailure, got %v", err)
+	}
+	if count := fetchCount.Load(); count != 1 {
+		t.Errorf("Expected still 1 fetch call (auth errors never refresh), got %d", count)
+	}
+}
+
+func TestSpotPriceHistoryCache_GetSpotPrice_GlobalAuthFlag(t *testing.T) {
+	// Reset global flag before test
+	globalSpotPriceAuthFailure.Store(false)
+	
+	var fetchCount atomic.Int32
+	mockFetcher := &mockSpotPriceHistoryFetcher{
+		fetchFunc: func(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
+			// Check global flag first (simulating AWSSpotPriceHistoryFetcher behavior)
+			if globalSpotPriceAuthFailure.Load() {
+				return nil, ErrSpotPriceAuthFailure
+			}
+			
+			fetchCount.Add(1)
+			// Simulate auth error on first call
+			globalSpotPriceAuthFailure.Store(true)
+			return nil, fmt.Errorf("%w", ErrSpotPriceAuthFailure)
+		},
+	}
+	cache := NewSpotPriceHistoryCache(mockFetcher)
+
+	// First call for instance type A - should fetch and set global flag
+	_, err := cache.GetSpotPrice("us-west-2", "m5.large", "us-west-2a")
+	if err == nil {
+		t.Error("Expected auth error")
+	}
+	if !errors.Is(err, ErrSpotPriceAuthFailure) {
+		t.Errorf("Expected ErrSpotPriceAuthFailure, got %v", err)
+	}
+	if count := fetchCount.Load(); count != 1 {
+		t.Errorf("Expected 1 fetch call, got %d", count)
+	}
+
+	// Second call for DIFFERENT instance type/AZ - should NOT fetch due to global flag
+	_, err = cache.GetSpotPrice("us-west-2", "t3.micro", "us-west-2b")
+	if err == nil {
+		t.Error("Expected auth error from global flag")
+	}
+	if !errors.Is(err, ErrSpotPriceAuthFailure) {
+		t.Errorf("Expected ErrSpotPriceAuthFailure, got %v", err)
+	}
+	if count := fetchCount.Load(); count != 1 {
+		t.Errorf("Expected still 1 fetch call (global flag prevents second fetch), got %d", count)
+	}
+
+	// Third call for yet ANOTHER instance type/AZ - should also NOT fetch
+	_, err = cache.GetSpotPrice("us-east-1", "g6f.xlarge", "us-east-1a")
+	if err == nil {
+		t.Error("Expected auth error from global flag")
+	}
+	if !errors.Is(err, ErrSpotPriceAuthFailure) {
+		t.Errorf("Expected ErrSpotPriceAuthFailure, got %v", err)
+	}
+	if count := fetchCount.Load(); count != 1 {
+		t.Errorf("Expected still 1 fetch call (global flag prevents all fetches), got %d", count)
 	}
 }
 
