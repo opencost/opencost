@@ -18,16 +18,14 @@ import (
 type ExportCompressionLevel int
 
 // IsValid returns false when the integer value of the `ExportCompressionLevel` isn't a valid input.
-func (ecl *ExportCompressionLevel) IsValid() bool {
-	compressionLevel := *ecl
-
+func (ecl ExportCompressionLevel) IsValid() bool {
 	// level is default or none
-	if compressionLevel == ExportCompressionLevelNone || compressionLevel == ExportCompressionLevelDefault {
+	if ecl == ExportCompressionLevelNone || ecl == ExportCompressionLevelDefault {
 		return true
 	}
 
 	// level is within 1-9 bounds
-	return compressionLevel >= ExportCompressionLevelBestSpeed && compressionLevel <= ExportCompressionLevelBestCompression
+	return ecl >= ExportCompressionLevelBestSpeed && ecl <= ExportCompressionLevelBestCompression
 }
 
 const (
