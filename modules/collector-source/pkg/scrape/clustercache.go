@@ -1088,6 +1088,7 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 			ownerInfo := maps.Clone(replicaSetOwnerInfo)
 			ownerInfo[source.OwnerKindLabel] = source.NoneLabelValue
 			ownerInfo[source.OwnerNameLabel] = source.NoneLabelValue
+			ownerInfo[source.ControllerLabel] = "false"
 			scrapeResults = append(scrapeResults, metric.Update{
 				Name:           metric.KubeReplicasetOwner,
 				Labels:         ownerInfo,
