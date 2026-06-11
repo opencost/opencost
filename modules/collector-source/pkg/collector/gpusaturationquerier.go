@@ -166,3 +166,37 @@ func (c *collectorMetricsQuerier) QueryGPUNVLinkTxBytesAvg(start, end time.Time)
 func (c *collectorMetricsQuerier) QueryGPUNVLinkRxBytesAvg(start, end time.Time) *source.Future[source.GPUSaturationResult] {
 	return queryCollector(c, start, end, metric.GPUNVLinkRxBytesAvgID, source.DecodeGPUSaturationResult)
 }
+
+// Device-level GPU metric queries (DeviceInfo / DevicePerformance support).
+
+// QueryGPUDevicePowerAvg reports average device power draw in watts.
+func (c *collectorMetricsQuerier) QueryGPUDevicePowerAvg(start, end time.Time) *source.Future[source.GPUDeviceMetricResult] {
+	return queryCollector(c, start, end, metric.GPUDevicePowerAvgID, source.DecodeGPUDeviceMetricResult)
+}
+
+// QueryGPUDeviceTempAvg reports average device temperature in Celsius.
+func (c *collectorMetricsQuerier) QueryGPUDeviceTempAvg(start, end time.Time) *source.Future[source.GPUDeviceMetricResult] {
+	return queryCollector(c, start, end, metric.GPUDeviceTempAvgID, source.DecodeGPUDeviceMetricResult)
+}
+
+// QueryGPUDeviceUsageAvg reports average device-level compute utilization
+// as a 0-1 ratio.
+func (c *collectorMetricsQuerier) QueryGPUDeviceUsageAvg(start, end time.Time) *source.Future[source.GPUDeviceMetricResult] {
+	return queryCollector(c, start, end, metric.GPUDeviceUsageAvgID, source.DecodeGPUDeviceMetricResult)
+}
+
+// QueryGPUDeviceUsageMax reports peak device-level compute utilization as a
+// 0-1 ratio.
+func (c *collectorMetricsQuerier) QueryGPUDeviceUsageMax(start, end time.Time) *source.Future[source.GPUDeviceMetricResult] {
+	return queryCollector(c, start, end, metric.GPUDeviceUsageMaxID, source.DecodeGPUDeviceMetricResult)
+}
+
+// QueryGPUDeviceMemoryUsedAvg reports average framebuffer used in MiB.
+func (c *collectorMetricsQuerier) QueryGPUDeviceMemoryUsedAvg(start, end time.Time) *source.Future[source.GPUDeviceMetricResult] {
+	return queryCollector(c, start, end, metric.GPUDeviceMemoryUsedAvgID, source.DecodeGPUDeviceMetricResult)
+}
+
+// QueryGPUDeviceMemoryUsedMax reports peak framebuffer used in MiB.
+func (c *collectorMetricsQuerier) QueryGPUDeviceMemoryUsedMax(start, end time.Time) *source.Future[source.GPUDeviceMetricResult] {
+	return queryCollector(c, start, end, metric.GPUDeviceMemoryUsedMaxID, source.DecodeGPUDeviceMetricResult)
+}

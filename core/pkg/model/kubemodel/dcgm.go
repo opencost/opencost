@@ -25,23 +25,44 @@ type DCGMDevice struct {
 	// USE-method saturation signals for this device, nil when no
 	// saturation metrics were available (see DCGMDeviceSaturation)
 	Saturation *DCGMDeviceSaturation `json:"saturation,omitempty"` // @bingen:field[version=3]
+
+	// Device-level metrics from the default dcgm-exporter configuration.
+	// Compute utilization is a percentage (0-100); memory used is absolute
+	// bytes. Zero means not collected for the window.
+	PowerWatts            float64 `json:"powerWatts,omitempty"`            // @bingen:field[version=4]
+	TemperatureCelsius    float64 `json:"temperatureCelsius,omitempty"`    // @bingen:field[version=4]
+	ComputeUtilizationAvg float64 `json:"computeUtilizationAvg,omitempty"` // @bingen:field[version=4]
+	ComputeUtilizationMax float64 `json:"computeUtilizationMax,omitempty"` // @bingen:field[version=4]
+	MemoryUsedBytesAvg    float64 `json:"memoryUsedBytesAvg,omitempty"`    // @bingen:field[version=4]
+	MemoryUsedBytesMax    float64 `json:"memoryUsedBytesMax,omitempty"`    // @bingen:field[version=4]
 }
 
 var (
-	_ DeviceInfo       = (*DCGMDevice)(nil)
-	_ DeviceSaturation = (*DCGMDevice)(nil)
+	_ DeviceInfo        = (*DCGMDevice)(nil)
+	_ DevicePerformance = (*DCGMDevice)(nil)
+	_ DeviceSaturation  = (*DCGMDevice)(nil)
 )
 
-// DeviceInfo implementation. Power draw and MIG parentage are not yet
-// recorded from DCGM, so GetPower reports 0 and GetParent reports empty
-// until that collection lands.
+// DeviceInfo implementation. MIG parentage is not derivable from
+// dcgm-exporter labels (a MIG instance's series do not carry the physical
+// GPU UUID), so GetParent reports empty until a source for the mapping
+// exists (e.g. DRA slice attributes).
 func (d *DCGMDevice) GetIdentifier() string { return d.UUID }
 func (d *DCGMDevice) GetType() string       { return "GPU" }
 func (d *DCGMDevice) GetName() string       { return d.ModelName }
-func (d *DCGMDevice) GetPower() float64     { return 0 }
+func (d *DCGMDevice) GetPower() float64     { return d.PowerWatts }
 func (d *DCGMDevice) GetStart() time.Time   { return d.Start }
 func (d *DCGMDevice) GetEnd() time.Time     { return d.End }
 func (d *DCGMDevice) GetParent() string     { return "" }
+
+// DevicePerformance implementation, backed by device-level DCGM series:
+// GR_ENGINE_ACTIVE (scaled to percent), FB_USED (scaled to bytes), and
+// GPU_TEMP.
+func (d *DCGMDevice) GetComputeUtilizationAverage() float64 { return d.ComputeUtilizationAvg }
+func (d *DCGMDevice) GetComputeUtilizationMax() float64     { return d.ComputeUtilizationMax }
+func (d *DCGMDevice) GetMemoryUtilizationAverage() float64  { return d.MemoryUsedBytesAvg }
+func (d *DCGMDevice) GetMemoryUtilizationMax() float64      { return d.MemoryUsedBytesMax }
+func (d *DCGMDevice) GetTemp() float64                      { return d.TemperatureCelsius }
 
 // DeviceSaturation implementation. The vendor-neutral getters map onto
 // DCGM concepts: throttle violation counters DCGM_FI_DEV_*_VIOLATION,

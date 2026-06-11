@@ -32,12 +32,18 @@ func mockDCGMDeviceSaturation() *DCGMDeviceSaturation {
 
 func mockSaturatedDCGMDevice() *DCGMDevice {
 	return &DCGMDevice{
-		UUID:       "GPU-1",
-		Start:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
-		End:        time.Date(2026, 6, 1, 1, 0, 0, 0, time.UTC),
-		Device:     "nvidia0",
-		ModelName:  "NVIDIA A100 80GB",
-		Saturation: mockDCGMDeviceSaturation(),
+		UUID:                  "GPU-1",
+		Start:                 time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		End:                   time.Date(2026, 6, 1, 1, 0, 0, 0, time.UTC),
+		Device:                "nvidia0",
+		ModelName:             "NVIDIA A100 80GB",
+		Saturation:            mockDCGMDeviceSaturation(),
+		PowerWatts:            140,
+		TemperatureCelsius:    55,
+		ComputeUtilizationAvg: 42.5,
+		ComputeUtilizationMax: 97,
+		MemoryUsedBytesAvg:    32e9,
+		MemoryUsedBytesMax:    71e9,
 	}
 }
 
@@ -58,9 +64,28 @@ func TestDCGMDevice_DeviceInfoInterface(t *testing.T) {
 	if !info.GetStart().Before(info.GetEnd()) {
 		t.Errorf("GetStart() not before GetEnd()")
 	}
-	// power and MIG parentage are not collected from DCGM yet
-	if info.GetPower() != 0 || info.GetParent() != "" {
-		t.Errorf("expected zero power and empty parent until collection lands, got (%v, %q)", info.GetPower(), info.GetParent())
+	if info.GetPower() != 140 {
+		t.Errorf("GetPower() = %v, want 140", info.GetPower())
+	}
+	// MIG parentage is not derivable from dcgm-exporter labels yet
+	if info.GetParent() != "" {
+		t.Errorf("expected empty parent until a mapping source exists, got %q", info.GetParent())
+	}
+}
+
+// TestDCGMDevice_DevicePerformanceInterface verifies the performance surface
+// is backed by the device-level metric fields with documented units.
+func TestDCGMDevice_DevicePerformanceInterface(t *testing.T) {
+	var perf DevicePerformance = mockSaturatedDCGMDevice()
+
+	if perf.GetComputeUtilizationAverage() != 42.5 || perf.GetComputeUtilizationMax() != 97 {
+		t.Errorf("compute utilization = (%v, %v), want (42.5, 97)", perf.GetComputeUtilizationAverage(), perf.GetComputeUtilizationMax())
+	}
+	if perf.GetMemoryUtilizationAverage() != 32e9 || perf.GetMemoryUtilizationMax() != 71e9 {
+		t.Errorf("memory utilization = (%v, %v), want (3.2e10, 7.1e10)", perf.GetMemoryUtilizationAverage(), perf.GetMemoryUtilizationMax())
+	}
+	if perf.GetTemp() != 55 {
+		t.Errorf("GetTemp() = %v, want 55", perf.GetTemp())
 	}
 }
 
@@ -239,6 +264,11 @@ func TestDCGMDevice_BinaryRoundtripWithSaturation(t *testing.T) {
 
 			if decoded.UUID != orig.UUID || decoded.Device != orig.Device || decoded.ModelName != orig.ModelName {
 				t.Errorf("device identity did not survive roundtrip: got %+v, want %+v", decoded, orig)
+			}
+			if decoded.PowerWatts != orig.PowerWatts || decoded.TemperatureCelsius != orig.TemperatureCelsius ||
+				decoded.ComputeUtilizationAvg != orig.ComputeUtilizationAvg || decoded.ComputeUtilizationMax != orig.ComputeUtilizationMax ||
+				decoded.MemoryUsedBytesAvg != orig.MemoryUsedBytesAvg || decoded.MemoryUsedBytesMax != orig.MemoryUsedBytesMax {
+				t.Errorf("device metrics did not survive roundtrip: got %+v, want %+v", decoded, orig)
 			}
 			if (decoded.Saturation == nil) != (orig.Saturation == nil) {
 				t.Fatalf("saturation presence did not survive roundtrip: got %v, want %v", decoded.Saturation, orig.Saturation)

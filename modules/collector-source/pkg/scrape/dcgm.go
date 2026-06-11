@@ -35,6 +35,8 @@ func newDCGMTargetScraper(provider target.TargetProvider) *TargetScraper {
 			metric.DCGMFIDEVFBUSED,
 			metric.DCGMFIDEVFBFREE,
 			metric.DCGMFIDEVXIDERRORS,
+			metric.DCGMFIDEVPOWERUSAGE,
+			metric.DCGMFIDEVGPUTEMP,
 			metric.DCGMFIDEVCLOCKTHROTTLEREASONS,
 			metric.DCGMFIDEVCLOCKSEVENTREASONS,
 			metric.DCGMFIPROFDRAMACTIVE,

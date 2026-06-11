@@ -1818,6 +1818,12 @@ func (target *DCGMDevice) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 		// --- [end][write][struct](DCGMDeviceSaturation) ---
 
 	}
+	buff.WriteFloat64(target.PowerWatts)            // write float64
+	buff.WriteFloat64(target.TemperatureCelsius)    // write float64
+	buff.WriteFloat64(target.ComputeUtilizationAvg) // write float64
+	buff.WriteFloat64(target.ComputeUtilizationMax) // write float64
+	buff.WriteFloat64(target.MemoryUsedBytesAvg)    // write float64
+	buff.WriteFloat64(target.MemoryUsedBytesMax)    // write float64
 
 	return nil
 }
@@ -1979,6 +1985,23 @@ func (target *DCGMDevice) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	} else {
 		target.Saturation = nil
 
+	}
+
+	// field version check
+	if uint8(4) <= version {
+		target.PowerWatts = buff.ReadFloat64()            // read float64
+		target.TemperatureCelsius = buff.ReadFloat64()    // read float64
+		target.ComputeUtilizationAvg = buff.ReadFloat64() // read float64
+		target.ComputeUtilizationMax = buff.ReadFloat64() // read float64
+		target.MemoryUsedBytesAvg = buff.ReadFloat64()    // read float64
+		target.MemoryUsedBytesMax = buff.ReadFloat64()    // read float64
+	} else {
+		target.PowerWatts = float64(0)            // default
+		target.TemperatureCelsius = float64(0)    // default
+		target.ComputeUtilizationAvg = float64(0) // default
+		target.ComputeUtilizationMax = float64(0) // default
+		target.MemoryUsedBytesAvg = float64(0)    // default
+		target.MemoryUsedBytesMax = float64(0)    // default
 	}
 
 	return nil

@@ -135,3 +135,65 @@ func applyDeviceThrottleRatios(deviceMap map[string]*kubemodel.DCGMDevice, resul
 		ratios(ensureDeviceSaturation(device))[res.Reason] = res.Data[0].Value
 	}
 }
+
+// dcgmDeviceMetricFutures holds the device-level metric queries backing
+// DeviceInfo / DevicePerformance: power, temperature, device-level compute
+// utilization, and framebuffer used. Unlike saturation these are not
+// feature-gated: they are core device telemetry from the default
+// dcgm-exporter configuration.
+type dcgmDeviceMetricFutures struct {
+	powerAvg      *source.QueryGroupFuture[source.GPUDeviceMetricResult]
+	tempAvg       *source.QueryGroupFuture[source.GPUDeviceMetricResult]
+	usageAvg      *source.QueryGroupFuture[source.GPUDeviceMetricResult]
+	usageMax      *source.QueryGroupFuture[source.GPUDeviceMetricResult]
+	memoryUsedAvg *source.QueryGroupFuture[source.GPUDeviceMetricResult]
+	memoryUsedMax *source.QueryGroupFuture[source.GPUDeviceMetricResult]
+}
+
+func startDCGMDeviceMetricQueries(grp *source.QueryGroup, metrics source.MetricsQuerier, start, end time.Time) *dcgmDeviceMetricFutures {
+	return &dcgmDeviceMetricFutures{
+		powerAvg:      source.WithGroup(grp, metrics.QueryGPUDevicePowerAvg(start, end)),
+		tempAvg:       source.WithGroup(grp, metrics.QueryGPUDeviceTempAvg(start, end)),
+		usageAvg:      source.WithGroup(grp, metrics.QueryGPUDeviceUsageAvg(start, end)),
+		usageMax:      source.WithGroup(grp, metrics.QueryGPUDeviceUsageMax(start, end)),
+		memoryUsedAvg: source.WithGroup(grp, metrics.QueryGPUDeviceMemoryUsedAvg(start, end)),
+		memoryUsedMax: source.WithGroup(grp, metrics.QueryGPUDeviceMemoryUsedMax(start, end)),
+	}
+}
+
+const fbMiB = 1024 * 1024
+
+// awaitAndApply reduces the device-level metrics onto the device map,
+// scaling to the model's units: GR_ENGINE_ACTIVE ratio to percent (0-100),
+// FB_USED MiB to bytes.
+func (f *dcgmDeviceMetricFutures) awaitAndApply(deviceMap map[string]*kubemodel.DCGMDevice) {
+	if f == nil {
+		return
+	}
+
+	resPower, _ := f.powerAvg.Await()
+	resTemp, _ := f.tempAvg.Await()
+	resUsageAvg, _ := f.usageAvg.Await()
+	resUsageMax, _ := f.usageMax.Await()
+	resMemAvg, _ := f.memoryUsedAvg.Await()
+	resMemMax, _ := f.memoryUsedMax.Await()
+
+	applyDeviceMetric(deviceMap, resPower, func(d *kubemodel.DCGMDevice, v float64) { d.PowerWatts = v })
+	applyDeviceMetric(deviceMap, resTemp, func(d *kubemodel.DCGMDevice, v float64) { d.TemperatureCelsius = v })
+	applyDeviceMetric(deviceMap, resUsageAvg, func(d *kubemodel.DCGMDevice, v float64) { d.ComputeUtilizationAvg = v * 100 })
+	applyDeviceMetric(deviceMap, resUsageMax, func(d *kubemodel.DCGMDevice, v float64) { d.ComputeUtilizationMax = v * 100 })
+	applyDeviceMetric(deviceMap, resMemAvg, func(d *kubemodel.DCGMDevice, v float64) { d.MemoryUsedBytesAvg = v * fbMiB })
+	applyDeviceMetric(deviceMap, resMemMax, func(d *kubemodel.DCGMDevice, v float64) { d.MemoryUsedBytesMax = v * fbMiB })
+}
+
+// applyDeviceMetric reduces device-keyed results onto device fields;
+// unknown UUIDs and empty results are skipped.
+func applyDeviceMetric(deviceMap map[string]*kubemodel.DCGMDevice, results []*source.GPUDeviceMetricResult, set func(d *kubemodel.DCGMDevice, value float64)) {
+	for _, res := range results {
+		device, ok := deviceMap[res.UUID]
+		if !ok || len(res.Data) == 0 {
+			continue
+		}
+		set(device, res.Data[0].Value)
+	}
+}

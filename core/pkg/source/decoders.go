@@ -1092,6 +1092,18 @@ func DecodeGPUInfoResult(result *QueryResult) *GPUInfoResult {
 // determined by the DataSource method that produced the result; Reason is
 // only populated by the throttle queries, and the MIG labels only when
 // dcgm-exporter reports MIG instances as distinct devices.
+// GPUDeviceMetricResult is the result shape for device-level GPU metric
+// queries (power, temperature, device-level utilization, memory used).
+// It shares GPUSaturationResult's label decoding: device identity plus MIG
+// instance labels; container attribution fields stay empty for
+// device-level groupings.
+type GPUDeviceMetricResult = GPUSaturationResult
+
+// DecodeGPUDeviceMetricResult decodes a device-level GPU metric result.
+func DecodeGPUDeviceMetricResult(result *QueryResult) *GPUDeviceMetricResult {
+	return DecodeGPUSaturationResult(result)
+}
+
 type GPUSaturationResult struct {
 	UID         string
 	Cluster     string

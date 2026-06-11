@@ -74,6 +74,36 @@ func newGPUSaturationCollector(id metric.MetricCollectorID, metricName string, f
 	)
 }
 
+// gpuDeviceLabels groups device-level metrics by device identity (and MIG
+// instance) without container attribution: power, temperature, and
+// device-level utilization describe the whole device regardless of which
+// containers share it.
+var gpuDeviceLabels = []string{
+	source.DeviceLabel,
+	source.ModelNameLabel,
+	source.UUIDLabel,
+	source.MIGProfileLabel,
+	source.MIGInstanceLabel,
+}
+
+func newGPUDeviceCollector(id metric.MetricCollectorID, metricName string, factory aggregator.MetricAggregatorFactory) *metric.MetricCollector {
+	return metric.NewMetricCollector(id, metricName, gpuDeviceLabels, factory, nil)
+}
+
+// NewGPUDeviceMetricCollectors returns the collectors backing the
+// DeviceInfo / DevicePerformance contracts: power, temperature,
+// device-level compute utilization, and framebuffer used.
+func NewGPUDeviceMetricCollectors() []*metric.MetricCollector {
+	return []*metric.MetricCollector{
+		newGPUDeviceCollector(metric.GPUDevicePowerAvgID, metric.DCGMFIDEVPOWERUSAGE, aggregator.AverageOverTime),
+		newGPUDeviceCollector(metric.GPUDeviceTempAvgID, metric.DCGMFIDEVGPUTEMP, aggregator.AverageOverTime),
+		newGPUDeviceCollector(metric.GPUDeviceUsageAvgID, metric.DCGMFIPROFGRENGINEACTIVE, aggregator.AverageOverTime),
+		newGPUDeviceCollector(metric.GPUDeviceUsageMaxID, metric.DCGMFIPROFGRENGINEACTIVE, aggregator.MaxOverTime),
+		newGPUDeviceCollector(metric.GPUDeviceMemoryUsedAvgID, metric.DCGMFIDEVFBUSED, aggregator.AverageOverTime),
+		newGPUDeviceCollector(metric.GPUDeviceMemoryUsedMaxID, metric.DCGMFIDEVFBUSED, aggregator.MaxOverTime),
+	}
+}
+
 // NewGPUSaturationMetricCollectors returns every collector needed for the
 // GPU saturation signals.
 func NewGPUSaturationMetricCollectors() []*metric.MetricCollector {

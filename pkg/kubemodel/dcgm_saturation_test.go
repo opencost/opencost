@@ -166,3 +166,57 @@ func TestDCGMSaturationAwaitAndApply(t *testing.T) {
 	var disabled *dcgmSaturationFutures
 	disabled.awaitAndApply(deviceMap)
 }
+
+// TestDCGMDeviceMetricAwaitAndApply verifies device-level metrics land with
+// correct unit scaling and that devices without series keep zero values.
+func TestDCGMDeviceMetricAwaitAndApply(t *testing.T) {
+	makeFuture := func(results ...*source.GPUDeviceMetricResult) *source.QueryGroupFuture[source.GPUDeviceMetricResult] {
+		queryResults := source.NewQueryResults("test")
+		for _, res := range results {
+			queryResults.Results = append(queryResults.Results, source.NewQueryResult(map[string]any{
+				"UUID": res.UUID,
+			}, res.Data, nil))
+		}
+		ch := make(source.QueryResultsChan, 1)
+		ch <- queryResults
+		grp := source.NewQueryGroup()
+		return source.WithGroup(grp, source.NewFuture(source.DecodeGPUDeviceMetricResult, ch))
+	}
+	metricResult := func(uuid string, value float64) *source.GPUDeviceMetricResult {
+		return &source.GPUDeviceMetricResult{UUID: uuid, Data: []*util.Vector{{Value: value}}}
+	}
+
+	deviceMap := saturationDeviceMap()
+	futures := &dcgmDeviceMetricFutures{
+		powerAvg:      makeFuture(metricResult("GPU-1", 140)),
+		tempAvg:       makeFuture(metricResult("GPU-1", 55)),
+		usageAvg:      makeFuture(metricResult("GPU-1", 0.425)),
+		usageMax:      makeFuture(metricResult("GPU-1", 0.97)),
+		memoryUsedAvg: makeFuture(metricResult("GPU-1", 1024)), // MiB
+		memoryUsedMax: makeFuture(metricResult("GPU-1", 2048)),
+	}
+
+	futures.awaitAndApply(deviceMap)
+
+	d := deviceMap["GPU-1"]
+	if d.PowerWatts != 140 || d.TemperatureCelsius != 55 {
+		t.Errorf("power/temp = (%v, %v), want (140, 55)", d.PowerWatts, d.TemperatureCelsius)
+	}
+	// GR_ENGINE_ACTIVE ratio scaled to percent
+	if d.ComputeUtilizationAvg != 42.5 || d.ComputeUtilizationMax != 97 {
+		t.Errorf("compute util = (%v, %v), want (42.5, 97)", d.ComputeUtilizationAvg, d.ComputeUtilizationMax)
+	}
+	// FB_USED MiB scaled to bytes
+	if d.MemoryUsedBytesAvg != 1024*1024*1024 || d.MemoryUsedBytesMax != 2048*1024*1024 {
+		t.Errorf("memory bytes = (%v, %v)", d.MemoryUsedBytesAvg, d.MemoryUsedBytesMax)
+	}
+
+	// no series targeted GPU-2: untouched zeros
+	if deviceMap["GPU-2"].PowerWatts != 0 || deviceMap["GPU-2"].ComputeUtilizationAvg != 0 {
+		t.Errorf("GPU-2 must stay zero: %+v", deviceMap["GPU-2"])
+	}
+
+	// nil bundle is a no-op
+	var disabled *dcgmDeviceMetricFutures
+	disabled.awaitAndApply(deviceMap)
+}

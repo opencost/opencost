@@ -178,6 +178,35 @@ func TestGPUSaturationQueries(t *testing.T) {
 		},
 	}
 
+	deviceTests := map[string]struct {
+		query      func(time.Time, time.Time)
+		wantMetric string
+	}{
+		"QueryGPUDevicePowerAvg":      {func(s, e time.Time) { querier.QueryGPUDevicePowerAvg(s, e) }, "DCGM_FI_DEV_POWER_USAGE"},
+		"QueryGPUDeviceTempAvg":       {func(s, e time.Time) { querier.QueryGPUDeviceTempAvg(s, e) }, "DCGM_FI_DEV_GPU_TEMP"},
+		"QueryGPUDeviceUsageAvg":      {func(s, e time.Time) { querier.QueryGPUDeviceUsageAvg(s, e) }, "DCGM_FI_PROF_GR_ENGINE_ACTIVE"},
+		"QueryGPUDeviceUsageMax":      {func(s, e time.Time) { querier.QueryGPUDeviceUsageMax(s, e) }, "DCGM_FI_PROF_GR_ENGINE_ACTIVE"},
+		"QueryGPUDeviceMemoryUsedAvg": {func(s, e time.Time) { querier.QueryGPUDeviceMemoryUsedAvg(s, e) }, "DCGM_FI_DEV_FB_USED"},
+		"QueryGPUDeviceMemoryUsedMax": {func(s, e time.Time) { querier.QueryGPUDeviceMemoryUsedMax(s, e) }, "DCGM_FI_DEV_FB_USED"},
+	}
+	const wantDeviceFilter = `cluster_id="test-cluster"`
+	for testName, tc := range deviceTests {
+		t.Run(testName, func(t *testing.T) {
+			tc.query(queryStart, queryEnd)
+			logged := logWriter.Log
+			if !strings.Contains(logged, tc.wantMetric) {
+				t.Errorf("expected query to reference %q, got: %s", tc.wantMetric, logged)
+			}
+			if !strings.Contains(logged, wantDeviceFilter) {
+				t.Errorf("expected query to contain cluster filter %q, got: %s", wantDeviceFilter, logged)
+			}
+			// device-level grouping: no container attribution
+			if !strings.Contains(logged, gpuDeviceByLabels) || strings.Contains(logged, "container,") {
+				t.Errorf("expected device-level grouping %q without container, got: %s", gpuDeviceByLabels, logged)
+			}
+		})
+	}
+
 	const wantFilter = `cluster_id="test-cluster"`
 
 	for testName, tc := range tests {

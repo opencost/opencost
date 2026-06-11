@@ -1516,6 +1516,8 @@ func (km *KubeModel) computeDCGMDevices(kms *kubemodel.KubeModelSet, start, end 
 		saturationFutures = startDCGMSaturationQueries(grp, metrics, start, end)
 	}
 
+	deviceMetricFutures := startDCGMDeviceMetricQueries(grp, metrics, start, end)
+
 	deviceMap := make(map[string]*kubemodel.DCGMDevice)
 
 	dcgmInfoResult, _ := dcgmInfoFuture.Await()
@@ -1581,6 +1583,9 @@ func (km *KubeModel) computeDCGMDevices(kms *kubemodel.KubeModelSet, start, end 
 	// reduce container-attributed saturation series onto each device; nil
 	// when the feature is disabled
 	saturationFutures.awaitAndApply(deviceMap)
+
+	// device-level power/temperature/utilization/memory
+	deviceMetricFutures.awaitAndApply(deviceMap)
 
 	for _, device := range deviceMap {
 		if err := kms.RegisterDCGMDevice(device); err != nil {

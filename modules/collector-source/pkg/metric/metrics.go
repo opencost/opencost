@@ -71,6 +71,8 @@ const (
 	DCGMFIDEVFBUSED              = "DCGM_FI_DEV_FB_USED"
 	DCGMFIDEVFBFREE              = "DCGM_FI_DEV_FB_FREE"
 	DCGMFIDEVXIDERRORS           = "DCGM_FI_DEV_XID_ERRORS"
+	DCGMFIDEVPOWERUSAGE          = "DCGM_FI_DEV_POWER_USAGE"
+	DCGMFIDEVGPUTEMP             = "DCGM_FI_DEV_GPU_TEMP"
 
 	// DCGM saturation metrics requiring explicit enablement in the
 	// dcgm-exporter configuration. The clock throttle reasons bitmask was

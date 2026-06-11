@@ -48,9 +48,7 @@ type DeviceInfo interface {
 }
 
 // DevicePerformance exposes utilization and performance measures for an
-// accelerator device. DCGMDevice does not implement this yet: its
-// per-container usage is not aggregated to a device-level utilization, and
-// memory/temperature collection has not landed.
+// accelerator device.
 type DevicePerformance interface {
 	// GetComputeUtilizationAverage returns the average percentage of
 	// compute used over the observed window.

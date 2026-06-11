@@ -110,6 +110,16 @@ type MetricsQuerier interface {
 	QueryGPUNVLinkTxBytesAvg(start, end time.Time) *Future[GPUSaturationResult]
 	QueryGPUNVLinkRxBytesAvg(start, end time.Time) *Future[GPUSaturationResult]
 
+	// Device-level GPU metrics (DeviceInfo / DevicePerformance support):
+	// grouped by device identity only, all from the default dcgm-exporter
+	// configuration
+	QueryGPUDevicePowerAvg(start, end time.Time) *Future[GPUDeviceMetricResult]
+	QueryGPUDeviceTempAvg(start, end time.Time) *Future[GPUDeviceMetricResult]
+	QueryGPUDeviceUsageAvg(start, end time.Time) *Future[GPUDeviceMetricResult]
+	QueryGPUDeviceUsageMax(start, end time.Time) *Future[GPUDeviceMetricResult]
+	QueryGPUDeviceMemoryUsedAvg(start, end time.Time) *Future[GPUDeviceMetricResult]
+	QueryGPUDeviceMemoryUsedMax(start, end time.Time) *Future[GPUDeviceMetricResult]
+
 	// PVC
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
 	QueryPVCBytesRequested(start, end time.Time) *Future[PVCBytesRequestedResult]

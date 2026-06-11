@@ -164,6 +164,55 @@ func TestCollectorMetricsQuerier_GPUPCIeTxBytesAvg(t *testing.T) {
 	requireValue(t, awaitGPUSaturation(t, c.QueryGPUPCIeTxBytesAvg(start, end)), 1e9)
 }
 
+// TestCollectorMetricsQuerier_GPUDeviceMetrics verifies the device-level
+// queries aggregate from the device-labeled DCGM series.
+func TestCollectorMetricsQuerier_GPUDeviceMetrics(t *testing.T) {
+	start, _ := time.Parse(time.RFC3339, Start1Str)
+	end, _ := time.Parse(time.RFC3339, End1Str)
+
+	deviceInfo := map[string]string{
+		source.DeviceLabel:      "nvidia0",
+		source.ModelNameLabel:   "Tesla T4",
+		source.UUIDLabel:        "GPU-1",
+		source.MIGProfileLabel:  "",
+		source.MIGInstanceLabel: "",
+	}
+	store := NewOpenCostMetricStore()
+	store.Update(metric.DCGMFIDEVPOWERUSAGE, deviceInfo, 120, start, nil)
+	store.Update(metric.DCGMFIDEVPOWERUSAGE, deviceInfo, 160, end, nil)
+	store.Update(metric.DCGMFIDEVGPUTEMP, deviceInfo, 55, start, nil)
+	store.Update(metric.DCGMFIPROFGRENGINEACTIVE, deviceInfo, 0.4, start, nil)
+	store.Update(metric.DCGMFIPROFGRENGINEACTIVE, deviceInfo, 0.9, end, nil)
+	store.Update(metric.DCGMFIDEVFBUSED, deviceInfo, 1024, start, nil)
+	store.Update(metric.DCGMFIDEVFBUSED, deviceInfo, 2048, end, nil)
+
+	c := collectorMetricsQuerier{collectorProvider: &MockStoreProvider{metricsCollector: store}}
+
+	checks := map[string]struct {
+		future *source.Future[source.GPUDeviceMetricResult]
+		want   float64
+	}{
+		"power avg":  {c.QueryGPUDevicePowerAvg(start, end), 140},
+		"temp avg":   {c.QueryGPUDeviceTempAvg(start, end), 55},
+		"usage avg":  {c.QueryGPUDeviceUsageAvg(start, end), 0.65},
+		"usage max":  {c.QueryGPUDeviceUsageMax(start, end), 0.9},
+		"memory avg": {c.QueryGPUDeviceMemoryUsedAvg(start, end), 1536},
+		"memory max": {c.QueryGPUDeviceMemoryUsedMax(start, end), 2048},
+	}
+	for name, check := range checks {
+		results := awaitGPUSaturation(t, check.future)
+		if len(results) != 1 {
+			t.Fatalf("%s: expected 1 result, got %d", name, len(results))
+		}
+		if got := results[0].Data[0].Value; math.Abs(got-check.want) > 1e-9 {
+			t.Errorf("%s = %v, want %v", name, got, check.want)
+		}
+		if results[0].UUID != "GPU-1" {
+			t.Errorf("%s: lost device identity: %+v", name, results[0])
+		}
+	}
+}
+
 // TestCollectorMetricsQuerier_GPUSaturationAbsentSignals verifies that
 // signals whose DCGM fields were never scraped return no results instead of
 // zeroes.
