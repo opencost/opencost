@@ -755,10 +755,7 @@ func DecodeOwnerResult(result *QueryResult) *OwnerResult {
 	cluster, _ := result.GetCluster()
 	ownerUID, _ := result.GetString(OwnerUIDLabel)
 	ownerKind, _ := result.GetString(OwnerKindLabel)
-	controller, err := result.GetBool(ControllerLabel)
-	if err != nil {
-		log.Errorf("DecodeOwnerResult: %s", err.Error())
-	}
+	controller, _ := result.GetBool(ControllerLabel)
 
 	return &OwnerResult{
 		UID:        uid,
