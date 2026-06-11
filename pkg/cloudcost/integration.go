@@ -10,6 +10,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
+	"github.com/opencost/opencost/pkg/cloud/stackit"
 )
 
 // CloudCostIntegration is an interface for retrieving daily granularity CloudCost data for a given range
@@ -104,6 +105,10 @@ func GetIntegrationFromConfig(kc cloud.KeyedConfig) CloudCostIntegration {
 	case *oracle.UsageApiConfiguration:
 		return &oracle.UsageApiIntegration{
 			UsageApiConfiguration: *keyedConfig,
+		}
+	case *stackit.CostConfiguration:
+		return &stackit.CostIntegration{
+			CostConfiguration: *keyedConfig,
 		}
 	default:
 		return nil
