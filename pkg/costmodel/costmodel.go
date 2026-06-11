@@ -73,7 +73,7 @@ func NewCostModel(
 	var kubeModel *km.KubeModel
 	var err error
 	if dataSource != nil {
-		kubeModel, err = km.NewKubeModel(clusterUID, dataSource)
+		kubeModel, err = km.NewKubeModel(clusterUID, dataSource, cache)
 		if err != nil {
 			// KubeModel is required. Log a fatal error if we fail to init.
 			log.Fatalf("error initializing KubeModel: %s", err)

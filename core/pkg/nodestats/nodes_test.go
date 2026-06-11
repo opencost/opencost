@@ -141,3 +141,11 @@ func (tcc *NodesOnlyClusterCache) GetAllReplicationControllers() []*clustercache
 func (tcc *NodesOnlyClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
 	return nil
 }
+
+func (tcc *NodesOnlyClusterCache) GetAllResourceSlices() []*clustercache.ResourceSlice {
+	return nil
+}
+
+func (tcc *NodesOnlyClusterCache) GetAllResourceClaims() []*clustercache.ResourceClaim {
+	return nil
+}

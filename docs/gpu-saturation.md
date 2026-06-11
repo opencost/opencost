@@ -128,6 +128,30 @@ configuration (the same mechanism as `node_gpu_count` et al.).
   that the occupancy and pressure aggregations consume. All signals are
   supported.
 
+## Allocation half: DRA
+
+Telemetry reports what devices *did*; Dynamic Resource Allocation
+(`resource.k8s.io/v1`, k8s 1.34+) reports what was *requested, allocated,
+and reserved*. The kubemodel carries both:
+
+- `ResourceSlices` — driver-advertised device capacity per node/pool,
+  including driver-published attributes and capacity quantities.
+- `ResourceClaims` — device requests (class, count), scheduler allocations
+  (driver/pool/device), and the pods that reserved them
+  (`reservedForPodUids`). A reserved-but-idle device appears here even
+  though it never shows in DCGM usage.
+- Hydration joins the halves: each allocated device's UUID is resolved from
+  its slice attributes (`uuid`, or driver-qualified `*/uuid`), matching
+  `DCGMDevice.UUID` so claims link to telemetry directly.
+
+Claims and slices are cluster state, not time series: the model carries the
+state observed at hydration time. Clusters without the DRA API (or without
+RBAC) hydrate nothing — absence, not zeros.
+
+**RBAC**: the OpenCost service account needs `list`/`watch` on
+`resourceclaims` and `resourceslices` in the `resource.k8s.io` API group
+(helm chart follow-up).
+
 ## Future work
 
 - Non-NVIDIA GPUs (AMD ROCm SMI exporter, Intel XPU manager) — the signal

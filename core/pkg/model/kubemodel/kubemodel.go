@@ -25,6 +25,8 @@ type KubeModelSet struct {
 	Pods                   map[string]*Pod                   `json:"pods"`              // @bingen:field[version=2]
 	Containers             map[string]*Container             `json:"containers"`        // @bingen:field[version=2]
 	DCGMDevices            map[string]*DCGMDevice            `json:"dcgmDevices"`       // @bingen:field[version=2]
+	ResourceClaims         map[string]*DRAResourceClaim      `json:"resourceClaims"`    // @bingen:field[version=4]
+	ResourceSlices         map[string]*DRAResourceSlice      `json:"resourceSlices"`    // @bingen:field[version=4]
 	idx                    *kubeModelSetIndexes              // @bingen:field[ignore]
 }
 
@@ -55,6 +57,8 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 		ResourceQuotas:         map[string]*ResourceQuota{},
 		Services:               map[string]*Service{},
 		PersistentVolumes:      map[string]*PersistentVolume{},
+		ResourceClaims:         map[string]*DRAResourceClaim{},
+		ResourceSlices:         map[string]*DRAResourceSlice{},
 		idx:                    newKubeModelSetIndexes(),
 	}
 	return kms
@@ -96,7 +100,9 @@ func (kms *KubeModelSet) IsEmpty() bool {
 		len(kms.PersistentVolumeClaims) == 0 &&
 		len(kms.ResourceQuotas) == 0 &&
 		len(kms.Services) == 0 &&
-		len(kms.PersistentVolumes) == 0
+		len(kms.PersistentVolumes) == 0 &&
+		len(kms.ResourceClaims) == 0 &&
+		len(kms.ResourceSlices) == 0
 }
 
 // checkWindow validates that the given start/end times are fully contained within

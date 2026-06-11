@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/model/shared"
@@ -17,16 +18,22 @@ const logTimeFmt string = "2006-01-02T15:04:05"
 type KubeModel struct {
 	ds         source.OpenCostDataSource
 	clusterUID string
+	// clusterCache supplies cluster-state objects that are not time series
+	// (e.g. DRA ResourceClaims/ResourceSlices); nil when the deployment has
+	// no Kubernetes API access, in which case state-derived hydration is
+	// skipped
+	clusterCache clustercache.ClusterCache
 }
 
-func NewKubeModel(clusterUID string, dataSource source.OpenCostDataSource) (*KubeModel, error) {
+func NewKubeModel(clusterUID string, dataSource source.OpenCostDataSource, clusterCache clustercache.ClusterCache) (*KubeModel, error) {
 	if dataSource == nil {
 		return nil, errors.New("OpenCostDataSource cannot be nil")
 	}
 
 	km := &KubeModel{
-		ds:         dataSource,
-		clusterUID: clusterUID,
+		ds:           dataSource,
+		clusterUID:   clusterUID,
+		clusterCache: clusterCache,
 	}
 
 	km.clusterUID = clusterUID
@@ -139,6 +146,13 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 
 	// 2.17 Compute DCGM Devices
 	err = km.computeDCGMDevices(kms, start, end)
+	if err != nil {
+		kms.Error(err)
+	}
+
+	// 2.18 Compute DRA resource claims and slices (requests/capacity half
+	// of device allocation, from cluster state rather than metrics)
+	err = km.computeDRA(kms)
 	if err != nil {
 		kms.Error(err)
 	}

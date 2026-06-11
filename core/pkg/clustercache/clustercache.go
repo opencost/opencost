@@ -507,4 +507,14 @@ type ClusterCache interface {
 
 	// GetAllResourceQuotas returns all cached resource quotas
 	GetAllResourceQuotas() []*ResourceQuota
+
+	// GetAllResourceSlices returns all cached DRA ResourceSlices
+	// (resource.k8s.io/v1); nil when the DRA API is unavailable on the
+	// cluster
+	GetAllResourceSlices() []*ResourceSlice
+
+	// GetAllResourceClaims returns all cached DRA ResourceClaims
+	// (resource.k8s.io/v1); nil when the DRA API is unavailable on the
+	// cluster
+	GetAllResourceClaims() []*ResourceClaim
 }

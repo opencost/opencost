@@ -9,6 +9,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	resourcev1 "k8s.io/api/resource/v1"
 	stv1 "k8s.io/api/storage/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -30,11 +31,14 @@ type KubernetesClusterCacheV2 struct {
 	replicaSetStore            *GenericStore[*appsv1.ReplicaSet, *cc.ReplicaSet]
 	pdbStore                   *GenericStore[*policyv1.PodDisruptionBudget, *cc.PodDisruptionBudget]
 	resourceQuotasStore        *GenericStore[*v1.ResourceQuota, *cc.ResourceQuota]
-	stopCh                     chan struct{}
+	// DRA stores are nil when the cluster does not serve resource.k8s.io/v1
+	resourceSliceStore *GenericStore[*resourcev1.ResourceSlice, *cc.ResourceSlice]
+	resourceClaimStore *GenericStore[*resourcev1.ResourceClaim, *cc.ResourceClaim]
+	stopCh             chan struct{}
 }
 
 func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClusterCacheV2 {
-	return &KubernetesClusterCacheV2{
+	kcc := &KubernetesClusterCacheV2{
 		namespaceStore:             CreateStore(clientset.CoreV1().RESTClient(), "namespaces", cc.TransformNamespace),
 		nodeStore:                  CreateStore(clientset.CoreV1().RESTClient(), "nodes", cc.TransformNode),
 		persistentVolumeClaimStore: CreateStore(clientset.CoreV1().RESTClient(), "persistentvolumeclaims", cc.TransformPersistentVolumeClaim),
@@ -53,6 +57,16 @@ func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClus
 		resourceQuotasStore:        CreateStore(clientset.CoreV1().RESTClient(), "resourcequotas", cc.TransformResourceQuota),
 		stopCh:                     make(chan struct{}),
 	}
+
+	// DRA (resource.k8s.io/v1) is optional: only create the stores when the
+	// API is served, so clusters without DRA see no reflector error spam
+	// and the GetAll methods return nil
+	if draAPIAvailable(clientset) {
+		kcc.resourceSliceStore = CreateStore(clientset.ResourceV1().RESTClient(), "resourceslices", cc.TransformResourceSlice)
+		kcc.resourceClaimStore = CreateStore(clientset.ResourceV1().RESTClient(), "resourceclaims", cc.TransformResourceClaim)
+	}
+
+	return kcc
 }
 
 func (kcc *KubernetesClusterCacheV2) Run() {
@@ -76,6 +90,11 @@ func (kcc *KubernetesClusterCacheV2) Run() {
 		kcc.cronJobStore.Watch(kcc.stopCh, wg.Done)
 		kcc.pdbStore.Watch(kcc.stopCh, wg.Done)
 		kcc.resourceQuotasStore.Watch(kcc.stopCh, wg.Done)
+		if kcc.resourceSliceStore != nil {
+			wg.Add(2)
+			kcc.resourceSliceStore.Watch(kcc.stopCh, wg.Done)
+			kcc.resourceClaimStore.Watch(kcc.stopCh, wg.Done)
+		}
 	}
 	wg.Wait()
 }
@@ -150,4 +169,18 @@ func (kcc *KubernetesClusterCacheV2) GetAllPodDisruptionBudgets() []*cc.PodDisru
 
 func (kcc *KubernetesClusterCacheV2) GetAllResourceQuotas() []*cc.ResourceQuota {
 	return kcc.resourceQuotasStore.GetAll()
+}
+
+func (kcc *KubernetesClusterCacheV2) GetAllResourceSlices() []*cc.ResourceSlice {
+	if kcc.resourceSliceStore == nil {
+		return nil
+	}
+	return kcc.resourceSliceStore.GetAll()
+}
+
+func (kcc *KubernetesClusterCacheV2) GetAllResourceClaims() []*cc.ResourceClaim {
+	if kcc.resourceClaimStore == nil {
+		return nil
+	}
+	return kcc.resourceClaimStore.GetAll()
 }

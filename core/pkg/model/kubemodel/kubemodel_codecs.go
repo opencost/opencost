@@ -35,7 +35,7 @@ const (
 	BinaryTagStringTable string = "BGST"
 
 	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 3
+	DefaultCodecVersion uint8 = 4
 )
 
 //--------------------------------------------------------------------------
@@ -107,6 +107,11 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"DCGMContainer":           reflect.TypeFor[DCGMContainer](),
 	"DCGMDevice":              reflect.TypeFor[DCGMDevice](),
 	"DCGMDeviceSaturation":    reflect.TypeFor[DCGMDeviceSaturation](),
+	"DRAAllocatedDevice":      reflect.TypeFor[DRAAllocatedDevice](),
+	"DRADeviceRequest":        reflect.TypeFor[DRADeviceRequest](),
+	"DRAResourceClaim":        reflect.TypeFor[DRAResourceClaim](),
+	"DRAResourceSlice":        reflect.TypeFor[DRAResourceSlice](),
+	"DRASliceDevice":          reflect.TypeFor[DRASliceDevice](),
 	"DCGMPod":                 reflect.TypeFor[DCGMPod](),
 	"DaemonSet":               reflect.TypeFor[DaemonSet](),
 	"Deployment":              reflect.TypeFor[Deployment](),
@@ -4105,6 +4110,70 @@ func (target *KubeModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 		// --- [end][write][map](map[string]*DCGMDevice) ---
 
 	}
+	if target.ResourceClaims == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]*DRAResourceClaim) ---
+		buff.WriteInt(len(target.ResourceClaims)) // map length
+		for ck, cs := range target.ResourceClaims {
+			if ctx.IsStringTable() {
+				errCMi := ctx.Table.AddOrGet(ck)
+				buff.WriteInt(errCMi) // write table index
+			} else {
+				buff.WriteString(ck) // write string
+			}
+			if cs == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][struct](DRAResourceClaim) ---
+				buff.WriteInt(0) // [compatibility, unused]
+				errCM := cs.MarshalBinaryWithContext(ctx)
+				if errCM != nil {
+					return errCM
+				}
+				// --- [end][write][struct](DRAResourceClaim) ---
+
+			}
+		}
+		// --- [end][write][map](map[string]*DRAResourceClaim) ---
+
+	}
+	if target.ResourceSlices == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]*DRAResourceSlice) ---
+		buff.WriteInt(len(target.ResourceSlices)) // map length
+		for sk, ss := range target.ResourceSlices {
+			if ctx.IsStringTable() {
+				errSMi := ctx.Table.AddOrGet(sk)
+				buff.WriteInt(errSMi) // write table index
+			} else {
+				buff.WriteString(sk) // write string
+			}
+			if ss == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][struct](DRAResourceSlice) ---
+				buff.WriteInt(0) // [compatibility, unused]
+				errSM := ss.MarshalBinaryWithContext(ctx)
+				if errSM != nil {
+					return errSM
+				}
+				// --- [end][write][struct](DRAResourceSlice) ---
+
+			}
+		}
+		// --- [end][write][map](map[string]*DRAResourceSlice) ---
+
+	}
 
 	return nil
 }
@@ -4901,6 +4970,87 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	} else {
 		target.DCGMDevices = nil
+	}
+
+	// field version check
+	if uint8(4) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.ResourceClaims = nil
+		} else {
+			// --- [begin][read][map](map[string]*DRAResourceClaim) ---
+			rcn := buff.ReadInt() // map len
+			rcm := make(map[string]*DRAResourceClaim, rcn)
+			for j := 0; j < rcn; j++ {
+				var rck string
+				if ctx.IsStringTable() {
+					rcx := buff.ReadInt() // read string index
+					rck = ctx.Table.At(rcx)
+				} else {
+					rck = buff.ReadString() // read string
+				}
+
+				var rcv *DRAResourceClaim
+				if buff.ReadUInt8() != uint8(0) {
+					// --- [begin][read][struct](DRAResourceClaim) ---
+					rcs := new(DRAResourceClaim)
+					buff.ReadInt() // [compatibility, unused]
+					rce := rcs.UnmarshalBinaryWithContext(ctx)
+					if rce != nil {
+						return rce
+					}
+					rcv = rcs
+					// --- [end][read][struct](DRAResourceClaim) ---
+
+				}
+				rcm[rck] = rcv
+			}
+			target.ResourceClaims = rcm
+			// --- [end][read][map](map[string]*DRAResourceClaim) ---
+
+		}
+	} else {
+		target.ResourceClaims = nil
+
+	}
+	// field version check
+	if uint8(4) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.ResourceSlices = nil
+		} else {
+			// --- [begin][read][map](map[string]*DRAResourceSlice) ---
+			rsn := buff.ReadInt() // map len
+			rsm := make(map[string]*DRAResourceSlice, rsn)
+			for j := 0; j < rsn; j++ {
+				var rsk string
+				if ctx.IsStringTable() {
+					rsx := buff.ReadInt() // read string index
+					rsk = ctx.Table.At(rsx)
+				} else {
+					rsk = buff.ReadString() // read string
+				}
+
+				var rsv *DRAResourceSlice
+				if buff.ReadUInt8() != uint8(0) {
+					// --- [begin][read][struct](DRAResourceSlice) ---
+					rss := new(DRAResourceSlice)
+					buff.ReadInt() // [compatibility, unused]
+					rse := rss.UnmarshalBinaryWithContext(ctx)
+					if rse != nil {
+						return rse
+					}
+					rsv = rss
+					// --- [end][read][struct](DRAResourceSlice) ---
+
+				}
+				rsm[rsk] = rsv
+			}
+			target.ResourceSlices = rsm
+			// --- [end][read][map](map[string]*DRAResourceSlice) ---
+
+		}
+	} else {
+		target.ResourceSlices = nil
+
 	}
 
 	return nil
@@ -11195,6 +11345,1012 @@ func (target *DCGMDeviceSaturation) UnmarshalBinaryWithContext(ctx *DecodingCont
 	} else {
 		zz := buff.ReadFloat64() // read float64
 		target.NVLinkRxBytesAvg = &zz
+
+	}
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  DRADeviceRequest
+//--------------------------------------------------------------------------
+//
+// NOTE: hand-written to the generator's wire format; see the
+// DCGMDeviceSaturation NOTE above for why and for the replacement plan.
+
+// MarshalBinary serializes the internal properties of this DRADeviceRequest instance
+// into a byte array
+func (target *DRADeviceRequest) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this DRADeviceRequest instance
+// into a byte array leveraging a predefined context.
+func (target *DRADeviceRequest) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	if ctx.IsStringTable() {
+		dra1 := ctx.Table.AddOrGet(target.Name)
+		buff.WriteInt(dra1) // write table index
+	} else {
+		buff.WriteString(target.Name) // write string
+	}
+	if ctx.IsStringTable() {
+		dra4 := ctx.Table.AddOrGet(target.DeviceClassName)
+		buff.WriteInt(dra4) // write table index
+	} else {
+		buff.WriteString(target.DeviceClassName) // write string
+	}
+	buff.WriteInt64(target.Count) // write int64
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the DRADeviceRequest type
+func (target *DRADeviceRequest) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the DRADeviceRequest type
+func (target *DRADeviceRequest) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the DRADeviceRequest type
+func (target *DRADeviceRequest) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("invalid version unmarshaling DRADeviceRequest: expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	var dra2 string
+	if ctx.IsStringTable() {
+		dra3 := buff.ReadInt() // read string index
+		dra2 = ctx.Table.At(dra3)
+	} else {
+		dra2 = buff.ReadString() // read string
+	}
+	target.Name = dra2
+
+	var dra5 string
+	if ctx.IsStringTable() {
+		dra6 := buff.ReadInt() // read string index
+		dra5 = ctx.Table.At(dra6)
+	} else {
+		dra5 = buff.ReadString() // read string
+	}
+	target.DeviceClassName = dra5
+
+	target.Count = buff.ReadInt64() // read int64
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  DRAAllocatedDevice
+//--------------------------------------------------------------------------
+//
+// NOTE: hand-written to the generator's wire format; see the
+// DCGMDeviceSaturation NOTE above for why and for the replacement plan.
+
+// MarshalBinary serializes the internal properties of this DRAAllocatedDevice instance
+// into a byte array
+func (target *DRAAllocatedDevice) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this DRAAllocatedDevice instance
+// into a byte array leveraging a predefined context.
+func (target *DRAAllocatedDevice) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	if ctx.IsStringTable() {
+		dra7 := ctx.Table.AddOrGet(target.Request)
+		buff.WriteInt(dra7) // write table index
+	} else {
+		buff.WriteString(target.Request) // write string
+	}
+	if ctx.IsStringTable() {
+		dra10 := ctx.Table.AddOrGet(target.Driver)
+		buff.WriteInt(dra10) // write table index
+	} else {
+		buff.WriteString(target.Driver) // write string
+	}
+	if ctx.IsStringTable() {
+		dra13 := ctx.Table.AddOrGet(target.Pool)
+		buff.WriteInt(dra13) // write table index
+	} else {
+		buff.WriteString(target.Pool) // write string
+	}
+	if ctx.IsStringTable() {
+		dra16 := ctx.Table.AddOrGet(target.Device)
+		buff.WriteInt(dra16) // write table index
+	} else {
+		buff.WriteString(target.Device) // write string
+	}
+	if ctx.IsStringTable() {
+		dra19 := ctx.Table.AddOrGet(target.DeviceUUID)
+		buff.WriteInt(dra19) // write table index
+	} else {
+		buff.WriteString(target.DeviceUUID) // write string
+	}
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the DRAAllocatedDevice type
+func (target *DRAAllocatedDevice) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the DRAAllocatedDevice type
+func (target *DRAAllocatedDevice) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the DRAAllocatedDevice type
+func (target *DRAAllocatedDevice) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("invalid version unmarshaling DRAAllocatedDevice: expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	var dra8 string
+	if ctx.IsStringTable() {
+		dra9 := buff.ReadInt() // read string index
+		dra8 = ctx.Table.At(dra9)
+	} else {
+		dra8 = buff.ReadString() // read string
+	}
+	target.Request = dra8
+
+	var dra11 string
+	if ctx.IsStringTable() {
+		dra12 := buff.ReadInt() // read string index
+		dra11 = ctx.Table.At(dra12)
+	} else {
+		dra11 = buff.ReadString() // read string
+	}
+	target.Driver = dra11
+
+	var dra14 string
+	if ctx.IsStringTable() {
+		dra15 := buff.ReadInt() // read string index
+		dra14 = ctx.Table.At(dra15)
+	} else {
+		dra14 = buff.ReadString() // read string
+	}
+	target.Pool = dra14
+
+	var dra17 string
+	if ctx.IsStringTable() {
+		dra18 := buff.ReadInt() // read string index
+		dra17 = ctx.Table.At(dra18)
+	} else {
+		dra17 = buff.ReadString() // read string
+	}
+	target.Device = dra17
+
+	var dra20 string
+	if ctx.IsStringTable() {
+		dra21 := buff.ReadInt() // read string index
+		dra20 = ctx.Table.At(dra21)
+	} else {
+		dra20 = buff.ReadString() // read string
+	}
+	target.DeviceUUID = dra20
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  DRAResourceClaim
+//--------------------------------------------------------------------------
+//
+// NOTE: hand-written to the generator's wire format; see the
+// DCGMDeviceSaturation NOTE above for why and for the replacement plan.
+
+// MarshalBinary serializes the internal properties of this DRAResourceClaim instance
+// into a byte array
+func (target *DRAResourceClaim) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this DRAResourceClaim instance
+// into a byte array leveraging a predefined context.
+func (target *DRAResourceClaim) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	if ctx.IsStringTable() {
+		dra22 := ctx.Table.AddOrGet(target.UID)
+		buff.WriteInt(dra22) // write table index
+	} else {
+		buff.WriteString(target.UID) // write string
+	}
+	if ctx.IsStringTable() {
+		dra25 := ctx.Table.AddOrGet(target.Name)
+		buff.WriteInt(dra25) // write table index
+	} else {
+		buff.WriteString(target.Name) // write string
+	}
+	if ctx.IsStringTable() {
+		dra28 := ctx.Table.AddOrGet(target.Namespace)
+		buff.WriteInt(dra28) // write table index
+	} else {
+		buff.WriteString(target.Namespace) // write string
+	}
+	if target.DeviceRequests == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]DRADeviceRequest) ---
+		buff.WriteInt(len(target.DeviceRequests)) // slice length
+		for i := range target.DeviceRequests {
+			// --- [begin][write][struct](DRADeviceRequest) ---
+			buff.WriteInt(0) // [compatibility, unused]
+			dra31 := target.DeviceRequests[i].MarshalBinaryWithContext(ctx)
+			if dra31 != nil {
+				return dra31
+			}
+			// --- [end][write][struct](DRADeviceRequest) ---
+		}
+		// --- [end][write][slice]([]DRADeviceRequest) ---
+
+	}
+	buff.WriteBool(target.Allocated) // write bool
+	if target.AllocatedDevices == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]DRAAllocatedDevice) ---
+		buff.WriteInt(len(target.AllocatedDevices)) // slice length
+		for i := range target.AllocatedDevices {
+			// --- [begin][write][struct](DRAAllocatedDevice) ---
+			buff.WriteInt(0) // [compatibility, unused]
+			dra36 := target.AllocatedDevices[i].MarshalBinaryWithContext(ctx)
+			if dra36 != nil {
+				return dra36
+			}
+			// --- [end][write][struct](DRAAllocatedDevice) ---
+		}
+		// --- [end][write][slice]([]DRAAllocatedDevice) ---
+
+	}
+	if target.ReservedForPodUIDs == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]string) ---
+		buff.WriteInt(len(target.ReservedForPodUIDs)) // slice length
+		for i := range target.ReservedForPodUIDs {
+			if ctx.IsStringTable() {
+				dra41 := ctx.Table.AddOrGet(target.ReservedForPodUIDs[i])
+				buff.WriteInt(dra41) // write table index
+			} else {
+				buff.WriteString(target.ReservedForPodUIDs[i]) // write string
+			}
+		}
+		// --- [end][write][slice]([]string) ---
+
+	}
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the DRAResourceClaim type
+func (target *DRAResourceClaim) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the DRAResourceClaim type
+func (target *DRAResourceClaim) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the DRAResourceClaim type
+func (target *DRAResourceClaim) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("invalid version unmarshaling DRAResourceClaim: expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	var dra23 string
+	if ctx.IsStringTable() {
+		dra24 := buff.ReadInt() // read string index
+		dra23 = ctx.Table.At(dra24)
+	} else {
+		dra23 = buff.ReadString() // read string
+	}
+	target.UID = dra23
+
+	var dra26 string
+	if ctx.IsStringTable() {
+		dra27 := buff.ReadInt() // read string index
+		dra26 = ctx.Table.At(dra27)
+	} else {
+		dra26 = buff.ReadString() // read string
+	}
+	target.Name = dra26
+
+	var dra29 string
+	if ctx.IsStringTable() {
+		dra30 := buff.ReadInt() // read string index
+		dra29 = ctx.Table.At(dra30)
+	} else {
+		dra29 = buff.ReadString() // read string
+	}
+	target.Namespace = dra29
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.DeviceRequests = nil
+	} else {
+		// --- [begin][read][slice]([]DRADeviceRequest) ---
+		dra32 := buff.ReadInt() // slice len
+		dra33 := make([]DRADeviceRequest, dra32)
+		for i := 0; i < dra32; i++ {
+			// --- [begin][read][struct](DRADeviceRequest) ---
+			dra34 := new(DRADeviceRequest)
+			buff.ReadInt() // [compatibility, unused]
+			dra35 := dra34.UnmarshalBinaryWithContext(ctx)
+			if dra35 != nil {
+				return dra35
+			}
+			dra33[i] = *dra34
+			// --- [end][read][struct](DRADeviceRequest) ---
+		}
+		target.DeviceRequests = dra33
+		// --- [end][read][slice]([]DRADeviceRequest) ---
+
+	}
+	target.Allocated = buff.ReadBool() // read bool
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.AllocatedDevices = nil
+	} else {
+		// --- [begin][read][slice]([]DRAAllocatedDevice) ---
+		dra37 := buff.ReadInt() // slice len
+		dra38 := make([]DRAAllocatedDevice, dra37)
+		for i := 0; i < dra37; i++ {
+			// --- [begin][read][struct](DRAAllocatedDevice) ---
+			dra39 := new(DRAAllocatedDevice)
+			buff.ReadInt() // [compatibility, unused]
+			dra40 := dra39.UnmarshalBinaryWithContext(ctx)
+			if dra40 != nil {
+				return dra40
+			}
+			dra38[i] = *dra39
+			// --- [end][read][struct](DRAAllocatedDevice) ---
+		}
+		target.AllocatedDevices = dra38
+		// --- [end][read][slice]([]DRAAllocatedDevice) ---
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.ReservedForPodUIDs = nil
+	} else {
+		// --- [begin][read][slice]([]string) ---
+		dra42 := buff.ReadInt() // slice len
+		dra43 := make([]string, dra42)
+		for i := 0; i < dra42; i++ {
+			if ctx.IsStringTable() {
+				dra44 := buff.ReadInt() // read string index
+				dra43[i] = ctx.Table.At(dra44)
+			} else {
+				dra43[i] = buff.ReadString() // read string
+			}
+		}
+		target.ReservedForPodUIDs = dra43
+		// --- [end][read][slice]([]string) ---
+
+	}
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  DRASliceDevice
+//--------------------------------------------------------------------------
+//
+// NOTE: hand-written to the generator's wire format; see the
+// DCGMDeviceSaturation NOTE above for why and for the replacement plan.
+
+// MarshalBinary serializes the internal properties of this DRASliceDevice instance
+// into a byte array
+func (target *DRASliceDevice) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this DRASliceDevice instance
+// into a byte array leveraging a predefined context.
+func (target *DRASliceDevice) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	if ctx.IsStringTable() {
+		dra45 := ctx.Table.AddOrGet(target.Name)
+		buff.WriteInt(dra45) // write table index
+	} else {
+		buff.WriteString(target.Name) // write string
+	}
+	if ctx.IsStringTable() {
+		dra48 := ctx.Table.AddOrGet(target.UUID)
+		buff.WriteInt(dra48) // write table index
+	} else {
+		buff.WriteString(target.UUID) // write string
+	}
+	if target.Attributes == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(target.Attributes)) // map length
+		for k, z := range target.Attributes {
+			if ctx.IsStringTable() {
+				dra51 := ctx.Table.AddOrGet(k)
+				buff.WriteInt(dra51) // write table index
+			} else {
+				buff.WriteString(k) // write string
+			}
+
+			if ctx.IsStringTable() {
+				dra52 := ctx.Table.AddOrGet(z)
+				buff.WriteInt(dra52) // write table index
+			} else {
+				buff.WriteString(z) // write string
+			}
+
+		}
+		// --- [end][write][map](map[string]string) ---
+
+	}
+	if target.Capacity == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(target.Capacity)) // map length
+		for k, z := range target.Capacity {
+			if ctx.IsStringTable() {
+				dra58 := ctx.Table.AddOrGet(k)
+				buff.WriteInt(dra58) // write table index
+			} else {
+				buff.WriteString(k) // write string
+			}
+
+			if ctx.IsStringTable() {
+				dra59 := ctx.Table.AddOrGet(z)
+				buff.WriteInt(dra59) // write table index
+			} else {
+				buff.WriteString(z) // write string
+			}
+
+		}
+		// --- [end][write][map](map[string]string) ---
+
+	}
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the DRASliceDevice type
+func (target *DRASliceDevice) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the DRASliceDevice type
+func (target *DRASliceDevice) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the DRASliceDevice type
+func (target *DRASliceDevice) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("invalid version unmarshaling DRASliceDevice: expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	var dra46 string
+	if ctx.IsStringTable() {
+		dra47 := buff.ReadInt() // read string index
+		dra46 = ctx.Table.At(dra47)
+	} else {
+		dra46 = buff.ReadString() // read string
+	}
+	target.Name = dra46
+
+	var dra49 string
+	if ctx.IsStringTable() {
+		dra50 := buff.ReadInt() // read string index
+		dra49 = ctx.Table.At(dra50)
+	} else {
+		dra49 = buff.ReadString() // read string
+	}
+	target.UUID = dra49
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.Attributes = nil
+	} else {
+		// --- [begin][read][map](map[string]string) ---
+		dra53 := buff.ReadInt() // map len
+		dra54 := make(map[string]string, dra53)
+		for j := 0; j < dra53; j++ {
+			var dra55 string
+			if ctx.IsStringTable() {
+				dra56 := buff.ReadInt() // read string index
+				dra55 = ctx.Table.At(dra56)
+			} else {
+				dra55 = buff.ReadString() // read string
+			}
+			var dra57 string
+			if ctx.IsStringTable() {
+				idx := buff.ReadInt() // read string index
+				dra57 = ctx.Table.At(idx)
+			} else {
+				dra57 = buff.ReadString() // read string
+			}
+			dra54[dra55] = dra57
+		}
+		target.Attributes = dra54
+		// --- [end][read][map](map[string]string) ---
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.Capacity = nil
+	} else {
+		// --- [begin][read][map](map[string]string) ---
+		dra60 := buff.ReadInt() // map len
+		dra61 := make(map[string]string, dra60)
+		for j := 0; j < dra60; j++ {
+			var dra62 string
+			if ctx.IsStringTable() {
+				dra63 := buff.ReadInt() // read string index
+				dra62 = ctx.Table.At(dra63)
+			} else {
+				dra62 = buff.ReadString() // read string
+			}
+			var dra64 string
+			if ctx.IsStringTable() {
+				idx := buff.ReadInt() // read string index
+				dra64 = ctx.Table.At(idx)
+			} else {
+				dra64 = buff.ReadString() // read string
+			}
+			dra61[dra62] = dra64
+		}
+		target.Capacity = dra61
+		// --- [end][read][map](map[string]string) ---
+
+	}
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  DRAResourceSlice
+//--------------------------------------------------------------------------
+//
+// NOTE: hand-written to the generator's wire format; see the
+// DCGMDeviceSaturation NOTE above for why and for the replacement plan.
+
+// MarshalBinary serializes the internal properties of this DRAResourceSlice instance
+// into a byte array
+func (target *DRAResourceSlice) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this DRAResourceSlice instance
+// into a byte array leveraging a predefined context.
+func (target *DRAResourceSlice) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	if ctx.IsStringTable() {
+		dra65 := ctx.Table.AddOrGet(target.Name)
+		buff.WriteInt(dra65) // write table index
+	} else {
+		buff.WriteString(target.Name) // write string
+	}
+	if ctx.IsStringTable() {
+		dra68 := ctx.Table.AddOrGet(target.Driver)
+		buff.WriteInt(dra68) // write table index
+	} else {
+		buff.WriteString(target.Driver) // write string
+	}
+	if ctx.IsStringTable() {
+		dra71 := ctx.Table.AddOrGet(target.Pool)
+		buff.WriteInt(dra71) // write table index
+	} else {
+		buff.WriteString(target.Pool) // write string
+	}
+	if ctx.IsStringTable() {
+		dra74 := ctx.Table.AddOrGet(target.NodeName)
+		buff.WriteInt(dra74) // write table index
+	} else {
+		buff.WriteString(target.NodeName) // write string
+	}
+	if target.Devices == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]DRASliceDevice) ---
+		buff.WriteInt(len(target.Devices)) // slice length
+		for i := range target.Devices {
+			// --- [begin][write][struct](DRASliceDevice) ---
+			buff.WriteInt(0) // [compatibility, unused]
+			dra77 := target.Devices[i].MarshalBinaryWithContext(ctx)
+			if dra77 != nil {
+				return dra77
+			}
+			// --- [end][write][struct](DRASliceDevice) ---
+		}
+		// --- [end][write][slice]([]DRASliceDevice) ---
+
+	}
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the DRAResourceSlice type
+func (target *DRAResourceSlice) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the DRAResourceSlice type
+func (target *DRAResourceSlice) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the DRAResourceSlice type
+func (target *DRAResourceSlice) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("invalid version unmarshaling DRAResourceSlice: expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	var dra66 string
+	if ctx.IsStringTable() {
+		dra67 := buff.ReadInt() // read string index
+		dra66 = ctx.Table.At(dra67)
+	} else {
+		dra66 = buff.ReadString() // read string
+	}
+	target.Name = dra66
+
+	var dra69 string
+	if ctx.IsStringTable() {
+		dra70 := buff.ReadInt() // read string index
+		dra69 = ctx.Table.At(dra70)
+	} else {
+		dra69 = buff.ReadString() // read string
+	}
+	target.Driver = dra69
+
+	var dra72 string
+	if ctx.IsStringTable() {
+		dra73 := buff.ReadInt() // read string index
+		dra72 = ctx.Table.At(dra73)
+	} else {
+		dra72 = buff.ReadString() // read string
+	}
+	target.Pool = dra72
+
+	var dra75 string
+	if ctx.IsStringTable() {
+		dra76 := buff.ReadInt() // read string index
+		dra75 = ctx.Table.At(dra76)
+	} else {
+		dra75 = buff.ReadString() // read string
+	}
+	target.NodeName = dra75
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.Devices = nil
+	} else {
+		// --- [begin][read][slice]([]DRASliceDevice) ---
+		dra78 := buff.ReadInt() // slice len
+		dra79 := make([]DRASliceDevice, dra78)
+		for i := 0; i < dra78; i++ {
+			// --- [begin][read][struct](DRASliceDevice) ---
+			dra80 := new(DRASliceDevice)
+			buff.ReadInt() // [compatibility, unused]
+			dra81 := dra80.UnmarshalBinaryWithContext(ctx)
+			if dra81 != nil {
+				return dra81
+			}
+			dra79[i] = *dra80
+			// --- [end][read][struct](DRASliceDevice) ---
+		}
+		target.Devices = dra79
+		// --- [end][read][slice]([]DRASliceDevice) ---
 
 	}
 

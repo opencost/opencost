@@ -11,6 +11,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	resourcev1 "k8s.io/api/resource/v1"
 	stv1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
@@ -35,6 +36,8 @@ type KubernetesClusterCache struct {
 	pdbWatch                   WatchController
 	replicationControllerWatch WatchController
 	resourceQuotasWatch        WatchController
+	resourceSlicesWatch        WatchController
+	resourceClaimsWatch        WatchController
 	stop                       chan struct{}
 }
 
@@ -80,6 +83,15 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 		resourceQuotasWatch:        NewCachingWatcher(coreRestClient, "resourcequotas", &v1.ResourceQuota{}, "", fields.Everything()),
 	}
 
+	// DRA (resource.k8s.io/v1) is optional: only watch when the API is
+	// served, so clusters without DRA see no reflector error spam and the
+	// GetAll methods return nil
+	if draAPIAvailable(client) {
+		resourceRestClient := client.ResourceV1().RESTClient()
+		kcc.resourceSlicesWatch = NewCachingWatcher(resourceRestClient, "resourceslices", &resourcev1.ResourceSlice{}, "", fields.Everything())
+		kcc.resourceClaimsWatch = NewCachingWatcher(resourceRestClient, "resourceclaims", &resourcev1.ResourceClaim{}, "", fields.Everything())
+	}
+
 	// Wait for each caching watcher to initialize
 	cancel := make(chan struct{})
 	var wg sync.WaitGroup
@@ -101,6 +113,11 @@ func NewKubernetesClusterCacheV1(client kubernetes.Interface) cc.ClusterCache {
 		go initializeCache(kcc.pdbWatch, &wg, cancel)
 		go initializeCache(kcc.replicationControllerWatch, &wg, cancel)
 		go initializeCache(kcc.resourceQuotasWatch, &wg, cancel)
+		if kcc.resourceSlicesWatch != nil {
+			wg.Add(2)
+			go initializeCache(kcc.resourceSlicesWatch, &wg, cancel)
+			go initializeCache(kcc.resourceClaimsWatch, &wg, cancel)
+		}
 	}
 
 	wg.Wait()
@@ -132,6 +149,10 @@ func (kcc *KubernetesClusterCache) Run() {
 	go kcc.pdbWatch.Run(1, stopCh)
 	go kcc.replicationControllerWatch.Run(1, stopCh)
 	go kcc.resourceQuotasWatch.Run(1, stopCh)
+	if kcc.resourceSlicesWatch != nil {
+		go kcc.resourceSlicesWatch.Run(1, stopCh)
+		go kcc.resourceClaimsWatch.Run(1, stopCh)
+	}
 
 	kcc.stop = stopCh
 }
@@ -288,4 +309,38 @@ func (kcc *KubernetesClusterCache) GetAllResourceQuotas() []*cc.ResourceQuota {
 		rqs = append(rqs, cc.TransformResourceQuota(rq.(*v1.ResourceQuota)))
 	}
 	return rqs
+}
+
+func (kcc *KubernetesClusterCache) GetAllResourceSlices() []*cc.ResourceSlice {
+	if kcc.resourceSlicesWatch == nil {
+		return nil
+	}
+	var slices []*cc.ResourceSlice
+	for _, slice := range kcc.resourceSlicesWatch.GetAll() {
+		slices = append(slices, cc.TransformResourceSlice(slice.(*resourcev1.ResourceSlice)))
+	}
+	return slices
+}
+
+func (kcc *KubernetesClusterCache) GetAllResourceClaims() []*cc.ResourceClaim {
+	if kcc.resourceClaimsWatch == nil {
+		return nil
+	}
+	var claims []*cc.ResourceClaim
+	for _, claim := range kcc.resourceClaimsWatch.GetAll() {
+		claims = append(claims, cc.TransformResourceClaim(claim.(*resourcev1.ResourceClaim)))
+	}
+	return claims
+}
+
+// draAPIAvailable reports whether the cluster serves resource.k8s.io/v1
+// (DRA GA). Discovery failure is treated as unavailable rather than fatal:
+// DRA is optional and absence must not break the cache.
+func draAPIAvailable(client kubernetes.Interface) bool {
+	resources, err := client.Discovery().ServerResourcesForGroupVersion(resourcev1.SchemeGroupVersion.String())
+	if err != nil {
+		log.Infof("DRA API %s not available: %v", resourcev1.SchemeGroupVersion.String(), err)
+		return false
+	}
+	return resources != nil && len(resources.APIResources) > 0
 }
