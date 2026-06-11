@@ -24,6 +24,12 @@ func (c *Calculator) calculateModelCosts(m *InferenceCost) {
 	m.InputCostPerMillionTokens = make(map[CostBasis]float64)
 	m.OutputCostPerMillionTokens = make(map[CostBasis]float64)
 
+	// Usage cost requires evidence of actual token processing. Without tokens,
+	// the pod was provisioned but idle: there is no active compute to charge for.
+	if m.TotalTokens == 0 {
+		m.UsageTotalCost = 0
+	}
+
 	// Blended cost per million tokens (all delivered tokens, including cached).
 	// Uses TotalTokens — answers "average cost per delivered token".
 	if m.TotalTokens > 0 {
