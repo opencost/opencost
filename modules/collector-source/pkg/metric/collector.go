@@ -81,7 +81,7 @@ const (
 	GPUThrottleViolationBoardLimitID           MetricCollectorID = "GPUThrottleViolationBoardLimit"
 	GPUMemoryUsedAvgID                         MetricCollectorID = "GPUMemoryUsedAvg"
 	GPUMemoryUsedMaxID                         MetricCollectorID = "GPUMemoryUsedMax"
-	GPUMemoryFreeAvgID                         MetricCollectorID = "GPUMemoryFreeAvg"
+	GPUMemoryPressureRatioID                   MetricCollectorID = "GPUMemoryPressureRatio"
 	GPUXIDErrorCountID                         MetricCollectorID = "GPUXIDErrorCount"
 	GPUDRAMActiveAvgID                         MetricCollectorID = "GPUDRAMActiveAvg"
 	GPUDRAMActiveMaxID                         MetricCollectorID = "GPUDRAMActiveMax"

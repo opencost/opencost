@@ -88,6 +88,7 @@ func NewCollectorDataSource(
 		updater,
 		synthetic.NewContainerMemoryAllocationSynthesizer(),
 		synthetic.NewContainerCpuAllocationSynthesizer(),
+		synthetic.NewGPUMemoryUsedRatioSynthesizer(),
 	)
 	updater = metricSynthesizer
 

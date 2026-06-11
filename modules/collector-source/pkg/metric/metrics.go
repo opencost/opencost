@@ -89,6 +89,11 @@ const (
 	DCGMFIPROFNVLINKTXBYTES = "DCGM_FI_PROF_NVLINK_TX_BYTES"
 	DCGMFIPROFNVLINKRXBYTES = "DCGM_FI_PROF_NVLINK_RX_BYTES"
 
+	// Synthetic metrics generated from DCGM scrapes (see pkg/metric/synthetic)
+	// OpencostGPUMemoryUsedRatio is the per-sample framebuffer occupancy
+	// ratio FB_USED / (FB_USED + FB_FREE), joined per scrape
+	OpencostGPUMemoryUsedRatio = "opencost_gpu_memory_used_ratio"
+
 	// Network Metrics
 	KubecostPodNetworkEgressBytesTotal  = "kubecost_pod_network_egress_bytes_total"
 	KubecostPodNetworkIngressBytesTotal = "kubecost_pod_network_ingress_bytes_total"

@@ -60,7 +60,7 @@ Ratios are fractions of the queried window in `[0, 1]` unless noted.
 | `throttleViolationRatios` (`power`, `thermal`, `sync_boost`, `board_limit`) | `DCGM_FI_DEV_POWER_VIOLATION`, `DCGM_FI_DEV_THERMAL_VIOLATION`, `DCGM_FI_DEV_SYNC_BOOST_VIOLATION`, `DCGM_FI_DEV_BOARD_LIMIT_VIOLATION` | Yes | No | Fraction of the window the GPU spent throttled for the reason, from cumulative microsecond violation counters. The strongest direct saturation signal available by default. |
 | `throttleReasonRatios` (`sw_power_cap`, `hw_slowdown`, `sync_boost`, `sw_thermal`, `hw_thermal`, `hw_power_brake`) | `DCGM_FI_DEV_CLOCK_THROTTLE_REASONS` (renamed `DCGM_FI_DEV_CLOCKS_EVENT_REASONS` in DCGM 3.3+; OpenCost queries both) | **No — must be enabled** | No | Fraction of samples in which each saturation-relevant bit of the NVML throttle-reasons bitmask was set. Richer reason breakdown than the violation counters (hardware slowdown, power brake). Idle/configured-clock bits are excluded by design. Reported for the whole physical GPU even under MIG or time-slicing. |
 | `memoryUsedRatioAvg`, `memoryUsedRatioMax` | `DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_FB_FREE` | Yes | No | Framebuffer occupancy `used / (used + free)`. Sustained values near 1.0 mean new allocations are likely to fail or force eviction. |
-| `memoryPressureRatio` | same | Yes | No | Fraction of the window occupancy exceeded the configured threshold (`GPU_MEMORY_SATURATION_THRESHOLD`, default `0.9`). Not available from the collector data source (see below). |
+| `memoryPressureRatio` | same | Yes | No | Fraction of the window occupancy was at or above the configured threshold (`GPU_MEMORY_SATURATION_THRESHOLD`, default `0.9`). |
 | `xidErrorCount` | `DCGM_FI_DEV_XID_ERRORS` | Yes | No | XID error events observed in the window, a rejected-work signal. The DCGM field reports the *last* XID code, so consecutive identical errors are undercounted. |
 | `dramActiveAvg`, `dramActiveMax` | `DCGM_FI_PROF_DRAM_ACTIVE` | Yes | **Yes** | Ratio of cycles the device memory interface was active. Near-ceiling values with low `smOccupancyAvg` indicate a memory-bandwidth-bound workload. |
 | `smActiveAvg` | `DCGM_FI_PROF_SM_ACTIVE` | **No — must be enabled** | **Yes** | Ratio of cycles at least one warp was resident on any SM. |
@@ -121,13 +121,12 @@ configuration (the same mechanism as `node_gpu_count` et al.).
 
 ## Data source differences
 
-- **Prometheus source**: all signals supported. The throttle-bitmask and
-  memory-pressure signals use PromQL subqueries at the configured query
-  resolution.
-- **Collector source**: all signals except `memoryPressureRatio`, which
-  requires evaluating the framebuffer ratio per sample across two metrics —
-  not expressible in the collector's per-metric aggregation framework. The
-  signal stays absent rather than approximated.
+- **Prometheus source**: the throttle-bitmask and memory-pressure signals
+  use PromQL subqueries at the configured query resolution.
+- **Collector source**: framebuffer occupancy is joined from FB_USED and
+  FB_FREE per scrape by a metric synthesizer, producing a per-sample ratio
+  that the occupancy and pressure aggregations consume. All signals are
+  supported.
 
 ## Future work
 

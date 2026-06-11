@@ -1,11 +1,24 @@
 package collector
 
 import (
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric/aggregator"
 )
+
+// gpuMemorySaturationThreshold returns the framebuffer occupancy ratio
+// above which GPU memory counts as pressured, mirroring the
+// prometheus-source configuration. Values outside (0, 1] fall back to the
+// default of 0.9.
+func gpuMemorySaturationThreshold() float64 {
+	threshold := coreenv.GetFloat64("GPU_MEMORY_SATURATION_THRESHOLD", 0.9)
+	if threshold <= 0.0 || threshold > 1.0 {
+		return 0.9
+	}
+	return threshold
+}
 
 // GPU saturation collectors
 //
@@ -70,10 +83,12 @@ func newGPUSaturationCollector(id metric.MetricCollectorID, metricName string, f
 // GPU saturation signals.
 func NewGPUSaturationMetricCollectors() []*metric.MetricCollector {
 	collectors := []*metric.MetricCollector{
-		// framebuffer occupancy components, joined into ratios at query time
-		newGPUSaturationCollector(metric.GPUMemoryUsedAvgID, metric.DCGMFIDEVFBUSED, aggregator.AverageOverTime),
-		newGPUSaturationCollector(metric.GPUMemoryUsedMaxID, metric.DCGMFIDEVFBUSED, aggregator.MaxOverTime),
-		newGPUSaturationCollector(metric.GPUMemoryFreeAvgID, metric.DCGMFIDEVFBFREE, aggregator.AverageOverTime),
+		// framebuffer occupancy over the synthetic per-sample ratio metric
+		// joined from FB_USED/FB_FREE at scrape time (see
+		// synthetic.GPUMemoryUsedRatioSynthesizer)
+		newGPUSaturationCollector(metric.GPUMemoryUsedAvgID, metric.OpencostGPUMemoryUsedRatio, aggregator.AverageOverTime),
+		newGPUSaturationCollector(metric.GPUMemoryUsedMaxID, metric.OpencostGPUMemoryUsedRatio, aggregator.MaxOverTime),
+		newGPUSaturationCollector(metric.GPUMemoryPressureRatioID, metric.OpencostGPUMemoryUsedRatio, aggregator.AboveThresholdRatio(gpuMemorySaturationThreshold())),
 		// XID error events: count value transitions of the last-error gauge
 		newGPUSaturationCollector(metric.GPUXIDErrorCountID, metric.DCGMFIDEVXIDERRORS, aggregator.Changes),
 		// DCP profiling gauges

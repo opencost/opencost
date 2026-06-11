@@ -15,6 +15,7 @@ import (
 // metrics are deliberately never updated to exercise absent-signal behavior.
 func gpuSaturationMockProvider(t *testing.T) (StoreProvider, time.Time, time.Time) {
 	t.Helper()
+	t.Setenv("GPU_MEMORY_SATURATION_THRESHOLD", "0.6")
 
 	start, _ := time.Parse(time.RFC3339, Start1Str)
 	end, _ := time.Parse(time.RFC3339, End1Str)
@@ -41,11 +42,11 @@ func gpuSaturationMockProvider(t *testing.T) (StoreProvider, time.Time, time.Tim
 	store.Update(metric.DCGMFIDEVCLOCKTHROTTLEREASONS, gpuInfo, 0x4, start, nil)
 	store.Update(metric.DCGMFIDEVCLOCKTHROTTLEREASONS, gpuInfo, 0x0, end, nil)
 
-	// framebuffer: used avg 10000, used max 12000, free avg 6000
-	store.Update(metric.DCGMFIDEVFBUSED, gpuInfo, 8000, start, nil)
-	store.Update(metric.DCGMFIDEVFBUSED, gpuInfo, 12000, end, nil)
-	store.Update(metric.DCGMFIDEVFBFREE, gpuInfo, 6000, start, nil)
-	store.Update(metric.DCGMFIDEVFBFREE, gpuInfo, 6000, end, nil)
+	// framebuffer occupancy ratio, as synthesized from FB_USED/FB_FREE per
+	// scrape by GPUMemoryUsedRatioSynthesizer (see synthetic package tests
+	// for the join itself): avg 0.625, max 0.75, half of samples >= 0.6
+	store.Update(metric.OpencostGPUMemoryUsedRatio, gpuInfo, 0.5, start, nil)
+	store.Update(metric.OpencostGPUMemoryUsedRatio, gpuInfo, 0.75, end, nil)
 
 	// one XID error transition
 	store.Update(metric.DCGMFIDEVXIDERRORS, gpuInfo, 0, start, nil)
@@ -127,20 +128,18 @@ func TestCollectorMetricsQuerier_GPUMemoryUsedRatio(t *testing.T) {
 	provider, start, end := gpuSaturationMockProvider(t)
 	c := collectorMetricsQuerier{collectorProvider: provider}
 
-	// avg: 10000 / (10000 + 6000)
+	// avg of per-sample ratios (0.5, 0.75)
 	requireValue(t, awaitGPUSaturation(t, c.QueryGPUMemoryUsedRatioAvg(start, end)), 0.625)
-	// max: 12000 / (10000 + 6000)
+	// max of per-sample ratios
 	requireValue(t, awaitGPUSaturation(t, c.QueryGPUMemoryUsedRatioMax(start, end)), 0.75)
 }
 
-func TestCollectorMetricsQuerier_GPUMemoryPressureRatioUnsupported(t *testing.T) {
+func TestCollectorMetricsQuerier_GPUMemoryPressureRatio(t *testing.T) {
 	provider, start, end := gpuSaturationMockProvider(t)
 	c := collectorMetricsQuerier{collectorProvider: provider}
 
-	results := awaitGPUSaturation(t, c.QueryGPUMemoryPressureRatio(start, end))
-	if len(results) != 0 {
-		t.Errorf("expected no results for unsupported pressure ratio, got %d", len(results))
-	}
+	// threshold configured to 0.6: one of two samples (0.75) is at or above
+	requireValue(t, awaitGPUSaturation(t, c.QueryGPUMemoryPressureRatio(start, end)), 0.5)
 }
 
 func TestCollectorMetricsQuerier_GPUXIDErrorCount(t *testing.T) {
