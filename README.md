@@ -52,7 +52,7 @@ Note: The standalone Kubernetes manifest files have been removed. Please use Hel
 - [CLI / kubectl cost](https://www.opencost.io/docs/integrations/kubectl-cost)
 - [Prometheus Metrics](https://www.opencost.io/docs/integrations/prometheus)
 - [User Interface](https://www.opencost.io/docs/installation/ui)
-- [AI Inference Cost Tracking](docs/opencost-for-llm-d/inference-cost-tracking.md)
+- [AI Inference Cost Tracking](docs/inference-cost-tracking.md)
 
 ## MCP Server
 
