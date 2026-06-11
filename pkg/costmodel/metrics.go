@@ -291,6 +291,10 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 			toRegisterGV = append(toRegisterGV, lbCostGv)
 		}
 
+		initGPUSchedulerMetrics(disabledMetrics, func(gv *prometheus.GaugeVec) {
+			toRegisterGV = append(toRegisterGV, gv)
+		})
+
 		// Register cost-model metrics for emission
 		for _, gv := range toRegisterGV {
 			prometheus.MustRegister(gv)
@@ -464,6 +468,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for _, node := range nodeList {
 				nodeUIDs[node.Name] = string(node.UID)
 			}
+
+			// Scheduler-level GPU saturation (pending pods, oversubscription)
+			recordGPUSchedulerMetrics(podlist, nodeList)
 
 			// Create PV UID lookup map
 			pvList := cmme.KubeClusterCache.GetAllPersistentVolumes()
