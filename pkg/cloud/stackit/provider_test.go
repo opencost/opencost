@@ -18,8 +18,8 @@ func TestNodePricing(t *testing.T) {
 	}, nil)
 
 	key := &stackitKey{Labels: map[string]string{
-		"node.kubernetes.io/instance-type":        "g2i.4",
-		"topology.kubernetes.io/zone":             "eu01-3",
+		"node.kubernetes.io/instance-type": "g2i.4",
+		"topology.kubernetes.io/zone":      "eu01-3",
 	}}
 
 	node, _, err := s.NodePricing(key)
@@ -135,7 +135,7 @@ func TestGpuPricingUnknownInstance(t *testing.T) {
 func TestPVPricingExactMatch(t *testing.T) {
 	s := newTestProvider(nil, map[string]*pimStoragePricing{
 		"storage_premium_perf2": {CostPerGBHr: "0.0005"},
-		"default":              {CostPerGBHr: "0.0001"},
+		"default":               {CostPerGBHr: "0.0001"},
 	})
 
 	pvk := &stackitPVKey{StorageClassName: "storage_premium_perf2"}
@@ -181,8 +181,8 @@ func TestPVPricingNoPricing(t *testing.T) {
 
 func TestStackitKeyFeatures(t *testing.T) {
 	key := &stackitKey{Labels: map[string]string{
-		"node.kubernetes.io/instance-type":    "g2i.4",
-		"topology.kubernetes.io/zone":         "eu01-3",
+		"node.kubernetes.io/instance-type": "g2i.4",
+		"topology.kubernetes.io/zone":      "eu01-3",
 	}}
 
 	features := key.Features()
