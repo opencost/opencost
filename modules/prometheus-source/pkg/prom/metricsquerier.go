@@ -797,7 +797,7 @@ func (pds *PrometheusMetricsQuerier) QueryPodUptime(start, end time.Time) *sourc
 
 func (pds *PrometheusMetricsQuerier) QueryPodOwners(start, end time.Time) *source.Future[source.OwnerResult] {
 	const queryName = "QueryPodOwners"
-	const queryFmtPodOwners = `avg(avg_over_time(kube_pod_owner{%s}[%s])) by (%s, uid, owner_uid, owner_kind)`
+	const queryFmtPodOwners = `avg(avg_over_time(kube_pod_owner{%s}[%s])) by (%s, uid, owner_uid, owner_kind, controller)`
 
 	cfg := pds.promConfig
 
