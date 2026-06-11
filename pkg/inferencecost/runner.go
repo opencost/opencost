@@ -46,7 +46,9 @@ func (r *Runner) Start(ctx context.Context) {
 }
 
 func (r *Runner) runOnce(ctx context.Context) {
-	metrics, err := r.collector.CollectMetrics(ctx)
+	end := time.Now()
+	start := end.Add(-r.interval)
+	metrics, err := r.collector.CollectMetrics(ctx, start, end)
 	if err != nil {
 		log.Errorf("InferenceCost: collection failed: %v", err)
 		return

@@ -52,7 +52,7 @@ func Execute(conf *Config) error {
 		}
 
 		if conf.InferenceCostEnabled {
-			if err := StartInferenceCostCollector(ctx, a); err != nil {
+			if err := StartInferenceCostCollector(ctx, a, router); err != nil {
 				log.Errorf("Failed to start inference cost collector: %v", err)
 			}
 		}
@@ -149,9 +149,11 @@ func Execute(conf *Config) error {
 }
 
 // StartInferenceCostCollector initialises and starts the inference cost
-// collection loop as a background goroutine. It is a no-op if the collector
-// cannot be initialised (error is logged, existing functionality unaffected).
-func StartInferenceCostCollector(ctx context.Context, a *costmodel.Accesses) error {
+// collection loop as a background goroutine, and registers the
+// /inferenceCost/total and /inferenceCost/timeseries query endpoints on the
+// provided router. It is a no-op if the collector cannot be initialised
+// (error is logged, existing functionality is unaffected).
+func StartInferenceCostCollector(ctx context.Context, a *costmodel.Accesses, router *httprouter.Router) error {
 	cfg := inferencecost.DefaultConfig()
 
 	collector, err := inferencecost.NewCollector(cfg, a.Model)
@@ -166,6 +168,14 @@ func StartInferenceCostCollector(ctx context.Context, a *costmodel.Accesses) err
 
 	calculator := inferencecost.NewCalculator(cfg)
 	runner := inferencecost.NewRunner(collector, calculator, exporter, cfg.CollectionInterval)
+
+	// Register on-demand query endpoints. The collector and calculator are
+	// shared between the background runner and the API; both paths are
+	// read-only (they only call CollectMetrics / CalculateCosts which carry
+	// no mutable state), so sharing is safe.
+	queryService := inferencecost.NewQueryService(collector, calculator)
+	router.GET("/inferenceCost/total", queryService.GetInferenceCostTotalHandler())
+	router.GET("/inferenceCost/timeseries", queryService.GetInferenceCostTimeseriesHandler())
 
 	go runner.Start(ctx)
 	log.Infof("InferenceCost: collector started (interval=%s)", cfg.CollectionInterval)
