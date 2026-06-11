@@ -2,7 +2,6 @@ package public
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/pricing"
@@ -12,129 +11,153 @@ import (
 	"github.com/opencost/opencost/modules/pricing/public/gcp"
 )
 
-// GenerateAWSPricing fetches AWS pricing data in the specified currency
-func GenerateAWSPricing(currency unit.Currency) (*pricing.PricingSet, error) {
-	log.Infof("Generating AWS pricing for currency: %s", currency)
+func GenerateCloudPricing(getSource func(currency unit.Currency) PricingSource, currencies []unit.Currency, provider string,
+) (*pricing.PricingSet, error) {
+	if len(currencies) == 0 {
+		return nil, fmt.Errorf("at least one currency must be specified")
+	}
 
-	source := aws.NewAWSPricingSource(aws.AWSPricingSourceConfig{
-		CurrencyCode: string(currency),
-	})
+	log.Infof("Generating %s pricing for %d currencies): %v", provider, len(currencies), currencies)
 
-	pricingSet, err := source.GetPricing()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get AWS pricing: %w", err)
+	var mergedSet *pricing.PricingSet
+
+	// Fetch and merge pricing for each currency
+	for i, currency := range currencies {
+		log.Infof("Fetching %s pricing for currency: %s (%d/%d)", provider, currency, i+1, len(currencies))
+
+		source := getSource(currency)
+
+		pricingSet, err := source.GetPricing()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get %s pricing for currency %s: %w", provider, currency, err)
+		}
+
+		if mergedSet == nil {
+			mergedSet = pricingSet
+		} else {
+			mergedSet.Merge(pricingSet)
+		}
+
+		log.Infof("Added %d node and %d volume pricing entries for currency %s",
+			len(pricingSet.Nodes), len(pricingSet.Volumes), currency)
 	}
 
 	// Sort to ensure deterministic output for checksums
-	pricingSet.Sort()
+	mergedSet.Sort()
 
-	log.Infof("Generated %d AWS node pricing entries", len(pricingSet.Nodes))
-	return pricingSet, nil
-}
+	log.Infof("Generated %s pricing set with %d node entries and %d volume entries across %d currencies",
+		provider, len(mergedSet.Nodes), len(mergedSet.Volumes), len(currencies))
 
-// GenerateAzurePricing fetches Azure pricing data in the specified currency
-func GenerateAzurePricing(currency unit.Currency) (*pricing.PricingSet, error) {
-	log.Infof("Generating Azure pricing for currency: %s", currency)
-
-	source := azure.NewAzurePricingSource(azure.AzurePricingSourceConfig{
-		CurrencyCode: string(currency),
-	})
-
-	pricingSet, err := source.GetPricing()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Azure pricing: %w", err)
-	}
-
-	// Sort to ensure deterministic output for checksums
-	pricingSet.Sort()
-
-	log.Infof("Generated %d Azure node pricing entries", len(pricingSet.Nodes))
-	return pricingSet, nil
-}
-
-// GenerateGCPPricing fetches GCP pricing data in the specified currency
-func GenerateGCPPricing(currency unit.Currency) (*pricing.PricingSet, error) {
-	log.Infof("Generating Azure pricing for currency: %s", currency)
-
-	source := gcp.NewGCPPricingSource(gcp.GCPPricingSourceConfig{
-		CurrencyCode: string(currency),
-		APIKey: os.Getenv("GCP_API_KEY"),
-	})
-
-	pricingSet, err := source.GetPricing()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get GCP pricing: %w", err)
-	}
-
-	// Sort to ensure deterministic output for checksums
-	pricingSet.Sort()
-
-	log.Infof("Generated %d GCP node pricing entries", len(pricingSet.Nodes))
-	return pricingSet, nil
+	return mergedSet, nil
 }
 
 // GenerateAllProvidersPricing fetches pricing data for all supported providers
 // and combines them into a single PricingSet
-func GenerateAllProvidersPricing(currency unit.Currency) (*pricing.PricingSet, error) {
-	log.Infof("Generating pricing for all providers in currency: %s", currency)
-	
-	// Create a combined pricing set
-	combinedSet := &pricing.PricingSet{
-		Nodes:   []*pricing.NodePricing{},
-		Volumes: []*pricing.VolumePricing{},
-	}
-	
-	// Fetch AWS pricing
-	awsSet, err := GenerateAWSPricing(currency)
-	if err != nil {
-		log.Warnf("Failed to get AWS pricing: %v", err)
-	} else {
-		combinedSet.Nodes = append(combinedSet.Nodes, awsSet.Nodes...)
-		combinedSet.Volumes = append(combinedSet.Volumes, awsSet.Volumes...)
-		log.Infof("Added %d AWS node pricing entries", len(awsSet.Nodes))
-	}
-	
-	// Fetch Azure pricing
-	azureSet, err := GenerateAzurePricing(currency)
-	if err != nil {
-		log.Warnf("Failed to get Azure pricing: %v", err)
-	} else {
-		combinedSet.Nodes = append(combinedSet.Nodes, azureSet.Nodes...)
-		combinedSet.Volumes = append(combinedSet.Volumes, azureSet.Volumes...)
-		log.Infof("Added %d Azure node pricing entries", len(azureSet.Nodes))
+func GenerateAllProvidersPricing(currencies []unit.Currency) (*pricing.PricingSet, error) {
+	if len(currencies) == 0 {
+		return nil, fmt.Errorf("at least one currency must be specified")
 	}
 
-	// Fetch GCP pricing
-	gcpSet, err := GenerateGCPPricing(currency)
-	if err != nil {
-		log.Warnf("Failed to get GCP pricing: %v", err)
-	} else {
-		combinedSet.Nodes = append(combinedSet.Nodes, gcpSet.Nodes...)
-		combinedSet.Volumes = append(combinedSet.Volumes, gcpSet.Volumes...)
-		log.Infof("Added %d GCP node pricing entries", len(gcpSet.Nodes))
+	log.Infof("Generating pricing for all providers (%d currencies): %v", len(currencies), currencies)
+
+	var mergedSet *pricing.PricingSet
+
+	// Fetch and merge pricing for each currency across all providers
+	for i, currency := range currencies {
+		log.Infof("Fetching all providers pricing for currency: %s (%d/%d)", currency, i+1, len(currencies))
+
+		// Create a combined pricing set for this currency
+		currencySet := &pricing.PricingSet{
+			Nodes:   []*pricing.NodePricing{},
+			Volumes: []*pricing.VolumePricing{},
+		}
+
+		// Fetch AWS pricing
+		awsSource := aws.NewAWSPricingSource(aws.AWSPricingSourceConfig{
+			CurrencyCode: string(currency),
+		})
+		awsSet, err := awsSource.GetPricing()
+		if err != nil {
+			log.Warnf("Failed to get AWS pricing for currency %s: %v", currency, err)
+		} else {
+			currencySet.Nodes = append(currencySet.Nodes, awsSet.Nodes...)
+			currencySet.Volumes = append(currencySet.Volumes, awsSet.Volumes...)
+			log.Infof("Added %d AWS node and %d volume pricing entries for currency %s",
+				len(awsSet.Nodes), len(awsSet.Volumes), currency)
+		}
+
+		// Fetch Azure pricing
+		azureSource := azure.NewAzurePricingSource(azure.AzurePricingSourceConfig{
+			CurrencyCode: string(currency),
+		})
+		azureSet, err := azureSource.GetPricing()
+		if err != nil {
+			log.Warnf("Failed to get Azure pricing for currency %s: %v", currency, err)
+		} else {
+			currencySet.Nodes = append(currencySet.Nodes, azureSet.Nodes...)
+			currencySet.Volumes = append(currencySet.Volumes, azureSet.Volumes...)
+			log.Infof("Added %d Azure node and %d volume pricing entries for currency %s",
+				len(azureSet.Nodes), len(azureSet.Volumes), currency)
+		}
+
+		// Fetch GCP pricing
+		gcpSource := gcp.NewGCPPricingSource(gcp.GCPPricingSourceConfig{
+			CurrencyCode: string(currency),
+		})
+		gcpSet, err := gcpSource.GetPricing()
+		if err != nil {
+			log.Warnf("Failed to get GCP pricing for currency %s: %v", currency, err)
+		} else {
+			currencySet.Nodes = append(currencySet.Nodes, gcpSet.Nodes...)
+			currencySet.Volumes = append(currencySet.Volumes, gcpSet.Volumes...)
+			log.Infof("Added %d GCP node and %d volume pricing entries for currency %s",
+				len(gcpSet.Nodes), len(gcpSet.Volumes), currency)
+		}
+
+		if mergedSet == nil {
+			mergedSet = currencySet
+		} else {
+			mergedSet.Merge(currencySet)
+		}
 	}
-	
-	// Sort the combined set to ensure deterministic output
-	combinedSet.Sort()
-	
-	log.Infof("Generated combined pricing set with %d total node entries and %d volume entries",
-		len(combinedSet.Nodes), len(combinedSet.Volumes))
-	
-	return combinedSet, nil
+
+	// Sort to ensure deterministic output for checksums
+	mergedSet.Sort()
+
+	log.Infof("Generated combined pricing set with %d node entries and %d volume entries across %d currencies",
+		len(mergedSet.Nodes), len(mergedSet.Volumes), len(currencies))
+
+	return mergedSet, nil
 }
 
 // GeneratePricingForProvider fetches pricing data for a specific provider
-// in the specified currency
-func GeneratePricingForProvider(provider pricing.Provider, currency unit.Currency) (*pricing.PricingSet, error) {
+// in the specified currencies
+func GeneratePricingForProvider(provider pricing.Provider, currencies []unit.Currency) (*pricing.PricingSet, error) {
 	switch provider {
 	case pricing.AllProvider:
-		return GenerateAllProvidersPricing(currency)
+		return GenerateAllProvidersPricing(currencies)
+
 	case pricing.AWSProvider:
-		return GenerateAWSPricing(currency)
+		return GenerateCloudPricing(func(currency unit.Currency) PricingSource {
+			return aws.NewAWSPricingSource(aws.AWSPricingSourceConfig{
+				CurrencyCode: string(currency),
+			})
+		}, currencies, "AWS")
+
 	case pricing.AzureProvider:
-		return GenerateAzurePricing(currency)
+		return GenerateCloudPricing(func(currency unit.Currency) PricingSource {
+			return azure.NewAzurePricingSource(azure.AzurePricingSourceConfig{
+				CurrencyCode: string(currency),
+			})
+		}, currencies, "Azure")
+
 	case pricing.GCPProvider:
-		return GenerateGCPPricing(currency)
+		return GenerateCloudPricing(func(currency unit.Currency) PricingSource {
+			return gcp.NewGCPPricingSource(gcp.GCPPricingSourceConfig{
+				CurrencyCode: string(currency),
+			})
+		}, currencies, "GCP")
+
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", provider)
 	}

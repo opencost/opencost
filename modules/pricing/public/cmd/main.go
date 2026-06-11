@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/pricing"
@@ -13,9 +14,9 @@ import (
 )
 
 var (
-	provider string
-	currency string
-	output   string
+	provider   string
+	currencies string
+	output     string
 )
 
 func main() {
@@ -34,14 +35,29 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().StringVarP(&provider, "provider", "p", "aws", "Cloud provider (aws, azure, gcp, all). Default: aws")
-	rootCmd.Flags().StringVarP(&currency, "currency", "c", "USD", "Currency code (e.g. USD, EUR, CNY). Default: USD")
-	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path. Default: /pricing-data/{provider}-{currency}.json. Use 'stdout' to print to console")
+	rootCmd.Flags().StringVarP(&currencies, "currencies", "c", "USD", "Comma-separated list of currency codes (e.g. USD, EUR, CNY). Default: USD")
+	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path. Default: /pricing-data/{provider}/{provider}-{currencies}.json. Use 'stdout' to print to console")
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	curr, err := unit.ParseCurrency(currency)
-	if err != nil {
-		return fmt.Errorf("invalid currency '%s': %w", currency, err)
+	// Parse comma-separated currency list
+	currencyStrings := strings.Split(currencies, ",")
+	var currencyList []unit.Currency
+	
+	for _, currStr := range currencyStrings {
+		currStr = strings.TrimSpace(currStr)
+		if currStr == "" {
+			continue
+		}
+		curr, err := unit.ParseCurrency(currStr)
+		if err != nil {
+			return fmt.Errorf("invalid currency '%s': %w", currStr, err)
+		}
+		currencyList = append(currencyList, curr)
+	}
+
+	if len(currencyList) == 0 {
+		return fmt.Errorf("at least one valid currency must be specified")
 	}
 
 	var prov pricing.Provider
@@ -58,8 +74,8 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unsupported provider: %s", provider)
 	}
 
-	log.Infof("Generating pricing for %s in %s", prov, curr)
-	pricingSet, err := public.GeneratePricingForProvider(prov, curr)
+	log.Infof("Generating pricing for %s in currencies: %v", prov, currencyList)
+	pricingSet, err := public.GeneratePricingForProvider(prov, currencyList)
 	if err != nil {
 		return fmt.Errorf("failed to generate pricing: %w", err)
 	}
@@ -74,7 +90,9 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Set default output path if not specified
 	if output == "" {
-		output = fmt.Sprintf("pricing-data/%s/%s-%s.json", provider, provider, currency)
+		// Create a filename with all currencies
+		currencySuffix := strings.ToLower(strings.Join(currencyStrings, "-"))
+		output = fmt.Sprintf("pricing-data/%s/%s-%s.json", provider, provider, currencySuffix)
 	}
 
 	// Check if user wants stdout

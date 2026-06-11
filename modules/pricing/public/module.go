@@ -39,7 +39,7 @@ func NewPricingModule(config PricingModuleConfig) (*PricingModule, error) {
 	ctx := context.Background()
 
 	// Generate pricing data directly from the provider API
-	pricingSet, err := GeneratePricingForProvider(config.Provider, config.Currency)
+	pricingSet, err := GeneratePricingForProvider(config.Provider, []unit.Currency{config.Currency})
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate pricing: %w", err)
 	}
@@ -265,7 +265,7 @@ func (pm *PricingModule) serializePricingSet(ps *pricing.PricingSet) ([]byte, er
 // backgroundRefresh periodically fetches new pricing data and updates the module
 func (pm *PricingModule) backgroundRefresh() {
 	defer close(pm.doneCh)
-	
+
 	ticker := time.NewTicker(pm.config.RefreshInterval)
 	defer ticker.Stop()
 
@@ -273,9 +273,9 @@ func (pm *PricingModule) backgroundRefresh() {
 		select {
 		case <-ticker.C:
 			log.Infof("Starting scheduled pricing refresh for %s (%s)", pm.config.Provider, pm.config.Currency)
-			
+
 			// Fetch new pricing data
-			newPricingSet, err := GeneratePricingForProvider(pm.config.Provider, pm.config.Currency)
+			newPricingSet, err := GeneratePricingForProvider(pm.config.Provider, []unit.Currency{pm.config.Currency})
 			if err != nil {
 				log.Errorf("Failed to refresh pricing data: %v", err)
 				continue
