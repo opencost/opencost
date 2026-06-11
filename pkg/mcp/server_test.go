@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	models "github.com/opencost/opencost/pkg/cloud/models"
@@ -542,6 +543,10 @@ func (dq *dummyQuerier) Query(_ context.Context, req cloudcost.QueryRequest) (*o
 	// Return empty set range
 	ccsr, _ := opencost.NewCloudCostSetRange(time.Now().Add(-24*time.Hour), time.Now(), opencost.AccumulateOptionDay, "")
 	return ccsr, nil
+}
+
+func (dq *dummyQuerier) QueryCloudCostAutocomplete(_ context.Context, _ autocomplete.Request) (*autocomplete.Response, error) {
+	return &autocomplete.Response{Data: []string{}}, nil
 }
 
 func TestBuildCloudCostQueryRequest_AccumulateParsing(t *testing.T) {
@@ -1478,6 +1483,16 @@ func (caq *contextAwareQuerier) Query(ctx context.Context, req cloudcost.QueryRe
 		// Return empty set range
 		ccsr, _ := opencost.NewCloudCostSetRange(time.Now().Add(-24*time.Hour), time.Now(), opencost.AccumulateOptionDay, "")
 		return ccsr, nil
+	}
+}
+
+func (caq *contextAwareQuerier) QueryCloudCostAutocomplete(ctx context.Context, _ autocomplete.Request) (*autocomplete.Response, error) {
+	select {
+	case <-ctx.Done():
+		caq.contextWasCancelled = true
+		return nil, ctx.Err()
+	default:
+		return &autocomplete.Response{Data: []string{}}, nil
 	}
 }
 

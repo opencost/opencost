@@ -3301,6 +3301,8 @@ func (asr *AllocationSetRange) Accumulate(accumulateBy AccumulateOption) (*Alloc
 		return asr.accumulateByWeek()
 	case AccumulateOptionMonth:
 		return asr.accumulateByMonth()
+	case AccumulateOptionQuarter:
+		return asr.accumulateByQuarter()
 	default:
 		// ideally, this should never happen
 		return nil, fmt.Errorf("unexpected error, invalid accumulateByType: %s", accumulateBy)
@@ -3396,6 +3398,44 @@ func (asr *AllocationSetRange) accumulateByMonth() (*AllocationSetRange, error) 
 
 		// either the month has ended, or there are no more allocation sets
 		if month != nextDayMonth || i == len(asr.Allocations)-1 {
+			if length := len(toAccumulate.Allocations); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Allocations[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AllocationSetRange) accumulateByQuarter() (*AllocationSetRange, error) {
+	var toAccumulate *AllocationSetRange
+	result := NewAllocationSetRange()
+	for i, as := range asr.Allocations {
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		year, month, _ := as.Window.Start().Date()
+		nextDay := as.Window.Start().Add(time.Hour * 24)
+		nextYear, nextMonth, _ := nextDay.Date()
+		quarter := (int(month) - 1) / 3
+		nextQuarter := (int(nextMonth) - 1) / 3
+
+		if toAccumulate == nil {
+			toAccumulate = NewAllocationSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAllocationSetRange(asAccumulated)
+
+		// either the quarter has ended, or there are no more allocation sets
+		if quarter != nextQuarter || year != nextYear || i == len(asr.Allocations)-1 {
 			if length := len(toAccumulate.Allocations); length != 1 {
 				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
 			}

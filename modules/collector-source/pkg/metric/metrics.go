@@ -25,6 +25,10 @@ const (
 	ServiceSelectorLabels                                 = "service_selector_labels"
 	StatefulSetMatchLabels                                = "statefulSet_match_labels"
 	KubeReplicasetOwner                                   = "kube_replicaset_owner"
+	ContainerCPUAllocation                                = "container_cpu_allocation"
+	ContainerMemoryAllocationBytes                        = "container_memory_allocation_bytes"
+	ContainerGPUAllocation                                = "container_gpu_allocation"
+	PodPVCAllocation                                      = "pod_pvc_allocation"
 	ResourceQuotaInfo                                     = "resourcequota_info"
 	KubeResourceQuotaSpecResourceRequests                 = "resourcequota_spec_resource_requests"
 	KubeResourceQuotaSpecResourceLimits                   = "resourcequota_spec_resource_limits"
@@ -54,10 +58,6 @@ const (
 	NodeGPUHourlyCost                    = "node_gpu_hourly_cost"
 	NodeGPUCount                         = "node_gpu_count"
 	KubecostNodeIsSpot                   = "kubecost_node_is_spot"
-	ContainerCPUAllocation               = "container_cpu_allocation"
-	ContainerMemoryAllocationBytes       = "container_memory_allocation_bytes"
-	ContainerGPUAllocation               = "container_gpu_allocation"
-	PodPVCAllocation                     = "pod_pvc_allocation"
 
 	// Stat Summary Metrics
 	NodeCPUSecondsTotal                = "node_cpu_seconds_total"

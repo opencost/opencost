@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/autocomplete"
 	"github.com/opencost/opencost/core/pkg/filter"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
@@ -13,6 +14,7 @@ import (
 // Querier allows for querying ranges of CloudCost data
 type Querier interface {
 	Query(context.Context, QueryRequest) (*opencost.CloudCostSetRange, error)
+	QueryCloudCostAutocomplete(context.Context, autocomplete.Request) (*autocomplete.Response, error)
 }
 
 type QueryRequest struct {

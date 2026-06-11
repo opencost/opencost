@@ -2779,6 +2779,36 @@ func TestAllocationSetRange_AccumulateBy_Month(t *testing.T) {
 	}
 }
 
+func TestAllocationSetRange_AccumulateBy_Quarter(t *testing.T) {
+	q1Day1 := time.Date(2020, 3, 30, 0, 0, 0, 0, time.UTC)
+	q1Day2 := time.Date(2020, 3, 31, 0, 0, 0, 0, time.UTC)
+	q2Day1 := time.Date(2020, 4, 1, 0, 0, 0, 0, time.UTC)
+	q2Day2 := time.Date(2020, 4, 2, 0, 0, 0, 0, time.UTC)
+
+	q1AS1 := NewAllocationSet(q1Day1, q1Day2)
+	q1AS1.Set(NewMockUnitAllocation("", q1Day1, day, nil))
+	q1AS2 := NewAllocationSet(q1Day2, q2Day1)
+	q1AS2.Set(NewMockUnitAllocation("", q1Day2, day, nil))
+	q2AS1 := NewAllocationSet(q2Day1, q2Day2)
+	q2AS1.Set(NewMockUnitAllocation("", q2Day1, day, nil))
+
+	asr := NewAllocationSetRange(q1AS1, q1AS2, q2AS1)
+	asr, err := asr.Accumulate(AccumulateOptionQuarter)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy quarter: %s", err)
+	}
+
+	if len(asr.Allocations) != 2 {
+		t.Fatalf("expected 2 allocation sets, got:%d", len(asr.Allocations))
+	}
+
+	for _, as := range asr.Allocations {
+		if as.Window.Duration() < time.Hour*24 || as.Window.Duration() > time.Hour*24*92 {
+			t.Fatalf("expected window duration to be between 1 and 92 days, got:%s", as.Window.Duration().String())
+		}
+	}
+}
+
 // TODO niko
 // func TestAllocationSetRange_AggregateBy(t *testing.T) {}
 

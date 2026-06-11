@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/autocomplete"
+	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
 	"github.com/opencost/opencost/core/pkg/filter/cloudcost"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
@@ -130,6 +132,85 @@ func TestParseCloudCostRequest(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ParseCloudCostRequest() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseCloudCostAutocompleteRequest(t *testing.T) {
+	windowStr := "2023-01-01T00:00:00Z,2023-01-02T00:00:00Z"
+	validFilterStr := `service:"AmazonEC2"`
+	parser := cloudcost.NewCloudCostFilterParser()
+	validFilter, _ := parser.Parse(validFilterStr)
+
+	tests := map[string]struct {
+		values  map[string][]string
+		want    *autocomplete.Request
+		wantErr bool
+	}{
+		"missing window": {
+			values:  map[string][]string{"field": {"service"}},
+			wantErr: true,
+		},
+		"missing field": {
+			values:  map[string][]string{"window": {windowStr}},
+			wantErr: true,
+		},
+		"invalid window": {
+			values: map[string][]string{
+				"window": {"invalid"},
+				"field":  {"service"},
+			},
+			wantErr: true,
+		},
+		"open window": {
+			values: map[string][]string{
+				"window": {"2023-01-01T00:00:00Z,"},
+				"field":  {"service"},
+			},
+			wantErr: true,
+		},
+		"invalid filter": {
+			values: map[string][]string{
+				"window": {windowStr},
+				"field":  {"service"},
+				"filter": {"invalid"},
+			},
+			wantErr: true,
+		},
+		"valid request": {
+			values: map[string][]string{
+				"window": {windowStr},
+				"field":  {"service"},
+				"filter": {validFilterStr},
+				"search": {"ec2"},
+				"limit":  {"25"},
+			},
+			want: &autocomplete.Request{
+				Search: "ec2",
+				Field:  "service",
+				Limit:  25,
+				Filter: validFilter,
+			},
+			wantErr: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			qp := httputil.NewQueryParams(tt.values)
+			got, err := corecloudcost.ParseRequest(qp, autocomplete.ParseOptions{})
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ParseRequest() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if got.Search != tt.want.Search || got.Field != tt.want.Field || got.Limit != tt.want.Limit {
+				t.Fatalf("unexpected request: got=%+v want=%+v", got, tt.want)
+			}
+			if got.Window.IsOpen() {
+				t.Fatal("expected closed window")
 			}
 		})
 	}

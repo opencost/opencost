@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
+	"github.com/opencost/opencost/core/pkg/autocomplete"
+	corecloudcost "github.com/opencost/opencost/core/pkg/autocomplete/cloudcost"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
@@ -65,6 +68,88 @@ func (rq *RepositoryQuerier) Query(ctx context.Context, request QueryRequest) (*
 	}
 
 	return ccsr, nil
+}
+
+func (rq *RepositoryQuerier) QueryCloudCostAutocomplete(ctx context.Context, request autocomplete.Request) (*autocomplete.Response, error) {
+	field, err := autocomplete.NormalizeRequest(&request, corecloudcost.ValidateField, autocomplete.NormalizeOptions{})
+	if err != nil {
+		return nil, err
+	}
+	limit := request.Limit
+
+	ccsr, err := rq.Query(ctx, QueryRequest{
+		Start:      *request.Window.Start(),
+		End:        *request.Window.End(),
+		Accumulate: opencost.AccumulateOptionNone,
+		Filter:     request.Filter,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("QueryCloudCostAutocomplete: query failed: %w", err)
+	}
+
+	search := strings.ToLower(request.Search)
+	results := map[string]struct{}{}
+	for _, ccs := range ccsr.CloudCostSets {
+		for _, cc := range ccs.CloudCosts {
+			if cc == nil || cc.Properties == nil {
+				continue
+			}
+
+			values := cloudCostAutocompleteValues(cc, field)
+			for _, value := range values {
+				if value == "" {
+					continue
+				}
+				if search != "" && !strings.Contains(strings.ToLower(value), search) {
+					continue
+				}
+				results[value] = struct{}{}
+			}
+		}
+	}
+
+	return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(results, limit)}, nil
+}
+
+func cloudCostAutocompleteValues(cc *opencost.CloudCost, field string) []string {
+	if field == "label" {
+		keys := make([]string, 0, len(cc.Properties.Labels))
+		for label := range cc.Properties.Labels {
+			keys = append(keys, label)
+		}
+		return keys
+	}
+	if strings.HasPrefix(field, "label:") {
+		labelName := strings.TrimPrefix(field, "label:")
+		if value, ok := cloudCostLabelValueFold(cc.Properties.Labels, labelName); ok {
+			return []string{value}
+		}
+		return nil
+	}
+
+	property, err := opencost.ParseCloudCostProperty(field)
+	if err != nil {
+		return nil
+	}
+
+	value, err := cc.StringProperty(string(property))
+	if err != nil {
+		return nil
+	}
+
+	return []string{value}
+}
+
+func cloudCostLabelValueFold(labels map[string]string, key string) (string, bool) {
+	if v, ok := labels[key]; ok {
+		return v, true
+	}
+	for k, v := range labels {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 func (rq *RepositoryQuerier) QueryViewGraph(ctx context.Context, request ViewQueryRequest) (ViewGraphData, error) {

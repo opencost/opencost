@@ -124,6 +124,9 @@ func GetMockCollectorProvider() StoreProvider {
 		source.ServiceLabel:    "service2",
 	}
 
+	collector.Update(metric.KubeNodeLabels, node1Info, 0, start, nil)
+	collector.Update(metric.KubeNodeLabels, node1Info, 0, end, nil)
+
 	collector.Update(metric.NodeTotalHourlyCost, node1Info, 0, start, nil)
 	collector.Update(metric.NodeTotalHourlyCost, node1Info, 0, end, nil)
 
@@ -176,74 +179,6 @@ func GetMockCollectorProvider() StoreProvider {
 
 	return &MockStoreProvider{
 		metricsCollector: collector,
-	}
-}
-
-func TestCollectorMetricsQuerier_QueryLocalStorageCost(t *testing.T) {
-	start1, _ := time.Parse(time.RFC3339, Start1Str)
-	end1, _ := time.Parse(time.RFC3339, End1Str)
-
-	c := collectorMetricsQuerier{
-		collectorProvider: GetMockCollectorProvider(),
-	}
-	resCh := c.QueryLocalStorageCost(start1, end1)
-	res, err := resCh.Await()
-	if err != nil {
-		t.Errorf("unexpected error: %v", err.Error())
-	}
-	expected := []*source.LocalStorageCostResult{
-		{
-			Cluster:  "",
-			Instance: "node1",
-			Device:   "local",
-			Data: []*util.Vector{
-				{
-					Value: LocalStorageCostPerGiBHr * 2,
-				},
-			},
-		},
-	}
-	if len(res) != len(expected) {
-		t.Errorf("length of result was not as expected: got = %d, want %d", len(res), len(expected))
-	}
-	for i, got := range res {
-		if !reflect.DeepEqual(got, expected[i]) {
-			t.Errorf("result at index %d did not match: got = %v, want %v", i, got, expected[i])
-		}
-	}
-}
-
-func TestCollectorMetricsQuerier_QueryLocalStorageUsedCost(t *testing.T) {
-	start1, _ := time.Parse(time.RFC3339, Start1Str)
-	end1, _ := time.Parse(time.RFC3339, End1Str)
-
-	c := collectorMetricsQuerier{
-		collectorProvider: GetMockCollectorProvider(),
-	}
-	resCh := c.QueryLocalStorageUsedCost(start1, end1)
-	res, err := resCh.Await()
-	if err != nil {
-		t.Errorf("unexpected error: %v", err.Error())
-	}
-	expected := []*source.LocalStorageUsedCostResult{
-		{
-			Cluster:  "",
-			Instance: "node1",
-			Device:   "local",
-			Data: []*util.Vector{
-				{
-					Value: LocalStorageCostPerGiBHr,
-				},
-			},
-		},
-	}
-	if len(res) != len(expected) {
-		t.Errorf("length of result was not as expected: got = %d, want %d", len(res), len(expected))
-	}
-	for i, got := range res {
-		if !reflect.DeepEqual(got, expected[i]) {
-			t.Errorf("result at index %d did not match: got = %v, want %v", i, got, expected[i])
-		}
 	}
 }
 

@@ -16,8 +16,6 @@ type MetricsQuerier interface {
 
 	// Local Cluster Disks
 	QueryLocalStorageActiveMinutes(start, end time.Time) *Future[LocalStorageActiveMinutesResult]
-	QueryLocalStorageCost(start, end time.Time) *Future[LocalStorageCostResult]
-	QueryLocalStorageUsedCost(start, end time.Time) *Future[LocalStorageUsedCostResult]
 	QueryLocalStorageUsedAvg(start, end time.Time) *Future[LocalStorageUsedAvgResult]
 	QueryLocalStorageUsedMax(start, end time.Time) *Future[LocalStorageUsedMaxResult]
 	QueryLocalStorageBytes(start, end time.Time) *Future[LocalStorageBytesResult]

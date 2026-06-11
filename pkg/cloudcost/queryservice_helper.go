@@ -15,7 +15,7 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 
 	windowStr := qp.Get("window", "")
 	if windowStr == "" {
-		return nil, fmt.Errorf("missing require window param")
+		return nil, fmt.Errorf("missing required 'window' parameter")
 	}
 
 	window, err := opencost.ParseWindowUTC(windowStr)
@@ -49,7 +49,7 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 		parser := cloudcost.NewCloudCostFilterParser()
 		filter, err = parser.Parse(filterString)
 		if err != nil {
-			return nil, fmt.Errorf("Parsing 'filter' parameter: %s", err)
+			return nil, fmt.Errorf("invalid 'filter' parameter: %w", err)
 		}
 	}
 

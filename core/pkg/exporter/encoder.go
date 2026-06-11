@@ -30,12 +30,24 @@ type BinaryMarshalerPtr[T any] interface {
 
 // BingenEncoder[T, U] is a generic encoder that uses the BinaryMarshaler interface to encode data.
 // It supports any type T that implements the encoding.BinaryMarshaler interface.
-type BingenEncoder[T any, U BinaryMarshalerPtr[T]] struct{}
+type BingenEncoder[T any, U BinaryMarshalerPtr[T]] struct {
+	fileExt string
+}
 
 // NewBingenEncoder creates an `Encoder[T]` implementation which supports binary encoding for the `T`
-// type.
+// type, and doesn't have a file extension.
 func NewBingenEncoder[T any, U BinaryMarshalerPtr[T]]() Encoder[T] {
-	return new(BingenEncoder[T, U])
+	return &BingenEncoder[T, U]{
+		fileExt: "",
+	}
+}
+
+// NewBingenFileEncoder creates a new `Encoder[T]` implementation which supports binary encoding for the
+// 'T' type with the ".bingen" file extension.
+func NewBingenFileEncoder[T any, U BinaryMarshalerPtr[T]]() Encoder[T] {
+	return &BingenEncoder[T, U]{
+		fileExt: "bingen",
+	}
 }
 
 // Encode encodes the provided data of type T into a byte slice using the BinaryMarshaler interface.
@@ -44,10 +56,10 @@ func (b *BingenEncoder[T, U]) Encode(data *T) ([]byte, error) {
 	return bingenData.MarshalBinary()
 }
 
-// FileExt returns the file extension for the encoded data. In this case, it returns an empty string
-// to indicate that there is no specific file extension for the binary encoded data.
+// FileExt returns the configured file extension for the encoded data. This may be an empty
+// string when no file extension is configured, or a non-empty value such as "bingen".
 func (b *BingenEncoder[T, U]) FileExt() string {
-	return ""
+	return b.fileExt
 }
 
 // JSONEncoder[T] is a generic encoder that uses the JSON encoding format to encode data.
