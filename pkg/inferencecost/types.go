@@ -123,29 +123,16 @@ type Config struct {
 	// AllocationMode is "multiplier".
 	OutputTokenCostMultiplier float64
 
-	// UsageCostShareSplit controls how shared infrastructure costs are handled
-	// for usage-based costs (cost_basis=usage).
-	// "none" (default): Shared costs are not included in usage costs.
-	// "weighted": Shared costs are distributed proportionally (like allocation costs).
-	// "even": Shared costs are distributed evenly across models.
-	// Note: Allocation costs always use ShareWeighted for shared infrastructure.
-	UsageCostShareSplit string
 }
 
 const (
 	AllocationModeComputeTime = "compute_time"
 	AllocationModeMultiplier  = "multiplier"
 
-	// UsageCostShareSplit options
-	UsageCostShareSplitNone     = "none"
-	UsageCostShareSplitWeighted = "weighted"
-	UsageCostShareSplitEven     = "even"
-
 	defaultOutputTokenCostMultiplier = 2.5
 	defaultModelLabel                = "llm-d.ai/model"
 	defaultSharedInfraLabel          = "llm-d.ai/inference-serving"
 	defaultSharedInfraLabelValue     = "true"
-	defaultUsageCostShareSplit       = UsageCostShareSplitNone
 )
 
 // DefaultConfig returns a Config populated from environment variables via the
@@ -161,6 +148,5 @@ func DefaultConfig() *Config {
 		KVCacheBlockSize:          getKVCacheBlockSize(),
 		AllocationMode:            AllocationModeComputeTime,
 		OutputTokenCostMultiplier: defaultOutputTokenCostMultiplier,
-		UsageCostShareSplit:       defaultUsageCostShareSplit,
 	}
 }

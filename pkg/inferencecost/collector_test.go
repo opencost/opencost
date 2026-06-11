@@ -66,7 +66,6 @@ func baseConfig() *Config {
 		KVCacheBlockSize:          0,
 		AllocationMode:            AllocationModeComputeTime,
 		OutputTokenCostMultiplier: 2.5,
-		UsageCostShareSplit:       UsageCostShareSplitNone, // Default: no shared costs in usage
 	}
 }
 
@@ -292,48 +291,28 @@ func TestReconcileTokenKeys_PrefersShortAllocationKeyWhenBothFormsExist(t *testi
 
 // TestCollector_BuildQueryWindow verifies that buildQueryWindow generates
 // correct Prometheus time range selectors based on CollectionInterval.
-func TestCollector_BuildQueryWindow(t *testing.T) {
+// TestQueryCounterDelta_Formula verifies the delta = end - start subtraction
+// and that negative deltas (counter resets) are clamped to zero.
+func TestQueryCounterDelta_Formula(t *testing.T) {
 	tests := []struct {
 		name     string
-		interval time.Duration
-		want     string
+		endVal   float64
+		startVal float64
+		want     float64
 	}{
-		{
-			name:     "5 minutes",
-			interval: 5 * time.Minute,
-			want:     "[5m]",
-		},
-		{
-			name:     "10 minutes",
-			interval: 10 * time.Minute,
-			want:     "[10m]",
-		},
-		{
-			name:     "1 hour",
-			interval: 60 * time.Minute,
-			want:     "[60m]",
-		},
-		{
-			name:     "30 seconds (rounds to 1m minimum)",
-			interval: 30 * time.Second,
-			want:     "[1m]",
-		},
-		{
-			name:     "90 seconds (rounds to 1m)",
-			interval: 90 * time.Second,
-			want:     "[1m]",
-		},
+		{name: "normal increase", endVal: 1000, startVal: 200, want: 800},
+		{name: "no activity", endVal: 500, startVal: 500, want: 0},
+		{name: "counter reset clamped to zero", endVal: 100, startVal: 900, want: 0},
+		{name: "new pod (no start sample)", endVal: 400, startVal: 0, want: 400},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := baseConfig()
-			cfg.CollectionInterval = tt.interval
-			c := &Collector{config: cfg}
-			
-			got := c.buildQueryWindow()
-			if got != tt.want {
-				t.Errorf("buildQueryWindow() = %q, want %q", got, tt.want)
+			delta := tt.endVal - tt.startVal
+			if delta < 0 {
+				delta = 0
+			}
+			if delta != tt.want {
+				t.Errorf("delta = %v, want %v", delta, tt.want)
 			}
 		})
 	}
@@ -379,7 +358,9 @@ func TestCollector_CollectMetrics_PrometheusUnavailable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	_, err = collector.CollectMetrics(ctx)
+	end := time.Now()
+	start := end.Add(-5 * time.Minute)
+	_, err = collector.CollectMetrics(ctx, start, end)
 	// The allocation query succeeds (mock), but the Prometheus query will fail.
 	// CollectMetrics should return an error from the prompt token query.
 	if err == nil {

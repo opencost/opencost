@@ -48,72 +48,119 @@ func NewCollector(config *Config, querier AllocationQuerier) (*Collector, error)
 }
 
 // CollectMetrics queries all data sources and returns one InferenceCost per
-// model/namespace combination.
-func (c *Collector) CollectMetrics(ctx context.Context) ([]*InferenceCost, error) {
-	now := time.Now()
-	windowEnd := now
-	windowStart := now.Add(-c.config.CollectionInterval)
-
+// model/namespace combination. start and end define the time window to query;
+// the caller is responsible for choosing appropriate boundaries (e.g. the
+// runner uses now-interval..now; the API uses the request window).
+func (c *Collector) CollectMetrics(ctx context.Context, start, end time.Time) ([]*InferenceCost, error) {
 	// --- Infrastructure costs from OpenCost allocation layer ---
-	allocationCosts, err := c.queryAllocationCosts(ctx, windowStart, windowEnd)
+	allocationCosts, err := c.queryAllocationCosts(ctx, start, end)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query allocation costs: %w", err)
 	}
 	log.Infof("InferenceCost: collected allocation costs for %d model/namespace combinations", len(allocationCosts))
 
-	// Build dynamic query window matching CollectionInterval
-	// This ensures Prometheus queries capture the same time range as allocation costs
-	queryWindow := c.buildQueryWindow()
-	log.Debugf("InferenceCost: using Prometheus query window: %s", queryWindow)
-
 	// --- Token metrics from Prometheus ---
-	// Use increase() to get total tokens in the window, not per-second rate.
-	promptTokens, err := c.queryMetric(ctx, fmt.Sprintf(`sum by (model_name, namespace) (increase(vllm:prompt_tokens_total%s))`, queryWindow))
+	// Use a counter-delta approach: query the cumulative counter at both ends of
+	// the window and subtract. This avoids the extrapolation inflation that
+	// increase(metric[Xm]) produces when series have fewer samples than the
+	// window duration (e.g. recently-started pods, multi-replica sum-by queries).
+	// last_over_time(...[scrapeInterval]) pins each query to the nearest sample
+	// at that timestamp without extrapolating across the full window.
+	promptTokens, err := c.queryCounterDelta(ctx, "vllm:prompt_tokens_total", start, end)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query prompt tokens: %w", err)
 	}
 
-	generationTokens, err := c.queryMetric(ctx, fmt.Sprintf(`sum by (model_name, namespace) (increase(vllm:generation_tokens_total%s))`, queryWindow))
+	generationTokens, err := c.queryCounterDelta(ctx, "vllm:generation_tokens_total", start, end)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query generation tokens: %w", err)
 	}
 
 	// --- Timing metrics (optional — degraded gracefully) ---
-	// Use increase() to get total seconds of processing time in the window.
-	// Dynamic window ensures we capture activity across the full collection interval.
-	inputProcessingTime, err := c.queryMetric(ctx, fmt.Sprintf(`sum by (model_name, namespace) (increase(vllm:request_prefill_time_seconds_sum%s))`, queryWindow))
+	inputProcessingTime, err := c.queryCounterDelta(ctx, "vllm:request_prefill_time_seconds_sum", start, end)
 	if err != nil {
 		log.Warnf("InferenceCost: failed to query input processing time (will use multiplier fallback): %v", err)
 		inputProcessingTime = make(map[string]float64)
 	}
 
-	outputProcessingTime, err := c.queryMetric(ctx, fmt.Sprintf(`sum by (model_name, namespace) (increase(vllm:request_time_per_output_token_seconds_sum%s))`, queryWindow))
+	outputProcessingTime, err := c.queryCounterDelta(ctx, "vllm:request_time_per_output_token_seconds_sum", start, end)
 	if err != nil {
 		log.Warnf("InferenceCost: failed to query output processing time (will use multiplier fallback): %v", err)
 		outputProcessingTime = make(map[string]float64)
 	}
 
 	// --- KV cache hits (optional — degraded gracefully) ---
-	// Use increase() to get total cache hit blocks in the window.
-	cacheHitBlocks, err := c.queryMetric(ctx, fmt.Sprintf(`sum by (model_name, namespace) (increase(vllm:prefix_cache_hits_total%s))`, queryWindow))
+	cacheHitBlocks, err := c.queryCounterDelta(ctx, "vllm:prefix_cache_hits_total", start, end)
 	if err != nil {
 		log.Warnf("InferenceCost: failed to query KV cache hits (cache denominator correction disabled): %v", err)
 		cacheHitBlocks = make(map[string]float64)
 	}
 
 	return c.combineMetrics(allocationCosts, promptTokens, generationTokens,
-		inputProcessingTime, outputProcessingTime, cacheHitBlocks, now), nil
+		inputProcessingTime, outputProcessingTime, cacheHitBlocks, end), nil
 }
 
-// buildQueryWindow constructs a Prometheus time range selector matching the CollectionInterval.
-// Returns a string like "[5m]" or "[10m]" that can be appended to metric names in increase() queries.
-func (c *Collector) buildQueryWindow() string {
-	minutes := int(c.config.CollectionInterval.Minutes())
-	if minutes < 1 {
-		// Minimum 1 minute window for Prometheus queries
-		minutes = 1
+// queryCounterDelta returns the net increase of a monotonic counter metric
+// over [start, end] per (model_name, namespace).
+//
+// It uses the @ modifier to pin two instant queries to start and end,
+// then subtracts. This avoids the extrapolation inflation produced by
+// increase(metric[Xm]) when a series has fewer samples than the window
+// (e.g. a pod that restarted mid-window, or a sum across many replicas
+// where Prometheus extrapolates each series independently before summing).
+//
+// last_over_time(metric[2m] @ t) fetches the most recent sample within 2
+// minutes of t. 2 minutes covers the default 30s scrape interval with margin.
+// Series with no sample near start get a start-value of 0 (treated as new),
+// which is the correct behaviour for pods that started mid-window.
+// Negative deltas (counter resets) are clamped to 0 per series before summing.
+func (c *Collector) queryCounterDelta(ctx context.Context, metric string, start, end time.Time) (map[string]float64, error) {
+	startUnix := start.Unix()
+	// Clamp end to now: last_over_time with a future @ timestamp returns no results.
+	effectiveEnd := end
+	if now := time.Now(); end.After(now) {
+		effectiveEnd = now
 	}
-	return fmt.Sprintf("[%dm]", minutes)
+	endUnix := effectiveEnd.Unix()
+
+	// The lookback for last_over_time must span the full window duration.
+	// A model that was active earlier in the window but idle at query time
+	// will have its last sample somewhere within the window — a narrow 2m
+	// lookback would miss it entirely. Using the window duration as the
+	// lookback guarantees we find the last sample that existed anywhere in
+	// the window, while the @ pin ensures we don't extrapolate past end.
+	windowDuration := effectiveEnd.Sub(start)
+	windowMinutes := int(windowDuration.Minutes())
+	if windowMinutes < 2 {
+		windowMinutes = 2
+	}
+
+	// Query counter value at the end of the window.
+	endQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[%dm] @ %d))`, metric, windowMinutes, endUnix)
+	endVals, err := c.queryMetric(ctx, endQuery, end)
+	if err != nil {
+		return nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
+	}
+
+	// Query counter value at the start of the window.
+	// Use a narrow 2m lookback here: we want the value just before the window
+	// opens, not a stale value from much earlier that would undercount the delta.
+	startQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[2m] @ %d))`, metric, startUnix)
+	startVals, err := c.queryMetric(ctx, startQuery, end)
+	if err != nil {
+		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
+	}
+
+	// Delta = end - start, clamped to 0 to handle counter resets gracefully.
+	out := make(map[string]float64, len(endVals))
+	for key, endVal := range endVals {
+		delta := endVal - startVals[key]
+		if delta < 0 {
+			delta = 0
+		}
+		out[key] = delta
+	}
+	return out, nil
 }
 
 // allocationResult holds the two cost figures derived from one Allocation.
@@ -197,20 +244,17 @@ func (c *Collector) queryAllocationCostsWithIdle(ctx context.Context, start, end
 	return c.extractAllocationResults(as, true)
 }
 
-// queryAllocationCostsWithoutIdle queries allocations without idle sharing.
-// Shared infrastructure handling is controlled by config.UsageCostShareSplit.
+// queryAllocationCostsWithoutIdle queries allocations without idle or shared
+// infrastructure cost sharing. Usage costs reflect active compute only.
 func (c *Collector) queryAllocationCostsWithoutIdle(ctx context.Context, start, end time.Time) (map[string]*allocationResult, error) {
 	as, err := c.allocationQuerier.ComputeAllocation(start, end)
 	if err != nil {
 		return nil, err
 	}
 
-	// Determine ShareSplit based on configuration
-	shareSplit := c.getUsageCostShareSplit()
-
 	opts := &opencost.AllocationAggregationOptions{
-		ShareIdle:    opencost.ShareNone, // Always exclude idle for usage costs
-		ShareSplit:   shareSplit,
+		ShareIdle:    opencost.ShareNone,
+		ShareSplit:   opencost.ShareNone,
 		SharedLabels: map[string][]string{c.config.SharedInfraLabel: {c.config.SharedInfraLabelValue}},
 	}
 
@@ -220,23 +264,6 @@ func (c *Collector) queryAllocationCostsWithoutIdle(ctx context.Context, start, 
 	}
 
 	return c.extractAllocationResults(as, false)
-}
-
-// getUsageCostShareSplit returns the OpenCost ShareSplit constant based on config.
-func (c *Collector) getUsageCostShareSplit() string {
-	switch c.config.UsageCostShareSplit {
-	case UsageCostShareSplitWeighted:
-		return opencost.ShareWeighted
-	case UsageCostShareSplitEven:
-		return opencost.ShareEven
-	case UsageCostShareSplitNone:
-		return opencost.ShareNone
-	default:
-		// Default to ShareNone for usage costs
-		log.Warnf("InferenceCost: invalid UsageCostShareSplit %q, defaulting to %q",
-			c.config.UsageCostShareSplit, UsageCostShareSplitNone)
-		return opencost.ShareNone
-	}
 }
 
 // extractAllocationResults extracts cost data from an AllocationSet.
@@ -264,7 +291,7 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 		}
 
 		key := modelNamespaceKey(modelName, namespace)
-		
+
 		if isAllocationCost {
 			// For allocation cost: use TotalCost() which includes idle and shared
 			results[key] = &allocationResult{
@@ -476,9 +503,10 @@ func (c *Collector) combineMetrics(
 	return results
 }
 
-// queryMetric runs a Prometheus query and returns a map[model_name:namespace]value.
-func (c *Collector) queryMetric(ctx context.Context, query string) (map[string]float64, error) {
-	result, _, err := c.promClient.Query(ctx, query, time.Now())
+// queryMetric runs a Prometheus instant query evaluated at t and returns a
+// map[model_name:namespace]value.
+func (c *Collector) queryMetric(ctx context.Context, query string, t time.Time) (map[string]float64, error) {
+	result, _, err := c.promClient.Query(ctx, query, t)
 	if err != nil {
 		return nil, err
 	}
