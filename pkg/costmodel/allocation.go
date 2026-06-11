@@ -424,6 +424,11 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resLBCostPerHr, _ := resChLBCostPerHr.Await()
 	resLBActiveMins, _ := resChLBActiveMins.Await()
 
+	// awaited before the HasErrors gate below so saturation query failures
+	// fail the computation like every other query; applied later with the
+	// other apply helpers
+	resGPUSaturation := gpuSaturation.await()
+
 	if grp.HasErrors() {
 		for _, err := range grp.Errors() {
 			log.Errorf("CostModel.ComputeAllocation: query context error %s", err)
@@ -450,7 +455,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyGPUUsageShared(podMap, resIsGpuShared, podUIDKeyMap)
 	applyGPUInfo(podMap, resGetGPUInfo, podUIDKeyMap)
 	applyGPUsAllocated(podMap, resGPUsRequested, resGPUsAllocated, podUIDKeyMap)
-	gpuSaturation.awaitAndApply(podMap, podUIDKeyMap)
+	resGPUSaturation.apply(podMap, podUIDKeyMap)
 	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes, podUIDKeyMap)
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZonePricePerGiB, podUIDKeyMap, applyCrossZoneNetworkAllocation)
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionPricePerGiB, podUIDKeyMap, applyCrossRegionNetworkAllocation)

@@ -103,6 +103,25 @@ func TestApplyGPUSaturationNoResultsLeavesAllocationUntouched(t *testing.T) {
 	}
 }
 
+// TestApplyGPUThrottleReasonlessResultsCreateNothing verifies that throttle
+// results missing their reason label are filtered before the GPUSaturation
+// struct is created: a malformed result must not leave an empty Saturation
+// attached to the allocation.
+func TestApplyGPUThrottleReasonlessResultsCreateNothing(t *testing.T) {
+	podMap, key := newSaturationTestPodMap(t)
+
+	applyGPUThrottleViolationRatios(podMap, []*source.GPUSaturationResult{
+		saturationResult("", 0.5),
+	}, nil)
+	applyGPUThrottleReasonRatios(podMap, []*source.GPUSaturationResult{
+		saturationResult("", 0.5),
+	}, nil)
+
+	if alloc := podMap[key].Allocations["container1"]; alloc.GPUAllocation != nil {
+		t.Errorf("expected reasonless throttle results to create no GPUAllocation/Saturation, got %+v", alloc.GPUAllocation)
+	}
+}
+
 func TestApplyGPUSaturationSkipsMalformedResults(t *testing.T) {
 	podMap, key := newSaturationTestPodMap(t)
 

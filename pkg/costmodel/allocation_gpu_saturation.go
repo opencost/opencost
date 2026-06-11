@@ -54,42 +54,74 @@ func startGPUSaturationQueries(grp *source.QueryGroup, ds source.MetricsQuerier,
 	}
 }
 
-// awaitAndApply awaits every saturation query and applies the results to the
-// pod map.
-func (f *gpuSaturationFutures) awaitAndApply(podMap map[podKey]*pod, podUIDKeyMap map[podKey][]podKey) {
+// gpuSaturationResults holds the awaited saturation query results, decoupled
+// from application so ComputeAllocation can await (and thereby surface query
+// errors into the query group) before its single HasErrors() gate, and apply
+// afterwards alongside the other apply helpers.
+type gpuSaturationResults struct {
+	throttleViolation []*source.GPUSaturationResult
+	throttleReason    []*source.GPUSaturationResult
+	memoryUsedAvg     []*source.GPUSaturationResult
+	memoryUsedMax     []*source.GPUSaturationResult
+	memoryPressure    []*source.GPUSaturationResult
+	xidErrorCount     []*source.GPUSaturationResult
+	dramActiveAvg     []*source.GPUSaturationResult
+	dramActiveMax     []*source.GPUSaturationResult
+	smActiveAvg       []*source.GPUSaturationResult
+	smOccupancyAvg    []*source.GPUSaturationResult
+	pcieTxBytesAvg    []*source.GPUSaturationResult
+	pcieRxBytesAvg    []*source.GPUSaturationResult
+	nvlinkTxBytesAvg  []*source.GPUSaturationResult
+	nvlinkRxBytesAvg  []*source.GPUSaturationResult
+}
+
+// await collects every saturation query result. Like every other awaited
+// query in ComputeAllocation, per-future errors are discarded here because
+// Await records them in the query group, which the caller checks once via
+// grp.HasErrors() after all futures (saturation included) are awaited.
+func (f *gpuSaturationFutures) await() *gpuSaturationResults {
 	if f == nil {
+		return nil
+	}
+
+	results := &gpuSaturationResults{}
+	results.throttleViolation, _ = f.throttleViolation.Await()
+	results.throttleReason, _ = f.throttleReason.Await()
+	results.memoryUsedAvg, _ = f.memoryUsedAvg.Await()
+	results.memoryUsedMax, _ = f.memoryUsedMax.Await()
+	results.memoryPressure, _ = f.memoryPressure.Await()
+	results.xidErrorCount, _ = f.xidErrorCount.Await()
+	results.dramActiveAvg, _ = f.dramActiveAvg.Await()
+	results.dramActiveMax, _ = f.dramActiveMax.Await()
+	results.smActiveAvg, _ = f.smActiveAvg.Await()
+	results.smOccupancyAvg, _ = f.smOccupancyAvg.Await()
+	results.pcieTxBytesAvg, _ = f.pcieTxBytesAvg.Await()
+	results.pcieRxBytesAvg, _ = f.pcieRxBytesAvg.Await()
+	results.nvlinkTxBytesAvg, _ = f.nvlinkTxBytesAvg.Await()
+	results.nvlinkRxBytesAvg, _ = f.nvlinkRxBytesAvg.Await()
+	return results
+}
+
+// apply attaches every awaited saturation signal to the pod map.
+func (r *gpuSaturationResults) apply(podMap map[podKey]*pod, podUIDKeyMap map[podKey][]podKey) {
+	if r == nil {
 		return
 	}
 
-	resThrottleViolation, _ := f.throttleViolation.Await()
-	resThrottleReason, _ := f.throttleReason.Await()
-	resMemoryUsedAvg, _ := f.memoryUsedAvg.Await()
-	resMemoryUsedMax, _ := f.memoryUsedMax.Await()
-	resMemoryPressure, _ := f.memoryPressure.Await()
-	resXIDErrorCount, _ := f.xidErrorCount.Await()
-	resDRAMActiveAvg, _ := f.dramActiveAvg.Await()
-	resDRAMActiveMax, _ := f.dramActiveMax.Await()
-	resSMActiveAvg, _ := f.smActiveAvg.Await()
-	resSMOccupancyAvg, _ := f.smOccupancyAvg.Await()
-	resPCIeTxBytesAvg, _ := f.pcieTxBytesAvg.Await()
-	resPCIeRxBytesAvg, _ := f.pcieRxBytesAvg.Await()
-	resNVLinkTxBytesAvg, _ := f.nvlinkTxBytesAvg.Await()
-	resNVLinkRxBytesAvg, _ := f.nvlinkRxBytesAvg.Await()
-
-	applyGPUThrottleViolationRatios(podMap, resThrottleViolation, podUIDKeyMap)
-	applyGPUThrottleReasonRatios(podMap, resThrottleReason, podUIDKeyMap)
-	applyGPUSaturationScalar(podMap, resMemoryUsedAvg, podUIDKeyMap, "memory used ratio avg", func(sat *opencost.GPUSaturation, v float64) { sat.MemoryUsedRatioAvg = &v })
-	applyGPUSaturationScalar(podMap, resMemoryUsedMax, podUIDKeyMap, "memory used ratio max", func(sat *opencost.GPUSaturation, v float64) { sat.MemoryUsedRatioMax = &v })
-	applyGPUSaturationScalar(podMap, resMemoryPressure, podUIDKeyMap, "memory pressure ratio", func(sat *opencost.GPUSaturation, v float64) { sat.MemoryPressureRatio = &v })
-	applyGPUSaturationScalar(podMap, resXIDErrorCount, podUIDKeyMap, "xid error count", func(sat *opencost.GPUSaturation, v float64) { sat.XIDErrorCount = &v })
-	applyGPUSaturationScalar(podMap, resDRAMActiveAvg, podUIDKeyMap, "dram active avg", func(sat *opencost.GPUSaturation, v float64) { sat.DRAMActiveAvg = &v })
-	applyGPUSaturationScalar(podMap, resDRAMActiveMax, podUIDKeyMap, "dram active max", func(sat *opencost.GPUSaturation, v float64) { sat.DRAMActiveMax = &v })
-	applyGPUSaturationScalar(podMap, resSMActiveAvg, podUIDKeyMap, "sm active avg", func(sat *opencost.GPUSaturation, v float64) { sat.SMActiveAvg = &v })
-	applyGPUSaturationScalar(podMap, resSMOccupancyAvg, podUIDKeyMap, "sm occupancy avg", func(sat *opencost.GPUSaturation, v float64) { sat.SMOccupancyAvg = &v })
-	applyGPUSaturationScalar(podMap, resPCIeTxBytesAvg, podUIDKeyMap, "pcie tx bytes avg", func(sat *opencost.GPUSaturation, v float64) { sat.PCIeTxBytesAvg = &v })
-	applyGPUSaturationScalar(podMap, resPCIeRxBytesAvg, podUIDKeyMap, "pcie rx bytes avg", func(sat *opencost.GPUSaturation, v float64) { sat.PCIeRxBytesAvg = &v })
-	applyGPUSaturationScalar(podMap, resNVLinkTxBytesAvg, podUIDKeyMap, "nvlink tx bytes avg", func(sat *opencost.GPUSaturation, v float64) { sat.NVLinkTxBytesAvg = &v })
-	applyGPUSaturationScalar(podMap, resNVLinkRxBytesAvg, podUIDKeyMap, "nvlink rx bytes avg", func(sat *opencost.GPUSaturation, v float64) { sat.NVLinkRxBytesAvg = &v })
+	applyGPUThrottleViolationRatios(podMap, r.throttleViolation, podUIDKeyMap)
+	applyGPUThrottleReasonRatios(podMap, r.throttleReason, podUIDKeyMap)
+	applyGPUSaturationScalar(podMap, r.memoryUsedAvg, podUIDKeyMap, "memory used ratio avg", func(sat *opencost.GPUSaturation, v float64) { sat.MemoryUsedRatioAvg = &v })
+	applyGPUSaturationScalar(podMap, r.memoryUsedMax, podUIDKeyMap, "memory used ratio max", func(sat *opencost.GPUSaturation, v float64) { sat.MemoryUsedRatioMax = &v })
+	applyGPUSaturationScalar(podMap, r.memoryPressure, podUIDKeyMap, "memory pressure ratio", func(sat *opencost.GPUSaturation, v float64) { sat.MemoryPressureRatio = &v })
+	applyGPUSaturationScalar(podMap, r.xidErrorCount, podUIDKeyMap, "xid error count", func(sat *opencost.GPUSaturation, v float64) { sat.XIDErrorCount = &v })
+	applyGPUSaturationScalar(podMap, r.dramActiveAvg, podUIDKeyMap, "dram active avg", func(sat *opencost.GPUSaturation, v float64) { sat.DRAMActiveAvg = &v })
+	applyGPUSaturationScalar(podMap, r.dramActiveMax, podUIDKeyMap, "dram active max", func(sat *opencost.GPUSaturation, v float64) { sat.DRAMActiveMax = &v })
+	applyGPUSaturationScalar(podMap, r.smActiveAvg, podUIDKeyMap, "sm active avg", func(sat *opencost.GPUSaturation, v float64) { sat.SMActiveAvg = &v })
+	applyGPUSaturationScalar(podMap, r.smOccupancyAvg, podUIDKeyMap, "sm occupancy avg", func(sat *opencost.GPUSaturation, v float64) { sat.SMOccupancyAvg = &v })
+	applyGPUSaturationScalar(podMap, r.pcieTxBytesAvg, podUIDKeyMap, "pcie tx bytes avg", func(sat *opencost.GPUSaturation, v float64) { sat.PCIeTxBytesAvg = &v })
+	applyGPUSaturationScalar(podMap, r.pcieRxBytesAvg, podUIDKeyMap, "pcie rx bytes avg", func(sat *opencost.GPUSaturation, v float64) { sat.PCIeRxBytesAvg = &v })
+	applyGPUSaturationScalar(podMap, r.nvlinkTxBytesAvg, podUIDKeyMap, "nvlink tx bytes avg", func(sat *opencost.GPUSaturation, v float64) { sat.NVLinkTxBytesAvg = &v })
+	applyGPUSaturationScalar(podMap, r.nvlinkRxBytesAvg, podUIDKeyMap, "nvlink rx bytes avg", func(sat *opencost.GPUSaturation, v float64) { sat.NVLinkRxBytesAvg = &v })
 }
 
 // forEachGPUSaturationContainer resolves each saturation result to its pod
@@ -155,14 +187,28 @@ func forEachGPUSaturationContainer(podMap map[podKey]*pod, results []*source.GPU
 	}
 }
 
+// filterReasonedResults drops results missing a reason label before they
+// reach forEachGPUSaturationContainer, which creates the GPUSaturation
+// struct ahead of the apply callback: validating inside the callback would
+// leave an empty Saturation attached for malformed results, breaking the
+// "only present when at least one signal exists" semantics.
+func filterReasonedResults(results []*source.GPUSaturationResult, signal string) []*source.GPUSaturationResult {
+	reasoned := make([]*source.GPUSaturationResult, 0, len(results))
+	for _, res := range results {
+		if res.Reason == "" {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU %s result missing 'reason'", signal)
+			continue
+		}
+		reasoned = append(reasoned, res)
+	}
+	return reasoned
+}
+
 // applyGPUThrottleViolationRatios applies per-reason throttle time ratios
 // derived from the DCGM violation counters.
 func applyGPUThrottleViolationRatios(podMap map[podKey]*pod, results []*source.GPUSaturationResult, podUIDKeyMap map[podKey][]podKey) {
+	results = filterReasonedResults(results, "throttle violation ratio")
 	forEachGPUSaturationContainer(podMap, results, podUIDKeyMap, "throttle violation ratio", func(sat *opencost.GPUSaturation, res *source.GPUSaturationResult) {
-		if res.Reason == "" {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU throttle violation result missing 'reason'")
-			return
-		}
 		if sat.ThrottleViolationRatios == nil {
 			sat.ThrottleViolationRatios = make(map[string]float64)
 		}
@@ -173,11 +219,8 @@ func applyGPUThrottleViolationRatios(podMap map[podKey]*pod, results []*source.G
 // applyGPUThrottleReasonRatios applies per-reason bit ratios derived from
 // the DCGM clock throttle reasons bitmask.
 func applyGPUThrottleReasonRatios(podMap map[podKey]*pod, results []*source.GPUSaturationResult, podUIDKeyMap map[podKey][]podKey) {
+	results = filterReasonedResults(results, "throttle reason ratio")
 	forEachGPUSaturationContainer(podMap, results, podUIDKeyMap, "throttle reason ratio", func(sat *opencost.GPUSaturation, res *source.GPUSaturationResult) {
-		if res.Reason == "" {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU throttle reason result missing 'reason'")
-			return
-		}
 		if sat.ThrottleReasonRatios == nil {
 			sat.ThrottleReasonRatios = make(map[string]float64)
 		}
