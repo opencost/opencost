@@ -236,7 +236,7 @@ func (gs *GCSStorage) Write(name string, data []byte) error {
 	return nil
 }
 
-// Write uses the relative path of the storage combined with the provided path
+// WriteStream uses the relative path of the storage combined with the provided path
 // to write a new file or overwrite an existing file.
 func (gs *GCSStorage) WriteStream(name string) (io.WriteCloser, error) {
 	name = trimLeading(name)
