@@ -9,6 +9,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 const logTimeFmt string = "2006-01-02T15:04:05"
@@ -1496,6 +1497,11 @@ func (km *KubeModel) computeDCGMDevices(kms *kubemodel.KubeModelSet, start, end 
 	dcgmUsageAvgFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageAvg(start, end))
 	dcgmUsageMaxFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageMax(start, end))
 
+	var saturationFutures *dcgmSaturationFutures
+	if env.IsGPUSaturationMetricsEnabled() {
+		saturationFutures = startDCGMSaturationQueries(grp, metrics, start, end)
+	}
+
 	deviceMap := make(map[string]*kubemodel.DCGMDevice)
 
 	dcgmInfoResult, _ := dcgmInfoFuture.Await()
@@ -1557,6 +1563,10 @@ func (km *KubeModel) computeDCGMDevices(kms *kubemodel.KubeModelSet, start, end 
 		pod.ContainerUsages[res.Container] = c
 		device.PodUsages[res.PodUID] = pod
 	}
+
+	// reduce container-attributed saturation series onto each device; nil
+	// when the feature is disabled
+	saturationFutures.awaitAndApply(deviceMap)
 
 	for _, device := range deviceMap {
 		if err := kms.RegisterDCGMDevice(device); err != nil {
