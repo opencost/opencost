@@ -413,9 +413,10 @@ func (ccs *ClusterCacheScraper) scrapePods(
 			ownerInfo[source.OwnerUIDLabel] = string(owner.UID)
 			ownerInfo[source.ContainerLabel] = controller
 			scrapeResults = append(scrapeResults, metric.Update{
-				Name:   metric.KubePodOwner,
-				Labels: ownerInfo,
-				Value:  0,
+				Name:           metric.KubePodOwner,
+				Labels:         ownerInfo,
+				Value:          0,
+				AdditionalInfo: ownerInfo,
 			})
 		}
 
@@ -1088,9 +1089,10 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 			ownerInfo[source.OwnerKindLabel] = source.NoneLabelValue
 			ownerInfo[source.OwnerNameLabel] = source.NoneLabelValue
 			scrapeResults = append(scrapeResults, metric.Update{
-				Name:   metric.KubeReplicasetOwner,
-				Labels: ownerInfo,
-				Value:  0,
+				Name:           metric.KubeReplicasetOwner,
+				Labels:         ownerInfo,
+				Value:          0,
+				AdditionalInfo: ownerInfo,
 			})
 		} else {
 			for _, owner := range replicaSet.OwnerReferences {
@@ -1104,9 +1106,10 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 				ownerInfo[source.OwnerUIDLabel] = string(owner.UID)
 				ownerInfo[source.ControllerLabel] = controller
 				scrapeResults = append(scrapeResults, metric.Update{
-					Name:   metric.KubeReplicasetOwner,
-					Labels: ownerInfo,
-					Value:  0,
+					Name:           metric.KubeReplicasetOwner,
+					Labels:         ownerInfo,
+					Value:          0,
+					AdditionalInfo: ownerInfo,
 				})
 			}
 		}
