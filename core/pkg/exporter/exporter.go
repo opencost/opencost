@@ -73,6 +73,7 @@ type ComputeStorageExporter[T any] struct {
 	encoder    Encoder[T]
 	storage    storage.Storage
 	validator  validator.ExportValidator[T]
+	streaming  bool
 }
 
 // NewComputeStorageExporter creates a new ComputeStorageExporter instance, which is responsible for exporting
@@ -84,12 +85,14 @@ func NewComputeStorageExporter[T any](
 	encoder Encoder[T],
 	storage storage.Storage,
 	validator validator.ExportValidator[T],
+	streaming bool,
 ) ComputeExporter[T] {
 	return &ComputeStorageExporter[T]{
 		paths:     paths,
 		encoder:   encoder,
 		storage:   storage,
 		validator: validator,
+		streaming: streaming,
 	}
 }
 
@@ -115,6 +118,16 @@ func (se *ComputeStorageExporter[T]) Export(window opencost.Window, data *T) err
 		return nil
 	}
 
+	// stream the data structure to the storage path if we select streaming
+	if se.streaming {
+		return se.streamingUpload(path, data)
+	}
+
+	// otherwise, just encode and write the encoded result directly
+	return se.encodeAndUpload(path, data)
+}
+
+func (se *ComputeStorageExporter[T]) encodeAndUpload(path string, data *T) error {
 	bin, err := se.encoder.Encode(data)
 	if err != nil {
 		return fmt.Errorf("failed to encode data: %w", err)
@@ -126,5 +139,19 @@ func (se *ComputeStorageExporter[T]) Export(window opencost.Window, data *T) err
 		return fmt.Errorf("failed to write binary data to file '%s': %w", path, err)
 	}
 
+	return nil
+}
+
+func (se *ComputeStorageExporter[T]) streamingUpload(path string, data *T) error {
+	writer, err := se.storage.WriteStream(path)
+	if err != nil {
+		return fmt.Errorf("failed to create streaming storage writer: %w", err)
+	}
+	defer writer.Close()
+
+	err = se.encoder.EncodeTo(writer, data)
+	if err != nil {
+		return fmt.Errorf("failed to stream encoding for exporter: %w", err)
+	}
 	return nil
 }

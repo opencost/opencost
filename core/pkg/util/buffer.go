@@ -593,7 +593,7 @@ func (b *Buffer) ReadBytes(length int) []byte {
 //	  return bytesAsString(bytes)
 //	}
 //
-// In this case, we've create a byte array just big enough for the string, we extract the string data from the reader
+// In this case, we've created a byte array just big enough for the string, we extract the string data from the reader
 // and then cast the byte array in place to the string, and finally drop the byte array reference. This omits an additional
 // allocation if you were to use string(bytes)
 func bytesAsString(b []byte) string {

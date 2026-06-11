@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"compress/gzip"
 	"reflect"
 	"testing"
 	"time"
@@ -196,12 +197,12 @@ func TestGzipDecoder(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to marshal diagnostic: %s", err.Error())
 	}
-	diagCompressed, err := gZipEncode(diagRaw)
+	diagCompressed, err := gZipEncode(diagRaw, gzip.BestSpeed)
 	if err != nil {
 		t.Errorf("failed to compress diagnostic: %s", err.Error())
 	}
 
-	badCompressed, err := gZipEncode(badBytes)
+	badCompressed, err := gZipEncode(badBytes, gzip.BestSpeed)
 	if err != nil {
 		t.Errorf("failed to compress bad bytes: %s", err.Error())
 	}
