@@ -1109,7 +1109,7 @@ func (pds *PrometheusMetricsQuerier) QueryGPUsRequested(start, end time.Time) *s
 
 func (pds *PrometheusMetricsQuerier) QueryGPUsUsageAvg(start, end time.Time) *source.Future[source.GPUsUsageAvgResult] {
 	const queryName = "QueryGPUsUsageAvg"
-	const queryFmtGPUsUsageAvg = `avg(avg_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!=""}[%s])) by (container, pod, namespace, pod_uid, %s)`
+	const queryFmtGPUsUsageAvg = `avg(avg_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!="",%s}[%s])) by (container, pod, namespace, pod_uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -1118,7 +1118,7 @@ func (pds *PrometheusMetricsQuerier) QueryGPUsUsageAvg(start, end time.Time) *so
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryGPUsUsageAvg := fmt.Sprintf(queryFmtGPUsUsageAvg, durStr, cfg.ClusterLabel)
+	queryGPUsUsageAvg := fmt.Sprintf(queryFmtGPUsUsageAvg, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryGPUsUsageAvg)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
@@ -1127,7 +1127,7 @@ func (pds *PrometheusMetricsQuerier) QueryGPUsUsageAvg(start, end time.Time) *so
 
 func (pds *PrometheusMetricsQuerier) QueryGPUsUsageMax(start, end time.Time) *source.Future[source.GPUsUsageMaxResult] {
 	const queryName = "QueryGPUsUsageMax"
-	const queryFmtGPUsUsageMax = `max(max_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!=""}[%s])) by (container, pod, namespace, pod_uid, %s)`
+	const queryFmtGPUsUsageMax = `max(max_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{container!="",%s}[%s])) by (container, pod, namespace, pod_uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -1136,7 +1136,7 @@ func (pds *PrometheusMetricsQuerier) QueryGPUsUsageMax(start, end time.Time) *so
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryGPUsUsageMax := fmt.Sprintf(queryFmtGPUsUsageMax, durStr, cfg.ClusterLabel)
+	queryGPUsUsageMax := fmt.Sprintf(queryFmtGPUsUsageMax, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryGPUsUsageMax)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
