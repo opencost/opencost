@@ -6368,6 +6368,16 @@ func (target *GPUAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 //--------------------------------------------------------------------------
 //  GPUSaturation
 //--------------------------------------------------------------------------
+//
+// NOTE: This block (and the Saturation field handling in the GPUAllocation
+// codec above) was written by hand. The public bingen (opencost/bingen
+// v0.1.1) generates code against a newer core/pkg/util buffer API
+// (util.NewBufferFromWriter) than this repository vendors, so regenerating
+// this file with current bingen does not compile here. The wire format
+// below was verified against bingen v0.1.1 output for these types: same
+// field order, nil bytes, map/string-table encoding, and version gating.
+// When the util package is upgraded and this file is regenerated, this
+// block can be replaced wholesale by generator output.
 
 // MarshalBinary serializes the internal properties of this GPUSaturation instance
 // into a byte array

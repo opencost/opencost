@@ -95,6 +95,16 @@ func (f *gpuSaturationFutures) awaitAndApply(podMap map[podKey]*pod, podUIDKeyMa
 // forEachGPUSaturationContainer resolves each saturation result to its pod
 // containers, ensures the container has a GPUAllocation with a Saturation,
 // and invokes apply with the result value.
+//
+// The lookup (podMap by key, podUIDKeyMap fallback, appendContainer on
+// miss) deliberately mirrors the existing applyGPU* helpers in
+// allocation_helpers.go so saturation attaches under exactly the same
+// conditions as utilization — including lazily creating a GPUAllocation
+// without device identity when the GPU info query returned nothing, which
+// is the established behavior of applyGPUUsageAvg. The ~15 pre-existing
+// applyX helpers each hand-roll this same loop; this is the one shared copy
+// for all fourteen saturation signals. Extracting a repo-wide helper is
+// worthwhile but belongs in its own refactor, not this feature.
 func forEachGPUSaturationContainer(podMap map[podKey]*pod, results []*source.GPUSaturationResult, podUIDKeyMap map[podKey][]podKey, signal string, apply func(sat *opencost.GPUSaturation, res *source.GPUSaturationResult)) {
 	for _, res := range results {
 		if len(res.Data) == 0 {

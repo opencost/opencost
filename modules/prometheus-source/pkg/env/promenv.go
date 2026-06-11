@@ -41,24 +41,7 @@ const (
 	CurrentClusterIdFilterEnabledVar = "CURRENT_CLUSTER_ID_FILTER_ENABLED"
 
 	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
-
-	GPUMemorySaturationThresholdEnvVar = "GPU_MEMORY_SATURATION_THRESHOLD"
 )
-
-// DefaultGPUMemorySaturationThreshold is the framebuffer occupancy ratio
-// above which a GPU is considered memory-pressured.
-const DefaultGPUMemorySaturationThreshold = 0.9
-
-// GetGPUMemorySaturationThreshold returns the configured framebuffer
-// occupancy threshold for GPU memory pressure. Values outside (0, 1] are
-// rejected in favor of the default.
-func GetGPUMemorySaturationThreshold() float64 {
-	threshold := env.GetFloat64(GPUMemorySaturationThresholdEnvVar, DefaultGPUMemorySaturationThreshold)
-	if threshold <= 0.0 || threshold > 1.0 {
-		return DefaultGPUMemorySaturationThreshold
-	}
-	return threshold
-}
 
 // In sharded Prometheus setups, PROMETHEUS_SERVER_ENDPOINT should point to a global query endpoint (e.g., Thanos Query, Cortex, or Mimir)
 // to ensure OpenCost receives complete data. Pointing to a single Prometheus pod may result in incomplete or intermittent export results.

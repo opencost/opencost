@@ -72,8 +72,13 @@ func buildGPUThrottleViolationQuery(clusterFilter, durStr, clusterLabel string, 
 // (GPU, container, reason): the fraction of window samples in which the
 // reason bit was set in the clock throttle reasons bitmask. The bit test
 // floor(mask / bit) % 2 is evaluated per sample via a subquery at the
-// configured resolution. Both the pre-3.3 and post-3.3 DCGM field names are
-// queried; at most one exists per dcgm-exporter version.
+// configured resolution (PromQL has no bitwise operators, hence the
+// arithmetic). Both the pre-3.3 and post-3.3 DCGM field names are queried
+// via `or`; at most one exists per dcgm-exporter version. The rename is
+// handled here at the query layer because the prometheus source has no
+// ingest step where the metric name could be normalized once — Prometheus
+// stores whatever dcgm-exporter exposed. If a normalization layer ever
+// exists, collapse these to the canonical name there.
 func buildGPUThrottleReasonQuery(clusterFilter, durStr, clusterLabel string, minsPerResolution int) string {
 	branches := make([]string, 0, len(opencost.GPUThrottleReasons))
 	for _, reason := range opencost.GPUThrottleReasons {

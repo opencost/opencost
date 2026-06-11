@@ -221,6 +221,8 @@ func (orig *GPUSaturation) Equal(that *GPUSaturation) bool {
 	origFields := orig.scalarFields()
 	thatFields := that.scalarFields()
 	for i := range origFields {
+		// inline nil/pointee comparison; converge on the shared
+		// ptrValueEqual helper once the #3846 fix (separate PR) lands
 		a, b := *origFields[i], *thatFields[i]
 		if (a == nil) != (b == nil) {
 			return false

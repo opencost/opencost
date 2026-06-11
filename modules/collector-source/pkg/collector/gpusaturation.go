@@ -8,18 +8,6 @@ import (
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric/aggregator"
 )
 
-// gpuMemorySaturationThreshold returns the framebuffer occupancy ratio
-// above which GPU memory counts as pressured, mirroring the
-// prometheus-source configuration. Values outside (0, 1] fall back to the
-// default of 0.9.
-func gpuMemorySaturationThreshold() float64 {
-	threshold := coreenv.GetFloat64("GPU_MEMORY_SATURATION_THRESHOLD", 0.9)
-	if threshold <= 0.0 || threshold > 1.0 {
-		return 0.9
-	}
-	return threshold
-}
-
 // GPU saturation collectors
 //
 // These collectors aggregate USE-method GPU saturation signals from
@@ -63,7 +51,14 @@ var gpuThrottleViolationCollectors = []struct {
 }
 
 // gpuThrottleBitmaskMetrics enumerates both names of the DCGM clock throttle
-// reasons bitmask field; at most one is scraped per dcgm-exporter version.
+// reasons bitmask field (renamed in DCGM 3.3+); at most one is scraped per
+// dcgm-exporter version, so only one family of collectors ever accumulates
+// data and the querier's merge of both ID families is effectively a union
+// with one empty side. Registering per-name collectors was chosen over
+// renaming at scrape time because the TargetScraper is a generic
+// name-filtered pipe with no transform hook; if scrape-time normalization
+// is ever added, collapse this to the canonical name and halve the
+// collectors.
 var gpuThrottleBitmaskMetrics = []string{
 	metric.DCGMFIDEVCLOCKTHROTTLEREASONS,
 	metric.DCGMFIDEVCLOCKSEVENTREASONS,
@@ -88,7 +83,7 @@ func NewGPUSaturationMetricCollectors() []*metric.MetricCollector {
 		// synthetic.GPUMemoryUsedRatioSynthesizer)
 		newGPUSaturationCollector(metric.GPUMemoryUsedAvgID, metric.OpencostGPUMemoryUsedRatio, aggregator.AverageOverTime),
 		newGPUSaturationCollector(metric.GPUMemoryUsedMaxID, metric.OpencostGPUMemoryUsedRatio, aggregator.MaxOverTime),
-		newGPUSaturationCollector(metric.GPUMemoryPressureRatioID, metric.OpencostGPUMemoryUsedRatio, aggregator.AboveThresholdRatio(gpuMemorySaturationThreshold())),
+		newGPUSaturationCollector(metric.GPUMemoryPressureRatioID, metric.OpencostGPUMemoryUsedRatio, aggregator.AboveThresholdRatio(coreenv.GetGPUMemorySaturationThreshold())),
 		// XID error events: count value transitions of the last-error gauge
 		newGPUSaturationCollector(metric.GPUXIDErrorCountID, metric.DCGMFIDEVXIDERRORS, aggregator.Changes),
 		// DCP profiling gauges

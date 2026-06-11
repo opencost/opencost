@@ -81,6 +81,9 @@ func TestGPUMemoryUsedRatioSynthesizer(t *testing.T) {
 			"negative used":  {-1, 100},
 			"NaN free":       {100, math.NaN()},
 			"infinite total": {math.Inf(1), 100},
+			// negative free with positive total would yield ratio > 1
+			// (100/(100-50) = 2.0) if only the total were validated
+			"negative free": {100, -50},
 		}
 		for name, values := range cases {
 			s := NewGPUMemoryUsedRatioSynthesizer()

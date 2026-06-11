@@ -1,6 +1,7 @@
 package synthetic
 
 import (
+	"maps"
 	"math"
 	"strings"
 	"time"
@@ -77,19 +78,19 @@ func (s *GPUMemoryUsedRatioSynthesizer) Synthesize() []metric.Update {
 			continue
 		}
 		used := sample.used.Value
-		total := used + sample.free.Value
-		if math.IsNaN(total) || math.IsInf(total, 0) || total <= 0 || used < 0 {
+		free := sample.free.Value
+		total := used + free
+		// Both components must be individually non-negative: checking only
+		// the total would let a corrupt negative FB_FREE (e.g. used=100,
+		// free=-50) through and produce a ratio above 1, escaping the
+		// documented [0, 1] occupancy range. (Code review finding.)
+		if math.IsNaN(total) || math.IsInf(total, 0) || total <= 0 || used < 0 || free < 0 {
 			continue
-		}
-
-		labels := make(map[string]string, len(sample.used.Labels))
-		for k, v := range sample.used.Labels {
-			labels[k] = v
 		}
 
 		updates = append(updates, metric.Update{
 			Name:   metric.OpencostGPUMemoryUsedRatio,
-			Labels: labels,
+			Labels: maps.Clone(sample.used.Labels),
 			Value:  used / total,
 		})
 	}

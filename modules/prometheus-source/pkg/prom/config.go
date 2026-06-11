@@ -155,6 +155,8 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		DataResolution:        dataResolution,
 		DataResolutionMinutes: resolutionMinutes,
 
-		GPUMemorySaturationThreshold: env.GetGPUMemorySaturationThreshold(),
+		// shared with collector-source via core env so both data sources
+		// apply the identical threshold
+		GPUMemorySaturationThreshold: coreenv.GetGPUMemorySaturationThreshold(),
 	}, nil
 }
