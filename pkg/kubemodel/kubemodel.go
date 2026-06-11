@@ -1485,7 +1485,7 @@ func (km *KubeModel) computePersistentVolumeClaims(kms *kubemodel.KubeModelSet, 
 			log.Warnf("persistent volume claim with UID '%s' has not been initialized to add bytes used average", res.UID)
 			continue
 		}
-		pvc.RequestedBytes = res.Value
+		pvc.UsageBytesAvg = res.Value
 	}
 
 	pvcBytesUsedMaxResult, _ := pvcBytesUsedMaxResultFuture.Await()
@@ -1495,7 +1495,7 @@ func (km *KubeModel) computePersistentVolumeClaims(kms *kubemodel.KubeModelSet, 
 			log.Warnf("persistent volume claim with UID '%s' has not been initialized to add bytes used max", res.UID)
 			continue
 		}
-		pvc.RequestedBytes = res.Value
+		pvc.UsageBytesMax = res.Value
 	}
 
 	for _, pvc := range pvcMap {
