@@ -244,20 +244,17 @@ func (c *Collector) queryAllocationCostsWithIdle(ctx context.Context, start, end
 	return c.extractAllocationResults(as, true)
 }
 
-// queryAllocationCostsWithoutIdle queries allocations without idle sharing.
-// Shared infrastructure handling is controlled by config.UsageCostShareSplit.
+// queryAllocationCostsWithoutIdle queries allocations without idle or shared
+// infrastructure cost sharing. Usage costs reflect active compute only.
 func (c *Collector) queryAllocationCostsWithoutIdle(ctx context.Context, start, end time.Time) (map[string]*allocationResult, error) {
 	as, err := c.allocationQuerier.ComputeAllocation(start, end)
 	if err != nil {
 		return nil, err
 	}
 
-	// Determine ShareSplit based on configuration
-	shareSplit := c.getUsageCostShareSplit()
-
 	opts := &opencost.AllocationAggregationOptions{
-		ShareIdle:    opencost.ShareNone, // Always exclude idle for usage costs
-		ShareSplit:   shareSplit,
+		ShareIdle:    opencost.ShareNone,
+		ShareSplit:   opencost.ShareNone,
 		SharedLabels: map[string][]string{c.config.SharedInfraLabel: {c.config.SharedInfraLabelValue}},
 	}
 
@@ -267,23 +264,6 @@ func (c *Collector) queryAllocationCostsWithoutIdle(ctx context.Context, start, 
 	}
 
 	return c.extractAllocationResults(as, false)
-}
-
-// getUsageCostShareSplit returns the OpenCost ShareSplit constant based on config.
-func (c *Collector) getUsageCostShareSplit() string {
-	switch c.config.UsageCostShareSplit {
-	case UsageCostShareSplitWeighted:
-		return opencost.ShareWeighted
-	case UsageCostShareSplitEven:
-		return opencost.ShareEven
-	case UsageCostShareSplitNone:
-		return opencost.ShareNone
-	default:
-		// Default to ShareNone for usage costs
-		log.Warnf("InferenceCost: invalid UsageCostShareSplit %q, defaulting to %q",
-			c.config.UsageCostShareSplit, UsageCostShareSplitNone)
-		return opencost.ShareNone
-	}
 }
 
 // extractAllocationResults extracts cost data from an AllocationSet.
@@ -311,7 +291,7 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 		}
 
 		key := modelNamespaceKey(modelName, namespace)
-		
+
 		if isAllocationCost {
 			// For allocation cost: use TotalCost() which includes idle and shared
 			results[key] = &allocationResult{

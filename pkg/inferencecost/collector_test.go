@@ -66,7 +66,6 @@ func baseConfig() *Config {
 		KVCacheBlockSize:          0,
 		AllocationMode:            AllocationModeComputeTime,
 		OutputTokenCostMultiplier: 2.5,
-		UsageCostShareSplit:       UsageCostShareSplitNone, // Default: no shared costs in usage
 	}
 }
 

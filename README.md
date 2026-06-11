@@ -25,6 +25,7 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 - Easily export pricing data to Prometheus with /metrics endpoint ([learn more](https://www.opencost.io/docs/installation/prometheus))
 - Carbon costs for cloud resources
 - MCP support
+- **AI inference cost tracking** for [vLLM](https://vllm.ai/)-based deployments ([llm-d](https://llm-d.ai/) and compatible): cost per million tokens (input/output), KV cache-corrected pricing, shared infrastructure attribution, REST APIs and Prometheus metrics
 - Support for external costs like Datadog through [OpenCost Plugins](https://github.com/opencost/opencost-plugins)
 - Free and open source distribution ([Apache2 license](LICENSE))
 
@@ -51,6 +52,7 @@ Note: The standalone Kubernetes manifest files have been removed. Please use Hel
 - [CLI / kubectl cost](https://www.opencost.io/docs/integrations/kubectl-cost)
 - [Prometheus Metrics](https://www.opencost.io/docs/integrations/prometheus)
 - [User Interface](https://www.opencost.io/docs/installation/ui)
+- [AI Inference Cost Tracking](docs/opencost-for-llm-d/inference-cost-tracking.md)
 
 ## MCP Server
 

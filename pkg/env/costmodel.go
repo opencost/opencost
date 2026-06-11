@@ -498,3 +498,4 @@ func GetInferenceKVCacheBlockSize() float64 {
 func GetInferenceCollectionInterval() time.Duration {
 	return env.GetDuration(InferenceCollectionIntervalEnvVar, 2*time.Minute)
 }
+

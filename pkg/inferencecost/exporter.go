@@ -1,8 +1,6 @@
 package inferencecost
 
 import (
-	"fmt"
-
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -17,28 +15,14 @@ type Exporter struct {
 }
 
 // NewExporter creates an Exporter with all gauge vectors initialised.
-// The config is used to include the actual UsageCostShareSplit setting in metric help text.
-func NewExporter(config *Config) *Exporter {
-	// Build usage cost description based on config
-	var usageSharedInfraDesc string
-	switch config.UsageCostShareSplit {
-	case UsageCostShareSplitNone:
-		usageSharedInfraDesc = "shared infra costs excluded"
-	case UsageCostShareSplitWeighted:
-		usageSharedInfraDesc = "shared infra costs included (weighted split)"
-	case UsageCostShareSplitEven:
-		usageSharedInfraDesc = "shared infra costs included (even split)"
-	default:
-		usageSharedInfraDesc = fmt.Sprintf("shared infra handling: %s", config.UsageCostShareSplit)
-	}
-
+func NewExporter() *Exporter {
 	return &Exporter{
 		totalCost: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "llm_total_cost",
 				Help: "Hourly infrastructure cost attributed to an LLM model. " +
-					"cost_basis=allocation reconciles to the infrastructure bill (includes idle and shared infra). " +
-					fmt.Sprintf("cost_basis=usage reflects active compute only and does NOT reconcile to the bill (idle always excluded; %s).", usageSharedInfraDesc),
+					"cost_basis=allocation reconciles to the infrastructure bill (includes idle and shared infra costs). " +
+					"cost_basis=usage reflects active compute only; idle and shared infra costs are excluded and it does NOT reconcile to the bill.",
 			},
 			[]string{"model_name", "model_version", "namespace", "cost_basis"},
 		),
@@ -47,7 +31,7 @@ func NewExporter(config *Config) *Exporter {
 				Name: "llm_cost_per_million_tokens",
 				Help: "Blended infrastructure cost per 1M tokens delivered (input + output). " +
 					"cost_basis=allocation includes idle and shared infra; reconciles to bill. " +
-					fmt.Sprintf("cost_basis=usage reflects active compute only; does NOT reconcile to bill (idle always excluded; %s).", usageSharedInfraDesc),
+					"cost_basis=usage reflects active compute only; idle and shared infra costs excluded; does NOT reconcile to bill.",
 			},
 			[]string{"model_name", "model_version", "namespace", "cost_basis"},
 		),

@@ -161,7 +161,7 @@ func StartInferenceCostCollector(ctx context.Context, a *costmodel.Accesses, rou
 		return err
 	}
 
-	exporter := inferencecost.NewExporter(cfg)
+	exporter := inferencecost.NewExporter()
 	if err := exporter.Register(); err != nil {
 		return err
 	}
