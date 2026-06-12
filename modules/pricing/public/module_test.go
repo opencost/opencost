@@ -10,15 +10,22 @@ import (
 // TestPricingModuleConfig tests that the config struct is properly defined
 func TestPricingModuleConfig(t *testing.T) {
 	config := PricingModuleConfig{
-		Provider: pricing.AWSProvider,
-		Currency: unit.USD,
+		ProviderConfigs: []ProviderConfig{
+			{
+				Provider:   pricing.AWSProvider,
+				Currencies: []unit.Currency{unit.USD},
+			},
+		},
 	}
 
-	if config.Provider != pricing.AWSProvider {
-		t.Errorf("Provider = %v, want %v", config.Provider, pricing.AWSProvider)
+	if len(config.ProviderConfigs) != 1 {
+		t.Errorf("ProviderConfigs length = %v, want %v", len(config.ProviderConfigs), 1)
 	}
-	if config.Currency != unit.USD {
-		t.Errorf("Currency = %v, want %v", config.Currency, unit.USD)
+	if config.ProviderConfigs[0].Provider != pricing.AWSProvider {
+		t.Errorf("Provider = %v, want %v", config.ProviderConfigs[0].Provider, pricing.AWSProvider)
+	}
+	if len(config.ProviderConfigs[0].Currencies) != 1 || config.ProviderConfigs[0].Currencies[0] != unit.USD {
+		t.Errorf("Currencies = %v, want %v", config.ProviderConfigs[0].Currencies, []unit.Currency{unit.USD})
 	}
 }
 

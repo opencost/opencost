@@ -14,9 +14,13 @@ import (
 )
 
 type PricingModuleConfig struct {
-	Provider        pricing.Provider
-	Currency        unit.Currency
+	ProviderConfigs []ProviderConfig
 	RefreshInterval time.Duration
+}
+
+type ProviderConfig struct {
+	Provider pricing.Provider
+	Currencies []unit.Currency
 }
 
 type PricingModule struct {
@@ -27,6 +31,7 @@ type PricingModule struct {
 	stopCh     chan struct{}
 	doneCh     chan struct{}
 }
+
 
 func NewPricingModule(config PricingModuleConfig) (*PricingModule, error) {
 	pm := &PricingModule{
@@ -39,7 +44,7 @@ func NewPricingModule(config PricingModuleConfig) (*PricingModule, error) {
 	ctx := context.Background()
 
 	// Generate pricing data directly from the provider API
-	pricingSet, err := GeneratePricingForProvider(config.Provider, []unit.Currency{config.Currency})
+	pricingSet, err := GeneratePricingSet(config.ProviderConfigs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate pricing: %w", err)
 	}
@@ -66,6 +71,7 @@ type ProviderPricing map[pricing.Provider]*InstanceTypePricing
 type InstanceTypePricing map[string]*RegionPricing
 
 type RegionPricing map[string]*pricing.Prices
+
 
 func (pm *PricingModule) indexPricingSet(_ context.Context, pricingSet *pricing.PricingSet) error {
 	providers := make(ProviderPricing)
@@ -111,8 +117,8 @@ func (pm *PricingModule) indexPricingSet(_ context.Context, pricingSet *pricing.
 	}
 
 	pm.Providers = &providers
-	log.Infof("Indexed %d node pricing records and %d volume pricing records for provider %s (%s)",
-		len(pricingSet.Nodes), len(pricingSet.Volumes), pm.config.Provider, pm.config.Currency)
+	log.Infof("Indexed %d node pricing records and %d volume pricing records",
+		len(pricingSet.Nodes), len(pricingSet.Volumes))
 
 	return nil
 }
@@ -272,10 +278,10 @@ func (pm *PricingModule) backgroundRefresh() {
 	for {
 		select {
 		case <-ticker.C:
-			log.Infof("Starting scheduled pricing refresh for %s (%s)", pm.config.Provider, pm.config.Currency)
+			log.Infof("Starting scheduled pricing refresh")
 
 			// Fetch new pricing data
-			newPricingSet, err := GeneratePricingForProvider(pm.config.Provider, []unit.Currency{pm.config.Currency})
+			newPricingSet, err := GeneratePricingSet(pm.config.ProviderConfigs)
 			if err != nil {
 				log.Errorf("Failed to refresh pricing data: %v", err)
 				continue

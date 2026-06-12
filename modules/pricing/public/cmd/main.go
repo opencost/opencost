@@ -14,10 +14,10 @@ import (
 )
 
 var (
-	provider   string
-	currencies string
-	output     string
+	configs    string
 )
+
+const outputPath = "pricing-data/pricing-set.json"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -34,48 +34,26 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&provider, "provider", "p", "aws", "Cloud provider (aws, azure, gcp, all). Default: aws")
-	rootCmd.Flags().StringVarP(&currencies, "currencies", "c", "USD", "Comma-separated list of currency codes (e.g. USD, EUR, CNY). Default: USD")
-	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path. Default: /pricing-data/{provider}/{provider}-{currencies}.json. Use 'stdout' to print to console")
+	rootCmd.Flags().StringVarP(&configs, "configs", "c", "", "Provider configurations in format: provider,currency1,currency2;provider2,currency1 (e.g. aws,usd,cny;azure,usd;gcp,usd)")
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	// Parse comma-separated currency list
-	currencyStrings := strings.Split(currencies, ",")
-	var currencyList []unit.Currency
-	
-	for _, currStr := range currencyStrings {
-		currStr = strings.TrimSpace(currStr)
-		if currStr == "" {
-			continue
-		}
-		curr, err := unit.ParseCurrency(currStr)
-		if err != nil {
-			return fmt.Errorf("invalid currency '%s': %w", currStr, err)
-		}
-		currencyList = append(currencyList, curr)
+	// Parse the config string
+	if configs == "" {
+		return fmt.Errorf("--configs flag is required")
 	}
 
-	if len(currencyList) == 0 {
-		return fmt.Errorf("at least one valid currency must be specified")
+	providerConfigs, err := parseProviderConfigs(configs)
+	if err != nil {
+		return fmt.Errorf("failed to parse configs: %w", err)
 	}
 
-	var prov pricing.Provider
-	switch provider {
-	case "all":
-		prov = pricing.AllProvider
-	case "aws":
-		prov = pricing.AWSProvider
-	case "azure":
-		prov = pricing.AzureProvider
-	case "gcp":
-		prov = pricing.GCPProvider
-	default:
-		return fmt.Errorf("unsupported provider: %s", provider)
+	log.Infof("Generating pricing for %d provider configurations", len(providerConfigs))
+	for i, pc := range providerConfigs {
+		log.Infof("Config %d: %s with currencies %v", i+1, pc.Provider, pc.Currencies)
 	}
 
-	log.Infof("Generating pricing for %s in currencies: %v", prov, currencyList)
-	pricingSet, err := public.GeneratePricingForProvider(prov, currencyList)
+	pricingSet, err := public.GeneratePricingSet(providerConfigs)
 	if err != nil {
 		return fmt.Errorf("failed to generate pricing: %w", err)
 	}
@@ -88,24 +66,82 @@ func run(cmd *cobra.Command, args []string) error {
 	log.Infof("Generated %d node pricing entries and %d volume pricing entries",
 		len(pricingSet.Nodes), len(pricingSet.Volumes))
 
-	// Set default output path if not specified
-	if output == "" {
-		// Create a filename with all currencies
-		currencySuffix := strings.ToLower(strings.Join(currencyStrings, "-"))
-		output = fmt.Sprintf("pricing-data/%s/%s-%s.json", provider, provider, currencySuffix)
-	}
-
-	// Check if user wants stdout
-	if output == "stdout" {
-		fmt.Println(string(data))
-		return nil
-	}
 
 	// Write to file
-	if err := os.WriteFile(output, data, 0644); err != nil {
+	if err := os.WriteFile(outputPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write output file: %w", err)
 	}
-	log.Infof("Wrote pricing data to %s", output)
+	log.Infof("Wrote pricing data to %s", outputPath)
 
 	return nil
 }
+
+// parseProviderConfigs parses a config string like "aws,usd,cny;azure,usd;gcp,usd"
+// into a slice of ProviderConfig structs
+func parseProviderConfigs(configStr string) ([]public.ProviderConfig, error) {
+	if configStr == "" {
+		return nil, fmt.Errorf("config string cannot be empty")
+	}
+
+	var configs []public.ProviderConfig
+	
+	// Split by slash to get individual provider configs
+	providerStrs := strings.Split(configStr, "/")
+	
+	for _, providerStr := range providerStrs {
+		providerStr = strings.TrimSpace(providerStr)
+		if providerStr == "" {
+			continue
+		}
+		
+		// Split by comma to get provider and currencies
+		parts := strings.Split(providerStr, ",")
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("invalid config format '%s': must have at least provider and one currency", providerStr)
+		}
+		
+		// First part is the provider
+		providerName := strings.TrimSpace(strings.ToLower(parts[0]))
+		var prov pricing.Provider
+		switch providerName {
+		case "aws":
+			prov = pricing.AWSProvider
+		case "azure":
+			prov = pricing.AzureProvider
+		case "gcp":
+			prov = pricing.GCPProvider
+		default:
+			return nil, fmt.Errorf("unsupported provider: %s", providerName)
+		}
+		
+		// Remaining parts are currencies
+		var currencies []unit.Currency
+		for _, currStr := range parts[1:] {
+			currStr = strings.TrimSpace(strings.ToUpper(currStr))
+			if currStr == "" {
+				continue
+			}
+			curr, err := unit.ParseCurrency(currStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid currency '%s' for provider %s: %w", currStr, providerName, err)
+			}
+			currencies = append(currencies, curr)
+		}
+		
+		if len(currencies) == 0 {
+			return nil, fmt.Errorf("no valid currencies specified for provider %s", providerName)
+		}
+		
+		configs = append(configs, public.ProviderConfig{
+			Provider:   prov,
+			Currencies: currencies,
+		})
+	}
+	
+	if len(configs) == 0 {
+		return nil, fmt.Errorf("no valid provider configs found")
+	}
+	
+	return configs, nil
+}
+
