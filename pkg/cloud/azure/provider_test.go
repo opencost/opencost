@@ -602,6 +602,30 @@ func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
 			expectedError:         false,
 		},
 		{
+			name: "windows spot price available",
+			jsonResponse: `{
+				"BillingCurrency": "USD",
+				"CustomerEntityId": "Default",
+				"CustomerEntityType": "Retail",
+				"Items": [
+					{
+						"currencyCode": "USD",
+						"retailPrice": 0.12,
+						"armRegionName": "eastus",
+						"productName": "Virtual Machines Dsv3 Series Windows",
+						"skuName": "D4s v3 Spot",
+						"armSkuName": "Standard_D4s_v3"
+					}
+				],
+				"Count": 1
+			}`,
+			expectedRetail:        "",
+			expectedWindowsRetail: "",
+			expectedSpot:          "",
+			expectedWindowsSpot:   "0.120000",
+			expectedError:         false,
+		},
+		{
 			name: "filters out low priority instances",
 			jsonResponse: `{
 				"BillingCurrency": "USD",
@@ -685,4 +709,24 @@ func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
 			}
 		})
 	}
+}
+
+// failingReader is an io.Reader that always errors, used to exercise the
+// response body read-failure path in extractAzureVMRetailAndSpotPrices.
+type failingReader struct{}
+
+func (failingReader) Read(_ []byte) (int, error) {
+	return 0, fmt.Errorf("simulated read failure")
+}
+
+func Test_extractAzureVMRetailAndSpotPrices_bodyReadError(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(failingReader{}),
+	}
+
+	_, _, _, _, err := extractAzureVMRetailAndSpotPrices(resp)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Error getting response")
 }
