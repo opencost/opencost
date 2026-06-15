@@ -14,7 +14,7 @@ type LockedFileWriter struct {
 // Creates a new FLocking file writer that will flock a file on open, and unlock when the writer is
 // closed.
 func NewLockedFileWriter(path string) (io.WriteCloser, error) {
-	f, err := os.Create(path)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		return nil, err
 	}
