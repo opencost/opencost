@@ -8,7 +8,6 @@ import (
 	"io"
 
 	"github.com/opencost/opencost/core/pkg/util/json"
-	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -212,10 +211,14 @@ func (p *ProtobufEncoder[T, U]) Encode(data *T) ([]byte, error) {
 // binary encoding.
 func (p *ProtobufEncoder[T, U]) EncodeTo(writer io.Writer, data *T) error {
 	var message U = data
-	_, err := protodelim.MarshalTo(writer, message)
+	bytes, err := proto.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to encode protobuf message: %w", err)
 	}
+	if _, err = writer.Write(bytes); err != nil {
+		return fmt.Errorf("failed to write encoded message to writer: %w", err)
+	}
+
 	return nil
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/model"
 	"github.com/opencost/opencost/core/pkg/model/pb"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"google.golang.org/protobuf/proto"
@@ -270,6 +271,102 @@ func TestProtobufDecoder(t *testing.T) {
 	labelsResponseRaw, err := proto.Marshal(labelsResponse)
 	if err != nil {
 		t.Errorf("failed to marshal custom cost set: %s", err.Error())
+	}
+
+	labelsResponseTests := []decoderTestCase[pb.LabelsResponse]{
+		{
+			name:    "labels response valid",
+			data:    labelsResponseRaw,
+			want:    labelsResponse,
+			wantErr: false,
+		},
+		{
+			name:    "labels response invalid",
+			data:    badBytes,
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	testProtoBufDecoder(t, ProtobufDecoder, labelsResponseTests)
+}
+
+func TestProtobufEncoderDecoderRoundTrip(t *testing.T) {
+	badBytes := generateBadBytes()
+
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	start := now.Add(-(24 * 5) * time.Hour)
+
+	store := storage.NewMemoryStorage()
+	writer, err := store.WriteStream("test.pb")
+	if err != nil {
+		t.Fatalf("failed to open writer: %s", err)
+		return
+	}
+
+	customCostSet := model.GenerateMockCustomCostSet(start, start.Add(24*time.Hour))
+
+	enc := NewProtobufEncoder[pb.CustomCostResponse]()
+	err = enc.EncodeTo(writer, customCostSet)
+	if err != nil {
+		_ = writer.Close()
+		t.Fatalf("Failed to encode to writer: %s", err)
+		return
+	}
+
+	if err = writer.Close(); err != nil {
+		t.Fatalf("failed to flush/close the writer; %s", err)
+		return
+	}
+
+	// load raw bytes from memory file system
+	customCostSetRaw, err := store.Read("test.pb")
+	if err != nil {
+		t.Errorf("failed to load custom cost set raw binary from memory disk: %s", err)
+		return
+	}
+
+	customCostTests := []decoderTestCase[pb.CustomCostResponse]{
+		{
+			name:    "custom cost valid",
+			data:    customCostSetRaw,
+			want:    customCostSet,
+			wantErr: false,
+		},
+		{
+			name:    "custom cost invalid",
+			data:    badBytes,
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	testProtoBufDecoder(t, ProtobufDecoder, customCostTests)
+
+	labelsResponse := model.GenerateMockLabelResponse(start, pb.Resolution_RESOLUTION_1D)
+	labelsEnc := NewProtobufEncoder[pb.LabelsResponse]()
+	labelsWriter, err := store.WriteStream("test-labels.pb")
+	if err != nil {
+		t.Fatalf("failed to open labels writer: %s", err)
+		return
+	}
+
+	err = labelsEnc.EncodeTo(labelsWriter, labelsResponse)
+	if err != nil {
+		_ = labelsWriter.Close()
+		t.Fatalf("Failed to encode to labels writer: %s", err)
+		return
+	}
+
+	if err = labelsWriter.Close(); err != nil {
+		t.Fatalf("failed to flush/close the labels writer; %s", err)
+		return
+	}
+
+	labelsResponseRaw, err := store.Read("test-labels.pb")
+	if err != nil {
+		t.Fatalf("failed to marshal labels response: %s", err)
+		return
 	}
 
 	labelsResponseTests := []decoderTestCase[pb.LabelsResponse]{
