@@ -144,9 +144,12 @@ func (gz *GZipEncoder[T]) EncodeTo(writer io.Writer, data *T) error {
 	if err != nil {
 		return fmt.Errorf("failed to create gzip writer: %w", err)
 	}
-	defer gzWriter.Close()
+	if err := gz.encoder.EncodeTo(gzWriter, data); err != nil {
+		_ = gzWriter.Close()
+		return fmt.Errorf("failed to encode to gzip writer: %w", err)
+	}
 
-	return gz.encoder.EncodeTo(gzWriter, data)
+	return gzWriter.Close()
 }
 
 func gZipEncode(data []byte, level int) ([]byte, error) {
@@ -157,8 +160,13 @@ func gZipEncode(data []byte, level int) ([]byte, error) {
 		return nil, err
 	}
 
-	gzWriter.Write(data)
-	gzWriter.Close()
+	if _, err := gzWriter.Write(data); err != nil {
+		_ = gzWriter.Close()
+		return nil, err
+	}
+	if err := gzWriter.Close(); err != nil {
+		return nil, err
+	}
 
 	return buf.Bytes(), nil
 }

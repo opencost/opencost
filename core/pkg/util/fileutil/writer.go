@@ -24,6 +24,18 @@ func NewLockedFileWriter(path string) (io.WriteCloser, error) {
 		return nil, err
 	}
 
+	if err := f.Truncate(0); err != nil {
+		UnlockFile(f)
+		f.Close()
+		return nil, err
+	}
+
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		UnlockFile(f)
+		f.Close()
+		return nil, err
+	}
+
 	return &LockedFileWriter{
 		f: f,
 	}, nil

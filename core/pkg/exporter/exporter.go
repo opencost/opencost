@@ -147,11 +147,12 @@ func (se *ComputeStorageExporter[T]) streamingUpload(path string, data *T) error
 	if err != nil {
 		return fmt.Errorf("failed to create streaming storage writer: %w", err)
 	}
-	defer writer.Close()
 
 	err = se.encoder.EncodeTo(writer, data)
 	if err != nil {
+		_ = writer.Close()
 		return fmt.Errorf("failed to stream encoding for exporter: %w", err)
 	}
-	return nil
+
+	return writer.Close()
 }
