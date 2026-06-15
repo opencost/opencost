@@ -37,6 +37,7 @@ func GeneratePricingSet(providerConfigs []ProviderConfig) (*pricing.PricingSet, 
 		}
 	}
 
+	mergedSet.Normalize()
 	mergedSet.Sort()
 
 	log.Infof("Generated combined pricing set with %d node entries and %d volume entries",

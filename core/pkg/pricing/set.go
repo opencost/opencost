@@ -110,51 +110,114 @@ func (ps *PricingSet) Sort() {
 	})
 }
 
+func nodeMergeKey(node *NodePricing) string {
+	return fmt.Sprintf("%s:%s:%s:%s:%s",
+		node.Properties.Provider,
+		node.Properties.Region,
+		node.Properties.InstanceType,
+		node.Properties.Provisioning,
+		node.Properties.Commitment,
+	)
+}
+
+func volumeMergeKey(volume *VolumePricing) string {
+	return fmt.Sprintf("%s:%s:%s",
+		volume.Properties.Provider,
+		volume.Properties.Region,
+		volume.Properties.VolumeType,
+	)
+}
+
+func mergePrices(dst Prices, src Prices) {
+	if dst == nil || src == nil {
+		return
+	}
+
+	for curr, prices := range src {
+		dst[curr] = prices
+	}
+}
+
+func normalizeNodes(nodes []*NodePricing) []*NodePricing {
+	nodeMap := make(map[string]*NodePricing)
+	result := make([]*NodePricing, 0, len(nodes))
+
+	for _, node := range nodes {
+		key := nodeMergeKey(node)
+		if existing, ok := nodeMap[key]; ok {
+			mergePrices(existing.Prices, node.Prices)
+			continue
+		}
+
+		nodeMap[key] = node
+		result = append(result, node)
+	}
+
+	return result
+}
+
+func normalizeVolumes(volumes []*VolumePricing) []*VolumePricing {
+	volumeMap := make(map[string]*VolumePricing)
+	result := make([]*VolumePricing, 0, len(volumes))
+
+	for _, volume := range volumes {
+		key := volumeMergeKey(volume)
+		if existing, ok := volumeMap[key]; ok {
+			mergePrices(existing.Prices, volume.Prices)
+			continue
+		}
+
+		volumeMap[key] = volume
+		result = append(result, volume)
+	}
+
+	return result
+}
+
+// Normalize collapses duplicate logical pricing entries into a single record.
+func (ps *PricingSet) Normalize() {
+	if ps == nil {
+		return
+	}
+
+	ps.Nodes = normalizeNodes(ps.Nodes)
+	ps.Volumes = normalizeVolumes(ps.Volumes)
+}
+
 // Merge merges another PricingSet into this one
 func (ps *PricingSet) Merge(other *PricingSet) {
 	if ps == nil || other == nil {
 		return
 	}
 
-	// Create lookup maps for efficient merging
-	nodeMap := make(map[string]*NodePricing)
-	volumeMap := make(map[string]*VolumePricing)
+	otherNodes := normalizeNodes(other.Nodes)
+	otherVolumes := normalizeVolumes(other.Volumes)
 
-	// Populate maps with existing data
+	nodeMap := make(map[string]*NodePricing, len(ps.Nodes))
+	volumeMap := make(map[string]*VolumePricing, len(ps.Volumes))
+
 	for _, node := range ps.Nodes {
-		key := fmt.Sprintf("%s:%s:%s", node.Properties.Provider, node.Properties.Region, node.Properties.InstanceType)
-		nodeMap[key] = node
+		nodeMap[nodeMergeKey(node)] = node
 	}
 	for _, volume := range ps.Volumes {
-		key := fmt.Sprintf("%s:%s:%s", volume.Properties.Provider, volume.Properties.Region, volume.Properties.VolumeType)
-		volumeMap[key] = volume
+		volumeMap[volumeMergeKey(volume)] = volume
 	}
 
-	// Merge nodes from other set
-	for _, node := range other.Nodes {
-		key := fmt.Sprintf("%s:%s:%s", node.Properties.Provider, node.Properties.Region, node.Properties.InstanceType)
+	for _, node := range otherNodes {
+		key := nodeMergeKey(node)
 		if existingNode, exists := nodeMap[key]; exists {
-			// Merge prices into existing node
-			for curr, prices := range node.Prices {
-				existingNode.Prices[curr] = prices
-			}
+			mergePrices(existingNode.Prices, node.Prices)
 		} else {
-			// New node, add it
 			nodeMap[key] = node
 			ps.Nodes = append(ps.Nodes, node)
 		}
 	}
 
-	// Merge volumes from other set
-	for _, volume := range other.Volumes {
-		key := fmt.Sprintf("%s:%s:%s", volume.Properties.Provider, volume.Properties.Region, volume.Properties.VolumeType)
+	for _, volume := range otherVolumes {
+		key := volumeMergeKey(volume)
 		if existingVolume, exists := volumeMap[key]; exists {
-			// Merge prices into existing volume
-			for curr, prices := range volume.Prices {
-				existingVolume.Prices[curr] = prices
-			}
+			mergePrices(existingVolume.Prices, volume.Prices)
 		} else {
-			// New volume, add it
 			volumeMap[key] = volume
 			ps.Volumes = append(ps.Volumes, volume)
 		}
