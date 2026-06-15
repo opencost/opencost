@@ -11,6 +11,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
+	"github.com/opencost/opencost/pkg/cloud/stackit"
 )
 
 // MultiCloudConfig struct is used to unmarshal cloud configs for each provider out of cloud-integration file
@@ -68,6 +69,7 @@ type Configurations struct {
 	Azure   *AzureConfigs   `json:"azure,omitempty"`
 	Alibaba *AlibabaConfigs `json:"alibaba,omitempty"`
 	OCI     *OCIConfigs     `json:"oci,omitempty"`
+	STACKIT *STACKITConfigs `json:"stackit,omitempty"`
 }
 
 // UnmarshalJSON custom json unmarshalling to maintain support for MultiCloudConfig format
@@ -122,6 +124,10 @@ func (c *Configurations) Equals(that *Configurations) bool {
 		return false
 	}
 
+	if !c.STACKIT.Equals(that.STACKIT) {
+		return false
+	}
+
 	return true
 }
 
@@ -157,6 +163,11 @@ func (c *Configurations) Insert(keyedConfig cloud.Config) error {
 			c.OCI = &OCIConfigs{}
 		}
 		c.OCI.UsageAPI = append(c.OCI.UsageAPI, keyedConfig.(*oracle.UsageApiConfiguration))
+	case *stackit.CostConfiguration:
+		if c.STACKIT == nil {
+			c.STACKIT = &STACKITConfigs{}
+		}
+		c.STACKIT.CostAPI = append(c.STACKIT.CostAPI, keyedConfig.(*stackit.CostConfiguration))
 	default:
 		return fmt.Errorf("Configurations: Insert: failed to insert config of type: %T", keyedConfig)
 	}
@@ -196,6 +207,12 @@ func (c *Configurations) ToSlice() []cloud.KeyedConfig {
 	if c.OCI != nil {
 		for _, usageConfig := range c.OCI.UsageAPI {
 			keyedConfigs = append(keyedConfigs, usageConfig)
+		}
+	}
+
+	if c.STACKIT != nil {
+		for _, costConfig := range c.STACKIT.CostAPI {
+			keyedConfigs = append(keyedConfigs, costConfig)
 		}
 	}
 
@@ -337,5 +354,28 @@ func (oc *OCIConfigs) Equals(that *OCIConfigs) bool {
 		}
 	}
 
+	return true
+}
+
+type STACKITConfigs struct {
+	CostAPI []*stackit.CostConfiguration `json:"costApi,omitempty"`
+}
+
+func (sc *STACKITConfigs) Equals(that *STACKITConfigs) bool {
+	if sc == nil && that == nil {
+		return true
+	}
+	if sc == nil || that == nil {
+		return false
+	}
+	if len(sc.CostAPI) != len(that.CostAPI) {
+		return false
+	}
+	for i, thisCost := range sc.CostAPI {
+		thatCost := that.CostAPI[i]
+		if !thisCost.Equals(thatCost) {
+			return false
+		}
+	}
 	return true
 }
