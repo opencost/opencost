@@ -2,6 +2,7 @@ package public
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/pricing"
@@ -72,6 +73,7 @@ func GetPricing(provider pricing.Provider, currency unit.Currency) (*pricing.Pri
 		case pricing.GCPProvider:
 			gcpSource := gcp.NewGCPPricingSource(gcp.GCPPricingSourceConfig{
 				CurrencyCode: string(currency),
+				APIKey: os.Getenv("GCP_API_KEY"),
 			})
 			gcpSet, err := gcpSource.GetPricing()
 			if err != nil {
