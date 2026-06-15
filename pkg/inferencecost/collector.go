@@ -137,7 +137,7 @@ func (c *Collector) queryCounterDelta(ctx context.Context, metric string, start,
 
 	// Query counter value at the end of the window.
 	endQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[%dm] @ %d))`, metric, windowMinutes, endUnix)
-	endVals, err := c.queryMetric(ctx, endQuery, end)
+	endVals, err := c.queryMetric(ctx, endQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
 	}
@@ -146,7 +146,7 @@ func (c *Collector) queryCounterDelta(ctx context.Context, metric string, start,
 	// Use a narrow 2m lookback here: we want the value just before the window
 	// opens, not a stale value from much earlier that would undercount the delta.
 	startQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[2m] @ %d))`, metric, startUnix)
-	startVals, err := c.queryMetric(ctx, startQuery, end)
+	startVals, err := c.queryMetric(ctx, startQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
 	}
@@ -215,11 +215,12 @@ func (c *Collector) queryAllocationCosts(ctx context.Context, start, end time.Ti
 	// Log the differences
 	for key, result := range results {
 		modelName, namespace := parseKey(key)
-		log.Debugf("InferenceCost: model=%s ns=%s alloc=$%.4f usage=$%.4f (%.1f%% of alloc)",
-			modelName, namespace, result.allocationTotalCost, result.usageTotalCost,
-			(result.usageTotalCost/result.allocationTotalCost)*100)
+		if (result.allocationTotalCost > 0) {
+			log.Debugf("InferenceCost: model=%s ns=%s alloc=$%.4f usage=$%.4f (%.1f%% of alloc)",
+						modelName, namespace, result.allocationTotalCost, result.usageTotalCost,
+						(result.usageTotalCost/result.allocationTotalCost)*100)
+		}
 	}
-
 	return results, nil
 }
 

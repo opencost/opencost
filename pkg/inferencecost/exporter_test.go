@@ -228,7 +228,4 @@ func TestExporter_Values(t *testing.T) {
 			}
 		}
 	}
-
-	// llm_cost_per_million_tokens
-	_ = reg
 }

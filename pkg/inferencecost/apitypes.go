@@ -27,7 +27,7 @@ type InferenceCostResponse struct {
 	// Blended cost per 1M delivered tokens (input + output together).
 	CostPerMillionTokens float64 `json:"costPerMillionTokens"`
 
-	// Input/output cost split. InputCost and OutputCost sum to TotalCost.
+	// Input/output cost split. InputCost and OutputCost sum to TotalCost if the cost basis is allocation.
 	InputCost  float64 `json:"inputCost"`
 	OutputCost float64 `json:"outputCost"`
 

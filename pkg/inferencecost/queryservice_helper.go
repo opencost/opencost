@@ -118,7 +118,7 @@ func stepFromAccumulate(opt opencost.AccumulateOption, start, end time.Time) tim
 	case opencost.AccumulateOptionWeek:
 		return timeutil.Week
 	case opencost.AccumulateOptionMonth:
-		// Use a calendar-aligned approach: step by 30 days (consistent with
+		// Steps by 30 days (consistent with
 		// how OpenCost's CustomCost and CloudCost handle monthly accumulation).
 		return timeutil.Day * 30
 	default:

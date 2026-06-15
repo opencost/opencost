@@ -257,8 +257,8 @@ The Collector fetches an `AllocationSet` from OpenCost's allocation layer for th
 OpenCost uses **compute-time based allocation** by default:
 
 1. Collects cumulative processing times from [vLLM](https://vllm.ai/):
-   - `vllm:request_prefill_time_seconds_total` — total time spent on input (prefill)
-   - `vllm:time_per_output_token_seconds_total` — total time spent on output (decode)
+   - `vllm:request_prefill_time_seconds_sum` — total time spent on input (prefill)
+   - `vllm:time_per_output_token_seconds_sum` — total time spent on output (decode)
 2. Allocates infrastructure cost proportionally: `InputCost = TotalCost × (PrefillTime / TotalTime)`
 3. Calculates per-million rates using `EffectiveInputTokens` (cache-corrected) for input and `GenerationTokens` for output
 
@@ -296,8 +296,8 @@ Output:     ($3.20 × 0.5) / 3,000,000 × 1,000,000 = $0.533/M output tokens
 |--------|-------------|
 | `vllm:prompt_tokens_total` | Token counts, blended cost rate |
 | `vllm:generation_tokens_total` | Token counts, blended cost rate |
-| `vllm:request_prefill_time_seconds_total` | Compute-time allocation (input/output split) |
-| `vllm:time_per_output_token_seconds_total` | Compute-time allocation (input/output split) |
+| `vllm:request_prefill_time_seconds_sum` | Compute-time allocation (input/output split) |
+| `vllm:time_per_output_token_seconds_sum` | Compute-time allocation (input/output split) |
 | `vllm:prefix_cache_hits_total` | KV cache block correction (optional) |
 
 All metrics must carry `model_name` and `namespace` labels. Verify availability:
