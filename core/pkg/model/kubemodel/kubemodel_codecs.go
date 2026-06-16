@@ -35,7 +35,7 @@ const (
 	BinaryTagStringTable string = "BGST"
 
 	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 2
+	DefaultCodecVersion uint8 = 4
 )
 
 //--------------------------------------------------------------------------
@@ -106,6 +106,7 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"CronJob":                 reflect.TypeFor[CronJob](),
 	"DCGMContainer":           reflect.TypeFor[DCGMContainer](),
 	"DCGMDevice":              reflect.TypeFor[DCGMDevice](),
+	"DCGMDeviceSaturation":    reflect.TypeFor[DCGMDeviceSaturation](),
 	"DCGMPod":                 reflect.TypeFor[DCGMPod](),
 	"DaemonSet":               reflect.TypeFor[DaemonSet](),
 	"Deployment":              reflect.TypeFor[Deployment](),
@@ -1798,6 +1799,32 @@ func (target *DCGMDevice) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 		// --- [end][write][map](map[string]DCGMPod) ---
 
 	}
+	if target.Saturation == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][struct](DCGMDeviceSaturation) ---
+		buff.WriteInt(0) // [compatibility, unused]
+		errD := target.Saturation.MarshalBinaryWithContext(ctx)
+		if errD != nil {
+			return errD
+		}
+		// --- [end][write][struct](DCGMDeviceSaturation) ---
+
+	}
+
+	buff.WriteFloat64(target.PowerWatts) // write float64
+
+	buff.WriteFloat64(target.TemperatureCelsius) // write float64
+
+	buff.WriteFloat64(target.ComputeUtilizationAvg) // write float64
+
+	buff.WriteFloat64(target.ComputeUtilizationMax) // write float64
+
+	buff.WriteFloat64(target.MemoryUsedBytesAvg) // write float64
+
+	buff.WriteFloat64(target.MemoryUsedBytesMax) // write float64
 
 	return nil
 }
@@ -1937,6 +1964,484 @@ func (target *DCGMDevice) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 		}
 		target.PodUsages = s
 		// --- [end][read][map](map[string]DCGMPod) ---
+
+	}
+
+	// field version check
+	if uint8(3) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.Saturation = nil
+		} else {
+
+			// --- [begin][read][struct](DCGMDeviceSaturation) ---
+			aa := new(DCGMDeviceSaturation)
+			buff.ReadInt() // [compatibility, unused]
+			errD := aa.UnmarshalBinaryWithContext(ctx)
+			if errD != nil {
+				return errD
+			}
+			target.Saturation = aa
+			// --- [end][read][struct](DCGMDeviceSaturation) ---
+
+		}
+
+	} else {
+		target.Saturation = nil
+	}
+	// field version check
+	if uint8(4) <= version {
+
+		bb := buff.ReadFloat64() // read float64
+		target.PowerWatts = bb
+
+	} else {
+		target.PowerWatts = float64(0) // default
+	}
+	// field version check
+	if uint8(4) <= version {
+
+		cc := buff.ReadFloat64() // read float64
+		target.TemperatureCelsius = cc
+
+	} else {
+		target.TemperatureCelsius = float64(0) // default
+	}
+	// field version check
+	if uint8(4) <= version {
+
+		dd := buff.ReadFloat64() // read float64
+		target.ComputeUtilizationAvg = dd
+
+	} else {
+		target.ComputeUtilizationAvg = float64(0) // default
+	}
+	// field version check
+	if uint8(4) <= version {
+
+		ee := buff.ReadFloat64() // read float64
+		target.ComputeUtilizationMax = ee
+
+	} else {
+		target.ComputeUtilizationMax = float64(0) // default
+	}
+	// field version check
+	if uint8(4) <= version {
+
+		ff := buff.ReadFloat64() // read float64
+		target.MemoryUsedBytesAvg = ff
+
+	} else {
+		target.MemoryUsedBytesAvg = float64(0) // default
+	}
+	// field version check
+	if uint8(4) <= version {
+
+		gg := buff.ReadFloat64() // read float64
+		target.MemoryUsedBytesMax = gg
+
+	} else {
+		target.MemoryUsedBytesMax = float64(0) // default
+	}
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  DCGMDeviceSaturation
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this DCGMDeviceSaturation instance
+// into a byte array
+func (target *DCGMDeviceSaturation) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this DCGMDeviceSaturation instance
+// into a byte array leveraging a predefined context.
+func (target *DCGMDeviceSaturation) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	if target.ThrottleViolationRatios == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]float64) ---
+		buff.WriteInt(len(target.ThrottleViolationRatios)) // map length
+		for v, z := range target.ThrottleViolationRatios {
+			if ctx.IsStringTable() {
+				a := ctx.Table.AddOrGet(v)
+				buff.WriteInt(a) // write table index
+			} else {
+				buff.WriteString(v) // write string
+			}
+
+			buff.WriteFloat64(z) // write float64
+
+		}
+		// --- [end][write][map](map[string]float64) ---
+
+	}
+	if target.ThrottleReasonRatios == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]float64) ---
+		buff.WriteInt(len(target.ThrottleReasonRatios)) // map length
+		for vv, zz := range target.ThrottleReasonRatios {
+			if ctx.IsStringTable() {
+				b := ctx.Table.AddOrGet(vv)
+				buff.WriteInt(b) // write table index
+			} else {
+				buff.WriteString(vv) // write string
+			}
+
+			buff.WriteFloat64(zz) // write float64
+
+		}
+		// --- [end][write][map](map[string]float64) ---
+
+	}
+	if target.MemoryUsedRatioAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.MemoryUsedRatioAvg) // write float64
+
+	}
+	if target.MemoryUsedRatioMax == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.MemoryUsedRatioMax) // write float64
+
+	}
+	if target.MemoryPressureRatio == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.MemoryPressureRatio) // write float64
+
+	}
+	if target.XIDErrorCount == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.XIDErrorCount) // write float64
+
+	}
+	if target.DRAMActiveAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.DRAMActiveAvg) // write float64
+
+	}
+	if target.DRAMActiveMax == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.DRAMActiveMax) // write float64
+
+	}
+	if target.SMActiveAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.SMActiveAvg) // write float64
+
+	}
+	if target.SMOccupancyAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.SMOccupancyAvg) // write float64
+
+	}
+	if target.PCIeTxBytesAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.PCIeTxBytesAvg) // write float64
+
+	}
+	if target.PCIeRxBytesAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.PCIeRxBytesAvg) // write float64
+
+	}
+	if target.NVLinkTxBytesAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.NVLinkTxBytesAvg) // write float64
+
+	}
+	if target.NVLinkRxBytesAvg == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.NVLinkRxBytesAvg) // write float64
+
+	}
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the DCGMDeviceSaturation type
+func (target *DCGMDeviceSaturation) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the DCGMDeviceSaturation type
+func (target *DCGMDeviceSaturation) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the DCGMDeviceSaturation type
+func (target *DCGMDeviceSaturation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshalling DCGMDeviceSaturation. Expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.ThrottleViolationRatios = nil
+	} else {
+		// --- [begin][read][map](map[string]float64) ---
+		b := buff.ReadInt() // map len
+		a := make(map[string]float64, b)
+		for range b {
+			var v string
+			var d string
+			if ctx.IsStringTable() {
+				e := buff.ReadInt() // read string index
+				d = ctx.Table.At(e)
+			} else {
+				d = buff.ReadString() // read string
+			}
+			c := d
+			v = c
+
+			var z float64
+			f := buff.ReadFloat64() // read float64
+			z = f
+
+			a[v] = z
+		}
+		target.ThrottleViolationRatios = a
+		// --- [end][read][map](map[string]float64) ---
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.ThrottleReasonRatios = nil
+	} else {
+		// --- [begin][read][map](map[string]float64) ---
+		h := buff.ReadInt() // map len
+		g := make(map[string]float64, h)
+		for range h {
+			var vv string
+			var m string
+			if ctx.IsStringTable() {
+				n := buff.ReadInt() // read string index
+				m = ctx.Table.At(n)
+			} else {
+				m = buff.ReadString() // read string
+			}
+			l := m
+			vv = l
+
+			var zz float64
+			o := buff.ReadFloat64() // read float64
+			zz = o
+
+			g[vv] = zz
+		}
+		target.ThrottleReasonRatios = g
+		// --- [end][read][map](map[string]float64) ---
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.MemoryUsedRatioAvg = nil
+	} else {
+
+		p := buff.ReadFloat64() // read float64
+		target.MemoryUsedRatioAvg = &p
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.MemoryUsedRatioMax = nil
+	} else {
+
+		q := buff.ReadFloat64() // read float64
+		target.MemoryUsedRatioMax = &q
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.MemoryPressureRatio = nil
+	} else {
+
+		r := buff.ReadFloat64() // read float64
+		target.MemoryPressureRatio = &r
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.XIDErrorCount = nil
+	} else {
+
+		s := buff.ReadFloat64() // read float64
+		target.XIDErrorCount = &s
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.DRAMActiveAvg = nil
+	} else {
+
+		t := buff.ReadFloat64() // read float64
+		target.DRAMActiveAvg = &t
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.DRAMActiveMax = nil
+	} else {
+
+		u := buff.ReadFloat64() // read float64
+		target.DRAMActiveMax = &u
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.SMActiveAvg = nil
+	} else {
+
+		w := buff.ReadFloat64() // read float64
+		target.SMActiveAvg = &w
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.SMOccupancyAvg = nil
+	} else {
+
+		x := buff.ReadFloat64() // read float64
+		target.SMOccupancyAvg = &x
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.PCIeTxBytesAvg = nil
+	} else {
+
+		y := buff.ReadFloat64() // read float64
+		target.PCIeTxBytesAvg = &y
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.PCIeRxBytesAvg = nil
+	} else {
+
+		aa := buff.ReadFloat64() // read float64
+		target.PCIeRxBytesAvg = &aa
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.NVLinkTxBytesAvg = nil
+	} else {
+
+		bb := buff.ReadFloat64() // read float64
+		target.NVLinkTxBytesAvg = &bb
+
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.NVLinkRxBytesAvg = nil
+	} else {
+
+		cc := buff.ReadFloat64() // read float64
+		target.NVLinkRxBytesAvg = &cc
 
 	}
 
@@ -4129,7 +4634,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		if buff.ReadUInt8() == uint8(0) {
 			target.Metadata = nil
 		} else {
-
 			// --- [begin][read][struct](Metadata) ---
 			a := new(Metadata)
 			buff.ReadInt() // [compatibility, unused]
@@ -4147,6 +4651,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	}
 	// field version check
 	if uint8(1) <= version {
+
 		// --- [begin][read][struct](Window) ---
 		b := new(Window)
 		buff.ReadInt() // [compatibility, unused]
@@ -4164,7 +4669,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		if buff.ReadUInt8() == uint8(0) {
 			target.Cluster = nil
 		} else {
-
 			// --- [begin][read][struct](Cluster) ---
 			c := new(Cluster)
 			buff.ReadInt() // [compatibility, unused]
@@ -4204,7 +4708,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					z = nil
 				} else {
-
 					// --- [begin][read][struct](Namespace) ---
 					l := new(Namespace)
 					buff.ReadInt() // [compatibility, unused]
@@ -4295,7 +4798,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzz = nil
 				} else {
-
 					// --- [begin][read][struct](Service) ---
 					y := new(Service)
 					buff.ReadInt() // [compatibility, unused]
@@ -4386,7 +4888,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](StatefulSet) ---
 					oo := new(StatefulSet)
 					buff.ReadInt() // [compatibility, unused]
@@ -4432,7 +4933,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](DaemonSet) ---
 					uu := new(DaemonSet)
 					buff.ReadInt() // [compatibility, unused]
@@ -4478,7 +4978,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](Job) ---
 					ccc := new(Job)
 					buff.ReadInt() // [compatibility, unused]
@@ -4524,7 +5023,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](CronJob) ---
 					lll := new(CronJob)
 					buff.ReadInt() // [compatibility, unused]
@@ -4616,7 +5114,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](Node) ---
 					yyy := new(Node)
 					buff.ReadInt() // [compatibility, unused]
@@ -4707,7 +5204,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](PersistentVolumeClaim) ---
 					oooo := new(PersistentVolumeClaim)
 					buff.ReadInt() // [compatibility, unused]
@@ -4844,7 +5340,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](DCGMDevice) ---
 					lllll := new(DCGMDevice)
 					buff.ReadInt() // [compatibility, unused]
@@ -4923,7 +5418,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 		}
 
 		fi = BingenFieldInfo{
-			Type: reflect.TypeFor[Metadata](),
+			Type: reflect.TypeFor[*Metadata](),
 			Name: "Metadata",
 		}
 		// field version check
@@ -4986,7 +5481,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 		}
 
 		fi = BingenFieldInfo{
-			Type: reflect.TypeFor[Cluster](),
+			Type: reflect.TypeFor[*Cluster](),
 			Name: "Cluster",
 		}
 		// field version check
@@ -5052,7 +5547,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						z = nil
 					} else {
-
 						// --- [begin][read][struct](Namespace) ---
 						n := new(Namespace)
 						buff.ReadInt() // [compatibility, unused]
@@ -5171,7 +5665,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzz = nil
 					} else {
-
 						// --- [begin][read][struct](Service) ---
 						y := new(Service)
 						buff.ReadInt() // [compatibility, unused]
@@ -5290,7 +5783,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](StatefulSet) ---
 						mm := new(StatefulSet)
 						buff.ReadInt() // [compatibility, unused]
@@ -5350,7 +5842,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](DaemonSet) ---
 						rr := new(DaemonSet)
 						buff.ReadInt() // [compatibility, unused]
@@ -5410,7 +5901,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](Job) ---
 						xx := new(Job)
 						buff.ReadInt() // [compatibility, unused]
@@ -5470,7 +5960,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](CronJob) ---
 						ddd := new(CronJob)
 						buff.ReadInt() // [compatibility, unused]
@@ -5590,7 +6079,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](Node) ---
 						qqq := new(Node)
 						buff.ReadInt() // [compatibility, unused]
@@ -5709,7 +6197,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](PersistentVolumeClaim) ---
 						cccc := new(PersistentVolumeClaim)
 						buff.ReadInt() // [compatibility, unused]
@@ -5888,7 +6375,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](DCGMDevice) ---
 						uuuu := new(DCGMDevice)
 						buff.ReadInt() // [compatibility, unused]
@@ -9474,7 +9960,6 @@ func (target *ResourceQuotaSpecHard) UnmarshalBinaryWithContext(ctx *DecodingCon
 
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var a map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -9523,7 +10008,6 @@ func (target *ResourceQuotaSpecHard) UnmarshalBinaryWithContext(ctx *DecodingCon
 	}
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var l map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -9870,7 +10354,6 @@ func (target *ResourceQuotaStatusUsed) UnmarshalBinaryWithContext(ctx *DecodingC
 
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var a map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -9919,7 +10402,6 @@ func (target *ResourceQuotaStatusUsed) UnmarshalBinaryWithContext(ctx *DecodingC
 	}
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var l map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {

@@ -93,6 +93,8 @@ const (
 
 	CarbonEstimatesEnabledEnvVar = "CARBON_ESTIMATES_ENABLED"
 
+	GPUSaturationMetricsEnabledEnvVar = "GPU_SATURATION_METRICS_ENABLED"
+
 	KubernetesResourceAccessEnvVar = "KUBERNETES_RESOURCE_ACCESS"
 	UseCacheV1                     = "USE_CACHE_V1"
 
@@ -382,6 +384,14 @@ func GetOCIPricingURL() string {
 
 func IsCarbonEstimatesEnabled() bool {
 	return env.GetBool(CarbonEstimatesEnabledEnvVar, false)
+}
+
+// IsGPUSaturationMetricsEnabled controls whether the kubemodel hydration
+// queries and applies GPU saturation signals (USE method) derived from DCGM
+// exporter metrics. Enabled by default; clusters without dcgm-exporter
+// simply receive empty results.
+func IsGPUSaturationMetricsEnabled() bool {
+	return env.GetBool(GPUSaturationMetricsEnabledEnvVar, true)
 }
 
 // HasKubernetesResourceAccess can be set to false if Opencost is run without access to the kubernetes resources
