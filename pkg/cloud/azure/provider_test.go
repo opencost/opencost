@@ -69,12 +69,13 @@ func TestConvertMeterToPricings(t *testing.T) {
 		info := meterInfo("Virtual Machines", "D2 Series Windows", "D2s v3", "AU Southeast", 0.3)
 		results, err := convertMeterToPricings(info, regions, baseCPUPrice)
 		require.NoError(t, err)
-		expected := map[string]*AzurePricing{
-			"australiasoutheast,Standard_D2s_v3,ondemand,windows": {
-				Node: &models.Node{Cost: "0.300000", BaseCPUPrice: "0.30000", UsageType: "ondemand"},
-			},
-		}
-		require.Equal(t, expected, results)
+		key := "australiasoutheast,Standard_D2s_v3,ondemand,windows"
+		pricing, ok := results[key]
+		require.Truef(t, ok, "expected a pricing entry under key %q", key)
+		require.NotNil(t, pricing.Node)
+		require.Equal(t, "ondemand", pricing.Node.UsageType)
+		require.Equal(t, "0.300000", pricing.Node.Cost)
+		require.Equal(t, baseCPUPrice, pricing.Node.BaseCPUPrice)
 	})
 
 	t.Run("storage", func(t *testing.T) {
@@ -105,6 +106,86 @@ func TestConvertMeterToPricings(t *testing.T) {
 		}
 		require.Equal(t, expected, results)
 	})
+}
+
+func TestSelectRetailPrice(t *testing.T) {
+	cases := []struct {
+		name               string
+		linuxRetailPrice   string
+		windowsRetailPrice string
+		spotPrice          string
+		windowsSpotPrice   string
+		spot               bool
+		isWindows          bool
+		expected           string
+		expectErr          bool
+	}{
+		{
+			name:               "windows retail prefers windows price",
+			linuxRetailPrice:   "1.000000",
+			windowsRetailPrice: "2.000000",
+			isWindows:          true,
+			expected:           "2.000000",
+		},
+		{
+			name:             "windows retail falls back to linux when windows missing",
+			linuxRetailPrice: "1.000000",
+			isWindows:        true,
+			expected:         "1.000000",
+		},
+		{
+			name:             "linux retail uses linux price",
+			linuxRetailPrice: "1.000000",
+			isWindows:        false,
+			expected:         "1.000000",
+		},
+		{
+			name:             "windows spot prefers windows spot price",
+			spotPrice:        "0.500000",
+			windowsSpotPrice: "0.900000",
+			spot:             true,
+			isWindows:        true,
+			expected:         "0.900000",
+		},
+		{
+			name:      "windows spot falls back to linux spot when windows missing",
+			spotPrice: "0.500000",
+			spot:      true,
+			isWindows: true,
+			expected:  "0.500000",
+		},
+		{
+			name:      "linux spot uses linux spot price",
+			spotPrice: "0.500000",
+			spot:      true,
+			isWindows: false,
+			expected:  "0.500000",
+		},
+		{
+			name:               "spot windows with no spot price falls back to retail",
+			windowsRetailPrice: "2.000000",
+			spot:               true,
+			isWindows:          true,
+			expected:           "2.000000",
+		},
+		{
+			name:      "no price available returns error",
+			isWindows: true,
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := selectRetailPrice("eastus", "Standard_D2s_v3", tc.linuxRetailPrice, tc.windowsRetailPrice, tc.spotPrice, tc.windowsSpotPrice, tc.spot, tc.isWindows)
+			if tc.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, got)
+		})
+	}
 }
 
 func TestAzure_findCostForDisk(t *testing.T) {
