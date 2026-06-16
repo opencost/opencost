@@ -119,6 +119,8 @@ type GPUAllocation struct {
 	IsGPUShared       *bool    `json:"isGPUShared"`
 	GPUUsageAverage   *float64 `json:"gpuUsageAverage"`
 	GPURequestAverage *float64 `json:"gpuRequestAverage"`
+
+	Saturation *GPUSaturation `json:"saturation,omitempty"` //@bingen:field[version=26]
 }
 
 func (orig *GPUAllocation) SanitizeNaN() {
@@ -131,6 +133,7 @@ func (orig *GPUAllocation) SanitizeNaN() {
 	if orig.GPUUsageAverage == nil || math.IsNaN(*orig.GPUUsageAverage) {
 		orig.GPUUsageAverage = nil
 	}
+	orig.Saturation.SanitizeNaN()
 }
 
 func (orig *GPUAllocation) Clone() *GPUAllocation {
@@ -145,6 +148,7 @@ func (orig *GPUAllocation) Clone() *GPUAllocation {
 		IsGPUShared:       orig.IsGPUShared,
 		GPUUsageAverage:   orig.GPUUsageAverage,
 		GPURequestAverage: orig.GPURequestAverage,
+		Saturation:        orig.Saturation.Clone(),
 	}
 }
 
@@ -161,7 +165,8 @@ func (orig *GPUAllocation) Equal(that *GPUAllocation) bool {
 		orig.GPUUUID == that.GPUUUID &&
 		orig.IsGPUShared == that.IsGPUShared &&
 		orig.GPUUsageAverage == that.GPUUsageAverage &&
-		orig.GPURequestAverage == that.GPURequestAverage
+		orig.GPURequestAverage == that.GPURequestAverage &&
+		orig.Saturation.Equal(that.Saturation)
 
 }
 
