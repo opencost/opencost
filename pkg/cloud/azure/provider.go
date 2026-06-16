@@ -276,13 +276,13 @@ func buildAzureRetailPricesURL(region string, skuName string, currencyCode strin
 func extractAzureVMRetailAndSpotPrices(resp *http.Response) (linuxRetailPrice string, windowsRetailPrice string, spotPrice string, windowsSpotPrice string, err error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", "", "", "", fmt.Errorf("error getting response: %v", err)
+		return "", "", "", "", fmt.Errorf("error getting response: %w", err)
 	}
 
 	pricingPayload := AzureRetailPricing{}
 	jsonErr := json.Unmarshal(body, &pricingPayload)
 	if jsonErr != nil {
-		return "", "", "", "", fmt.Errorf("error unmarshalling data: %v", jsonErr)
+		return "", "", "", "", fmt.Errorf("error unmarshalling data: %w", jsonErr)
 	}
 	for _, item := range pricingPayload.Items {
 		skuLower := strings.ToLower(item.SkuName)
@@ -311,7 +311,7 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 
 	resp, err := http.Get(pricingURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch retail price with URL \"%s\": %v", pricingURL, err)
+		return "", fmt.Errorf("failed to fetch retail price with URL \"%s\": %w", pricingURL, err)
 	}
 
 	if resp.StatusCode < 200 && resp.StatusCode > 299 {
@@ -320,16 +320,27 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 
 	linuxRetailPrice, windowsRetailPrice, spotPrice, windowsSpotPrice, err := extractAzureVMRetailAndSpotPrices(resp)
 	if err != nil {
-		return "", fmt.Errorf("failed to extract azure prices: %v", err)
+		return "", fmt.Errorf("failed to extract azure prices: %w", err)
 	}
 
 	log.DedupedInfof(5, "done parsing retail price payload from \"%s\"\n", pricingURL)
 
+	return selectRetailPrice(region, skuName, linuxRetailPrice, windowsRetailPrice, spotPrice, windowsSpotPrice, spot, isWindows)
+}
+
+// selectRetailPrice picks the price matching the node OS and pricing model.
+// Windows nodes prefer the Windows-specific price; when it is absent the Linux
+// price is used as a best-effort estimate and the fallback is logged so the
+// substitution is not silent.
+func selectRetailPrice(region, skuName, linuxRetailPrice, windowsRetailPrice, spotPrice, windowsSpotPrice string, spot, isWindows bool) (string, error) {
 	if spot {
 		if isWindows && windowsSpotPrice != "" {
 			return windowsSpotPrice, nil
 		}
 		if spotPrice != "" {
+			if isWindows {
+				log.Warnf("no Windows spot price for %q in %q region; falling back to Linux spot price", skuName, region)
+			}
 			return spotPrice, nil
 		}
 	}
@@ -337,9 +348,11 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 	selectedRetail := linuxRetailPrice
 	if isWindows && windowsRetailPrice != "" {
 		selectedRetail = windowsRetailPrice
+	} else if isWindows && linuxRetailPrice != "" {
+		log.Warnf("no Windows retail price for %q in %q region; falling back to Linux retail price", skuName, region)
 	}
 	if selectedRetail == "" {
-		return selectedRetail, fmt.Errorf("Couldn't find price for product \"%s\" in \"%s\" region", skuName, region)
+		return "", fmt.Errorf("couldn't find price for product %q in %q region", skuName, region)
 	}
 
 	return selectedRetail, nil
