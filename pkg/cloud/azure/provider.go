@@ -456,6 +456,17 @@ func (az *Azure) PricingSourceSummary() interface{} {
 	return az.Pricing
 }
 
+// azureWindowsOS is the node OS label value that identifies a Windows node and
+// the suffix used to qualify Windows-specific pricing keys.
+const azureWindowsOS = "windows"
+
+// isWindowsNode reports whether the node labels identify a Windows node. It
+// centralizes the OS detection shared by azureKey.Features and NodePricing.
+func isWindowsNode(labels map[string]string) bool {
+	osLabel, ok := util.GetOperatingSystem(labels)
+	return ok && strings.ToLower(osLabel) == azureWindowsOS
+}
+
 type azureKey struct {
 	Labels        map[string]string
 	GPULabel      string
@@ -467,8 +478,8 @@ func (k *azureKey) Features() string {
 	region := strings.ToLower(r)
 	instance, _ := util.GetInstanceType(k.Labels)
 	usageType := "ondemand"
-	if osLabel, ok := util.GetOperatingSystem(k.Labels); ok && strings.ToLower(osLabel) == "windows" {
-		return fmt.Sprintf("%s,%s,%s,windows", region, instance, usageType)
+	if isWindowsNode(k.Labels) {
+		return fmt.Sprintf("%s,%s,%s,%s", region, instance, usageType, azureWindowsOS)
 	}
 	return fmt.Sprintf("%s,%s,%s", region, instance, usageType)
 }
@@ -1097,7 +1108,7 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 	for _, instanceType := range instanceTypes {
 		key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
 		if isWindowsMeter {
-			key = fmt.Sprintf("%s,%s,%s,windows", region, instanceType, usageType)
+			key = fmt.Sprintf("%s,%s,%s,%s", region, instanceType, usageType, azureWindowsOS)
 		}
 		pricing := &AzurePricing{
 			Node: &models.Node{
@@ -1183,8 +1194,7 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	slv, ok := azKey.Labels[config.SpotLabel]
 	isSpot := ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != ""
 
-	osLabel, _ := util.GetOperatingSystem(azKey.Labels)
-	isWindows := strings.ToLower(osLabel) == "windows"
+	isWindows := isWindowsNode(azKey.Labels)
 
 	features := strings.Split(azKey.Features(), ",")
 	region := features[0]
@@ -1192,7 +1202,7 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	var featureString string
 	if isSpot {
 		if isWindows {
-			featureString = fmt.Sprintf("%s,%s,spot,windows", region, instance)
+			featureString = fmt.Sprintf("%s,%s,spot,%s", region, instance, azureWindowsOS)
 		} else {
 			featureString = fmt.Sprintf("%s,%s,spot", region, instance)
 		}
