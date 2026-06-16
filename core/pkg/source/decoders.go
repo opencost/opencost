@@ -46,6 +46,9 @@ const (
 	HostNameLabel        = "Hostname"
 	UUIDLabel            = "UUID"
 	ResourceLabel        = "resource"
+	ReasonLabel          = "reason"
+	MIGProfileLabel      = "GPU_I_PROFILE"
+	MIGInstanceLabel     = "GPU_I_ID"
 	DeploymentLabel      = "deployment"
 	StatefulSetLabel     = "statefulSet"
 	DaemonSetLabel       = "daemonset"
@@ -1087,6 +1090,72 @@ func DecodeGPUInfoResult(result *QueryResult) *GPUInfoResult {
 		ModelName: modelName,
 		UUID:      uuid,
 		Data:      result.Values,
+	}
+}
+
+// GPUSaturationResult is the shared result shape for every GPU saturation
+// query. The signal queried (throttle ratio, memory pressure, etc.) is
+// determined by the DataSource method that produced the result; Reason is
+// only populated by the throttle queries, and the MIG labels only when
+// dcgm-exporter reports MIG instances as distinct devices.
+// GPUDeviceMetricResult is the result shape for device-level GPU metric
+// queries (power, temperature, device-level utilization, memory used).
+// It shares GPUSaturationResult's label decoding: device identity plus MIG
+// instance labels; container attribution fields stay empty for
+// device-level groupings.
+type GPUDeviceMetricResult = GPUSaturationResult
+
+// DecodeGPUDeviceMetricResult decodes a device-level GPU metric result.
+func DecodeGPUDeviceMetricResult(result *QueryResult) *GPUDeviceMetricResult {
+	return DecodeGPUSaturationResult(result)
+}
+
+type GPUSaturationResult struct {
+	UID         string
+	Cluster     string
+	Namespace   string
+	Pod         string
+	Container   string
+	Device      string
+	ModelName   string
+	UUID        string
+	MIGProfile  string
+	MIGInstance string
+	Reason      string
+	Data        []*util.Vector
+}
+
+func DecodeGPUSaturationResult(result *QueryResult) *GPUSaturationResult {
+	// DCGM series carry the pod UID as pod_uid in the kubemodel scrape
+	// convention; fall back to the legacy uid label for older configs
+	uid, err := result.GetString(PodUIDLabel)
+	if err != nil {
+		uid, _ = result.GetString(UIDLabel)
+	}
+	cluster, _ := result.GetCluster()
+	namespace, _ := result.GetNamespace()
+	pod, _ := result.GetPod()
+	container, _ := result.GetContainer()
+	device, _ := result.GetString(DeviceLabel)
+	modelName, _ := result.GetString(ModelNameLabel)
+	uuid, _ := result.GetString(UUIDLabel)
+	migProfile, _ := result.GetString(MIGProfileLabel)
+	migInstance, _ := result.GetString(MIGInstanceLabel)
+	reason, _ := result.GetString(ReasonLabel)
+
+	return &GPUSaturationResult{
+		UID:         uid,
+		Cluster:     cluster,
+		Namespace:   namespace,
+		Pod:         pod,
+		Container:   container,
+		Device:      device,
+		ModelName:   modelName,
+		UUID:        uuid,
+		MIGProfile:  migProfile,
+		MIGInstance: migInstance,
+		Reason:      reason,
+		Data:        result.Values,
 	}
 }
 

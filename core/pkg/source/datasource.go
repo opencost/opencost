@@ -93,6 +93,33 @@ type MetricsQuerier interface {
 	QueryDCGMContainerUsageAvg(start, end time.Time) *Future[DCGMDeviceContainerUsageResult]
 	QueryDCGMContainerUsageMax(start, end time.Time) *Future[DCGMDeviceContainerUsageResult]
 
+	// GPU saturation (USE method). Sources return no results when the
+	// underlying DCGM fields are unavailable; absence is never zero.
+	QueryGPUThrottleViolationRatio(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUThrottleReasonRatio(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUMemoryUsedRatioAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUMemoryUsedRatioMax(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUMemoryPressureRatio(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUXIDErrorCount(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUDRAMActiveAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUDRAMActiveMax(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUSMActiveAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUSMOccupancyAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUPCIeTxBytesAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUPCIeRxBytesAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUNVLinkTxBytesAvg(start, end time.Time) *Future[GPUSaturationResult]
+	QueryGPUNVLinkRxBytesAvg(start, end time.Time) *Future[GPUSaturationResult]
+
+	// Device-level GPU metrics (DeviceInfo / DevicePerformance support):
+	// grouped by device identity only, all from the default dcgm-exporter
+	// configuration
+	QueryGPUDevicePowerAvg(start, end time.Time) *Future[GPUDeviceMetricResult]
+	QueryGPUDeviceTempAvg(start, end time.Time) *Future[GPUDeviceMetricResult]
+	QueryGPUDeviceUsageAvg(start, end time.Time) *Future[GPUDeviceMetricResult]
+	QueryGPUDeviceUsageMax(start, end time.Time) *Future[GPUDeviceMetricResult]
+	QueryGPUDeviceMemoryUsedAvg(start, end time.Time) *Future[GPUDeviceMetricResult]
+	QueryGPUDeviceMemoryUsedMax(start, end time.Time) *Future[GPUDeviceMetricResult]
+
 	// PVC
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
 	QueryPVCBytesRequested(start, end time.Time) *Future[PVCBytesRequestedResult]

@@ -75,6 +75,28 @@ const (
 	GPUsAllocatedID                            MetricCollectorID = "GPUsAllocated"
 	IsGPUSharedID                              MetricCollectorID = "IsGPUShared"
 	GPUInfoID                                  MetricCollectorID = "GPUInfo"
+	GPUThrottleViolationPowerID                MetricCollectorID = "GPUThrottleViolationPower"
+	GPUThrottleViolationThermalID              MetricCollectorID = "GPUThrottleViolationThermal"
+	GPUThrottleViolationSyncBoostID            MetricCollectorID = "GPUThrottleViolationSyncBoost"
+	GPUThrottleViolationBoardLimitID           MetricCollectorID = "GPUThrottleViolationBoardLimit"
+	GPUMemoryUsedAvgID                         MetricCollectorID = "GPUMemoryUsedAvg"
+	GPUMemoryUsedMaxID                         MetricCollectorID = "GPUMemoryUsedMax"
+	GPUMemoryPressureRatioID                   MetricCollectorID = "GPUMemoryPressureRatio"
+	GPUXIDErrorCountID                         MetricCollectorID = "GPUXIDErrorCount"
+	GPUDRAMActiveAvgID                         MetricCollectorID = "GPUDRAMActiveAvg"
+	GPUDRAMActiveMaxID                         MetricCollectorID = "GPUDRAMActiveMax"
+	GPUSMActiveAvgID                           MetricCollectorID = "GPUSMActiveAvg"
+	GPUSMOccupancyAvgID                        MetricCollectorID = "GPUSMOccupancyAvg"
+	GPUPCIeTxBytesAvgID                        MetricCollectorID = "GPUPCIeTxBytesAvg"
+	GPUPCIeRxBytesAvgID                        MetricCollectorID = "GPUPCIeRxBytesAvg"
+	GPUNVLinkTxBytesAvgID                      MetricCollectorID = "GPUNVLinkTxBytesAvg"
+	GPUNVLinkRxBytesAvgID                      MetricCollectorID = "GPUNVLinkRxBytesAvg"
+	GPUDevicePowerAvgID                        MetricCollectorID = "GPUDevicePowerAvg"
+	GPUDeviceTempAvgID                         MetricCollectorID = "GPUDeviceTempAvg"
+	GPUDeviceUsageAvgID                        MetricCollectorID = "GPUDeviceUsageAvg"
+	GPUDeviceUsageMaxID                        MetricCollectorID = "GPUDeviceUsageMax"
+	GPUDeviceMemoryUsedAvgID                   MetricCollectorID = "GPUDeviceMemoryUsedAvg"
+	GPUDeviceMemoryUsedMaxID                   MetricCollectorID = "GPUDeviceMemoryUsedMax"
 	NodeCPUPricePerHourID                      MetricCollectorID = "NodeCPUPricePerHour"
 	NodeRAMPricePerGiBHourID                   MetricCollectorID = "NodeRAMPricePerGiBHour"
 	NodeGPUPricePerHourID                      MetricCollectorID = "NodeGPUPricePerHour"
@@ -169,6 +191,14 @@ const (
 	ResourceQuotaStatusUsedRAMLimitAverageID   MetricCollectorID = "ResourceQuotaStatusUsedRAMLimitAverage"
 	ResourceQuotaStatusUsedRAMLimitMaxID       MetricCollectorID = "ResourceQuotaStatusUsedRAMLimitMax"
 )
+
+// GPUThrottleReasonCollectorID returns the deterministic collector ID for the
+// throttle reason bit collector over the given DCGM bitmask metric name. One
+// collector exists per (bitmask metric name, reason) pair because the DCGM
+// field was renamed in 3.3+ and only one of the two names is ever scraped.
+func GPUThrottleReasonCollectorID(metricName, reason string) MetricCollectorID {
+	return MetricCollectorID("GPUThrottleReason/" + metricName + "/" + reason)
+}
 
 // MetricCollector is a data structure that represents a specific MetricCollector metric instance that contains its own breakdown
 // of stored metrics by a specific label set.
