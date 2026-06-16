@@ -728,5 +728,5 @@ func Test_extractAzureVMRetailAndSpotPrices_bodyReadError(t *testing.T) {
 	_, _, _, _, err := extractAzureVMRetailAndSpotPrices(resp)
 
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "Error getting response")
+	require.Contains(t, err.Error(), "error getting response")
 }

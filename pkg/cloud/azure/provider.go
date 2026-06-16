@@ -276,7 +276,7 @@ func buildAzureRetailPricesURL(region string, skuName string, currencyCode strin
 func extractAzureVMRetailAndSpotPrices(resp *http.Response) (linuxRetailPrice string, windowsRetailPrice string, spotPrice string, windowsSpotPrice string, err error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", "", "", "", fmt.Errorf("Error getting response: %v", err)
+		return "", "", "", "", fmt.Errorf("error getting response: %v", err)
 	}
 
 	pricingPayload := AzureRetailPricing{}
