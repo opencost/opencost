@@ -99,10 +99,22 @@ func computeGPUSchedulerStats(pods []*clustercache.Pod, nodes []*clustercache.No
 
 		requests := make(map[v1.ResourceName]float64)
 		for _, container := range pod.Spec.Containers {
+			// GPUs are extended resources, so it is common to set only
+			// Limits; mirror costmodel.go and fall back to the Limit when a
+			// GPU resource is absent from Requests, else it is undercounted.
 			for name, quantity := range container.Resources.Requests {
 				if isGPUResourceName(name) {
 					requests[name] += quantity.AsApproximateFloat64()
 				}
+			}
+			for name, quantity := range container.Resources.Limits {
+				if !isGPUResourceName(name) {
+					continue
+				}
+				if _, ok := container.Resources.Requests[name]; ok {
+					continue
+				}
+				requests[name] += quantity.AsApproximateFloat64()
 			}
 		}
 

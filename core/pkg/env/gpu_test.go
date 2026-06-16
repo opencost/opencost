@@ -18,9 +18,10 @@ func TestGetGPUMemorySaturationThreshold(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			if tc.value != "" {
-				t.Setenv(GPUMemorySaturationThresholdEnvVar, tc.value)
-			}
+			// Set unconditionally (empty for the "unset" case) so an
+			// externally-configured value cannot leak in and make the
+			// default-path subtests non-hermetic.
+			t.Setenv(GPUMemorySaturationThresholdEnvVar, tc.value)
 			if got := GetGPUMemorySaturationThreshold(); got != tc.want {
 				t.Errorf("GetGPUMemorySaturationThreshold() = %v, want %v", got, tc.want)
 			}

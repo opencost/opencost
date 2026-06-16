@@ -141,3 +141,34 @@ func TestComputeGPUSchedulerStats_MultiContainerPod(t *testing.T) {
 		t.Errorf("PendingRequestTotal = %v, want 3 (sum across containers)", gpu.PendingRequestTotal)
 	}
 }
+
+// GPUs are extended resources commonly specified via Limits only; the Limit
+// must be counted when Requests omits the GPU resource, and must not be
+// double-counted when both are present.
+func TestComputeGPUSchedulerStats_LimitsFallback(t *testing.T) {
+	pods := []*clustercache.Pod{
+		{ // Limits only -> count the limit
+			Status: clustercache.PodStatus{Phase: v1.PodPending},
+			Spec: clustercache.PodSpec{Containers: []clustercache.Container{
+				{Resources: v1.ResourceRequirements{Limits: v1.ResourceList{"nvidia.com/gpu": resource.MustParse("2")}}},
+			}},
+		},
+		{ // Requests and Limits both set -> count request once, no double count
+			Status: clustercache.PodStatus{Phase: v1.PodRunning},
+			Spec: clustercache.PodSpec{Containers: []clustercache.Container{
+				{Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{"nvidia.com/gpu": resource.MustParse("1")},
+					Limits:   v1.ResourceList{"nvidia.com/gpu": resource.MustParse("1")},
+				}},
+			}},
+		},
+	}
+
+	gpu := computeGPUSchedulerStats(pods, nil)["nvidia.com/gpu"]
+	if gpu.PendingRequestTotal != 2 {
+		t.Errorf("PendingRequestTotal = %v, want 2 (limit-only pending pod)", gpu.PendingRequestTotal)
+	}
+	if gpu.ActiveRequested != 3 {
+		t.Errorf("ActiveRequested = %v, want 3 (2 limit-only + 1 request, no double count)", gpu.ActiveRequested)
+	}
+}
