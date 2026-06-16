@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,6 +196,58 @@ func TestQueryLogs(t *testing.T) {
 	for testName, queryFunc := range tests {
 		t.Run(fmt.Sprintf("TestQueryLog_%s", testName), func(t *testing.T) {
 			checkQueryLog(t, logWriter, queryFunc, testName, queryStart, queryEnd)
+		})
+	}
+}
+
+// TestGPUUsageQueriesIncludeClusterFilter verifies that the GPU usage queries
+// scope their underlying DCGM metrics to the current cluster when the cluster
+// ID filter is enabled, matching the behavior of every other metric query.
+func TestGPUUsageQueriesIncludeClusterFilter(t *testing.T) {
+	initLogging(t, "debug", false)
+
+	logWriter := new(SingleLogWriter)
+	zerologger.Logger = zerologger.Output(zerolog.ConsoleWriter{
+		Out:        logWriter,
+		TimeFormat: "",
+		NoColor:    true,
+		PartsExclude: []string{
+			zerolog.TimestampFieldName,
+			zerolog.LevelFieldName,
+			zerolog.CallerFieldName,
+		},
+	})
+	defer initLogging(t, "debug", false)
+
+	t.Setenv("PROMETHEUS_SERVER_ENDPOINT", "nowhere")
+	t.Setenv("CURRENT_CLUSTER_ID_FILTER_ENABLED", "true")
+	t.Setenv("CLUSTER_ID", "test-cluster")
+
+	config, err := NewOpenCostPrometheusConfigFromEnv()
+	if err != nil {
+		t.Fatalf("Failed to create OpenCost Prometheus config: %v", err)
+	}
+
+	mock := new(NoOpPromClient)
+	contextFactory := NewContextFactory(mock, config)
+	querier := newPrometheusMetricsQuerier(config, mock, contextFactory)
+
+	queryEnd := time.Now().UTC().Truncate(time.Hour).Add(time.Hour)
+	queryStart := queryEnd.Add(-24 * time.Hour)
+
+	const wantFilter = `cluster_id="test-cluster"`
+
+	tests := map[string]func(time.Time, time.Time){
+		"QueryGPUsUsageAvg": func(s, e time.Time) { querier.QueryGPUsUsageAvg(s, e) },
+		"QueryGPUsUsageMax": func(s, e time.Time) { querier.QueryGPUsUsageMax(s, e) },
+	}
+
+	for testName, queryFunc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			queryFunc(queryStart, queryEnd)
+			if !strings.Contains(logWriter.Log, wantFilter) {
+				t.Errorf("expected query to contain cluster filter %q, got log: %s", wantFilter, logWriter.Log)
+			}
 		})
 	}
 }
