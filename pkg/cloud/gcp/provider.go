@@ -39,6 +39,7 @@ import (
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
 const BigqueryUpdateType = "bigqueryupdate"
 const BillingAPIURL = "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus"
+const GCPCloudOAuthScope = "https://www.googleapis.com/auth/cloud-platform"
 
 const (
 	GCPHourlyPublicIPCost = 0.01
@@ -981,7 +982,7 @@ func (gcp *GCP) getBillingAPIClientAndURL(apiKey, currencyCode string) (*http.Cl
 		return http.DefaultClient, url.String(), nil
 	}
 
-	googleHttpClient, err := google.DefaultClient(context.TODO(), "https://www.googleapis.com/auth/cloud-platform")
+	googleHttpClient, err := google.DefaultClient(context.TODO(), GCPCloudOAuthScope)
 	if err != nil {
 		log.Errorf("GCP Billing API: Workload Identity detected but failed to create authenticated client: %v", err)
 		return nil, "", err
