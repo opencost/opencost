@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"math"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -410,6 +412,12 @@ func (s *MCPServer) ProcessMCPRequest(ctx context.Context, request *MCPRequest) 
 		return nil, err
 	}
 
+	// The MCP SDK marshals tool output with encoding/json, which errors on
+	// non-finite floats. Upstream cost calculations can yield NaN or Inf (e.g.
+	// a 0/0 breakdown or overhead fraction), so scrub them before they reach the
+	// SDK and fail the whole tool call.
+	sanitizeNonFiniteFloats(data)
+
 	processingTime := time.Since(queryStart)
 
 	// 3. Construct Final Response
@@ -422,6 +430,59 @@ func (s *MCPServer) ProcessMCPRequest(ctx context.Context, request *MCPRequest) 
 		},
 	}
 	return mcpResponse, nil
+}
+
+// sanitizeNonFiniteFloats walks v and replaces every non-finite float (NaN,
+// +Inf, -Inf) with 0 so the value can be marshaled by encoding/json, which the
+// MCP SDK uses and which rejects non-finite floats. It is best-effort: any
+// reflection panic is recovered so the sanitizer can never break a request.
+func sanitizeNonFiniteFloats(v any) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Warnf("mcp: sanitizeNonFiniteFloats recovered: %v", r)
+		}
+	}()
+	if v == nil {
+		return
+	}
+	sanitizeFloatsValue(reflect.ValueOf(v))
+}
+
+func sanitizeFloatsValue(v reflect.Value) {
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Interface:
+		if !v.IsNil() {
+			sanitizeFloatsValue(v.Elem())
+		}
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			sanitizeFloatsValue(v.Field(i))
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			sanitizeFloatsValue(v.Index(i))
+		}
+	case reflect.Map:
+		for _, key := range v.MapKeys() {
+			elem := v.MapIndex(key)
+			// Map elements aren't addressable. Pointer/interface/slice/map
+			// values are mutated in place by recursing; value-type elements
+			// (e.g. a float or struct) must be rebuilt and reassigned.
+			switch elem.Kind() {
+			case reflect.Pointer, reflect.Interface, reflect.Slice, reflect.Map:
+				sanitizeFloatsValue(elem)
+			default:
+				tmp := reflect.New(elem.Type()).Elem()
+				tmp.Set(elem)
+				sanitizeFloatsValue(tmp)
+				v.SetMapIndex(key, tmp)
+			}
+		}
+	case reflect.Float32, reflect.Float64:
+		if v.CanSet() && (math.IsNaN(v.Float()) || math.IsInf(v.Float(), 0)) {
+			v.SetFloat(0)
+		}
+	}
 }
 
 // validate is the singleton validator instance.
