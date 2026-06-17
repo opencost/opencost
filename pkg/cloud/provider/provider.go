@@ -233,13 +233,14 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		}, nil
 	case opencost.DigitalOceanProvider:
 		log.Info("Detected DigitalOcean, using DOKS")
-		return &digitalocean.DOKS{
-			Config:                NewProviderConfig(config, cp.configFileName),
-			Cache:                 digitalocean.NewPricingCache(),
-			Sizes:                 make(map[string]*digitalocean.DOSize),
-			Clientset:             cache,
-			ClusterManagementCost: 0.0,
-		}, nil
+		// Use the constructor so the godo API client is initialized from
+		// DIGITALOCEAN_ACCESS_TOKEN; building the struct literal directly (as
+		// before) skipped this since the client field is unexported.
+		doks := digitalocean.NewDOKSProvider(env.GetDOKSPricingURL())
+		doks.Config = NewProviderConfig(config, cp.configFileName)
+		doks.Clientset = cache
+		doks.ClusterManagementCost = 0.0
+		return doks, nil
 	default:
 		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
