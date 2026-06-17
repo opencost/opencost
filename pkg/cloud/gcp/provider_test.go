@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"reflect"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/google/martian/log"
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/stretchr/testify/assert"
@@ -707,11 +709,63 @@ func TestGCP_findCostForDisk(t *testing.T) {
 }
 
 func TestGCP_getBillingAPIURL(t *testing.T) {
+	tests := []struct {
+		name           string
+		apiKey         string
+		currency       string
+		expectedParams map[string]string
+		absentParams   []string
+	}{
+		{
+			name:           "with API key and currency",
+			apiKey:         "test-key",
+			currency:       "USD",
+			expectedParams: map[string]string{"key": "test-key", "currencyCode": "USD"},
+		},
+		{
+			name:           "empty API key omits key param",
+			apiKey:         "",
+			currency:       "USD",
+			expectedParams: map[string]string{"currencyCode": "USD"},
+			absentParams:   []string{"key"},
+		},
+		{
+			name:           "non-USD currency",
+			apiKey:         "my-key",
+			currency:       "EUR",
+			expectedParams: map[string]string{"key": "my-key", "currencyCode": "EUR"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gcp := &GCP{}
+			query := gcp.buildBillingAPIURL(tt.apiKey, tt.currency).Query()
+
+			for param, expected := range tt.expectedParams {
+				assert.Equal(t, expected, query.Get(param), "query param %q", param)
+			}
+			for _, param := range tt.absentParams {
+				assert.False(t, query.Has(param), "query param %q should be absent", param)
+			}
+		})
+	}
+}
+
+func TestGCP_getBillingAPIClientAndURL(t *testing.T) {
 	gcp := &GCP{}
 
-	url := gcp.getBillingAPIURL("test-key", "USD")
-	expected := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=test-key&currencyCode=USD"
-	assert.Equal(t, expected, url)
+	client, rawURL, err := gcp.getBillingAPIClientAndURL("test-key", "USD")
+
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
+	assert.Equal(t, httputil.PricingTimeout, client.Timeout)
+
+	parsedURL, err := url.Parse(rawURL)
+	assert.NoError(t, err)
+	query := parsedURL.Query()
+	assert.Equal(t, "test-key", query.Get("key"))
+	assert.Equal(t, "USD", query.Get("currencyCode"))
 }
 
 func TestGCP_GpuPricing(t *testing.T) {
