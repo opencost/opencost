@@ -416,7 +416,7 @@ func (s *MCPServer) ProcessMCPRequest(ctx context.Context, request *MCPRequest) 
 	// non-finite floats. Upstream cost calculations can yield NaN or Inf (e.g.
 	// a 0/0 breakdown or overhead fraction), so scrub them before they reach the
 	// SDK and fail the whole tool call.
-	sanitizeNonFiniteFloats(data)
+	data = sanitizeNonFiniteFloats(data)
 
 	processingTime := time.Since(queryStart)
 
@@ -432,25 +432,34 @@ func (s *MCPServer) ProcessMCPRequest(ctx context.Context, request *MCPRequest) 
 	return mcpResponse, nil
 }
 
-// sanitizeNonFiniteFloats walks v and replaces every non-finite float (NaN,
-// +Inf, -Inf) with 0 so the value can be marshaled by encoding/json, which the
-// MCP SDK uses and which rejects non-finite floats. It is best-effort: any
-// reflection panic is recovered so the sanitizer can never break a request.
-func sanitizeNonFiniteFloats(v any) {
+// sanitizeNonFiniteFloats returns v with every non-finite float (NaN, +Inf,
+// -Inf) replaced by 0 so the value can be marshaled by encoding/json, which the
+// MCP SDK uses and which rejects non-finite floats. Callers must use the return
+// value, since value-type inputs are sanitized on a copy. It is best-effort:
+// any reflection panic is recovered and the original value returned unchanged.
+func sanitizeNonFiniteFloats(v any) (out any) {
+	out = v
 	defer func() {
 		if r := recover(); r != nil {
 			log.Warnf("mcp: sanitizeNonFiniteFloats recovered: %v", r)
+			out = v
 		}
 	}()
 	if v == nil {
-		return
+		return nil
 	}
-	sanitizeFloatsValue(reflect.ValueOf(v))
+	// Work on an addressable copy so value-type inputs are sanitized too, not
+	// only pointers. For a pointer input this copies the pointer and mutates the
+	// pointed-to value in place; for a value input it yields a sanitized copy.
+	box := reflect.New(reflect.TypeOf(v))
+	box.Elem().Set(reflect.ValueOf(v))
+	sanitizeFloatsValue(box.Elem())
+	return box.Elem().Interface()
 }
 
 func sanitizeFloatsValue(v reflect.Value) {
 	switch v.Kind() {
-	case reflect.Pointer, reflect.Interface:
+	case reflect.Ptr, reflect.Interface:
 		if !v.IsNil() {
 			sanitizeFloatsValue(v.Elem())
 		}
@@ -469,7 +478,7 @@ func sanitizeFloatsValue(v reflect.Value) {
 			// values are mutated in place by recursing; value-type elements
 			// (e.g. a float or struct) must be rebuilt and reassigned.
 			switch elem.Kind() {
-			case reflect.Pointer, reflect.Interface, reflect.Slice, reflect.Map:
+			case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map:
 				sanitizeFloatsValue(elem)
 			default:
 				tmp := reflect.New(elem.Type()).Elem()

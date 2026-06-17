@@ -15,10 +15,10 @@ func TestSanitizeNonFiniteFloatsAssetResponseMarshals(t *testing.T) {
 	usedBytes := math.NaN()
 	resp := &AssetResponse{
 		Assets: map[string]*AssetSet{
-			"assets": {
+			"assets": &AssetSet{
 				Name: "assets",
 				Assets: []*Asset{
-					{
+					&Asset{
 						Type:          "Node",
 						Minutes:       math.NaN(),
 						Adjustment:    math.Inf(1),
@@ -38,7 +38,7 @@ func TestSanitizeNonFiniteFloatsAssetResponseMarshals(t *testing.T) {
 		t.Fatal("expected json.Marshal to fail before sanitization (NaN/Inf present)")
 	}
 
-	sanitizeNonFiniteFloats(resp)
+	resp = sanitizeNonFiniteFloats(resp).(*AssetResponse)
 
 	if _, err := json.Marshal(resp); err != nil {
 		t.Fatalf("expected json.Marshal to succeed after sanitization, got %v", err)
@@ -62,8 +62,26 @@ func TestSanitizeNonFiniteFloatsAssetResponseMarshals(t *testing.T) {
 	}
 }
 
+// TestSanitizeNonFiniteFloatsValueType verifies a non-pointer (value) input is
+// sanitized via the returned copy, not just pointers.
+func TestSanitizeNonFiniteFloatsValueType(t *testing.T) {
+	in := Asset{TotalCost: math.NaN(), GPUCost: 3.0}
+	out, ok := sanitizeNonFiniteFloats(in).(Asset)
+	if !ok {
+		t.Fatalf("expected Asset back, got %T", sanitizeNonFiniteFloats(in))
+	}
+	if out.TotalCost != 0 {
+		t.Fatalf("expected NaN zeroed in returned value, got %v", out.TotalCost)
+	}
+	if out.GPUCost != 3.0 {
+		t.Fatalf("expected finite value preserved, got %v", out.GPUCost)
+	}
+}
+
 func TestSanitizeNonFiniteFloatsNilSafe(t *testing.T) {
-	sanitizeNonFiniteFloats(nil)
+	if got := sanitizeNonFiniteFloats(nil); got != nil {
+		t.Fatalf("expected nil, got %v", got)
+	}
 	var p *AssetResponse
 	sanitizeNonFiniteFloats(p)
 	sanitizeNonFiniteFloats(&AssetResponse{})
