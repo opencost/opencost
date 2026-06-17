@@ -54,8 +54,10 @@ func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 // A base transport that is not a *http.Transport must not panic and must still
 // yield a usable client with the response-header timeout applied.
 func TestNewStreamingClientFallsBackWhenNotTransport(t *testing.T) {
+	// Honor the RoundTripper contract (non-nil response when error is nil), even
+	// though this base is only used to exercise the fallback and never round-trips.
 	base := roundTripperFunc(func(*http.Request) (*http.Response, error) {
-		return nil, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 	})
 	c := newStreamingClient(base)
 	tr, ok := c.Transport.(*http.Transport)
@@ -64,6 +66,10 @@ func TestNewStreamingClientFallsBackWhenNotTransport(t *testing.T) {
 	}
 	if tr.ResponseHeaderTimeout != PricingTimeout {
 		t.Fatalf("expected response-header timeout %v, got %v", PricingTimeout, tr.ResponseHeaderTimeout)
+	}
+	// The fallback transport must still bound TLS handshake time.
+	if tr.TLSHandshakeTimeout == 0 {
+		t.Fatal("expected fallback transport to set a TLS handshake timeout")
 	}
 }
 
