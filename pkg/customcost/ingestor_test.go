@@ -326,6 +326,12 @@ func TestIngestor_Status_ConcurrentWithExpandCoverage(t *testing.T) {
 	}()
 
 	wg.Wait()
+
+	// The writer touched 16 distinct plugins, so coverage should hold 16 entries
+	// once the race-free reads settle.
+	if got := len(ingestor.Status().Coverage); got != 16 {
+		t.Fatalf("expected 16 coverage entries after concurrent writes, got %d", got)
+	}
 }
 
 func TestBuildSingleDomain_ClientError(t *testing.T) {
