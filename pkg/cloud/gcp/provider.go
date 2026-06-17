@@ -1373,9 +1373,12 @@ func (gcp *GCP) getReservedInstances() ([]*GCPReservedInstance, error) {
 		return nil, err
 	}
 
-	projID, err := gcp.MetadataClient.ProjectID()
-	if err != nil {
-		return nil, err
+	projID := gcp.ProjectID
+	if projID == "" {
+		projID, err = gcp.MetadataClient.ProjectID()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	commitments, err := computeService.RegionCommitments.AggregatedList(projID).Do()
