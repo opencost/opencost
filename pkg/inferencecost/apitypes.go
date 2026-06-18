@@ -80,12 +80,11 @@ func newInferenceCostResponse(ic *InferenceCost, basis CostBasis, win opencost.W
 	icpmt := ic.InputCostPerMillionTokens[basis]
 	ocpmt := ic.OutputCostPerMillionTokens[basis]
 
-	// Back-compute InputCost and OutputCost from the per-million rates and the
-	// token denominators used during cost calculation.
-	// The calculator uses EffectiveInputTokens for input and GenerationTokens
-	// for output, so we use the same denominators here.
-	inputCost := icpmt * ic.EffectiveInputTokens / 1_000_000
-	outputCost := ocpmt * ic.GenerationTokens / 1_000_000
+	// Use stored dollar amounts directly — these are set by the calculator and
+	// remain correct even when EffectiveInputTokens is zero (100% cache hit rate),
+	// where back-computing from the per-million rate would incorrectly yield zero.
+	inputCost := ic.InputCost[basis]
+	outputCost := ic.OutputCost[basis]
 
 	return &InferenceCostResponse{
 		Properties: InferenceCostAPIProperties{

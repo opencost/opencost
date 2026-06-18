@@ -83,6 +83,12 @@ type InferenceCost struct {
 	// is enabled, otherwise equals PromptTokens.
 	EffectiveInputTokens float64
 
+	// InputCost and OutputCost are the dollar amounts attributed to input and
+	// output processing respectively, stored directly so that the API response
+	// preserves them even when EffectiveInputTokens is zero (100% cache hit rate).
+	InputCost  map[CostBasis]float64
+	OutputCost map[CostBasis]float64
+
 	// AllocationMethod records which input/output split path was used.
 	AllocationMethod AllocationMethod
 

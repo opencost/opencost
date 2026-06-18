@@ -23,6 +23,8 @@ func (c *Calculator) calculateModelCosts(m *InferenceCost) {
 	m.CostPerMillionTokens = make(map[CostBasis]float64)
 	m.InputCostPerMillionTokens = make(map[CostBasis]float64)
 	m.OutputCostPerMillionTokens = make(map[CostBasis]float64)
+	m.InputCost = make(map[CostBasis]float64)
+	m.OutputCost = make(map[CostBasis]float64)
 
 	// Usage cost requires evidence of actual token processing. Without tokens,
 	// the pod was provisioned but idle: there is no active compute to charge for.
@@ -96,6 +98,9 @@ func (c *Calculator) calculateComputeTimeSplit(m *InferenceCost) {
 		inputCost := totalCost * inputFraction
 		outputCost := totalCost * outputFraction
 
+		m.InputCost[basis] = inputCost
+		m.OutputCost[basis] = outputCost
+
 		if m.EffectiveInputTokens > 0 {
 			m.InputCostPerMillionTokens[basis] = inputCost / m.EffectiveInputTokens * 1_000_000
 		}
@@ -134,6 +139,12 @@ func (c *Calculator) calculateMultiplierSplit(m *InferenceCost) {
 		}
 
 		inputCostPerToken := totalCost / weightedTokens
+
+		inputCost := inputCostPerToken * m.EffectiveInputTokens
+		outputCost := inputCostPerToken * multiplier * m.GenerationTokens
+
+		m.InputCost[basis] = inputCost
+		m.OutputCost[basis] = outputCost
 
 		if m.EffectiveInputTokens > 0 {
 			m.InputCostPerMillionTokens[basis] = inputCostPerToken * 1_000_000
