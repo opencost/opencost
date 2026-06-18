@@ -11,6 +11,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/util/apiutil"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -281,7 +282,7 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 		var step time.Duration
 		if args.Step != "" {
 			var err error
-			step, err = time.ParseDuration(args.Step)
+			step, err = timeutil.ParseDuration(args.Step)
 			if err != nil {
 				return nil, nil, fmt.Errorf("invalid step duration '%s': %w", args.Step, err)
 			}

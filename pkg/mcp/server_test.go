@@ -1391,7 +1391,7 @@ func TestDefaultEfficiencyStep(t *testing.T) {
 	}
 }
 
-func TestQueryEfficiency_WithStep(t *testing.T) {
+func TestEfficiencyQueryRequest_StepField(t *testing.T) {
 	req := &OpenCostQueryRequest{
 		QueryType: EfficiencyQueryType,
 		Window:    "7d",
