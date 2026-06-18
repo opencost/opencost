@@ -37,6 +37,12 @@ func (c *Calculator) calculateModelCosts(m *InferenceCost) {
 		m.CostPerMillionTokens[CostBasisUsage] = m.UsageTotalCost / m.TotalTokens * 1_000_000
 	}
 
+	// Case 1: no tokens or no cost — allocation method not applicable.
+	if m.TotalTokens == 0 || (m.AllocationTotalCost == 0 && m.UsageTotalCost == 0) {
+		m.AllocationMethod = ""
+		return
+	}
+
 	// Input/output split — choose the allocation method.
 	// Require both timing components to be present for compute-time allocation.
 	// One-sided timing data is treated as incomplete and falls back to multiplier.
@@ -65,11 +71,18 @@ func (c *Calculator) calculateComputeTimeSplit(m *InferenceCost) {
 	inputFraction := m.InputProcessingTime / totalTime
 	outputFraction := 1 - inputFraction
 
-	// Determine allocation method label based on whether cache correction applied.
-	if m.BlockSize > 0 && m.CacheHitBlocks > 0 {
+	// Determine allocation method based on cache config and hit data.
+	switch {
+	case m.BlockSize > 0 && m.CacheHitBlocks > 0:
+		// Case 4: cache correction applied — most accurate.
+		m.AllocationMethod = AllocationMethodComputeTimeWithCacheHits
+	case m.BlockSize > 0 && !m.PrefixCachingEnabled:
+		// Case 2: cache config present but prefix caching explicitly disabled.
+		m.AllocationMethod = AllocationMethodPrefixCachingOff
+	default:
+		// Case 3: block size unknown (metric absent or join failed) or no cache
+		// hits despite prefix caching being enabled.
 		m.AllocationMethod = AllocationMethodComputeTime
-	} else {
-		m.AllocationMethod = AllocationMethodComputeTimeUncorrected
 	}
 
 	for _, basis := range []CostBasis{CostBasisUsage, CostBasisAllocation} {

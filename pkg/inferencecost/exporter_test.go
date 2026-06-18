@@ -141,8 +141,9 @@ func TestExporter_TwoCostBasisSeriesPerModel(t *testing.T) {
 // input/output metrics carry both cost_basis and allocation_method labels.
 func TestExporter_InputOutputHaveCostBasisAndAllocationMethod(t *testing.T) {
 	for _, method := range []AllocationMethod{
+		AllocationMethodComputeTimeWithCacheHits,
 		AllocationMethodComputeTime,
-		AllocationMethodComputeTimeUncorrected,
+		AllocationMethodPrefixCachingOff,
 		AllocationMethodMultiplier,
 	} {
 		e, reg := newTestExporter(t)

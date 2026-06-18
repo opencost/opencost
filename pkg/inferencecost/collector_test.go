@@ -61,9 +61,8 @@ func baseConfig() *Config {
 		PrometheusURL:             "http://fake-prometheus:9090",
 		CollectionInterval:        5 * time.Minute,
 		ModelLabel:                "llm-d.ai/model",
-		SharedInfraLabel:          "llm-d.ai/inference-serving",
+		SharedInfraLabel:          "llm-d.ai/inference-shared",
 		SharedInfraLabelValue:     "true",
-		KVCacheBlockSize:          0,
 		AllocationMode:            AllocationModeComputeTime,
 		OutputTokenCostMultiplier: 2.5,
 	}
@@ -160,7 +159,6 @@ func TestCollector_UsageCost_ExcludesIdle(t *testing.T) {
 // sets CachedTokens and EffectiveInputTokens correctly from CacheHitBlocks * BlockSize.
 func TestCollector_CombineMetrics_DerivesCachedTokens(t *testing.T) {
 	cfg := baseConfig()
-	cfg.KVCacheBlockSize = 4
 
 	allocCosts := map[string]*allocationResult{
 		"llama-3:llm-prod": {allocationTotalCost: 4.0, usageTotalCost: 2.6, namespace: "llm-prod"},
@@ -170,9 +168,10 @@ func TestCollector_CombineMetrics_DerivesCachedTokens(t *testing.T) {
 	inputTime := map[string]float64{}
 	outputTime := map[string]float64{}
 	cacheHits := map[string]float64{"llama-3:llm-prod": 2} // 2 blocks × 4 = 8 cached tokens
+	cacheConfigs := map[string]*cacheConfig{"llama-3:llm-prod": {blockSize: 4, prefixCachingEnabled: true}}
 
 	c := &Collector{config: cfg}
-	results := c.combineMetrics(allocCosts, promptTokens, genTokens, inputTime, outputTime, cacheHits, time.Now())
+	results := c.combineMetrics(allocCosts, promptTokens, genTokens, inputTime, outputTime, cacheHits, cacheConfigs, time.Now())
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -190,7 +189,6 @@ func TestCollector_CombineMetrics_DerivesCachedTokens(t *testing.T) {
 // EffectiveInputTokens equals PromptTokens when no cache hits are reported.
 func TestCollector_CombineMetrics_NoCacheHits_FallsBackToPromptTokens(t *testing.T) {
 	cfg := baseConfig()
-	cfg.KVCacheBlockSize = 16
 
 	allocCosts := map[string]*allocationResult{
 		"llama-3:llm-prod": {allocationTotalCost: 1.0, usageTotalCost: 1.0, namespace: "llm-prod"},
@@ -199,10 +197,11 @@ func TestCollector_CombineMetrics_NoCacheHits_FallsBackToPromptTokens(t *testing
 	genTokens := map[string]float64{"llama-3:llm-prod": 500}
 	// cacheHits map is empty — simulates metric being unavailable
 	cacheHits := map[string]float64{}
+	cacheConfigs := map[string]*cacheConfig{"llama-3:llm-prod": {blockSize: 16, prefixCachingEnabled: true}}
 
 	c := &Collector{config: cfg}
 	results := c.combineMetrics(allocCosts, promptTokens, genTokens,
-		map[string]float64{}, map[string]float64{}, cacheHits, time.Now())
+		map[string]float64{}, map[string]float64{}, cacheHits, cacheConfigs, time.Now())
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -378,8 +377,9 @@ func TestCollector_CombineMetrics_IncludesTimingOnlyKeysInUnion(t *testing.T) {
 	inputTime := map[string]float64{"timing-only:ns1": 60}
 	outputTime := map[string]float64{"timing-only:ns1": 40}
 	cacheHits := map[string]float64{"timing-only:ns1": 2}
+	cacheConfigs := map[string]*cacheConfig{}
 
-	results := c.combineMetrics(allocCosts, promptTokens, genTokens, inputTime, outputTime, cacheHits, time.Now())
+	results := c.combineMetrics(allocCosts, promptTokens, genTokens, inputTime, outputTime, cacheHits, cacheConfigs, time.Now())
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))

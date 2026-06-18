@@ -26,10 +26,9 @@ OpenCost reads `PROMETHEUS_SERVER_ENDPOINT` for both the core metrics and the [v
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `INFERENCE_COST_ENABLED` | `false` | Enable inference cost tracking |
-| `INFERENCE_MODEL_LABEL` | `llm-d.ai/model` | Pod label whose value is the vLLM model name |
-| `INFERENCE_SHARED_INFRA_LABEL` | `llm-d.ai/inference-serving` | Pod label key identifying shared infra pods (EPP, gateway) |
+| `INFERENCE_MODEL_LABEL` | `llm-d.ai/model` | Pod label whose value is the vLLM model name. **Must match the `model_name` label on vLLM Prometheus metrics.** |
+| `INFERENCE_SHARED_INFRA_LABEL` | `llm-d.ai/inference-shared` | Pod label key identifying shared infra pods (EPP, gateway) |
 | `INFERENCE_SHARED_INFRA_LABEL_VALUE` | `true` | Label value that marks a pod as shared infra |
-| `INFERENCE_KV_CACHE_BLOCK_SIZE` | `0` | Tokens per KV cache block; must match vLLM `--block-size`. Set to `0` to disable KV cache correction |
 | `INFERENCE_COLLECTION_INTERVAL` | `2m` | Background collection interval |
 
 ### Kubernetes Deployment Example
@@ -40,8 +39,6 @@ env:
     value: "true"
   - name: INFERENCE_MODEL_LABEL
     value: "llm-d.ai/model"
-  - name: INFERENCE_KV_CACHE_BLOCK_SIZE
-    value: "16"   # match your vLLM --block-size
 ```
 
 ## Cost Bases
@@ -94,20 +91,25 @@ llm_cost_per_million_tokens{cost_basis="allocation"}
 
 ### `llm_input_cost_per_million_tokens`
 
-**Cost per 1M effective input (prompt) tokens.** When KV cache block size is configured, cached tokens are excluded from the denominator (cost reflects tokens that actually required compute).
+**Cost per 1M effective input (prompt) tokens.** Cached tokens are excluded from the denominator when KV cache correction is active (see `allocation_method`), meaning that there is no cost for processing cached input tokens.
 
 **Labels:** `model_name`, `model_version`, `namespace`, `cost_basis`, `allocation_method`
 
-`allocation_method` values:
-- `compute_time` — input/output split is based on [vLLM](https://vllm.ai/) prefill time; KV cache correction applied
-- `compute_time_uncorrected` — based on [vLLM](https://vllm.ai/) prefill time but KV cache data was unavailable
-- `multiplier` — fixed output/input cost ratio used (timing metrics unavailable; default ratio 2.5×)
+`allocation_method` values refer to how the per token input cost is calculated:
+
+| Value | Meaning |
+|-------|---------|
+| `compute_time_with_cache_hits` | Cost of input tokens actually processed - cached tokens excluded. Most accurate. |
+| `prefix_caching_off` | Prefix caching is explicitly disabled on this vLLM instance so cache correction is not applicable. |
+| `compute_time` | KV cache block size unknown (cache config metric absent or pod-label join failed) or no cache hits occurred in this window. |
+| `multiplier` | Fixed output/input cost ratio (vLLM timing metrics unavailable; default ratio 2.5×). |
+| *(empty)* | No tokens processed or total cost is zero (allocation join failed — see [Labeling Requirements](#labeling-requirements)). |
 
 ```promql
 llm_input_cost_per_million_tokens{
   model_name="Qwen/Qwen3-32B",
   cost_basis="allocation",
-  allocation_method="compute_time"
+  allocation_method="compute_time_with_cache_hits"
 }
 ```
 
@@ -231,6 +233,53 @@ curl "http://localhost:9003/inferenceCost/timeseries?window=24h&accumulate=hour&
 }
 ```
 
+## Labeling Requirements
+
+Correct pod labeling is critical for cost attribution. OpenCost joins infrastructure costs (from the Kubernetes allocation layer) with token metrics (from Prometheus) using the model name and namespace as the join key.
+
+### Model label
+
+Every vLLM inference pod **must** carry a label whose key matches `INFERENCE_MODEL_LABEL` (default: `llm-d.ai/model`) and whose **value exactly matches the `model_name` label on the vLLM Prometheus metrics**.
+
+```yaml
+# Pod spec
+metadata:
+  labels:
+    llm-d.ai/model: "Qwen/Qwen3-32B"   # must match vLLM's model_name metric label
+```
+
+If this label is missing or the value differs from `model_name` in vLLM metrics, the allocation join fails: **token counts will appear in the API response but all cost fields will be zero** and `allocationMethod` will be empty.
+
+OpenCost attempts to reconcile fully-qualified model names (e.g. `org/model`) against short names (`model`) automatically, but the namespace must always match exactly.
+
+### Diagnosing a labeling mismatch
+
+```bash
+# Check what label value OpenCost sees in the allocation layer
+curl "localhost:9003/allocation?window=1h&aggregate=label:llm-d.ai/model&namespace=<ns>" \
+  | jq '.data[0] | keys'
+
+# Check what model_name vLLM is reporting in Prometheus
+curl "http://prometheus:9090/api/v1/query?query=vllm:prompt_tokens_total{namespace=\"<ns>\"}" \
+  | jq '.data.result[].metric.model_name'
+```
+
+If the values differ, update the pod label to match the vLLM `model_name`. OpenCost also logs a warning when it detects and auto-corrects a mismatch:
+
+```
+InferenceCost: remapping metric key "org/model:namespace" → "model:namespace" (model-name mismatch with allocation label)
+```
+
+### Shared infrastructure label
+
+Pods for shared infrastructure (EPP, gateway, routers) that serve multiple models should be labelled with `INFERENCE_SHARED_INFRA_LABEL` so their costs are distributed proportionally across all models rather than appearing as unattributed overhead:
+
+```yaml
+metadata:
+  labels:
+    llm-d.ai/inference-shared: "true"
+```
+
 ## Architecture
 
 The feature is implemented in `pkg/inferencecost/` and consists of:
@@ -260,11 +309,18 @@ OpenCost uses **compute-time based allocation** by default:
    - `vllm:request_prefill_time_seconds_sum` — total time spent on input (prefill)
    - `vllm:time_per_output_token_seconds_sum` — total time spent on output (decode)
 2. Allocates infrastructure cost proportionally: `InputCost = TotalCost × (PrefillTime / TotalTime)`
-3. Calculates per-million rates using `EffectiveInputTokens` (cache-corrected) for input and `GenerationTokens` for output
+3. Calculates per-million rates using `EffectiveInputTokens` (cache-corrected when applicable) for input and `GenerationTokens` for output
 
-**KV cache correction** (when `INFERENCE_KV_CACHE_BLOCK_SIZE > 0`): cached tokens are subtracted from the prompt token denominator so that the input cost per million token reflects only the tokens that required active compute.
+**KV cache correction** is applied automatically when:
+- `vllm:cache_config_info` is present in Prometheus and its `enable_prefix_caching` label is `true`
+- Cache hits (`vllm:prefix_cache_hits_total`) were recorded in the window
+- The `block_size` label on `vllm:cache_config_info` is joined to the model via pod identity
 
-**Fallback**: if [vLLM](https://vllm.ai/) timing metrics are unavailable, the Calculator falls back to a fixed multiplier (default 2.5×: output tokens cost 2.5× input tokens). The `allocation_method` label/field records which path was taken.
+The block size is read dynamically from the `block_size` label on `vllm:cache_config_info` — no manual configuration is required.
+
+**Fallback**: if [vLLM](https://vllm.ai/) timing metrics are unavailable, the Calculator falls back to a fixed multiplier (default 2.5×: output tokens cost 2.5× input tokens).
+
+The `allocationMethod` field records which path was taken for each result (see [allocation_method values](#llm_input_cost_per_million_tokens)).
 
 ### Example Calculation
 
@@ -299,6 +355,7 @@ Output:     ($3.20 × 0.5) / 3,000,000 × 1,000,000 = $0.533/M output tokens
 | `vllm:request_prefill_time_seconds_sum` | Compute-time allocation (input/output split) |
 | `vllm:time_per_output_token_seconds_sum` | Compute-time allocation (input/output split) |
 | `vllm:prefix_cache_hits_total` | KV cache block correction (optional) |
+| `vllm:cache_config_info` | KV cache block size (from `block_size` label; joined with token metrics) |
 
 All metrics must carry `model_name` and `namespace` labels. Verify availability:
 
@@ -314,12 +371,24 @@ kubectl exec -n <namespace> <vllm-pod> -- curl -s localhost:8000/metrics | grep 
 2. Check OpenCost logs: `kubectl logs -n opencost deployment/opencost | grep -i inference`
 3. Verify Prometheus is reachable from OpenCost and [vLLM](https://vllm.ai/) metrics are present
 
-### Metrics show zero cost
+### Metrics show zero cost / `allocationMethod` is empty
 
-- Confirm model pods carry the `INFERENCE_MODEL_LABEL` label (default: `llm-d.ai/model`)
-- Check that OpenCost has allocation data for the namespace: `curl "localhost:9003/allocation?window=1h&aggregate=pod&namespace=<ns>"`
+This means the allocation join failed — token data was found in Prometheus but no matching pod cost was found in the allocation layer. See [Labeling Requirements](#labeling-requirements).
 
-### `allocation_method=multiplier` instead of `compute_time`
+Quick diagnosis:
+```bash
+# What label values does the allocation layer see?
+curl "localhost:9003/allocation?window=1h&aggregate=label:llm-d.ai/model&namespace=<ns>" \
+  | jq '.data[0] | keys'
+
+# What model_name does vLLM report?
+curl "http://prometheus:9090/api/v1/query?query=vllm:prompt_tokens_total{namespace=\"<ns>\"}" \
+  | jq '.data.result[].metric.model_name'
+```
+
+If the values differ, update the pod label on the vLLM deployment to match.
+
+### `allocationMethod=multiplier` instead of `compute_time`
 
 [vLLM](https://vllm.ai/) timing metrics are missing or zero. Check:
 
@@ -327,9 +396,21 @@ kubectl exec -n <namespace> <vllm-pod> -- curl -s localhost:8000/metrics | grep 
 kubectl exec -n <namespace> <vllm-pod> -- curl -s localhost:8000/metrics | grep prefill_time
 ```
 
+### `allocationMethod=compute_time` instead of `compute_time_with_cache_hits`
+
+One of the following:
+- **Prefix caching is disabled** on this vLLM instance (`enable_prefix_caching=false` in `vllm:cache_config_info`) — in this case the method will be `prefix_caching_off`, which is accurate and expected
+- **No cache hits occurred** in this window despite prefix caching being enabled — normal for low-traffic or first-request windows
+- **`vllm:cache_config_info` metric is missing** — check that vLLM is emitting it and that OpenCost can query it via Prometheus. OpenCost logs a warning if the metric exists but the pod-label join fails:
+  ```
+  InferenceCost: vllm:cache_config_info exists in Prometheus but the join with
+  vllm:prompt_tokens_total produced no results — likely a pod-label mismatch
+  ```
+
 ### Costs look too high
 
-Check whether shared infra pods (EPP, gateway) are correctly labelled with `INFERENCE_SHARED_INFRA_LABEL`. Without this label their costs appear as unattributed allocation overhead.
+- Check utilization: `costBasis=allocation` includes idle time. A GPU reserved for an hour but processing very few tokens will show a high $/M token rate. 
+- Check whether shared infra pods (EPP, gateway) are correctly labelled with `INFERENCE_SHARED_INFRA_LABEL`. Without this label their costs appear as unattributed allocation overhead.
 
 ## Support
 

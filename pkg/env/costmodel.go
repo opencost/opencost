@@ -115,7 +115,6 @@ const (
 	InferenceModelLabelEnvVar                = "INFERENCE_MODEL_LABEL"
 	InferenceSharedInfraLabelEnvVar          = "INFERENCE_SHARED_INFRA_LABEL"
 	InferenceSharedInfraLabelValueEnvVar     = "INFERENCE_SHARED_INFRA_LABEL_VALUE"
-	InferenceKVCacheBlockSizeEnvVar          = "INFERENCE_KV_CACHE_BLOCK_SIZE"
 	InferenceCollectionIntervalEnvVar        = "INFERENCE_COLLECTION_INTERVAL"
 )
 
@@ -479,18 +478,12 @@ func GetInferenceModelLabel() string {
 
 // GetInferenceSharedInfraLabel returns the label key identifying shared inference infra pods.
 func GetInferenceSharedInfraLabel() string {
-	return env.Get(InferenceSharedInfraLabelEnvVar, "llm-d.ai/inference-serving")
+	return env.Get(InferenceSharedInfraLabelEnvVar, "llm-d.ai/inference-shared")
 }
 
 // GetInferenceSharedInfraLabelValue returns the label value identifying shared inference infra pods.
 func GetInferenceSharedInfraLabelValue() string {
 	return env.Get(InferenceSharedInfraLabelValueEnvVar, "true")
-}
-
-// GetInferenceKVCacheBlockSize returns the KV cache block size in tokens.
-// Zero (default) disables KV cache denominator correction.
-func GetInferenceKVCacheBlockSize() float64 {
-	return float64(env.GetInt(InferenceKVCacheBlockSizeEnvVar, 0))
 }
 
 // GetInferenceCollectionInterval returns the time interval for inference cost collection.

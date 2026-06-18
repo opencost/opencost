@@ -3,6 +3,7 @@ package inferencecost
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -96,8 +97,15 @@ func (c *Collector) CollectMetrics(ctx context.Context, start, end time.Time) ([
 		cacheHitBlocks = make(map[string]float64)
 	}
 
+	// --- KV cache block sizes (per model/namespace) ---
+	cacheConfigs, err := c.queryCacheBlockSizes(ctx, end)
+	if err != nil {
+		log.Warnf("InferenceCost: failed to query cache block sizes (cache correction disabled): %v", err)
+		cacheConfigs = make(map[string]*cacheConfig)
+	}
+
 	return c.combineMetrics(allocationCosts, promptTokens, generationTokens,
-		inputProcessingTime, outputProcessingTime, cacheHitBlocks, end), nil
+		inputProcessingTime, outputProcessingTime, cacheHitBlocks, cacheConfigs, end), nil
 }
 
 // queryCounterDelta returns the net increase of a monotonic counter metric
@@ -160,6 +168,83 @@ func (c *Collector) queryCounterDelta(ctx context.Context, metric string, start,
 		}
 		out[key] = delta
 	}
+	return out, nil
+}
+
+// cacheConfig holds per-model KV cache configuration from vllm:cache_config_info.
+type cacheConfig struct {
+	blockSize            float64
+	prefixCachingEnabled bool
+}
+
+// queryCacheBlockSizes queries vllm:cache_config_info joined with token metrics
+// to get block_size and enable_prefix_caching per (model_name, namespace).
+// When the join produces no results for a model that has token data, a debug
+// log is emitted to aid diagnosis of pod-label mismatches.
+func (c *Collector) queryCacheBlockSizes(ctx context.Context, t time.Time) (map[string]*cacheConfig, error) {
+	// Join cache_config_info (has block_size, enable_prefix_caching labels) with
+	// prompt_tokens_total (has model_name) using namespace+pod as the join key.
+	query := `
+		max by (model_name, namespace, block_size, enable_prefix_caching) (
+			sum by (model_name, namespace, pod) (vllm:prompt_tokens_total)
+			* on (namespace, pod) group_left(block_size, enable_prefix_caching)
+			max by (namespace, pod, block_size, enable_prefix_caching) (vllm:cache_config_info)
+		)
+	`
+
+	result, _, err := c.promClient.Query(ctx, query, t)
+	if err != nil {
+		return nil, err
+	}
+
+	vec, ok := result.(model.Vector)
+	if !ok {
+		return make(map[string]*cacheConfig), nil
+	}
+
+	out := make(map[string]*cacheConfig, len(vec))
+	for _, sample := range vec {
+		modelName := string(sample.Metric["model_name"])
+		if modelName == "" {
+			continue
+		}
+		namespace := string(sample.Metric["namespace"])
+		if namespace == "" {
+			namespace = "unknown"
+		}
+		blockSizeStr := string(sample.Metric["block_size"])
+		if blockSizeStr == "" {
+			continue
+		}
+
+		blockSize, err := strconv.ParseFloat(blockSizeStr, 64)
+		if err != nil {
+			log.Warnf("InferenceCost: invalid block_size %q for model %s: %v",
+				blockSizeStr, modelName, err)
+			continue
+		}
+
+		prefixCachingEnabled := strings.EqualFold(string(sample.Metric["enable_prefix_caching"]), "true")
+
+		key := modelNamespaceKey(modelName, namespace)
+		out[key] = &cacheConfig{
+			blockSize:            blockSize,
+			prefixCachingEnabled: prefixCachingEnabled,
+		}
+	}
+
+	// Check for models that have token data but no cache config — likely a join
+	// failure due to pod-label mismatch between cache_config_info and prompt_tokens_total.
+	rawResult, _, rawErr := c.promClient.Query(ctx, `max by (namespace) (vllm:cache_config_info)`, t)
+	if rawErr == nil {
+		if rawVec, ok := rawResult.(model.Vector); ok && len(rawVec) > 0 && len(out) == 0 {
+			log.Warnf("InferenceCost: vllm:cache_config_info exists in Prometheus but the join with "+
+				"vllm:prompt_tokens_total produced no results — likely a pod-label mismatch between "+
+				"the two metrics (check that both carry matching 'namespace' and 'pod' labels). "+
+				"Cache correction will be disabled; allocation method will be 'compute_time'.")
+		}
+	}
+
 	return out, nil
 }
 
@@ -394,12 +479,48 @@ func reconcileTokenKeys(tokens map[string]float64, allocCosts map[string]*alloca
 	return out, remappedKeys
 }
 
+// reconcileCacheConfigKeys re-keys a cacheConfig map the same way reconcileTokenKeys
+// does for float64 maps — handling fully-qualified vs short model name mismatches.
+func reconcileCacheConfigKeys(configs map[string]*cacheConfig, allocCosts map[string]*allocationResult) (map[string]*cacheConfig, map[string]struct{}) {
+	shortIndex := make(map[string]string, len(allocCosts))
+	for allocKey := range allocCosts {
+		modelName, namespace := parseKey(allocKey)
+		shortName := canonicalModelName(modelName)
+		shortKey := modelNamespaceKey(shortName, namespace)
+		if _, exists := shortIndex[shortKey]; !exists {
+			shortIndex[shortKey] = allocKey
+		}
+	}
+
+	out := make(map[string]*cacheConfig, len(configs))
+	remappedKeys := make(map[string]struct{})
+
+	for k, v := range configs {
+		modelName, namespace := parseKey(k)
+		shortName := canonicalModelName(modelName)
+		shortKey := modelNamespaceKey(shortName, namespace)
+
+		if allocKey, found := shortIndex[shortKey]; found {
+			if k != allocKey {
+				log.Warnf("InferenceCost: remapping cache config key %q → %q (model-name mismatch with allocation label)", k, allocKey)
+				out[allocKey] = v
+				remappedKeys[k] = struct{}{}
+				continue
+			}
+		}
+
+		out[k] = v
+	}
+	return out, remappedKeys
+}
+
 // combineMetrics joins all data sources into InferenceCost structs.
 func (c *Collector) combineMetrics(
 	allocCosts map[string]*allocationResult,
 	promptTokens, generationTokens,
 	inputProcessingTime, outputProcessingTime,
 	cacheHitBlocks map[string]float64,
+	cacheConfigs map[string]*cacheConfig,
 	now time.Time,
 ) []*InferenceCost {
 
@@ -410,24 +531,29 @@ func (c *Collector) combineMetrics(
 	// Track which keys were remapped so we can exclude them from final results.
 	var remappedKeys map[string]struct{}
 	promptTokens, remappedKeys = reconcileTokenKeys(promptTokens, allocCosts)
-	
+
 	var remapped map[string]struct{}
 	generationTokens, remapped = reconcileTokenKeys(generationTokens, allocCosts)
 	for k := range remapped {
 		remappedKeys[k] = struct{}{}
 	}
-	
+
 	inputProcessingTime, remapped = reconcileTokenKeys(inputProcessingTime, allocCosts)
 	for k := range remapped {
 		remappedKeys[k] = struct{}{}
 	}
-	
+
 	outputProcessingTime, remapped = reconcileTokenKeys(outputProcessingTime, allocCosts)
 	for k := range remapped {
 		remappedKeys[k] = struct{}{}
 	}
-	
+
 	cacheHitBlocks, remapped = reconcileTokenKeys(cacheHitBlocks, allocCosts)
+	for k := range remapped {
+		remappedKeys[k] = struct{}{}
+	}
+
+	cacheConfigs, remapped = reconcileCacheConfigKeys(cacheConfigs, allocCosts)
 	for k := range remapped {
 		remappedKeys[k] = struct{}{}
 	}
@@ -454,6 +580,9 @@ func (c *Collector) combineMetrics(
 	for k := range cacheHitBlocks {
 		keys[k] = struct{}{}
 	}
+	for k := range cacheConfigs {
+		keys[k] = struct{}{}
+	}
 
 	results := make([]*InferenceCost, 0, len(keys))
 	for key := range keys {
@@ -461,8 +590,16 @@ func (c *Collector) combineMetrics(
 		if _, wasRemapped := remappedKeys[key]; wasRemapped {
 			continue
 		}
-		
+
 		modelName, namespace := parseKey(key)
+
+		cfg := cacheConfigs[key]
+		var blockSize float64
+		var prefixCachingEnabled bool
+		if cfg != nil {
+			blockSize = cfg.blockSize
+			prefixCachingEnabled = cfg.prefixCachingEnabled
+		}
 
 		ic := &InferenceCost{
 			Properties: InferenceCostProperties{
@@ -474,7 +611,8 @@ func (c *Collector) combineMetrics(
 			InputProcessingTime:  inputProcessingTime[key],
 			OutputProcessingTime: outputProcessingTime[key],
 			CacheHitBlocks:       cacheHitBlocks[key],
-			BlockSize:            c.config.KVCacheBlockSize,
+			BlockSize:            blockSize,
+			PrefixCachingEnabled: prefixCachingEnabled,
 			Timestamp:            now,
 		}
 

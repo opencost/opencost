@@ -19,14 +19,20 @@ const (
 type AllocationMethod string
 
 const (
-	// AllocationMethodComputeTime splits costs by vLLM prefill/decode time, with
-	// KV cache denominator correction applied.
+	// AllocationMethodComputeTimeWithCacheHits splits costs by input / output token
+	// time with KV cache denominator correction applied. Most accurate.  
+	AllocationMethodComputeTimeWithCacheHits AllocationMethod = "compute_time_with_cache_hits"
+
+	// AllocationMethodComputeTime splits input / output token time without cache
+	// correction. Used when block size is unknown (cache_config_info join failed or
+	// metric absent) or when there were no cache hits in the window. Causes artificial decrease in 
+	// per million token costs for input tokens.
 	AllocationMethodComputeTime AllocationMethod = "compute_time"
 
-	// AllocationMethodComputeTimeUncorrected splits by compute time but uses
-	// PromptTokens as the denominator (KVCacheBlockSize not configured or
-	// prefix_cache_hits_total unavailable).
-	AllocationMethodComputeTimeUncorrected AllocationMethod = "compute_time_uncorrected"
+	// AllocationMethodPrefixCachingOff splits by input / output token time; prefix
+	// caching is explicitly disabled on the vLLM instance so cache correction is
+	// not applicable.
+	AllocationMethodPrefixCachingOff AllocationMethod = "prefix_caching_off"
 
 	// AllocationMethodMultiplier splits using a fixed output/input cost multiplier
 	// (vLLM timing metrics unavailable).
@@ -64,9 +70,12 @@ type InferenceCost struct {
 	// KV cache data from vLLM Prometheus metrics.
 	// CacheHitBlocks is zero when prefix_cache_hits_total is unavailable.
 	CacheHitBlocks float64
-	// BlockSize is the deployment config constant (tokens per KV block).
-	// Zero means cache correction is disabled.
+	// BlockSize is the tokens-per-block value from vllm:cache_config_info.
+	// Zero when the cache_config_info metric is absent or the pod join failed.
 	BlockSize float64
+	// PrefixCachingEnabled reflects the enable_prefix_caching label from
+	// vllm:cache_config_info. False when the metric is absent.
+	PrefixCachingEnabled bool
 	// CachedTokens = CacheHitBlocks * BlockSize (derived in combineMetrics).
 	CachedTokens float64
 
@@ -110,10 +119,6 @@ type Config struct {
 	SharedInfraLabel      string
 	SharedInfraLabelValue string
 
-	// KVCacheBlockSize is the number of tokens per KV cache block, matching the
-	// vLLM --block-size deployment parameter. Zero disables cache correction.
-	KVCacheBlockSize float64
-
 	// AllocationMode controls the input/output split method.
 	// "compute_time" uses vLLM timing metrics (preferred).
 	// "multiplier" uses a fixed ratio (fallback).
@@ -131,7 +136,7 @@ const (
 
 	defaultOutputTokenCostMultiplier = 2.5
 	defaultModelLabel                = "llm-d.ai/model"
-	defaultSharedInfraLabel          = "llm-d.ai/inference-serving"
+	defaultSharedInfraLabel          = "llm-d.ai/inference-shared"
 	defaultSharedInfraLabelValue     = "true"
 )
 
@@ -145,7 +150,6 @@ func DefaultConfig() *Config {
 		ModelLabel:                getModelLabel(),
 		SharedInfraLabel:          getSharedInfraLabel(),
 		SharedInfraLabelValue:     getSharedInfraLabelValue(),
-		KVCacheBlockSize:          getKVCacheBlockSize(),
 		AllocationMode:            AllocationModeComputeTime,
 		OutputTokenCostMultiplier: defaultOutputTokenCostMultiplier,
 	}

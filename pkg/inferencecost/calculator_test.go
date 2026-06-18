@@ -9,7 +9,6 @@ func defaultConfig() *Config {
 	return &Config{
 		AllocationMode:            AllocationModeComputeTime,
 		OutputTokenCostMultiplier: 2.5,
-		KVCacheBlockSize:          0,
 	}
 }
 
@@ -85,8 +84,8 @@ func TestCalculator_ComputeTimeSplit_BothBases(t *testing.T) {
 	if !floatEq(m.OutputCostPerMillionTokens[CostBasisAllocation], wantAllocOutput) {
 		t.Errorf("alloc output want %f got %f", wantAllocOutput, m.OutputCostPerMillionTokens[CostBasisAllocation])
 	}
-	if m.AllocationMethod != AllocationMethodComputeTimeUncorrected {
-		t.Errorf("expected compute_time_uncorrected (no block size), got %s", m.AllocationMethod)
+	if m.AllocationMethod != AllocationMethodComputeTime {
+		t.Errorf("expected compute_time (no block size), got %s", m.AllocationMethod)
 	}
 }
 
@@ -126,7 +125,6 @@ func TestCalculator_CacheCorrection_LowersEffectiveTokens(t *testing.T) {
 	cfg := &Config{
 		AllocationMode:            AllocationModeComputeTime,
 		OutputTokenCostMultiplier: 2.5,
-		KVCacheBlockSize:          4,
 	}
 	// 2 cache hit blocks × 4 tokens = 8 cached tokens
 	// effective input = 20 - 8 = 12
@@ -138,6 +136,7 @@ func TestCalculator_CacheCorrection_LowersEffectiveTokens(t *testing.T) {
 		TotalTokens:          30,
 		CacheHitBlocks:       2,
 		BlockSize:            4,
+		PrefixCachingEnabled: true,
 		CachedTokens:         8,
 		EffectiveInputTokens: 12,
 		InputProcessingTime:  60,
@@ -152,8 +151,8 @@ func TestCalculator_CacheCorrection_LowersEffectiveTokens(t *testing.T) {
 	if !floatEq(got, wantCorrected) {
 		t.Errorf("cache-corrected input CPM want %f got %f", wantCorrected, got)
 	}
-	if m.AllocationMethod != AllocationMethodComputeTime {
-		t.Errorf("expected compute_time method, got %s", m.AllocationMethod)
+	if m.AllocationMethod != AllocationMethodComputeTimeWithCacheHits {
+		t.Errorf("expected compute_time_with_cache_hits, got %s", m.AllocationMethod)
 	}
 }
 
@@ -161,7 +160,6 @@ func TestCalculator_CacheCorrection_Disabled_WhenBlockSizeZero(t *testing.T) {
 	cfg := &Config{
 		AllocationMode:            AllocationModeComputeTime,
 		OutputTokenCostMultiplier: 2.5,
-		KVCacheBlockSize:          0,
 	}
 	m := &InferenceCost{
 		AllocationTotalCost:  1.0,
@@ -178,8 +176,8 @@ func TestCalculator_CacheCorrection_Disabled_WhenBlockSizeZero(t *testing.T) {
 	}
 	newCalc(cfg).CalculateCosts([]*InferenceCost{m})
 
-	if m.AllocationMethod != AllocationMethodComputeTimeUncorrected {
-		t.Errorf("expected compute_time_uncorrected when block size 0, got %s", m.AllocationMethod)
+	if m.AllocationMethod != AllocationMethodComputeTime {
+		t.Errorf("expected compute_time when block size 0 (unknown), got %s", m.AllocationMethod)
 	}
 	// denominator should be PromptTokens (20) not adjusted
 	wantInput := (1.0 * 0.6 / 20) * 1_000_000
@@ -192,7 +190,6 @@ func TestCalculator_CacheCorrection_Disabled_WhenNoCacheHits(t *testing.T) {
 	cfg := &Config{
 		AllocationMode:            AllocationModeComputeTime,
 		OutputTokenCostMultiplier: 2.5,
-		KVCacheBlockSize:          16,
 	}
 	m := &InferenceCost{
 		AllocationTotalCost:  1.0,
@@ -200,8 +197,9 @@ func TestCalculator_CacheCorrection_Disabled_WhenNoCacheHits(t *testing.T) {
 		PromptTokens:         100,
 		GenerationTokens:     50,
 		TotalTokens:          150,
-		CacheHitBlocks:       0, // no hits reported
+		CacheHitBlocks:       0, // no hits in this window
 		BlockSize:            16,
+		PrefixCachingEnabled: true, // caching is on, just no hits occurred
 		CachedTokens:         0,
 		EffectiveInputTokens: 100, // falls back to PromptTokens
 		InputProcessingTime:  70,
@@ -209,8 +207,8 @@ func TestCalculator_CacheCorrection_Disabled_WhenNoCacheHits(t *testing.T) {
 	}
 	newCalc(cfg).CalculateCosts([]*InferenceCost{m})
 
-	if m.AllocationMethod != AllocationMethodComputeTimeUncorrected {
-		t.Errorf("expected compute_time_uncorrected when no cache hits, got %s", m.AllocationMethod)
+	if m.AllocationMethod != AllocationMethodComputeTime {
+		t.Errorf("expected compute_time when prefix caching enabled but no hits in window, got %s", m.AllocationMethod)
 	}
 }
 
