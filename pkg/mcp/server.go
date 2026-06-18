@@ -107,9 +107,10 @@ type CloudCostQuery struct {
 
 // EfficiencyQuery contains the parameters for an efficiency query.
 type EfficiencyQuery struct {
-	Aggregate                  string   `json:"aggregate,omitempty"`                  // Aggregation properties (e.g., "pod", "namespace", "controller")
-	Filter                     string   `json:"filter,omitempty"`                     // Filter expression for allocations (same as AllocationQuery)
-	EfficiencyBufferMultiplier *float64 `json:"efficiencyBufferMultiplier,omitempty"` // Buffer multiplier for recommendations (default: 1.2 for 20% headroom)
+	Step                       time.Duration `json:"step,omitempty"`                       // Query step size; controls peak memory by batching large windows (default: auto-scaled based on window)
+	Aggregate                  string        `json:"aggregate,omitempty"`                  // Aggregation properties (e.g., "pod", "namespace", "controller")
+	Filter                     string        `json:"filter,omitempty"`                     // Filter expression for allocations (same as AllocationQuery)
+	EfficiencyBufferMultiplier *float64      `json:"efficiencyBufferMultiplier,omitempty"` // Buffer multiplier for recommendations (default: 1.2 for 20% headroom)
 }
 
 // AllocationResponse represents the allocation data returned to the AI agent.
@@ -1016,6 +1017,23 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 	}
 }
 
+// defaultEfficiencyStep returns a step duration that keeps peak memory
+// bounded for large query windows. When the caller does not specify a step,
+// this provides a safe default that avoids loading the entire window into
+// memory at once.
+func defaultEfficiencyStep(windowDuration time.Duration) time.Duration {
+	switch {
+	case windowDuration >= 30*24*time.Hour:
+		return 24 * time.Hour
+	case windowDuration >= 7*24*time.Hour:
+		return 6 * time.Hour
+	case windowDuration >= 24*time.Hour:
+		return time.Hour
+	default:
+		return windowDuration
+	}
+}
+
 // QueryEfficiency queries allocation data and computes efficiency metrics with recommendations.
 func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyResponse, error) {
 	// 1. Parse Window
@@ -1060,9 +1078,21 @@ func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyRes
 		filterString = ""
 	}
 
-	// 4. Query allocations with the specified parameters
-	// Use the entire window as step to get aggregated data
-	step := window.Duration()
+	// 4. Determine query step size.
+	// A smaller step reduces peak memory by breaking large windows into batches.
+	// Results are accumulated so the output is identical regardless of step.
+	var step time.Duration
+	if query.EfficiencyParams != nil && query.EfficiencyParams.Step > 0 {
+		step = query.EfficiencyParams.Step
+	} else {
+		step = defaultEfficiencyStep(window.Duration())
+	}
+
+	accumulateBy := opencost.AccumulateOptionNone
+	if step < window.Duration() {
+		accumulateBy = opencost.AccumulateOptionAll
+	}
+
 	asr, err := s.costModel.QueryAllocation(
 		window,
 		step,
@@ -1072,7 +1102,7 @@ func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyRes
 		false, // includeProportionalAssetResourceCosts
 		false, // includeAggregatedMetadata
 		false, // sharedLoadBalancer
-		opencost.AccumulateOptionNone,
+		accumulateBy,
 		false, // shareIdle
 		filterString,
 	)

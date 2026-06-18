@@ -278,10 +278,20 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 	}
 
 	handleEfficiency := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args EfficiencyArgs) (*mcp_sdk.CallToolResult, interface{}, error) {
+		var step time.Duration
+		if args.Step != "" {
+			var err error
+			step, err = time.ParseDuration(args.Step)
+			if err != nil {
+				return nil, nil, fmt.Errorf("invalid step duration '%s': %w", args.Step, err)
+			}
+		}
+
 		queryRequest := &opencost_mcp.OpenCostQueryRequest{
 			QueryType: opencost_mcp.EfficiencyQueryType,
 			Window:    args.Window,
 			EfficiencyParams: &opencost_mcp.EfficiencyQuery{
+				Step:                       step,
 				Aggregate:                  args.Aggregate,
 				Filter:                     args.Filter,
 				EfficiencyBufferMultiplier: args.BufferMultiplier,
@@ -408,4 +418,5 @@ type EfficiencyArgs struct {
 	Aggregate        string   `json:"aggregate,omitempty"`         // Aggregation level (e.g., "pod", "namespace", "controller")
 	Filter           string   `json:"filter,omitempty"`            // Filter expression (same as allocation filters)
 	BufferMultiplier *float64 `json:"buffer_multiplier,omitempty"` // Buffer multiplier for recommendations (default: 1.2 for 20% headroom, e.g., 1.4 for 40%)
+	Step             string   `json:"step,omitempty"`              // Query step size (e.g., "1h", "6h"); smaller steps reduce memory for large windows
 }

@@ -920,11 +920,13 @@ func TestCloudCostQuery_NewFields(t *testing.T) {
 func TestEfficiencyQueryStruct(t *testing.T) {
 	bufferMultiplier := 1.4
 	query := EfficiencyQuery{
+		Step:                       5 * time.Minute,
 		Aggregate:                  "pod",
 		Filter:                     "namespace:production",
 		EfficiencyBufferMultiplier: &bufferMultiplier,
 	}
 
+	assert.Equal(t, 5*time.Minute, query.Step)
 	assert.Equal(t, "pod", query.Aggregate)
 	assert.Equal(t, "namespace:production", query.Filter)
 	assert.NotNil(t, query.EfficiencyBufferMultiplier)
@@ -934,6 +936,7 @@ func TestEfficiencyQueryStruct(t *testing.T) {
 func TestEfficiencyQueryDefaultValues(t *testing.T) {
 	query := EfficiencyQuery{}
 
+	assert.Equal(t, time.Duration(0), query.Step)
 	assert.Empty(t, query.Aggregate)
 	assert.Empty(t, query.Filter)
 	assert.Nil(t, query.EfficiencyBufferMultiplier)
@@ -1363,6 +1366,42 @@ func TestEfficiencyConstants(t *testing.T) {
 
 func TestEfficiencyQueryType(t *testing.T) {
 	assert.Equal(t, QueryType("efficiency"), EfficiencyQueryType)
+}
+
+func TestDefaultEfficiencyStep(t *testing.T) {
+	tests := []struct {
+		name     string
+		window   time.Duration
+		expected time.Duration
+	}{
+		{"30d window uses 1d step", 30 * 24 * time.Hour, 24 * time.Hour},
+		{"90d window uses 1d step", 90 * 24 * time.Hour, 24 * time.Hour},
+		{"7d window uses 6h step", 7 * 24 * time.Hour, 6 * time.Hour},
+		{"14d window uses 6h step", 14 * 24 * time.Hour, 6 * time.Hour},
+		{"1d window uses 1h step", 24 * time.Hour, time.Hour},
+		{"3d window uses 1h step", 3 * 24 * time.Hour, time.Hour},
+		{"12h window returns full window", 12 * time.Hour, 12 * time.Hour},
+		{"1h window returns full window", time.Hour, time.Hour},
+		{"30m window returns full window", 30 * time.Minute, 30 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, defaultEfficiencyStep(tt.window))
+		})
+	}
+}
+
+func TestQueryEfficiency_WithStep(t *testing.T) {
+	req := &OpenCostQueryRequest{
+		QueryType: EfficiencyQueryType,
+		Window:    "7d",
+		EfficiencyParams: &EfficiencyQuery{
+			Step:      6 * time.Hour,
+			Aggregate: "pod",
+		},
+	}
+	assert.Equal(t, 6*time.Hour, req.EfficiencyParams.Step)
+	assert.Equal(t, "pod", req.EfficiencyParams.Aggregate)
 }
 
 // TestTransformCloudCostSetRange_NilPointerHandling verifies that nil pointer dereferences
