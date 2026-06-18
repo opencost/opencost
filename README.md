@@ -231,7 +231,7 @@ Retrieve resource efficiency metrics with rightsizing recommendations and cost s
 - `aggregate` (optional): Aggregation properties (e.g., "pod", "namespace", "controller")
 - `filter` (optional): Filter expression for allocations
 - `buffer_multiplier` (optional): Buffer multiplier for recommendations (default: 1.2 for 20% headroom)
-- `step` (optional): Query step size (e.g., "1h", "6h"); smaller steps reduce memory for large windows
+- `step` (optional): Query step size (e.g., "1h", "6h"); smaller steps reduce peak memory by batching large windows, but may increase query time/requests
 
 ### Supported Asset Types
 

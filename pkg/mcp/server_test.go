@@ -1383,6 +1383,11 @@ func TestDefaultEfficiencyStep(t *testing.T) {
 		{"12h window returns full window", 12 * time.Hour, 12 * time.Hour},
 		{"1h window returns full window", time.Hour, time.Hour},
 		{"30m window returns full window", 30 * time.Minute, 30 * time.Minute},
+		{"exactly at 7d boundary uses 6h step", 7 * 24 * time.Hour, 6 * time.Hour},
+		{"just under 7d uses 1h step", 7*24*time.Hour - time.Minute, time.Hour},
+		{"just under 1d uses full window", 24*time.Hour - time.Minute, 24*time.Hour - time.Minute},
+		{"zero window returns zero", 0, 0},
+		{"negative window returns negative", -time.Hour, -time.Hour},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

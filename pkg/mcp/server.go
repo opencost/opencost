@@ -1080,12 +1080,22 @@ func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyRes
 
 	// 4. Determine query step size.
 	// A smaller step reduces peak memory by breaking large windows into batches.
-	// Results are accumulated so the output is identical regardless of step.
+	// Results are accumulated so the output is functionally equivalent regardless
+	// of step, though minor floating-point differences are possible because
+	// per-step cost calculations (which use max(request, usage)) are summed
+	// rather than computed in a single pass.
 	var step time.Duration
 	if query.EfficiencyParams != nil && query.EfficiencyParams.Step > 0 {
 		step = query.EfficiencyParams.Step
 	} else {
 		step = defaultEfficiencyStep(window.Duration())
+	}
+
+	if step > window.Duration() {
+		step = window.Duration()
+	}
+	if step <= 0 {
+		return nil, fmt.Errorf("invalid query: window has zero or negative duration")
 	}
 
 	accumulateBy := opencost.AccumulateOptionNone
