@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// @bingen:generate:PersistentVolumeClaim
 type PersistentVolumeClaim struct {
 	// Version 1 fields
 	UID                string            `json:"uid"`
