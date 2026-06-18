@@ -245,8 +245,10 @@ Every vLLM inference pod **must** carry a label whose key matches `INFERENCE_MOD
 # Pod spec
 metadata:
   labels:
-    llm-d.ai/model: "Qwen/Qwen3-32B"   # must match vLLM's model_name metric label
+    llm-d.ai/model: "Qwen3-32B"   # must match --served-model-name (or --model if --served-model-name is not set)
 ```
+
+`--served-model-name` controls the exact string vLLM uses as the `model_name` label in Prometheus metrics. Set the pod label to that same value. If `--served-model-name` is not set, vLLM uses the fully-qualified `--model` path (e.g. `Qwen/Qwen3-32B`) as `model_name`, so the pod label must match that instead.
 
 If this label is missing or the value differs from `model_name` in vLLM metrics, the allocation join fails: **token counts will appear in the API response but all cost fields will be zero** and `allocationMethod` will be empty.
 
