@@ -3,6 +3,7 @@ package autocomplete
 import (
 	"fmt"
 
+	"github.com/opencost/opencost/core/pkg/filter/ast"
 	"github.com/opencost/opencost/core/pkg/opencost"
 )
 
@@ -57,6 +58,9 @@ func NormalizeRequest(req *Request, validateField FieldValidator, opts Normalize
 	req.Field = field
 	req.Search = SanitizeSearch(req.Search)
 	req.Limit = limit
+	if req.Filter == nil {
+		req.Filter = &ast.VoidOp{}
+	}
 	if opts.EnsureLabelConfig && req.LabelConfig == nil {
 		req.LabelConfig = opencost.NewLabelConfig()
 	}

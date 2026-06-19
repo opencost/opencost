@@ -148,6 +148,19 @@ func (orig *GPUAllocation) Clone() *GPUAllocation {
 	}
 }
 
+// ptrValueEqual reports whether two pointers are both nil, or both non-nil
+// and pointing to equal values. Plain == on pointer fields compares
+// addresses, which made equal-valued GPUAllocations (e.g. binary
+// roundtrips) compare unequal (#3846). NaN values compare unequal per Go ==
+// semantics; SanitizeNaN normalizes NaN pointers to nil before comparisons
+// where that matters.
+func ptrValueEqual[T comparable](a, b *T) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
 func (orig *GPUAllocation) Equal(that *GPUAllocation) bool {
 	if orig == nil && that == nil {
 		return true
@@ -159,9 +172,9 @@ func (orig *GPUAllocation) Equal(that *GPUAllocation) bool {
 	return orig.GPUDevice == that.GPUDevice &&
 		orig.GPUModel == that.GPUModel &&
 		orig.GPUUUID == that.GPUUUID &&
-		orig.IsGPUShared == that.IsGPUShared &&
-		orig.GPUUsageAverage == that.GPUUsageAverage &&
-		orig.GPURequestAverage == that.GPURequestAverage
+		ptrValueEqual(orig.IsGPUShared, that.IsGPUShared) &&
+		ptrValueEqual(orig.GPUUsageAverage, that.GPUUsageAverage) &&
+		ptrValueEqual(orig.GPURequestAverage, that.GPURequestAverage)
 
 }
 

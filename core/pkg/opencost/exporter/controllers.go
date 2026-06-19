@@ -38,6 +38,8 @@ type PipelinesExportConfig struct {
 	AssetPipelineResolutons           []time.Duration
 	NetworkInsightPipelineResolutions []time.Duration
 	KubeModelPipelineResolutions      []time.Duration
+	Streaming                         bool
+	Compression                       ExportCompressionLevel
 }
 
 // defaultPipelineExportResolutions returns the default export configuration for the pipeline
@@ -60,6 +62,8 @@ func NewPipelinesExportConfig(appName, clusterUID, clusterName string) Pipelines
 		AssetPipelineResolutons:           defaultPipelineExportResolutions(),
 		NetworkInsightPipelineResolutions: defaultPipelineExportResolutions(),
 		KubeModelPipelineResolutions:      defaultPipelineExportResolutions(),
+		Streaming:                         false,
+		Compression:                       ExportCompressionLevelNone,
 	}
 }
 
@@ -93,7 +97,13 @@ func NewPipelineExportControllers(store storage.Storage, cm ComputePipelineSourc
 		}
 
 		// Use ClusterName for "clusterId" here to maintain legacy pattern
-		allocController, err := NewComputePipelineExportController(config.ClusterName, store, allocSource, res)
+		var allocController *export.ComputeExportController[opencost.AllocationSet]
+		var err error
+		if config.Streaming {
+			allocController, err = NewStreamingComputePipelineExportController(config.ClusterName, store, allocSource, res, config.Compression)
+		} else {
+			allocController, err = NewComputePipelineExportController(config.ClusterName, store, allocSource, res)
+		}
 		if err != nil {
 			log.Errorf("Failed to create allocation export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue
@@ -113,7 +123,13 @@ func NewPipelineExportControllers(store storage.Storage, cm ComputePipelineSourc
 		}
 
 		// Use ClusterName for "clusterId" here to maintain legacy pattern
-		assetController, err := NewComputePipelineExportController(config.ClusterName, store, assetSource, res)
+		var assetController *export.ComputeExportController[opencost.AssetSet]
+		var err error
+		if config.Streaming {
+			assetController, err = NewStreamingComputePipelineExportController(config.ClusterName, store, assetSource, res, config.Compression)
+		} else {
+			assetController, err = NewComputePipelineExportController(config.ClusterName, store, assetSource, res)
+		}
 		if err != nil {
 			log.Errorf("Failed to create asset export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue
@@ -133,7 +149,13 @@ func NewPipelineExportControllers(store storage.Storage, cm ComputePipelineSourc
 		}
 
 		// Use ClusterName for "clusterId" here to maintain legacy pattern
-		networkInsightController, err := NewComputePipelineExportController(config.ClusterName, store, networkInsightSource, res)
+		var networkInsightController *export.ComputeExportController[opencost.NetworkInsightSet]
+		var err error
+		if config.Streaming {
+			networkInsightController, err = NewStreamingComputePipelineExportController(config.ClusterName, store, networkInsightSource, res, config.Compression)
+		} else {
+			networkInsightController, err = NewComputePipelineExportController(config.ClusterName, store, networkInsightSource, res)
+		}
 		if err != nil {
 			log.Errorf("Failed to create network insight export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue
@@ -152,7 +174,14 @@ func NewPipelineExportControllers(store storage.Storage, cm ComputePipelineSourc
 			continue
 		}
 
-		kubeModelController, err := NewKubeModelComputePipelineExportController(config.AppName, config.ClusterUID, store, kubeModelSource, res)
+		var kubeModelController *export.ComputeExportController[kubemodel.KubeModelSet]
+		var err error
+		if config.Streaming {
+			kubeModelController, err = NewStreamingKubeModelComputePipelineExportController(config.AppName, config.ClusterUID, store, kubeModelSource, res, config.Compression)
+		} else {
+			kubeModelController, err = NewKubeModelComputePipelineExportController(config.AppName, config.ClusterUID, store, kubeModelSource, res)
+		}
+
 		if err != nil {
 			log.Errorf("Failed to create KubeModel export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue

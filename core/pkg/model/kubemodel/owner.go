@@ -39,6 +39,7 @@ func ParseOwnerKind(kind string) OwnerKind {
 }
 
 // @bingen:generate:Owner
+// Owner represents a Kubernetes resource owner (workload controller)
 type Owner struct {
 	UID        string    `json:"uid"`
 	Controller bool      `json:"controller"`

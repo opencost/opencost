@@ -196,6 +196,9 @@ const DigitalOceanProvider = "DigitalOcean"
 // OVHProvider describes the provider OVH
 const OVHProvider = "OVH"
 
+// STACKITProvider describes the provider STACKIT
+const STACKITProvider = "STACKIT"
+
 // NilProvider describes unknown provider
 const NilProvider = "-"
 
@@ -220,6 +223,8 @@ func ParseProvider(str string) string {
 		return DigitalOceanProvider
 	case "ovh", "ovhcloud", "ovh-mks":
 		return OVHProvider
+	case "stackit", "ske":
+		return STACKITProvider
 	default:
 		return NilProvider
 	}
