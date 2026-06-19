@@ -14,7 +14,6 @@ package kubemodel
 import (
 	"cmp"
 	"fmt"
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"io"
 	"iter"
 	"os"
@@ -25,7 +24,9 @@ import (
 	"time"
 	"unsafe"
 
-	util "github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/model/shared"
+
+	"github.com/opencost/opencost/core/pkg/util"
 )
 
 const (
