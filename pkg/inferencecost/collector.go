@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/filter/allocation"
+	"github.com/opencost/opencost/core/pkg/filter/ops"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/prometheus/client_golang/api"
@@ -254,6 +256,10 @@ type allocationResult struct {
 	usageTotalCost      float64
 	namespace           string
 	cluster             string
+	pod                 string
+	controller          string
+	controllerKind      string
+	container           string
 }
 
 // queryAllocationCosts calls the OpenCost allocation layer twice:
@@ -316,9 +322,18 @@ func (c *Collector) queryAllocationCostsWithIdle(ctx context.Context, start, end
 		return nil, err
 	}
 
+	// Create a filter to match shared infrastructure allocations by label
+	// This ensures allocations with the shared infra label are moved to shareSet
+	// and distributed among other allocations, rather than aggregating into __unallocated__
+	shareFilter := ops.Eq(
+		ops.WithKey(allocation.FieldLabel, c.config.SharedInfraLabel),
+		c.config.SharedInfraLabelValue,
+	)
+
 	opts := &opencost.AllocationAggregationOptions{
 		ShareIdle:    opencost.ShareWeighted,
 		ShareSplit:   opencost.ShareWeighted,
+		Share:        shareFilter,
 		SharedLabels: map[string][]string{c.config.SharedInfraLabel: {c.config.SharedInfraLabelValue}},
 	}
 
@@ -338,9 +353,19 @@ func (c *Collector) queryAllocationCostsWithoutIdle(ctx context.Context, start, 
 		return nil, err
 	}
 
+	// Create a filter to match shared infrastructure allocations by label
+	// Even though we're not sharing costs (ShareSplit: ShareNone), we still need
+	// the Share filter to identify and separate shared infra allocations from
+	// regular allocations, preventing them from aggregating into __unallocated__
+	shareFilter := ops.Eq(
+		ops.WithKey(allocation.FieldLabel, c.config.SharedInfraLabel),
+		c.config.SharedInfraLabelValue,
+	)
+
 	opts := &opencost.AllocationAggregationOptions{
 		ShareIdle:    opencost.ShareNone,
 		ShareSplit:   opencost.ShareNone,
+		Share:        shareFilter,
 		SharedLabels: map[string][]string{c.config.SharedInfraLabel: {c.config.SharedInfraLabelValue}},
 	}
 
@@ -371,29 +396,58 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 
 		namespace := ""
 		cluster := ""
+		pod := ""
+		controller := ""
+		controllerKind := ""
+		container := ""
+		
 		if alloc.Properties != nil {
 			namespace = alloc.Properties.Namespace
 			cluster = alloc.Properties.Cluster
+			pod = alloc.Properties.Pod
+			controller = alloc.Properties.Controller
+			controllerKind = alloc.Properties.ControllerKind
+			container = alloc.Properties.Container
 		}
 
 		key := modelNamespaceKey(modelName, namespace)
 
+		// Accumulate costs for the same model/namespace key
+		existing, exists := results[key]
+		if !exists {
+			existing = &allocationResult{
+				namespace:      namespace,
+				cluster:        cluster,
+				pod:            pod,
+				controller:     controller,
+				controllerKind: controllerKind,
+				container:      container,
+			}
+			results[key] = existing
+		}
+
 		if isAllocationCost {
 			// For allocation cost: use TotalCost() which includes idle and shared
-			results[key] = &allocationResult{
-				allocationTotalCost: alloc.TotalCost(),
-				usageTotalCost:      0, // Not used in this query
-				namespace:           namespace,
-				cluster:             cluster,
-			}
+			existing.allocationTotalCost += alloc.TotalCost()
 		} else {
 			// For usage cost: use TotalCost() from the ShareNone query (no idle)
-			results[key] = &allocationResult{
-				allocationTotalCost: 0, // Not used in this query
-				usageTotalCost:      alloc.TotalCost(),
-				namespace:           namespace,
-				cluster:             cluster,
-			}
+			existing.usageTotalCost += alloc.TotalCost()
+		}
+		
+		// When aggregating multiple allocations, preserve the first non-empty values
+		// for pod, controller, and container. This provides representative values
+		// when costs are aggregated across multiple pods/containers.
+		if existing.pod == "" && pod != "" {
+			existing.pod = pod
+		}
+		if existing.controller == "" && controller != "" {
+			existing.controller = controller
+		}
+		if existing.controllerKind == "" && controllerKind != "" {
+			existing.controllerKind = controllerKind
+		}
+		if existing.container == "" && container != "" {
+			existing.container = container
 		}
 	}
 
@@ -620,6 +674,10 @@ func (c *Collector) combineMetrics(
 			ic.AllocationTotalCost = ar.allocationTotalCost
 			ic.UsageTotalCost = ar.usageTotalCost
 			ic.Properties.Cluster = ar.cluster
+			ic.Properties.Pod = ar.pod
+			ic.Properties.Controller = ar.controller
+			ic.Properties.ControllerKind = ar.controllerKind
+			ic.Properties.Container = ar.container
 			if namespace == "" {
 				ic.Properties.Namespace = ar.namespace
 			}

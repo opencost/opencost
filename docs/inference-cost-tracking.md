@@ -26,9 +26,9 @@ OpenCost reads `PROMETHEUS_SERVER_ENDPOINT` for both the core metrics and the [v
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `INFERENCE_COST_ENABLED` | `false` | Enable inference cost tracking |
-| `INFERENCE_MODEL_LABEL` | `llm-d.ai/model` | Pod label whose value is the vLLM model name. **Must match the `model_name` label on vLLM Prometheus metrics.** |
-| `INFERENCE_SHARED_INFRA_LABEL` | `llm-d.ai/inference-shared` | Pod label key identifying shared infra pods (EPP, gateway) |
-| `INFERENCE_SHARED_INFRA_LABEL_VALUE` | `true` | Label value that marks a pod as shared infra |
+| `INFERENCE_MODEL_LABEL` | `llm-d.ai/model` | Pod label whose value is the vLLM model name. **Must match the `model_name` label on vLLM Prometheus metrics.** See [Model label](#model-label) for details. |
+| `INFERENCE_SHARED_INFRA_LABEL` | `llm-d.ai/inference-shared` | Pod label key identifying shared infra pods (EPP, gateway). See [Shared infrastructure label](#shared-infrastructure-label) for details. |
+| `INFERENCE_SHARED_INFRA_LABEL_VALUE` | `true` | Label value that marks a pod as shared infra. See [Shared infrastructure label](#shared-infrastructure-label) for details. |
 | `INFERENCE_COLLECTION_INTERVAL` | `2m` | Background collection interval |
 
 ### Kubernetes Deployment Example
@@ -54,9 +54,10 @@ Use `allocation` for chargeback/showback and bill reconciliation. Use `usage` fo
 
 ## Prometheus Metrics
 
-When `INFERENCE_COST_ENABLED=true`, OpenCost registers and emits four gauge metrics every collection interval. All metrics carry `model_name`, `model_version`, `namespace`, and `cost_basis` labels.
+When `INFERENCE_COST_ENABLED=true`, OpenCost registers and emits three gauge metrics every collection interval. All metrics carry `model_name`, `model_version`, `namespace`, and `cost_basis` labels.
 
-### `llm_total_cost`
+Note: `pod`, `controller`, `controller_kind`, `container` aggregation are available via [REST APIs](#rest-api-endpoints).
+
 
 **Hourly infrastructure cost** attributed to a model.
 
@@ -68,65 +69,68 @@ This is an instantaneous hourly rate ($/hour), not a cumulative counter.
 # Current hourly cost for a model
 llm_total_cost{model_name="Qwen/Qwen3-32B", cost_basis="allocation"}
 
-# Estimated 24-hour cost (if rate stays constant)
+# Estimated 24-hour cost if current rate continues (real-time projection)
 llm_total_cost{model_name="Qwen/Qwen3-32B", cost_basis="allocation"} * 24
+
+# Actual 24-hour cost based on historical average (more accurate for reporting)
+avg_over_time(llm_total_cost{model_name="Qwen/Qwen3-32B", cost_basis="allocation"}[24h]) * 24
 ```
 
 ### `llm_cost_per_million_tokens`
 
-**Blended cost per 1M delivered tokens** (prompt + generation combined).
+**Cost per 1M tokens.** This metric serves dual purposes based on the `phase` label:
 
-**Labels:** `model_name`, `model_version`, `namespace`, `cost_basis`
+- **Without `phase` label (blended):** Combined cost for all tokens (prompt + generation)
+- **`phase=prompt`:** Cost per 1M effective input tokens (cached tokens excluded when KV cache correction is active)
+- **`phase=generation`:** Cost per 1M output tokens
 
-```promql
-# Current blended cost per 1M tokens
-llm_cost_per_million_tokens{model_name="Qwen/Qwen3-32B", cost_basis="allocation"}
+**Labels:** `model_name`, `model_version`, `namespace`, `cost_basis`, `phase`, `allocation_method`
 
-# Average over the past 24 hours
-avg_over_time(llm_cost_per_million_tokens{model_name="Qwen/Qwen3-32B"}[24h])
+The `phase` label distinguishes between:
+- *(empty)* — Blended cost across all tokens
+- `prompt` — Input/prompt token cost
+- `generation` — Output/generation token cost
 
-# Compare models side-by-side
-llm_cost_per_million_tokens{cost_basis="allocation"}
-```
-
-### `llm_input_cost_per_million_tokens`
-
-**Cost per 1M effective input (prompt) tokens.** Cached tokens are excluded from the denominator when KV cache correction is active (see `allocation_method`), meaning that there is no cost for processing cached input tokens.
-
-**Labels:** `model_name`, `model_version`, `namespace`, `cost_basis`, `allocation_method`
-
-`allocation_method` values refer to how the per token input cost is calculated:
+The `allocation_method` label (present only when `phase` is set) indicates how the input/output split was calculated:
 
 | Value | Meaning |
 |-------|---------|
-| `compute_time_with_cache_hits` | Cost of input tokens actually processed - cached tokens excluded. Most accurate. |
+| `compute_time_with_cache_hits` | Cost split by vLLM timing with KV cache correction. Cached tokens excluded from input denominator. Most accurate. |
 | `prefix_caching_off` | Prefix caching is explicitly disabled on this vLLM instance so cache correction is not applicable. |
-| `compute_time` | KV cache block size unknown (cache config metric absent or pod-label join failed) or no cache hits occurred in this window. |
+| `compute_time` | Cost split by vLLM timing without cache correction (block size unknown or no cache hits in window). |
 | `multiplier` | Fixed output/input cost ratio (vLLM timing metrics unavailable; default ratio 2.5×). |
 | *(empty)* | No tokens processed or total cost is zero (allocation join failed — see [Labeling Requirements](#labeling-requirements)). |
 
 ```promql
-llm_input_cost_per_million_tokens{
+# Current blended cost per 1M tokens
+llm_cost_per_million_tokens{model_name="Qwen/Qwen3-32B", cost_basis="allocation", phase=""}
+
+# Input (prompt) cost per 1M effective tokens
+llm_cost_per_million_tokens{
   model_name="Qwen/Qwen3-32B",
   cost_basis="allocation",
+  phase="prompt",
   allocation_method="compute_time_with_cache_hits"
 }
-```
 
-### `llm_output_cost_per_million_tokens`
-
-**Cost per 1M output (generation) tokens.**
-
-**Labels:** `model_name`, `model_version`, `namespace`, `cost_basis`, `allocation_method`
-
-```promql
-llm_output_cost_per_million_tokens{
+# Output (generation) cost per 1M tokens
+llm_cost_per_million_tokens{
   model_name="Qwen/Qwen3-32B",
-  cost_basis="allocation"
+  cost_basis="allocation",
+  phase="generation"
 }
 
 # Input vs output cost ratio
-llm_output_cost_per_million_tokens / llm_input_cost_per_million_tokens
+llm_cost_per_million_tokens{phase="generation"} / llm_cost_per_million_tokens{phase="prompt"}
+
+# Average blended cost over the past 24 hours
+avg_over_time(llm_cost_per_million_tokens{model_name="Qwen/Qwen3-32B", phase=""}[24h])
+
+# Compare models side-by-side (blended)
+llm_cost_per_million_tokens{cost_basis="allocation", phase=""}
+
+# Sum input and output costs
+sum by (model_name, namespace) (llm_cost_per_million_tokens{phase=~"prompt|generation"})
 ```
 
 ### Example Alerting Rule
@@ -159,7 +163,7 @@ Returns a single aggregated `InferenceCostSet` covering the full requested windo
 |-----------|----------|-------------|
 | `window` | Yes | Time window: RFC3339 `start,end` or named range (e.g. `7d`, `24h`, `2025-01-01T00:00:00Z,2025-01-02T00:00:00Z`) |
 | `costBasis` | No | `allocation` (default) or `usage` |
-| `aggregate` | No | Comma-separated dimensions: `model_name`, `model_version`, `namespace`, `cluster` |
+| `aggregate` | No | Comma-separated dimensions: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container` |
 | `accumulate` | No | Step size within the window: `hour`, `day`, `week`, `month` (results are then accumulated into one total) |
 | `filter` | No | `prop:value` pairs joined with `+` for AND logic, e.g. `namespace:default+model_name:llama3` |
 
@@ -178,8 +182,7 @@ curl "http://localhost:9003/inferenceCost/total?window=7d&aggregate=model_name&c
     "inferenceCosts": {
       "Qwen/Qwen3-32B:llm-d-namespace": {
         "properties": {
-          "modelName": "Qwen/Qwen3-32B",
-          "namespace": "llm-d-namespace"
+          "modelName": "Qwen/Qwen3-32B"
         },
         "window": { "start": "...", "end": "..." },
         "costBasis": "allocation",
@@ -309,7 +312,7 @@ OpenCost uses **compute-time based allocation** by default:
 
 1. Collects cumulative processing times from [vLLM](https://vllm.ai/):
    - `vllm:request_prefill_time_seconds_sum` — total time spent on input (prefill)
-   - `vllm:time_per_output_token_seconds_sum` — total time spent on output (decode)
+   - `vllm:request_time_per_output_token_seconds_sum` — total time spent on output (decode)
 2. Allocates infrastructure cost proportionally: `InputCost = TotalCost × (PrefillTime / TotalTime)`
 3. Calculates per-million rates using `EffectiveInputTokens` (cache-corrected when applicable) for input and `GenerationTokens` for output
 
@@ -355,7 +358,7 @@ Output:     ($3.20 × 0.5) / 3,000,000 × 1,000,000 = $0.533/M output tokens
 | `vllm:prompt_tokens_total` | Token counts, blended cost rate |
 | `vllm:generation_tokens_total` | Token counts, blended cost rate |
 | `vllm:request_prefill_time_seconds_sum` | Compute-time allocation (input/output split) |
-| `vllm:time_per_output_token_seconds_sum` | Compute-time allocation (input/output split) |
+| `vllm:request_time_per_output_token_seconds_sum` | Compute-time allocation (input/output split) |
 | `vllm:prefix_cache_hits_total` | KV cache block correction (optional) |
 | `vllm:cache_config_info` | KV cache block size (from `block_size` label; joined with token metrics) |
 

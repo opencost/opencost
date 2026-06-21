@@ -110,6 +110,108 @@ func TestAggKey_EmptyValueFallsBackToUnallocated(t *testing.T) {
 	}
 }
 
+func TestAggKey_ByPod(t *testing.T) {
+	props := InferenceCostAPIProperties{
+		ModelName: "llama",
+		Namespace: "prod",
+		Pod:       "llama-pod-123",
+	}
+	key, err := aggKey(props, []string{"pod"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if key != "llama-pod-123" {
+		t.Errorf("key = %q, want %q", key, "llama-pod-123")
+	}
+}
+
+func TestAggKey_ByController(t *testing.T) {
+	props := InferenceCostAPIProperties{
+		ModelName:  "llama",
+		Namespace:  "prod",
+		Controller: "llama-deployment",
+	}
+	key, err := aggKey(props, []string{"controller"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if key != "llama-deployment" {
+		t.Errorf("key = %q, want %q", key, "llama-deployment")
+	}
+}
+
+func TestAggKey_ByControllerKind(t *testing.T) {
+	props := InferenceCostAPIProperties{
+		ModelName:      "llama",
+		Namespace:      "prod",
+		ControllerKind: "Deployment",
+	}
+	key, err := aggKey(props, []string{"controller_kind"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if key != "Deployment" {
+		t.Errorf("key = %q, want %q", key, "Deployment")
+	}
+}
+
+func TestAggKey_ByContainer(t *testing.T) {
+	props := InferenceCostAPIProperties{
+		ModelName: "llama",
+		Namespace: "prod",
+		Container: "vllm-container",
+	}
+	key, err := aggKey(props, []string{"container"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if key != "vllm-container" {
+		t.Errorf("key = %q, want %q", key, "vllm-container")
+	}
+}
+
+func TestAggKey_MultiDimWithNewFields(t *testing.T) {
+	props := InferenceCostAPIProperties{
+		ModelName:      "llama",
+		Namespace:      "prod",
+		Pod:            "llama-pod-123",
+		Controller:     "llama-deployment",
+		ControllerKind: "Deployment",
+		Container:      "vllm-container",
+	}
+	key, err := aggKey(props, []string{"namespace", "controller_kind", "container"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if key != "prod/Deployment/vllm-container" {
+		t.Errorf("key = %q, want %q", key, "prod/Deployment/vllm-container")
+	}
+}
+
+func TestAggKey_AllDimensions(t *testing.T) {
+	props := InferenceCostAPIProperties{
+		ModelName:      "llama",
+		ModelVersion:   "v1.0",
+		Namespace:      "prod",
+		Cluster:        "cluster-1",
+		Pod:            "llama-pod-123",
+		Controller:     "llama-deployment",
+		ControllerKind: "Deployment",
+		Container:      "vllm-container",
+	}
+	key, err := aggKey(props, []string{
+		"model_name", "model_version", "namespace", "cluster",
+		"pod", "controller", "controller_kind", "container",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expected := "llama/v1.0/prod/cluster-1/llama-pod-123/llama-deployment/Deployment/vllm-container"
+	if key != expected {
+		t.Errorf("key = %q, want %q", key, expected)
+	}
+}
+
 // --- aggregate ---
 
 func TestAggregate_ByModelName_SumsTokensAndRecomputesRates(t *testing.T) {
@@ -306,5 +408,112 @@ func TestMatchesFilter_NoMatch(t *testing.T) {
 	specs := []filterSpec{{property: "namespace", value: "staging"}}
 	if matchesFilter(ic, specs) {
 		t.Error("expected matchesFilter to return false for non-matching spec")
+	}
+}
+
+
+func TestMatchesFilter_Pod(t *testing.T) {
+	ic := &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			Namespace: "prod",
+			Pod:       "llama-pod-123",
+		},
+	}
+	specs := []filterSpec{{property: "pod", value: "llama-pod-123"}}
+	if !matchesFilter(ic, specs) {
+		t.Error("expected matchesFilter to return true for matching pod")
+	}
+}
+
+func TestMatchesFilter_Controller(t *testing.T) {
+	ic := &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			Namespace:  "prod",
+			Controller: "llama-deployment",
+		},
+	}
+	specs := []filterSpec{{property: "controller", value: "llama-deployment"}}
+	if !matchesFilter(ic, specs) {
+		t.Error("expected matchesFilter to return true for matching controller")
+	}
+}
+
+func TestMatchesFilter_ControllerKind(t *testing.T) {
+	ic := &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			Namespace:      "prod",
+			ControllerKind: "Deployment",
+		},
+	}
+	specs := []filterSpec{{property: "controller_kind", value: "Deployment"}}
+	if !matchesFilter(ic, specs) {
+		t.Error("expected matchesFilter to return true for matching controller_kind")
+	}
+}
+
+func TestMatchesFilter_Container(t *testing.T) {
+	ic := &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			Namespace: "prod",
+			Container: "vllm-container",
+		},
+	}
+	specs := []filterSpec{{property: "container", value: "vllm-container"}}
+	if !matchesFilter(ic, specs) {
+		t.Error("expected matchesFilter to return true for matching container")
+	}
+}
+
+func TestMatchesFilter_MultipleNewDimensions(t *testing.T) {
+	ic := &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			Namespace:      "prod",
+			Pod:            "llama-pod-123",
+			ControllerKind: "Deployment",
+			Container:      "vllm-container",
+		},
+	}
+	specs := []filterSpec{
+		{property: "namespace", value: "prod"},
+		{property: "controller_kind", value: "Deployment"},
+		{property: "container", value: "vllm-container"},
+	}
+	if !matchesFilter(ic, specs) {
+		t.Error("expected matchesFilter to return true for all matching specs")
+	}
+}
+
+func TestMatchesFilter_NewDimensionNoMatch(t *testing.T) {
+	ic := &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			Namespace: "prod",
+			Pod:       "llama-pod-123",
+		},
+	}
+	specs := []filterSpec{{property: "pod", value: "mistral-pod-456"}}
+	if matchesFilter(ic, specs) {
+		t.Error("expected matchesFilter to return false for non-matching pod")
+	}
+}
+
+func TestParseFilter_NewDimensions(t *testing.T) {
+	specs, err := parseFilter(`pod:"llama-pod-123"+controller:"llama-deployment"+container:"vllm"`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(specs) != 3 {
+		t.Fatalf("expected 3 specs, got %d", len(specs))
+	}
+	
+	expectedSpecs := []filterSpec{
+		{property: "pod", value: "llama-pod-123"},
+		{property: "controller", value: "llama-deployment"},
+		{property: "container", value: "vllm"},
+	}
+	
+	for i, expected := range expectedSpecs {
+		if specs[i].property != expected.property || specs[i].value != expected.value {
+			t.Errorf("spec[%d] = %+v, want %+v", i, specs[i], expected)
+		}
 	}
 }

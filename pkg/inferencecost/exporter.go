@@ -5,13 +5,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Exporter registers and emits the four llm_* Prometheus metrics.
+// Exporter registers and emits the three llm_* Prometheus metrics.
 type Exporter struct {
 	totalCost            *prometheus.GaugeVec
 	costPerMillionTokens *prometheus.GaugeVec
-	// inputCost and outputCost carry cost_basis + allocation_method labels.
-	inputCostPerMillionTokens  *prometheus.GaugeVec
-	outputCostPerMillionTokens *prometheus.GaugeVec
 }
 
 // NewExporter creates an Exporter with all gauge vectors initialised.
@@ -29,32 +26,18 @@ func NewExporter() *Exporter {
 		costPerMillionTokens: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "llm_cost_per_million_tokens",
-				Help: "Blended infrastructure cost per 1M tokens delivered (input + output). " +
+				Help: "Infrastructure cost per 1M tokens. " +
+					"Without phase label: blended cost (input + output combined). " +
+					"phase=prompt: cost per 1M effective input tokens (cached tokens excluded when KV cache correction is active). " +
+					"phase=generation: cost per 1M output tokens. " +
 					"cost_basis=allocation includes idle and shared infra; reconciles to bill. " +
-					"cost_basis=usage reflects active compute only; idle and shared infra costs excluded; does NOT reconcile to bill.",
-			},
-			[]string{"model_name", "model_version", "namespace", "cost_basis"},
-		),
-		inputCostPerMillionTokens: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "llm_input_cost_per_million_tokens",
-				Help: "Infrastructure cost per 1M effective input tokens (prompt tokens that required compute; " +
-					"cached tokens excluded when KV cache block size is configured). " +
-					"allocation_method=compute_time: split by vLLM prefill time with cache correction. " +
-					"allocation_method=compute_time_uncorrected: split by vLLM prefill time, no cache correction. " +
+					"cost_basis=usage reflects active compute only; idle and shared infra costs excluded; does NOT reconcile to bill. " +
+					"allocation_method=compute_time_with_cache_hits: split by vLLM timing with KV cache correction. " +
+					"allocation_method=prefix_caching_off: prefix caching disabled; cache correction not applicable. " +
+					"allocation_method=compute_time: split by vLLM timing without cache correction (block size unknown or no cache hits). " +
 					"allocation_method=multiplier: fixed output/input ratio used (timing metrics unavailable).",
 			},
-			[]string{"model_name", "model_version", "namespace", "cost_basis", "allocation_method"},
-		),
-		outputCostPerMillionTokens: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "llm_output_cost_per_million_tokens",
-				Help: "Infrastructure cost per 1M output (generation) tokens. " +
-					"allocation_method=compute_time: split by vLLM decode time. " +
-					"allocation_method=compute_time_uncorrected: split by vLLM decode time, no cache correction. " +
-					"allocation_method=multiplier: fixed output/input ratio used (timing metrics unavailable).",
-			},
-			[]string{"model_name", "model_version", "namespace", "cost_basis", "allocation_method"},
+			[]string{"model_name", "model_version", "namespace", "cost_basis", "phase", "allocation_method"},
 		),
 	}
 }
@@ -65,8 +48,6 @@ func (e *Exporter) Register() error {
 	for _, c := range []prometheus.Collector{
 		e.totalCost,
 		e.costPerMillionTokens,
-		e.inputCostPerMillionTokens,
-		e.outputCostPerMillionTokens,
 	} {
 		if err := prometheus.Register(c); err != nil {
 			return err
@@ -91,16 +72,19 @@ func (e *Exporter) Export(metrics []*InferenceCost) {
 				m.Properties.ModelName, version, m.Properties.Namespace, basisStr,
 			).Set(totalCostForBasis(m, basis))
 
+			// Blended cost (no phase label)
 			e.costPerMillionTokens.WithLabelValues(
-				m.Properties.ModelName, version, m.Properties.Namespace, basisStr,
+				m.Properties.ModelName, version, m.Properties.Namespace, basisStr, "", "",
 			).Set(m.CostPerMillionTokens[basis])
 
-			e.inputCostPerMillionTokens.WithLabelValues(
-				m.Properties.ModelName, version, m.Properties.Namespace, basisStr, method,
+			// Input cost (phase=prompt)
+			e.costPerMillionTokens.WithLabelValues(
+				m.Properties.ModelName, version, m.Properties.Namespace, basisStr, "prompt", method,
 			).Set(m.InputCostPerMillionTokens[basis])
 
-			e.outputCostPerMillionTokens.WithLabelValues(
-				m.Properties.ModelName, version, m.Properties.Namespace, basisStr, method,
+			// Output cost (phase=generation)
+			e.costPerMillionTokens.WithLabelValues(
+				m.Properties.ModelName, version, m.Properties.Namespace, basisStr, "generation", method,
 			).Set(m.OutputCostPerMillionTokens[basis])
 		}
 

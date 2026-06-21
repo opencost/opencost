@@ -58,7 +58,7 @@ func ParseInferenceCostRequest(qp mapper.PrimitiveMap) (*QueryRequest, error) {
 	aggregateByRaw := qp.GetList("aggregate", ",")
 	for _, dim := range aggregateByRaw {
 		if !supportedAggregateProperties[dim] {
-			return nil, fmt.Errorf("unsupported 'aggregate' dimension %q: Phase 1 supports model_name, model_version, namespace, cluster", dim)
+			return nil, fmt.Errorf("unsupported 'aggregate' dimension %q: supported dimensions are model_name, model_version, namespace, cluster, pod, controller, controller_kind, container", dim)
 		}
 	}
 

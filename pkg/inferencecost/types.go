@@ -41,10 +41,14 @@ const (
 
 // InferenceCostProperties identifies a unique inference cost entity.
 type InferenceCostProperties struct {
-	ModelName    string
-	ModelVersion string
-	Namespace    string
-	Cluster      string
+	ModelName      string
+	ModelVersion   string
+	Namespace      string
+	Cluster        string
+	Pod            string
+	Controller     string
+	ControllerKind string
+	Container      string
 }
 
 // InferenceCost holds all cost data for a single model/namespace over a

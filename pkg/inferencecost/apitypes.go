@@ -46,10 +46,14 @@ type InferenceCostResponse struct {
 // responses. It mirrors InferenceCostProperties but with explicit JSON tags
 // matching the design doc field names.
 type InferenceCostAPIProperties struct {
-	ModelName    string `json:"modelName"`
-	ModelVersion string `json:"modelVersion,omitempty"`
-	Namespace    string `json:"namespace"`
-	Cluster      string `json:"cluster,omitempty"`
+	ModelName      string `json:"modelName"`
+	ModelVersion   string `json:"modelVersion,omitempty"`
+	Namespace      string `json:"namespace"`
+	Cluster        string `json:"cluster,omitempty"`
+	Pod            string `json:"pod,omitempty"`
+	Controller     string `json:"controller,omitempty"`
+	ControllerKind string `json:"controllerKind,omitempty"`
+	Container      string `json:"container,omitempty"`
 }
 
 // InferenceCostSet holds a collection of InferenceCostResponses for a single
@@ -88,10 +92,14 @@ func newInferenceCostResponse(ic *InferenceCost, basis CostBasis, win opencost.W
 
 	return &InferenceCostResponse{
 		Properties: InferenceCostAPIProperties{
-			ModelName:    ic.Properties.ModelName,
-			ModelVersion: ic.Properties.ModelVersion,
-			Namespace:    ic.Properties.Namespace,
-			Cluster:      ic.Properties.Cluster,
+			ModelName:      ic.Properties.ModelName,
+			ModelVersion:   ic.Properties.ModelVersion,
+			Namespace:      ic.Properties.Namespace,
+			Cluster:        ic.Properties.Cluster,
+			Pod:            ic.Properties.Pod,
+			Controller:     ic.Properties.Controller,
+			ControllerKind: ic.Properties.ControllerKind,
+			Container:      ic.Properties.Container,
 		},
 		Window:                     win,
 		CostBasis:                  basis,

@@ -18,8 +18,6 @@ func newTestExporter(t *testing.T) (*Exporter, *prometheus.Registry) {
 	for _, c := range []prometheus.Collector{
 		e.totalCost,
 		e.costPerMillionTokens,
-		e.inputCostPerMillionTokens,
-		e.outputCostPerMillionTokens,
 	} {
 		if err := reg.Register(c); err != nil {
 			t.Fatalf("failed to register collector: %v", err)
@@ -75,8 +73,6 @@ func TestExporter_MetricNames(t *testing.T) {
 	required := []string{
 		"llm_total_cost",
 		"llm_cost_per_million_tokens",
-		"llm_input_cost_per_million_tokens",
-		"llm_output_cost_per_million_tokens",
 	}
 	for _, want := range required {
 		found := false
@@ -98,20 +94,24 @@ func TestExporter_MetricNames(t *testing.T) {
 	}
 }
 
-// TestExporter_TwoCostBasisSeriesPerModel verifies that llm_total_cost and
-// llm_cost_per_million_tokens each produce two series (usage + allocation).
+// TestExporter_TwoCostBasisSeriesPerModel verifies that llm_total_cost produces
+// two series (usage + allocation) and llm_cost_per_million_tokens produces
+// six series (2 cost bases × 3 phase values: blended/"", prompt, generation).
 func TestExporter_TwoCostBasisSeriesPerModel(t *testing.T) {
 	e, reg := newTestExporter(t)
 	e.Export([]*InferenceCost{sampleMetric(AllocationMethodComputeTime)})
 
-	for _, metricName := range []string{"llm_total_cost", "llm_cost_per_million_tokens"} {
-		count := testutil.CollectAndCount(e.totalCost)
-		if metricName == "llm_cost_per_million_tokens" {
-			count = testutil.CollectAndCount(e.costPerMillionTokens)
-		}
-		if count != 2 {
-			t.Errorf("%s: expected 2 series (usage+allocation), got %d", metricName, count)
-		}
+	// llm_total_cost should have 2 series (usage + allocation)
+	count := testutil.CollectAndCount(e.totalCost)
+	if count != 2 {
+		t.Errorf("llm_total_cost: expected 2 series (usage+allocation), got %d", count)
+	}
+
+	// llm_cost_per_million_tokens should have 6 series:
+	// 2 cost bases × 3 phases (blended/"", prompt, generation)
+	count = testutil.CollectAndCount(e.costPerMillionTokens)
+	if count != 6 {
+		t.Errorf("llm_cost_per_million_tokens: expected 6 series (2 bases × 3 phases), got %d", count)
 	}
 
 	// Verify both cost_basis values are present for llm_total_cost.
@@ -137,9 +137,9 @@ func TestExporter_TwoCostBasisSeriesPerModel(t *testing.T) {
 	}
 }
 
-// TestExporter_InputOutputHaveCostBasisAndAllocationMethod verifies that
-// input/output metrics carry both cost_basis and allocation_method labels.
-func TestExporter_InputOutputHaveCostBasisAndAllocationMethod(t *testing.T) {
+// TestExporter_PhaseLabelsAndAllocationMethod verifies that
+// llm_cost_per_million_tokens has the correct phase labels and allocation_method.
+func TestExporter_PhaseLabelsAndAllocationMethod(t *testing.T) {
 	for _, method := range []AllocationMethod{
 		AllocationMethodComputeTimeWithCacheHits,
 		AllocationMethodComputeTime,
@@ -152,16 +152,19 @@ func TestExporter_InputOutputHaveCostBasisAndAllocationMethod(t *testing.T) {
 		mfs, _ := reg.Gather()
 		for _, mf := range mfs {
 			name := mf.GetName()
-			if name != "llm_input_cost_per_million_tokens" && name != "llm_output_cost_per_million_tokens" {
+			if name != "llm_cost_per_million_tokens" {
 				continue
 			}
 			bases := make(map[string]bool)
+			phases := make(map[string]bool)
 			methods := make(map[string]bool)
 			for _, m := range mf.GetMetric() {
 				for _, lp := range m.GetLabel() {
 					switch lp.GetName() {
 					case "cost_basis":
 						bases[lp.GetValue()] = true
+					case "phase":
+						phases[lp.GetValue()] = true
 					case "allocation_method":
 						methods[lp.GetValue()] = true
 					}
@@ -170,8 +173,14 @@ func TestExporter_InputOutputHaveCostBasisAndAllocationMethod(t *testing.T) {
 			if !bases["usage"] || !bases["allocation"] {
 				t.Errorf("%s method=%s: missing cost_basis label values, got %v", name, method, bases)
 			}
-			if !methods[string(method)] {
-				t.Errorf("%s: expected allocation_method=%s, got %v", name, method, methods)
+			// Should have 3 phase values: "" (blended), "prompt", "generation"
+			if !phases[""] || !phases["prompt"] || !phases["generation"] {
+				t.Errorf("%s method=%s: expected phases [\"\", \"prompt\", \"generation\"], got %v", name, method, phases)
+			}
+			// allocation_method should be present (for phase=prompt and phase=generation)
+			// and empty (for blended phase="")
+			if !methods[string(method)] || !methods[""] {
+				t.Errorf("%s: expected allocation_method values [%s, \"\"], got %v", name, method, methods)
 			}
 		}
 	}
