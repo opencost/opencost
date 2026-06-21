@@ -15,8 +15,8 @@ var titleCaser cases.Caser = cases.Title(language.Und, cases.NoLower)
 var lowerCaser cases.Caser = cases.Lower(language.Und)
 
 // TraversalState represents the state of the current leaf node in a traversal
-// of the filter  Any grouping ops will include an Enter on their first
-// occurence, and an Exit when leaving the op state.
+// of the filter. Any grouping ops will include an Enter on their first
+// occurrence, and an Exit when leaving the op state.
 type TraversalState int
 
 const (
@@ -26,7 +26,7 @@ const (
 	// TraversalStateEnter is used when a group op leaf node is traversed (and, or, not)
 	TraversalStateEnter
 
-	// TraversalStateExit is used wwhen a group op leaf node is popped (and, or, not).
+	// TraversalStateExit is used when a group op leaf node is popped (and, or, not).
 	TraversalStateExit
 )
 
@@ -70,9 +70,9 @@ func TransformLeaves(node FilterNode, transformer func(FilterNode) FilterNode) F
 
 // PreOrderTraversal accepts a root `FilterNode` and calls the f callback on
 // each leaf node it traverses. When entering "group" leaf nodes (leaf nodes
-// which contain other leaf nodes), a TraversalStateEnter/Exit will be includes
+// which contain other leaf nodes), a TraversalStateEnter/Exit will be included
 // to denote each depth. In short, the callback will be executed twice for each
-// "group" op, once before entering, and once bofore exiting.
+// "group" op, once before entering, and once before exiting.
 func PreOrderTraversal(node FilterNode, f func(FilterNode, TraversalState)) {
 	if node == nil {
 		return
