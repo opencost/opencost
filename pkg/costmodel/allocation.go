@@ -340,6 +340,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 
 	resChPodLabels := source.WithGroup(grp, ds.QueryPodLabels(start, end))
 	resChPodAnnotations := source.WithGroup(grp, ds.QueryPodAnnotations(start, end))
+	resChPodInfo := source.WithGroup(grp, ds.QueryPodInfo(start, end))
 
 	resChServiceSelectorLabels := source.WithGroup(grp, ds.QueryServiceSelectorLabels(start, end))
 	resChDeploymentMatchLabels := source.WithGroup(grp, ds.QueryDeploymentMatchLabels(start, end))
@@ -408,6 +409,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resNamespaceAnnotations, _ := resChNamespaceAnnotations.Await()
 	resPodLabels, _ := resChPodLabels.Await()
 	resPodAnnotations, _ := resChPodAnnotations.Await()
+	resPodInfo, _ := resChPodInfo.Await()
 	resServiceSelectorLabels, _ := resChServiceSelectorLabels.Await()
 	resDeploymentMatchLabels, _ := resChDeploymentMatchLabels.Await()
 	resStatefulSetMatchLabels, _ := resChStatefulSetMatchLabels.Await()
@@ -445,7 +447,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyGPUUsageShared(podMap, resIsGpuShared, podUIDKeyMap)
 	applyGPUInfo(podMap, resGetGPUInfo, podUIDKeyMap)
 	applyGPUsAllocated(podMap, resGPUsRequested, resGPUsAllocated, podUIDKeyMap)
-	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes, podUIDKeyMap)
+	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes, resPodInfo, podUIDKeyMap)
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZonePricePerGiB, podUIDKeyMap, applyCrossZoneNetworkAllocation)
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionPricePerGiB, podUIDKeyMap, applyCrossRegionNetworkAllocation)
 	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetPricePerGiB, podUIDKeyMap, applyInternetNetworkAllocation)

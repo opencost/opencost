@@ -943,7 +943,32 @@ func applyGPUsAllocated(podMap map[podKey]*pod, resGPUsRequested []*source.GPUsR
 	}
 }
 
-func applyNetworkTotals(podMap map[podKey]*pod, resNetworkTransferBytes []*source.NetTransferBytesResult, resNetworkReceiveBytes []*source.NetReceiveBytesResult, podUIDKeyMap map[podKey][]podKey) {
+func applyNetworkTotals(podMap map[podKey]*pod, resNetworkTransferBytes []*source.NetTransferBytesResult, resNetworkReceiveBytes []*source.NetReceiveBytesResult, resPodInfo []*source.PodInfoResult, podUIDKeyMap map[podKey][]podKey) {
+	hostNetworkPodCountByNode := getHostNetworkPodCountByNode(resPodInfo)
+
+	applyNetworkMetric := func(podKey podKey, value float64, hostNetwork bool, setAllocation func(*opencost.Allocation, float64)) {
+		pods := resolvePods(podMap, podUIDKeyMap, podKey)
+		if len(pods) == 0 {
+			return
+		}
+
+		divisor := float64(len(pods))
+		if hostNetwork {
+			nodePodCount := hostNetworkPodCountByNode[podKey.Cluster+","+podKey.Namespace]
+			if nodePodCount == 0 {
+				return
+			}
+
+			divisor = divisor * float64(nodePodCount)
+		}
+
+		for _, thisPod := range pods {
+			for _, alloc := range thisPod.Allocations {
+				setAllocation(alloc, value/float64(len(thisPod.Allocations))/divisor)
+			}
+		}
+	}
+
 	for _, res := range resNetworkTransferBytes {
 		podKey, err := newResultPodKey(res.Cluster, res.Namespace, res.Pod)
 		if err != nil {
@@ -951,29 +976,11 @@ func applyNetworkTotals(podMap map[podKey]*pod, resNetworkTransferBytes []*sourc
 			continue
 		}
 
-		var pods []*pod
-
-		if thisPod, ok := podMap[podKey]; !ok {
-			if uidKeys, ok := podUIDKeyMap[podKey]; ok {
-				for _, uidKey := range uidKeys {
-					thisPod, ok = podMap[uidKey]
-					if ok {
-						pods = append(pods, thisPod)
-					}
-				}
-			} else {
-				continue
-			}
-		} else {
-			pods = []*pod{thisPod}
-		}
-
-		for _, thisPod := range pods {
-			for _, alloc := range thisPod.Allocations {
-				alloc.NetworkTransferBytes = res.Data[0].Value / float64(len(thisPod.Allocations)) / float64(len(pods))
-			}
-		}
+		applyNetworkMetric(podKey, res.Data[0].Value, res.HostNetwork, func(alloc *opencost.Allocation, value float64) {
+			alloc.NetworkTransferBytes = value
+		})
 	}
+
 	for _, res := range resNetworkReceiveBytes {
 		podKey, err := newResultPodKey(res.Cluster, res.Namespace, res.Pod)
 		if err != nil {
@@ -981,29 +988,40 @@ func applyNetworkTotals(podMap map[podKey]*pod, resNetworkTransferBytes []*sourc
 			continue
 		}
 
-		var pods []*pod
+		applyNetworkMetric(podKey, res.Data[0].Value, res.HostNetwork, func(alloc *opencost.Allocation, value float64) {
+			alloc.NetworkReceiveBytes = value
+		})
+	}
+}
 
-		if thisPod, ok := podMap[podKey]; !ok {
-			if uidKeys, ok := podUIDKeyMap[podKey]; ok {
-				for _, uidKey := range uidKeys {
-					thisPod, ok = podMap[uidKey]
-					if ok {
-						pods = append(pods, thisPod)
-					}
-				}
-			} else {
-				continue
-			}
-		} else {
-			pods = []*pod{thisPod}
-		}
+func resolvePods(podMap map[podKey]*pod, podUIDKeyMap map[podKey][]podKey, key podKey) []*pod {
+	if thisPod, ok := podMap[key]; ok {
+		return []*pod{thisPod}
+	}
 
-		for _, thisPod := range pods {
-			for _, alloc := range thisPod.Allocations {
-				alloc.NetworkReceiveBytes = res.Data[0].Value / float64(len(thisPod.Allocations)) / float64(len(pods))
+	var pods []*pod
+	if uidKeys, ok := podUIDKeyMap[key]; ok {
+		for _, uidKey := range uidKeys {
+			thisPod, ok := podMap[uidKey]
+			if ok {
+				pods = append(pods, thisPod)
 			}
 		}
 	}
+
+	return pods
+}
+
+func getHostNetworkPodCountByNode(resPodInfo []*source.PodInfoResult) map[string]int {
+	hostNetworkPodCountByNode := map[string]int{}
+
+	for _, res := range resPodInfo {
+		if res.HostNetwork {
+			hostNetworkPodCountByNode[res.Cluster+","+res.NodeUID]++
+		}
+	}
+
+	return hostNetworkPodCountByNode
 }
 
 func applyCrossZoneNetworkAllocation(alloc *opencost.Allocation, networkSubCost float64) {

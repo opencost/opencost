@@ -350,6 +350,7 @@ func (ccs *ClusterCacheScraper) scrapePods(
 			source.PodLabel:          pod.Name,
 			source.NamespaceUIDLabel: string(nsUID),
 			source.NodeUIDLabel:      string(nodeUID),
+			"host_network":           strconv.FormatBool(pod.Spec.HostNetwork),
 		}
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.PodInfo,

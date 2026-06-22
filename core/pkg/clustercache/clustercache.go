@@ -41,6 +41,7 @@ type PodStatus struct {
 
 type PodSpec struct {
 	NodeName      string
+	HostNetwork   bool
 	Containers    []Container
 	Volumes       []v1.Volume
 	RestartPolicy v1.RestartPolicy
@@ -263,6 +264,7 @@ func TransformPodSpec(input v1.PodSpec) PodSpec {
 	}
 	return PodSpec{
 		NodeName:      input.NodeName,
+		HostNetwork:   input.HostNetwork,
 		Containers:    containers,
 		Volumes:       input.Volumes,
 		RestartPolicy: input.RestartPolicy,
