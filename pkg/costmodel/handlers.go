@@ -105,3 +105,33 @@ func (a *Accesses) ComputeAssetsFromCostmodel(window opencost.Window, filterStri
 
 	return assetSet, nil
 }
+
+// KubeModelHandler returns KubeModelSets from pipeline storage for a given window and resolution.
+//
+// Query params:
+//
+//	window     (required) — same format as allocation/asset endpoints, e.g. "today", "7d", "2024-04-01T00:00:00Z,2024-04-02T00:00:00Z"
+func (a *Accesses) KubeModelHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if a.KubeModelQuerier == nil {
+		http.Error(w, "KubeModel pipeline not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+
+	window, err := opencost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	sets, err := a.KubeModelQuerier.Query(window)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error querying KubeModel: %s", err), http.StatusInternalServerError)
+		return
+	}
+
+	WriteData(w, sets, nil)
+}

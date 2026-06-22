@@ -10,6 +10,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
+	coreutil "github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
@@ -17,6 +18,7 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -33,24 +35,50 @@ func newClusterCacheScraper(clusterCache clustercache.ClusterCache) Scraper {
 }
 
 func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
+	// retrieve objects for scrape
+	nodes := ccs.clusterCache.GetAllNodes()
+	deployments := ccs.clusterCache.GetAllDeployments()
+	namespaces := ccs.clusterCache.GetAllNamespaces()
+	pods := ccs.clusterCache.GetAllPods()
+	pvcs := ccs.clusterCache.GetAllPersistentVolumeClaims()
+	pvs := ccs.clusterCache.GetAllPersistentVolumes()
+	services := ccs.clusterCache.GetAllServices()
+	statefulSets := ccs.clusterCache.GetAllStatefulSets()
+	daemonSets := ccs.clusterCache.GetAllDaemonSets()
+	jobs := ccs.clusterCache.GetAllJobs()
+	cronJobs := ccs.clusterCache.GetAllCronJobs()
+	replicaSets := ccs.clusterCache.GetAllReplicaSets()
+	resourceQuotas := ccs.clusterCache.GetAllResourceQuotas()
+
+	// create scrape indexes. While the pairs being mapped here don't have a 1 to 1 relationship in the general case,
+	// we are assuming that in the context of a single snapshot of the cluster they are 1 to 1.
+	nodeNameToUID := buildNodeIndex(nodes)
+	namespaceNameToUID := buildNamespaceIndex(namespaces)
+	pvcNameToUID := buildPVCIndex(pvcs)
+	pvNameToUID := buildPVIndex(pvs)
+
 	scrapeFuncs := []ScrapeFunc{
-		ccs.ScrapeNodes,
-		ccs.ScrapeDeployments,
-		ccs.ScrapeNamespaces,
-		ccs.ScrapePods,
-		ccs.ScrapePVCs,
-		ccs.ScrapePVs,
-		ccs.ScrapeServices,
-		ccs.ScrapeStatefulSets,
-		ccs.ScrapeReplicaSets,
-		ccs.ScrapeResourceQuotas,
+		ccs.GetScrapeNodes(nodes),
+		ccs.GetScrapeDeployments(deployments, namespaceNameToUID),
+		ccs.GetScrapeNamespaces(namespaces),
+		ccs.GetScrapePods(pods, pvcs, nodeNameToUID, namespaceNameToUID, pvcNameToUID),
+		ccs.GetScrapePVCs(pvcs, namespaceNameToUID, pvNameToUID),
+		ccs.GetScrapePVs(pvs),
+		ccs.GetScrapeServices(services, namespaceNameToUID),
+		ccs.GetScrapeStatefulSets(statefulSets, namespaceNameToUID),
+		ccs.GetScrapeDaemonSets(daemonSets, namespaceNameToUID),
+		ccs.GetScrapeJobs(jobs, namespaceNameToUID),
+		ccs.GetScrapeCronJobs(cronJobs, namespaceNameToUID),
+		ccs.GetScrapeReplicaSets(replicaSets, namespaceNameToUID),
+		ccs.GetScrapeResourceQuotas(resourceQuotas, namespaceNameToUID),
 	}
 	return concurrentScrape(scrapeFuncs...)
 }
 
-func (ccs *ClusterCacheScraper) ScrapeNodes() []metric.Update {
-	nodes := ccs.clusterCache.GetAllNodes()
-	return ccs.scrapeNodes(nodes)
+func (ccs *ClusterCacheScraper) GetScrapeNodes(nodes []*clustercache.Node) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeNodes(nodes)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric.Update {
@@ -63,7 +91,24 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 			source.UIDLabel:        string(node.UID),
 		}
 
+		if instanceType, ok := coreutil.GetInstanceType(node.Labels); ok {
+			nodeInfo[source.InstanceTypeLabel] = instanceType
+		}
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.NodeInfo,
+			Labels:         nodeInfo,
+			AdditionalInfo: nodeInfo,
+		})
+
 		// Node Capacity
+		scrapeResults = scrapeResourceList(
+			metric.NodeResourceCapacities,
+			node.Status.Capacity,
+			nodeInfo,
+			scrapeResults)
+
+		// This block and metric can be removed, when we stop exporting assets and allocations
 		if node.Status.Capacity != nil {
 			if quantity, ok := node.Status.Capacity[v1.ResourceCPU]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceCPU, quantity)
@@ -85,6 +130,13 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		}
 
 		// Node Allocatable Resources
+		scrapeResults = scrapeResourceList(
+			metric.NodeResourcesAllocatable,
+			node.Status.Allocatable,
+			nodeInfo,
+			scrapeResults)
+
+		// This block and metric can be removed, when we stop exporting assets and allocations
 		if node.Status.Allocatable != nil {
 			if quantity, ok := node.Status.Allocatable[v1.ResourceCPU]; ok {
 				_, _, value := toResourceUnitValue(v1.ResourceCPU, quantity)
@@ -128,29 +180,64 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeDeployments() []metric.Update {
-	deployments := ccs.clusterCache.GetAllDeployments()
-	return ccs.scrapeDeployments(deployments)
+func (ccs *ClusterCacheScraper) GetScrapeDeployments(deployments []*clustercache.Deployment, namespaceIndex map[string]types.UID) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeDeployments(deployments, namespaceIndex)
+	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.Deployment) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.Deployment, namespaceIndex map[string]types.UID) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, deployment := range deployments {
+		nsUID, ok := namespaceIndex[deployment.Namespace]
+		if !ok {
+			log.Debugf("deployment namespaceUID missing from index for namespace name '%s'", deployment.Namespace)
+		}
 		deploymentInfo := map[string]string{
-			source.DeploymentLabel: deployment.Name,
-			source.NamespaceLabel:  deployment.Namespace,
-			source.UIDLabel:        string(deployment.UID),
+			source.UIDLabel:          string(deployment.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.NamespaceLabel:    deployment.Namespace,
+			source.DeploymentLabel:   deployment.Name,
 		}
 
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DeploymentInfo,
+			Labels:         deploymentInfo,
+			Value:          0,
+			AdditionalInfo: deploymentInfo,
+		})
+
 		// deployment labels
-		labelNames, labelValues := promutil.KubeLabelsToLabels(deployment.MatchLabels)
+		labelNames, labelValues := promutil.KubeLabelsToLabels(deployment.Labels)
 		deploymentLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DeploymentLabels,
+			Labels:         deploymentInfo,
+			Value:          0,
+			AdditionalInfo: deploymentLabels,
+		})
+
+		// deployment annotations
+		annoationNames, annotationValues := promutil.KubeAnnotationsToLabels(deployment.Annotations)
+		deploymentAnnotations := util.ToMap(annoationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DeploymentAnnotations,
+			Labels:         deploymentInfo,
+			Value:          0,
+			AdditionalInfo: deploymentAnnotations,
+		})
+
+		// deployment match labels
+		matchLabelNames, matchLabelValues := promutil.KubeLabelsToLabels(deployment.MatchLabels)
+		deploymentMatchLabels := util.ToMap(matchLabelNames, matchLabelValues)
 
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.DeploymentMatchLabels,
 			Labels:         deploymentInfo,
 			Value:          0,
-			AdditionalInfo: deploymentLabels,
+			AdditionalInfo: deploymentMatchLabels,
 		})
 	}
 
@@ -164,9 +251,10 @@ func (ccs *ClusterCacheScraper) scrapeDeployments(deployments []*clustercache.De
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeNamespaces() []metric.Update {
-	namespaces := ccs.clusterCache.GetAllNamespaces()
-	return ccs.scrapeNamespaces(namespaces)
+func (ccs *ClusterCacheScraper) GetScrapeNamespaces(namespaces []*clustercache.Namespace) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeNamespaces(namespaces)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Namespace) []metric.Update {
@@ -215,14 +303,25 @@ func (ccs *ClusterCacheScraper) scrapeNamespaces(namespaces []*clustercache.Name
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapePods() []metric.Update {
-	pods := ccs.clusterCache.GetAllPods()
-	pvcs := ccs.clusterCache.GetAllPersistentVolumeClaims()
-
-	return ccs.scrapePods(pods, pvcs)
+func (ccs *ClusterCacheScraper) GetScrapePods(
+	pods []*clustercache.Pod,
+	pvcs []*clustercache.PersistentVolumeClaim,
+	nodeIndex map[string]types.UID,
+	namespaceIndex map[string]types.UID,
+	pvcIndex map[pvcKey]types.UID,
+) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapePods(pods, pvcs, nodeIndex, namespaceIndex, pvcIndex)
+	}
 }
 
-func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clustercache.PersistentVolumeClaim) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapePods(
+	pods []*clustercache.Pod,
+	pvcs []*clustercache.PersistentVolumeClaim,
+	nodeIndex map[string]types.UID,
+	namespaceIndex map[string]types.UID,
+	pvcIndex map[pvcKey]types.UID,
+) []metric.Update {
 	// this is only populated if we find gpu resources being requested
 	var nodesGpuInfo map[string]*NodeGpuInfo
 
@@ -234,13 +333,34 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clu
 
 	var scrapeResults []metric.Update
 	for _, pod := range pods {
-		podInfo := map[string]string{
-			source.PodLabel:       pod.Name,
-			source.NamespaceLabel: pod.Namespace,
-			source.UIDLabel:       string(pod.UID),
-			source.NodeLabel:      pod.Spec.NodeName,
-			source.InstanceLabel:  pod.Spec.NodeName,
+		// pods without a set node name are not running
+		if pod.Spec.NodeName == "" {
+			continue
 		}
+		nodeUID, ok := nodeIndex[pod.Spec.NodeName]
+		if !ok {
+			log.Debugf("pod nodeUID missing from index for node name '%s'", pod.Spec.NodeName)
+		}
+		nsUID, ok := namespaceIndex[pod.Namespace]
+		if !ok {
+			log.Debugf("pod namespaceUID missing from index for namespace name '%s'", pod.Namespace)
+		}
+		podInfo := map[string]string{
+			source.UIDLabel:          string(pod.UID),
+			source.PodLabel:          pod.Name,
+			source.NamespaceUIDLabel: string(nsUID),
+			source.NodeUIDLabel:      string(nodeUID),
+		}
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.PodInfo,
+			Labels:         podInfo,
+			Value:          0,
+			AdditionalInfo: podInfo,
+		})
+
+		podInfo[source.NamespaceLabel] = pod.Namespace
+		podInfo[source.NodeLabel] = pod.Spec.NodeName
+		podInfo[source.InstanceLabel] = pod.Spec.NodeName
 
 		podInfoByUid[string(pod.UID)] = podInfo
 
@@ -283,13 +403,20 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clu
 
 		// Pod owner metric
 		for _, owner := range pod.OwnerReferences {
+			controller := "false"
+			if owner.Controller != nil && *owner.Controller {
+				controller = "true"
+			}
 			ownerInfo := maps.Clone(podInfo)
 			ownerInfo[source.OwnerKindLabel] = owner.Kind
 			ownerInfo[source.OwnerNameLabel] = owner.Name
+			ownerInfo[source.OwnerUIDLabel] = string(owner.UID)
+			ownerInfo[source.ControllerLabel] = controller
 			scrapeResults = append(scrapeResults, metric.Update{
-				Name:   metric.KubePodOwner,
-				Labels: ownerInfo,
-				Value:  0,
+				Name:           metric.KubePodOwner,
+				Labels:         ownerInfo,
+				Value:          0,
+				AdditionalInfo: ownerInfo,
 			})
 		}
 
@@ -299,80 +426,75 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clu
 				containerInfo := maps.Clone(podInfo)
 				containerInfo[source.ContainerLabel] = status.Name
 				scrapeResults = append(scrapeResults, metric.Update{
-					Name:   metric.KubePodContainerStatusRunning,
-					Labels: containerInfo,
+					Name:           metric.KubePodContainerStatusRunning,
+					Labels:         containerInfo,
+					AdditionalInfo: containerInfo,
+					Value:          0,
+				})
+			}
+		}
+
+		for _, volume := range pod.Spec.Volumes {
+			if volume.PersistentVolumeClaim != nil {
+				pvcUID, ok := pvcIndex[pvcKey{
+					name:      volume.PersistentVolumeClaim.ClaimName,
+					namespace: pod.Namespace,
+				}]
+				if !ok {
+					continue
+				}
+				podPVCVolumeInfo := map[string]string{
+					source.UIDLabel:           string(pod.UID),
+					source.PVCUIDLabel:        string(pvcUID),
+					source.PodVolumeNameLabel: volume.Name,
+				}
+				scrapeResults = append(scrapeResults, metric.Update{
+					Name:   metric.PodPVCVolume,
+					Labels: podPVCVolumeInfo,
 					Value:  0,
 				})
 			}
 		}
 
 		for _, container := range pod.Spec.Containers {
-			// gpu "requests" is either the request or limit if it exists
-			var gpuRequest *float64
-
 			containerInfo := maps.Clone(podInfo)
 			containerInfo[source.ContainerLabel] = container.Name
 			// Requests
-			if container.Resources.Requests != nil {
-				// sorting keys here for testing purposes
-				keys := maps.Keys(container.Resources.Requests)
-				slices.Sort(keys)
-				for _, resourceName := range keys {
-					quantity := container.Resources.Requests[resourceName]
-					resource, unit, value := toResourceUnitValue(resourceName, quantity)
+			scrapeResults = scrapeResourceList(
+				metric.KubePodContainerResourceRequests,
+				container.Resources.Requests,
+				containerInfo,
+				scrapeResults)
 
-					// failed to parse the resource type
-					if resource == "" {
-						log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
-						continue
-					}
+			// Limits
+			scrapeResults = scrapeResourceList(
+				metric.KubePodContainerResourceLimits,
+				container.Resources.Limits,
+				containerInfo,
+				scrapeResults)
 
-					resourceRequestInfo := maps.Clone(containerInfo)
-					resourceRequestInfo[source.ResourceLabel] = resource
-					resourceRequestInfo[source.UnitLabel] = unit
-					scrapeResults = append(scrapeResults, metric.Update{
-						Name:   metric.KubePodContainerResourceRequests,
-						Labels: resourceRequestInfo,
-						Value:  value,
-					})
-
+			// Todo remove when asset/allocation pipeline are removed
+			// gpu "requests" is either the request or limit if it exists
+			var gpuRequest *float64
+			for resourceName, quantity := range container.Resources.Requests {
+				if isGpuResourceName(resourceName) {
 					// set gpu request if it exists
-					if isGpuResourceName(resourceName) {
-						gpuRequestValue := value
-						gpuRequest = &gpuRequestValue
-					}
+					_, _, value := toResourceUnitValue(resourceName, quantity)
+					gpuRequestValue := value
+					gpuRequest = &gpuRequestValue
+					break
 				}
 			}
 
 			// Limits
-			if container.Resources.Limits != nil {
-				// sorting keys here for testing purposes
-				keys := maps.Keys(container.Resources.Limits)
-				slices.Sort(keys)
-				for _, resourceName := range keys {
-					quantity := container.Resources.Limits[resourceName]
-					resource, unit, value := toResourceUnitValue(resourceName, quantity)
-
-					// failed to parse the resource type
-					if resource == "" {
-						log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
-						continue
-					}
-
-					resourceLimitInfo := maps.Clone(containerInfo)
-					resourceLimitInfo[source.ResourceLabel] = resource
-					resourceLimitInfo[source.UnitLabel] = unit
-					scrapeResults = append(scrapeResults, metric.Update{
-						Name:   metric.KubePodContainerResourceLimits,
-						Labels: resourceLimitInfo,
-						Value:  value,
-					})
-
-					// if we didn't set a gpuRequest previously and the limit is a gpu resource,
-					// set it to the limit
-					if gpuRequest == nil && isGpuResourceName(resourceName) {
+			if gpuRequest == nil {
+				for resourceName, quantity := range container.Resources.Limits {
+					if isGpuResourceName(resourceName) {
+						// set gpu request if it exists
+						_, _, value := toResourceUnitValue(resourceName, quantity)
 						gpuRequestValue := value
 						gpuRequest = &gpuRequestValue
+						break
 					}
 				}
 			}
@@ -408,9 +530,6 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clu
 			labels := map[string]string{
 				source.PodLabel:       unmountedPVsContainer,
 				source.NamespaceLabel: pvc.Namespace,
-				source.UIDLabel:       "",
-				source.NodeLabel:      "",
-				source.InstanceLabel:  "",
 				source.PVCLabel:       pvc.Claim,
 				source.PVLabel:        pvc.VolumeName,
 			}
@@ -455,26 +574,74 @@ func (ccs *ClusterCacheScraper) scrapePods(pods []*clustercache.Pod, pvcs []*clu
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapePVCs() []metric.Update {
-	pvcs := ccs.clusterCache.GetAllPersistentVolumeClaims()
-	return ccs.scrapePVCs(pvcs)
+func scrapeResourceList(metricName string, resourceList v1.ResourceList, baseLabels map[string]string, scrapeResults []metric.Update) []metric.Update {
+	if resourceList != nil {
+		// sorting keys here for testing purposes
+		keys := maps.Keys(resourceList)
+		slices.Sort(keys)
+		for _, resourceName := range keys {
+			quantity := resourceList[resourceName]
+			resource, unit, value := toResourceUnitValue(resourceName, quantity)
+
+			// failed to parse the resource type
+			if resource == "" {
+				log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
+				continue
+			}
+
+			resourceRequestInfo := maps.Clone(baseLabels)
+			resourceRequestInfo[source.ResourceLabel] = resource
+			resourceRequestInfo[source.UnitLabel] = unit
+			scrapeResults = append(scrapeResults, metric.Update{
+				Name:   metricName,
+				Labels: resourceRequestInfo,
+				Value:  value,
+			})
+		}
+	}
+	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolumeClaim) []metric.Update {
+func (ccs *ClusterCacheScraper) GetScrapePVCs(
+	pvcs []*clustercache.PersistentVolumeClaim,
+	namespaceIndex map[string]types.UID,
+	pvIndex map[string]types.UID,
+) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapePVCs(pvcs, namespaceIndex, pvIndex)
+	}
+}
+
+func (ccs *ClusterCacheScraper) scrapePVCs(
+	pvcs []*clustercache.PersistentVolumeClaim,
+	namespaceIndex map[string]types.UID,
+	pvIndex map[string]types.UID,
+) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, pvc := range pvcs {
+		nsUID, ok := namespaceIndex[pvc.Namespace]
+		if !ok {
+			log.Debugf("pvc namespaceUID missing from index for namespace name '%s'", pvc.Namespace)
+		}
+		pvUID, ok := pvIndex[pvc.Spec.VolumeName]
+		if !ok && pvc.Spec.VolumeName != "" {
+			log.Debugf("pvc volume name missing from index for pv name '%s'", pvc.Spec.VolumeName)
+		}
 		pvcInfo := map[string]string{
-			source.PVCLabel:          pvc.Name,
-			source.NamespaceLabel:    pvc.Namespace,
 			source.UIDLabel:          string(pvc.UID),
+			source.PVCLabel:          pvc.Name,
+			source.NamespaceUIDLabel: string(nsUID),
+			source.NamespaceLabel:    pvc.Namespace,
 			source.VolumeNameLabel:   pvc.Spec.VolumeName,
+			source.PVUIDLabel:        string(pvUID),
 			source.StorageClassLabel: getPersistentVolumeClaimClass(pvc),
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:   metric.KubePersistentVolumeClaimInfo,
-			Labels: pvcInfo,
-			Value:  0,
+			Name:           metric.KubePersistentVolumeClaimInfo,
+			Labels:         pvcInfo,
+			AdditionalInfo: pvcInfo,
+			Value:          0,
 		})
 
 		if storage, ok := pvc.Spec.Resources.Requests[v1.ResourceStorage]; ok {
@@ -496,30 +663,35 @@ func (ccs *ClusterCacheScraper) scrapePVCs(pvcs []*clustercache.PersistentVolume
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapePVs() []metric.Update {
-	pvs := ccs.clusterCache.GetAllPersistentVolumes()
-	return ccs.scrapePVs(pvs)
+func (ccs *ClusterCacheScraper) GetScrapePVs(pvs []*clustercache.PersistentVolume) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapePVs(pvs)
+	}
 }
 
 func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, pv := range pvs {
 		providerID := pv.Name
+		var csiVolumeHandle string
 		// if a more accurate provider ID is available, use that
 		if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
 			providerID = pv.Spec.CSI.VolumeHandle
+			csiVolumeHandle = pv.Spec.CSI.VolumeHandle
 		}
 		pvInfo := map[string]string{
-			source.PVLabel:           pv.Name,
-			source.UIDLabel:          string(pv.UID),
-			source.StorageClassLabel: pv.Spec.StorageClassName,
-			source.ProviderIDLabel:   providerID,
+			source.UIDLabel:             string(pv.UID),
+			source.PVLabel:              pv.Name,
+			source.StorageClassLabel:    pv.Spec.StorageClassName,
+			source.ProviderIDLabel:      providerID,
+			source.CSIVolumeHandleLabel: csiVolumeHandle,
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
-			Name:   metric.KubecostPVInfo,
-			Labels: pvInfo,
-			Value:  0,
+			Name:           metric.KubecostPVInfo,
+			Labels:         pvInfo,
+			AdditionalInfo: pvInfo,
+			Value:          0,
 		})
 
 		if storage, ok := pv.Spec.Capacity[v1.ResourceStorage]; ok {
@@ -541,23 +713,48 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeServices() []metric.Update {
-	services := ccs.clusterCache.GetAllServices()
-	return ccs.scrapeServices(services)
+func (ccs *ClusterCacheScraper) GetScrapeServices(
+	services []*clustercache.Service,
+	namespaceIndex map[string]types.UID,
+) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeServices(services, namespaceIndex)
+	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeServices(
+	services []*clustercache.Service,
+	namespaceIndex map[string]types.UID,
+) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, service := range services {
+		namespaceUID := namespaceIndex[service.Namespace]
+
+		// Assuming one address for now
+		var lbIngressAddress string
+		lbIngressAddresses := clustercache.GetLoadBalancerIngressAddress(service)
+		if len(lbIngressAddresses) > 0 {
+			lbIngressAddress = lbIngressAddresses[0]
+		}
 		serviceInfo := map[string]string{
-			source.ServiceLabel:   service.Name,
-			source.NamespaceLabel: service.Namespace,
-			source.UIDLabel:       string(service.UID),
+			source.UIDLabel:          string(service.UID),
+			source.ServiceLabel:      service.Name,
+			source.NamespaceLabel:    service.Namespace,
+			source.NamespaceUIDLabel: string(namespaceUID),
+			source.ServiceTypeLabel:  string(service.Type),
+			source.LBIngressAddress:  lbIngressAddress,
 		}
 
-		// service labels
-		labelNames, labelValues := promutil.KubeLabelsToLabels(service.SpecSelector)
-		serviceLabels := util.ToMap(labelNames, labelValues)
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.ServiceInfo,
+			Labels:         serviceInfo,
+			Value:          0,
+			AdditionalInfo: serviceInfo,
+		})
+
+		// service selector labels
+		selectorNames, selectorValues := promutil.KubeLabelsToLabels(service.SpecSelector)
+		serviceLabels := util.ToMap(selectorNames, selectorValues)
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.ServiceSelectorLabels,
 			Labels:         serviceInfo,
@@ -577,28 +774,65 @@ func (ccs *ClusterCacheScraper) scrapeServices(services []*clustercache.Service)
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeStatefulSets() []metric.Update {
-	statefulSets := ccs.clusterCache.GetAllStatefulSets()
-	return ccs.scrapeStatefulSets(statefulSets)
+func (ccs *ClusterCacheScraper) GetScrapeStatefulSets(statefulSets []*clustercache.StatefulSet, namespaceIndex map[string]types.UID) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeStatefulSets(statefulSets, namespaceIndex)
+	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.StatefulSet) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.StatefulSet, namespaceIndex map[string]types.UID) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, statefulSet := range statefulSets {
+		nsUID, ok := namespaceIndex[statefulSet.Namespace]
+		if !ok {
+			log.Debugf("statefulSet namespaceUID missing from index for namespace name '%s'", statefulSet.Namespace)
+		}
 		statefulSetInfo := map[string]string{
-			source.StatefulSetLabel: statefulSet.Name,
-			source.NamespaceLabel:   statefulSet.Namespace,
-			source.UIDLabel:         string(statefulSet.UID),
+			source.UIDLabel:          string(statefulSet.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.StatefulSetLabel:  statefulSet.Name,
 		}
 
+		// statefulSet info
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.StatefulSetInfo,
+			Labels:         statefulSetInfo,
+			Value:          0,
+			AdditionalInfo: statefulSetInfo,
+		})
+
 		// statefulSet labels
-		labelNames, labelValues := promutil.KubeLabelsToLabels(statefulSet.SpecSelector.MatchLabels)
+		labelNames, labelValues := promutil.KubeLabelsToLabels(statefulSet.Labels)
 		statefulSetLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.StatefulSetLabels,
+			Labels:         statefulSetInfo,
+			Value:          0,
+			AdditionalInfo: statefulSetLabels,
+		})
+
+		// statefulSet annotations
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(statefulSet.Annotations)
+		statefulSetAnnotations := util.ToMap(annotationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.StatefulSetAnnotations,
+			Labels:         statefulSetInfo,
+			Value:          0,
+			AdditionalInfo: statefulSetAnnotations,
+		})
+
+		// statefulSet match labels
+		statefulSetInfo[source.NamespaceLabel] = statefulSet.Namespace
+		matchLabelNames, matchLabelValues := promutil.KubeLabelsToLabels(statefulSet.SpecSelector.MatchLabels)
+		statefulSetMatchLabels := util.ToMap(matchLabelNames, matchLabelValues)
+
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.StatefulSetMatchLabels,
 			Labels:         statefulSetInfo,
 			Value:          0,
-			AdditionalInfo: statefulSetLabels,
+			AdditionalInfo: statefulSetMatchLabels,
 		})
 	}
 
@@ -612,15 +846,237 @@ func (ccs *ClusterCacheScraper) scrapeStatefulSets(statefulSets []*clustercache.
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeReplicaSets() []metric.Update {
-	replicaSets := ccs.clusterCache.GetAllReplicaSets()
-	return ccs.scrapeReplicaSets(replicaSets)
+func (ccs *ClusterCacheScraper) GetScrapeDaemonSets(daemonSets []*clustercache.DaemonSet, namespaceIndex map[string]types.UID) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeDaemonSets(daemonSets, namespaceIndex)
+	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.ReplicaSet) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeDaemonSets(daemonSets []*clustercache.DaemonSet, namespaceIndex map[string]types.UID) []metric.Update {
+	var scrapeResults []metric.Update
+	for _, daemonSet := range daemonSets {
+		nsUID, ok := namespaceIndex[daemonSet.Namespace]
+		if !ok {
+			log.Debugf("daemonSet namespaceUID missing from index for namespace name '%s'", daemonSet.Namespace)
+		}
+		daemonSetInfo := map[string]string{
+			source.UIDLabel:          string(daemonSet.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.DaemonSetLabel:    daemonSet.Name,
+		}
+
+		// daemonSet info
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DaemonSetInfo,
+			Labels:         daemonSetInfo,
+			Value:          0,
+			AdditionalInfo: daemonSetInfo,
+		})
+
+		// daemonSet labels
+		labelNames, labelValues := promutil.KubeLabelsToLabels(daemonSet.Labels)
+		daemonSetLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DaemonSetLabels,
+			Labels:         daemonSetInfo,
+			Value:          0,
+			AdditionalInfo: daemonSetLabels,
+		})
+
+		// daemonSet annotations
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(daemonSet.Annotations)
+		daemonSetAnnotations := util.ToMap(annotationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.DaemonSetAnnotations,
+			Labels:         daemonSetInfo,
+			Value:          0,
+			AdditionalInfo: daemonSetAnnotations,
+		})
+	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.DaemonSetScraperType,
+		Targets:     len(daemonSets),
+		Errors:      nil,
+	})
+
+	return scrapeResults
+}
+
+func (ccs *ClusterCacheScraper) GetScrapeJobs(jobs []*clustercache.Job, namespaceIndex map[string]types.UID) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeJobs(jobs, namespaceIndex)
+	}
+}
+
+func (ccs *ClusterCacheScraper) scrapeJobs(jobs []*clustercache.Job, namespaceIndex map[string]types.UID) []metric.Update {
+	var scrapeResults []metric.Update
+	for _, job := range jobs {
+		nsUID, ok := namespaceIndex[job.Namespace]
+		if !ok {
+			log.Debugf("job namespaceUID missing from index for namespace name '%s'", job.Namespace)
+		}
+		jobInfo := map[string]string{
+			source.UIDLabel:          string(job.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.JobLabel:          job.Name,
+		}
+
+		// job info
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.JobInfo,
+			Labels:         jobInfo,
+			Value:          0,
+			AdditionalInfo: jobInfo,
+		})
+
+		// job labels
+		labelNames, labelValues := promutil.KubeLabelsToLabels(job.Labels)
+		jobLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.JobLabels,
+			Labels:         jobInfo,
+			Value:          0,
+			AdditionalInfo: jobLabels,
+		})
+
+		// job annotations
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(job.Annotations)
+		jobAnnotations := util.ToMap(annotationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.JobAnnotations,
+			Labels:         jobInfo,
+			Value:          0,
+			AdditionalInfo: jobAnnotations,
+		})
+	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.JobScraperType,
+		Targets:     len(jobs),
+		Errors:      nil,
+	})
+
+	return scrapeResults
+}
+
+func (ccs *ClusterCacheScraper) GetScrapeCronJobs(cronJobs []*clustercache.CronJob, namespaceIndex map[string]types.UID) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeCronJobs(cronJobs, namespaceIndex)
+	}
+}
+
+func (ccs *ClusterCacheScraper) scrapeCronJobs(cronJobs []*clustercache.CronJob, namespaceIndex map[string]types.UID) []metric.Update {
+	var scrapeResults []metric.Update
+	for _, cronJob := range cronJobs {
+		nsUID, ok := namespaceIndex[cronJob.Namespace]
+		if !ok {
+			log.Debugf("cronjob namespaceUID missing from index for namespace name '%s'", cronJob.Namespace)
+		}
+		cronJobInfo := map[string]string{
+			source.UIDLabel:          string(cronJob.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.CronJobLabel:      cronJob.Name,
+		}
+
+		// cronjob info
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.CronJobInfo,
+			Labels:         cronJobInfo,
+			Value:          0,
+			AdditionalInfo: cronJobInfo,
+		})
+
+		// cronjob labels
+		labelNames, labelValues := promutil.KubeLabelsToLabels(cronJob.Labels)
+		cronJobLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.CronJobLabels,
+			Labels:         cronJobInfo,
+			Value:          0,
+			AdditionalInfo: cronJobLabels,
+		})
+
+		// cronjob annotations
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(cronJob.Annotations)
+		cronJobAnnotations := util.ToMap(annotationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.CronJobAnnotations,
+			Labels:         cronJobInfo,
+			Value:          0,
+			AdditionalInfo: cronJobAnnotations,
+		})
+	}
+
+	events.Dispatch(event.ScrapeEvent{
+		ScraperName: event.KubernetesClusterScraperName,
+		ScrapeType:  event.CronJobScraperType,
+		Targets:     len(cronJobs),
+		Errors:      nil,
+	})
+
+	return scrapeResults
+}
+
+func (ccs *ClusterCacheScraper) GetScrapeReplicaSets(replicaSets []*clustercache.ReplicaSet, namespaceIndex map[string]types.UID) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeReplicaSets(replicaSets, namespaceIndex)
+	}
+}
+
+func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.ReplicaSet, namespaceIndex map[string]types.UID) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, replicaSet := range replicaSets {
+		nsUID, ok := namespaceIndex[replicaSet.Namespace]
+		if !ok {
+			log.Debugf("replicaset namespaceUID missing from index for namespace name '%s'", replicaSet.Namespace)
+		}
 		replicaSetInfo := map[string]string{
+			source.UIDLabel:          string(replicaSet.UID),
+			source.NamespaceUIDLabel: string(nsUID),
+			source.ReplicaSetLabel:   replicaSet.Name,
+		}
+
+		// replicaset info
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.ReplicaSetInfo,
+			Labels:         replicaSetInfo,
+			Value:          0,
+			AdditionalInfo: replicaSetInfo,
+		})
+
+		// replicaset labels
+		labelNames, labelValues := promutil.KubeLabelsToLabels(replicaSet.Labels)
+		replicaSetLabels := util.ToMap(labelNames, labelValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.ReplicaSetLabels,
+			Labels:         replicaSetInfo,
+			Value:          0,
+			AdditionalInfo: replicaSetLabels,
+		})
+
+		// replicaset annotations
+		annotationNames, annotationValues := promutil.KubeAnnotationsToLabels(replicaSet.Annotations)
+		replicaSetAnnotations := util.ToMap(annotationNames, annotationValues)
+
+		scrapeResults = append(scrapeResults, metric.Update{
+			Name:           metric.ReplicaSetAnnotations,
+			Labels:         replicaSetInfo,
+			Value:          0,
+			AdditionalInfo: replicaSetAnnotations,
+		})
+
+		// owner references for backward compatibility
+		replicaSetOwnerInfo := map[string]string{
 			source.ReplicaSetLabel: replicaSet.Name,
 			source.NamespaceLabel:  replicaSet.Namespace,
 			source.UIDLabel:        string(replicaSet.UID),
@@ -629,23 +1085,32 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 		// this specific metric exports a special <none> value for name and kind
 		// if there are no owners
 		if len(replicaSet.OwnerReferences) == 0 {
-			ownerInfo := maps.Clone(replicaSetInfo)
+			ownerInfo := maps.Clone(replicaSetOwnerInfo)
 			ownerInfo[source.OwnerKindLabel] = source.NoneLabelValue
 			ownerInfo[source.OwnerNameLabel] = source.NoneLabelValue
+			ownerInfo[source.ControllerLabel] = "false"
 			scrapeResults = append(scrapeResults, metric.Update{
-				Name:   metric.KubeReplicasetOwner,
-				Labels: ownerInfo,
-				Value:  0,
+				Name:           metric.KubeReplicasetOwner,
+				Labels:         ownerInfo,
+				Value:          0,
+				AdditionalInfo: ownerInfo,
 			})
 		} else {
 			for _, owner := range replicaSet.OwnerReferences {
-				ownerInfo := maps.Clone(replicaSetInfo)
+				controller := "false"
+				if owner.Controller != nil && *owner.Controller {
+					controller = "true"
+				}
+				ownerInfo := maps.Clone(replicaSetOwnerInfo)
 				ownerInfo[source.OwnerKindLabel] = owner.Kind
 				ownerInfo[source.OwnerNameLabel] = owner.Name
+				ownerInfo[source.OwnerUIDLabel] = string(owner.UID)
+				ownerInfo[source.ControllerLabel] = controller
 				scrapeResults = append(scrapeResults, metric.Update{
-					Name:   metric.KubeReplicasetOwner,
-					Labels: ownerInfo,
-					Value:  0,
+					Name:           metric.KubeReplicasetOwner,
+					Labels:         ownerInfo,
+					Value:          0,
+					AdditionalInfo: ownerInfo,
 				})
 			}
 		}
@@ -661,12 +1126,13 @@ func (ccs *ClusterCacheScraper) scrapeReplicaSets(replicaSets []*clustercache.Re
 	return scrapeResults
 }
 
-func (ccs *ClusterCacheScraper) ScrapeResourceQuotas() []metric.Update {
-	resourceQuotas := ccs.clusterCache.GetAllResourceQuotas()
-	return ccs.scrapeResourceQuotas(resourceQuotas)
+func (ccs *ClusterCacheScraper) GetScrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota, namespaceIndex map[string]types.UID) ScrapeFunc {
+	return func() []metric.Update {
+		return ccs.scrapeResourceQuotas(resourceQuotas, namespaceIndex)
+	}
 }
 
-func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota) []metric.Update {
+func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clustercache.ResourceQuota, namespaceIndex map[string]types.UID) []metric.Update {
 	var scrapeResults []metric.Update
 
 	processResource := func(baseLabels map[string]string, name v1.ResourceName, quantity resource.Quantity, metricName string) metric.Update {
@@ -684,10 +1150,11 @@ func (ccs *ClusterCacheScraper) scrapeResourceQuotas(resourceQuotas []*clusterca
 	}
 
 	for _, resourceQuota := range resourceQuotas {
+		nsUID, _ := namespaceIndex[resourceQuota.Namespace]
 		resourceQuotaInfo := map[string]string{
-			source.ResourceQuotaLabel: resourceQuota.Name,
-			source.NamespaceLabel:     resourceQuota.Namespace,
 			source.UIDLabel:           string(resourceQuota.UID),
+			source.NamespaceUIDLabel:  string(nsUID),
+			source.ResourceQuotaLabel: resourceQuota.Name,
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{

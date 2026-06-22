@@ -11,9 +11,8 @@ import (
 const (
 	ClusterInfoFile = "cluster-info.json"
 	ClusterCacheFile
-	GCPAuthSecretFile        = "key.json"
-	MetricConfigFile         = "metrics.json"
-	DefaultLocalCollectorDir = "collector"
+	GCPAuthSecretFile = "key.json"
+	MetricConfigFile  = "metrics.json"
 )
 
 // Env Variables
@@ -402,11 +401,6 @@ func GetCloudProvider() string {
 
 func GetMetricConfigFile() string {
 	return env.GetPathFromConfig(MetricConfigFile)
-}
-
-func GetLocalCollectorDirectory() string {
-	dir := env.Get(LocalCollectorDirectoryEnvVar, DefaultLocalCollectorDir)
-	return env.GetPathFromConfig(dir)
 }
 
 func GetDOKSPricingURL() string {

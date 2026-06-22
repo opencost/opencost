@@ -359,7 +359,7 @@ func NewCostModelMetricsEmitter(clusterCache clustercache.ClusterCache, provider
 	// init will only actually execute once to register the custom gauges
 	initCostModelMetrics(clusterInfo, metricsConfig)
 
-	metrics.InitKubeMetrics(clusterCache, metricsConfig, &metrics.KubeMetricsOpts{
+	metrics.InitKubeMetrics(clusterInfo, clusterCache, metricsConfig, &metrics.KubeMetricsOpts{
 		EmitKubecostControllerMetrics: true,
 		EmitNamespaceAnnotations:      env.IsEmitNamespaceAnnotationsMetric(),
 		EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),

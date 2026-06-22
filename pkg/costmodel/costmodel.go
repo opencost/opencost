@@ -1377,15 +1377,7 @@ func (cm *CostModel) GetLBCost() (map[serviceKey]*costAnalyzerCloud.LoadBalancer
 				return nil, err
 			}
 			newLoadBalancer := *loadBalancer
-			for _, loadBalancerIngress := range service.Status.LoadBalancer.Ingress {
-				address := loadBalancerIngress.IP
-				// Some cloud providers use hostname rather than IP
-				if address == "" {
-					address = loadBalancerIngress.Hostname
-				}
-				newLoadBalancer.IngressIPAddresses = append(newLoadBalancer.IngressIPAddresses, address)
-
-			}
+			newLoadBalancer.IngressIPAddresses = clustercache.GetLoadBalancerIngressAddress(service)
 			loadBalancerMap[key] = &newLoadBalancer
 		}
 	}

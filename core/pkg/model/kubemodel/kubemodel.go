@@ -1,27 +1,30 @@
 package kubemodel
 
 import (
+	"fmt"
 	"time"
 )
 
-// TODO: should we add a lock so that we can safely modify KubeModelSet in parallel?
-
 // @bingen:generate[streamable,stringtable]:KubeModelSet
 type KubeModelSet struct {
-	Metadata               *Metadata                         `json:"meta"`                   // @bingen:field[version=1]
-	Window                 Window                            `json:"window"`                 // @bingen:field[version=1]
-	Cluster                *Cluster                          `json:"cluster"`                // @bingen:field[version=1]
-	Namespaces             map[string]*Namespace             `json:"namespaces"`             // @bingen:field[version=1]
-	ResourceQuotas         map[string]*ResourceQuota         `json:"resourceQuotas"`         // @bingen:field[version=1]
-	Containers             map[string]*Container             `json:"containers,omitempty"`   // @bingen:field[ignore]
-	Owners                 map[string]*Owner                 `json:"owners,omitempty"`       // @bingen:field[ignore]
-	Devices                map[string]*Device                `json:"devices,omitempty"`      // @bingen:field[ignore]
-	DeviceUsages           map[string]*DeviceUsage           `json:"deviceUsages,omitempty"` // @bingen:field[ignore]
-	Nodes                  map[string]*Node                  `json:"nodes,omitempty"`        // @bingen:field[ignore]
-	Pods                   map[string]*Pod                   `json:"pods,omitempty"`         // @bingen:field[ignore]
-	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs,omitempty"`         // @bingen:field[ignore]
-	Services               map[string]*Service               `json:"services,omitempty"`     // @bingen:field[ignore]
-	Volumes                map[string]*PersistentVolume      `json:"volumes,omitempty"`      // @bingen:field[ignore]
+	Metadata               *Metadata                         `json:"meta"`              // @bingen:field[version=1]
+	Window                 Window                            `json:"window"`            // @bingen:field[version=1]
+	Cluster                *Cluster                          `json:"cluster"`           // @bingen:field[version=1]
+	Namespaces             map[string]*Namespace             `json:"namespaces"`        // @bingen:field[version=1]
+	ResourceQuotas         map[string]*ResourceQuota         `json:"resourceQuotas"`    // @bingen:field[version=1]
+	Services               map[string]*Service               `json:"services"`          // @bingen:field[version=2]
+	Deployments            map[string]*Deployment            `json:"deployments"`       // @bingen:field[version=2]
+	StatefulSets           map[string]*StatefulSet           `json:"statefulSets"`      // @bingen:field[version=2]
+	DaemonSets             map[string]*DaemonSet             `json:"daemonSets"`        // @bingen:field[version=2]
+	Jobs                   map[string]*Job                   `json:"jobs"`              // @bingen:field[version=2]
+	CronJobs               map[string]*CronJob               `json:"cronJobs"`          // @bingen:field[version=2]
+	ReplicaSets            map[string]*ReplicaSet            `json:"replicaSets"`       // @bingen:field[version=2]
+	Nodes                  map[string]*Node                  `json:"nodes"`             // @bingen:field[version=2]
+	PersistentVolumes      map[string]*PersistentVolume      `json:"persistentVolumes"` // @bingen:field[version=2]
+	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs"`              // @bingen:field[version=2]
+	Pods                   map[string]*Pod                   `json:"pods"`              // @bingen:field[version=2]
+	Containers             map[string]*Container             `json:"containers"`        // @bingen:field[version=2]
+	DCGMDevices            map[string]*DCGMDevice            `json:"dcgmDevices"`       // @bingen:field[version=2]
 	idx                    *kubeModelSetIndexes              // @bingen:field[ignore]
 }
 
@@ -38,16 +41,20 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 			End:   end,
 		},
 		Containers:             map[string]*Container{},
-		Owners:                 map[string]*Owner{},
-		Devices:                map[string]*Device{},
-		DeviceUsages:           map[string]*DeviceUsage{},
+		Deployments:            map[string]*Deployment{},
+		StatefulSets:           map[string]*StatefulSet{},
+		DaemonSets:             map[string]*DaemonSet{},
+		Jobs:                   map[string]*Job{},
+		CronJobs:               map[string]*CronJob{},
+		ReplicaSets:            map[string]*ReplicaSet{},
 		Namespaces:             map[string]*Namespace{},
 		Nodes:                  map[string]*Node{},
+		DCGMDevices:            map[string]*DCGMDevice{},
 		Pods:                   map[string]*Pod{},
 		PersistentVolumeClaims: map[string]*PersistentVolumeClaim{},
 		ResourceQuotas:         map[string]*ResourceQuota{},
 		Services:               map[string]*Service{},
-		Volumes:                map[string]*PersistentVolume{},
+		PersistentVolumes:      map[string]*PersistentVolume{},
 		idx:                    newKubeModelSetIndexes(),
 	}
 	return kms
@@ -76,16 +83,38 @@ func (kms *KubeModelSet) IsEmpty() bool {
 
 	// Check if all resource maps are empty
 	return len(kms.Containers) == 0 &&
-		len(kms.Owners) == 0 &&
-		len(kms.Devices) == 0 &&
-		len(kms.DeviceUsages) == 0 &&
+		len(kms.Deployments) == 0 &&
+		len(kms.StatefulSets) == 0 &&
+		len(kms.DaemonSets) == 0 &&
+		len(kms.Jobs) == 0 &&
+		len(kms.CronJobs) == 0 &&
+		len(kms.ReplicaSets) == 0 &&
 		len(kms.Namespaces) == 0 &&
 		len(kms.Nodes) == 0 &&
+		len(kms.DCGMDevices) == 0 &&
 		len(kms.Pods) == 0 &&
 		len(kms.PersistentVolumeClaims) == 0 &&
 		len(kms.ResourceQuotas) == 0 &&
 		len(kms.Services) == 0 &&
-		len(kms.Volumes) == 0
+		len(kms.PersistentVolumes) == 0
+}
+
+// checkWindow validates that the given start/end times are fully contained within
+// the KubeModelSet window. It records and returns an error if they are not.
+func checkWindow(window Window, start, end time.Time) error {
+	if window.Start.After(start) ||
+		window.Start.After(end) ||
+		window.End.Before(start) ||
+		window.End.Before(end) {
+		return fmt.Errorf(
+			"start or end time (%s-%s) is outside of the window %s-%s",
+			start.Format(time.RFC3339),
+			end.Format(time.RFC3339),
+			window.Start.Format(time.RFC3339),
+			window.End.Format(time.RFC3339),
+		)
+	}
+	return nil
 }
 
 type kubeModelSetIndexes struct {

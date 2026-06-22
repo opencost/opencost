@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -24,10 +26,21 @@ func (m *mockStatSummaryClient) GetNodeData() ([]*stats.Summary, error) {
 
 func TestStatScraper_Scrape(t *testing.T) {
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
+
+	testCache := &clustercache.MockClusterCache{
+		Nodes: []*clustercache.Node{
+			{Name: "node1", UID: types.UID("node-uid-1")},
+		},
+		PersistentVolumeClaims: []*clustercache.PersistentVolumeClaim{
+			{Name: "pvc1", Namespace: "namespace1", UID: types.UID("pvc-uid-1")},
+		},
+	}
+
 	tests := map[string]struct {
-		summaries []*stats.Summary
-		err       error
-		expected  []metric.Update
+		summaries    []*stats.Summary
+		err          error
+		clusterCache *clustercache.MockClusterCache
+		expected     []metric.Update
 	}{
 		"nil values": {
 			summaries: []*stats.Summary{
@@ -125,6 +138,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 			expected: []metric.Update{},
 		},
 		"single node": {
+			clusterCache: testCache,
 			summaries: []*stats.Summary{
 				{
 					Node: stats.NodeStats{
@@ -198,6 +212,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Name: metric.NodeCPUSecondsTotal,
 					Labels: map[string]string{
 						source.KubernetesNodeLabel: "node1",
+						source.UIDLabel:            "node-uid-1",
 						source.ModeLabel:           "",
 					},
 					Value: 2,
@@ -206,6 +221,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Name: metric.NodeFSCapacityBytes,
 					Labels: map[string]string{
 						source.InstanceLabel: "node1",
+						source.UIDLabel:      "node-uid-1",
 						source.DeviceLabel:   "local",
 					},
 					Value: float64(2 * util.GB),
@@ -214,6 +230,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Name: metric.ContainerNetworkReceiveBytesTotal,
 					Labels: map[string]string{
 						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
 					},
@@ -223,6 +240,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Name: metric.ContainerNetworkTransmitBytesTotal,
 					Labels: map[string]string{
 						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
 					},
@@ -234,6 +252,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.PVCLabel:       "pvc1",
 						source.NamespaceLabel: "namespace1",
 						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
+						source.PVCUIDLabel:    "pvc-uid-1",
 					},
 					Value: float64(1 * util.GB),
 				},
@@ -246,6 +266,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NodeLabel:      "node1",
 						source.InstanceLabel:  "node1",
 						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
 					},
 					Value: 1,
 				},
@@ -258,21 +279,25 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NodeLabel:      "node1",
 						source.InstanceLabel:  "node1",
 						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
 					},
 					Value: float64(5 * util.MB),
 				},
 				{
 					Name: metric.ContainerFSUsageBytes,
 					Labels: map[string]string{
-						source.InstanceLabel: "node1",
-						source.DeviceLabel:   "local",
-						source.UIDLabel:      "uid1",
+						source.InstanceLabel:  "node1",
+						source.DeviceLabel:    "local",
+						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
+						source.ContainerLabel: "container1",
 					},
 					Value: float64(1 * util.GB),
 				},
 			},
 		},
 		"single node with error": {
+			clusterCache: testCache,
 			summaries: []*stats.Summary{
 				{
 					Node: stats.NodeStats{
@@ -347,6 +372,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Name: metric.NodeCPUSecondsTotal,
 					Labels: map[string]string{
 						source.KubernetesNodeLabel: "node1",
+						source.UIDLabel:            "node-uid-1",
 						source.ModeLabel:           "",
 					},
 					Value: 2,
@@ -355,6 +381,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Name: metric.NodeFSCapacityBytes,
 					Labels: map[string]string{
 						source.InstanceLabel: "node1",
+						source.UIDLabel:      "node-uid-1",
 						source.DeviceLabel:   "local",
 					},
 					Value: float64(2 * util.GB),
@@ -363,6 +390,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Name: metric.ContainerNetworkReceiveBytesTotal,
 					Labels: map[string]string{
 						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
 					},
@@ -372,6 +400,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 					Name: metric.ContainerNetworkTransmitBytesTotal,
 					Labels: map[string]string{
 						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
 						source.PodLabel:       "pod1",
 						source.NamespaceLabel: "namespace1",
 					},
@@ -383,6 +412,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.PVCLabel:       "pvc1",
 						source.NamespaceLabel: "namespace1",
 						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
+						source.PVCUIDLabel:    "pvc-uid-1",
 					},
 					Value: float64(1 * util.GB),
 				},
@@ -395,6 +426,7 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NodeLabel:      "node1",
 						source.InstanceLabel:  "node1",
 						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
 					},
 					Value: 1,
 				},
@@ -407,21 +439,25 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.NodeLabel:      "node1",
 						source.InstanceLabel:  "node1",
 						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
 					},
 					Value: float64(5 * util.MB),
 				},
 				{
 					Name: metric.ContainerFSUsageBytes,
 					Labels: map[string]string{
-						source.InstanceLabel: "node1",
-						source.DeviceLabel:   "local",
-						source.UIDLabel:      "uid1",
+						source.InstanceLabel:  "node1",
+						source.DeviceLabel:    "local",
+						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
+						source.ContainerLabel: "container1",
 					},
 					Value: float64(1 * util.GB),
 				},
 			},
 		},
 		"repeat pvc": {
+			clusterCache: testCache,
 			summaries: []*stats.Summary{
 				{
 					Node: stats.NodeStats{
@@ -478,6 +514,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 						source.PVCLabel:       "pvc1",
 						source.NamespaceLabel: "namespace1",
 						source.UIDLabel:       "uid1",
+						source.NodeUIDLabel:   "node-uid-1",
+						source.PVCUIDLabel:    "pvc-uid-1",
 					},
 					Value: float64(1 * util.GB),
 				},
@@ -486,8 +524,13 @@ func TestStatScraper_Scrape(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
+			cache := clustercache.ClusterCache(tt.clusterCache)
+			if tt.clusterCache == nil {
+				cache = &clustercache.MockClusterCache{}
+			}
 			s := &StatSummaryScraper{
-				client: &mockStatSummaryClient{results: tt.summaries},
+				client:       &mockStatSummaryClient{results: tt.summaries, err: tt.err},
+				clusterCache: cache,
 			}
 			scrapeResults := s.Scrape()
 

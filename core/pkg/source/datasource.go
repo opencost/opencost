@@ -10,9 +10,6 @@ import (
 
 type MetricsQuerier interface {
 	// Cluster Disks
-	QueryPVActiveMinutes(start, end time.Time) *Future[PVActiveMinutesResult]
-	QueryPVUsedAverage(start, end time.Time) *Future[PVUsedAvgResult]
-	QueryPVUsedMax(start, end time.Time) *Future[PVUsedMaxResult]
 
 	// Local Cluster Disks
 	QueryLocalStorageActiveMinutes(start, end time.Time) *Future[LocalStorageActiveMinutesResult]
@@ -20,7 +17,13 @@ type MetricsQuerier interface {
 	QueryLocalStorageUsedMax(start, end time.Time) *Future[LocalStorageUsedMaxResult]
 	QueryLocalStorageBytes(start, end time.Time) *Future[LocalStorageBytesResult]
 
+	QueryKMLocalStorageUsedAvg(start, end time.Time) *Future[NodeUIDValueResult]
+	QueryKMLocalStorageUsedMax(start, end time.Time) *Future[NodeUIDValueResult]
+	QueryKMLocalStorageBytes(start, end time.Time) *Future[UIDValueResult]
+
 	// Nodes
+	QueryNodeInfo(start, end time.Time) *Future[NodeInfoResult]
+	QueryNodeUptime(start, end time.Time) *Future[UptimeResult]
 	QueryNodeActiveMinutes(start, end time.Time) *Future[NodeActiveMinutesResult]
 	QueryNodeCPUCoresCapacity(start, end time.Time) *Future[NodeCPUCoresCapacityResult]
 	QueryNodeCPUCoresAllocatable(start, end time.Time) *Future[NodeCPUCoresAllocatableResult]
@@ -31,12 +34,15 @@ type MetricsQuerier interface {
 	QueryNodeIsSpot(start, end time.Time) *Future[NodeIsSpotResult]
 	QueryNodeRAMSystemPercent(start, end time.Time) *Future[NodeRAMSystemPercentResult]
 	QueryNodeRAMUserPercent(start, end time.Time) *Future[NodeRAMUserPercentResult]
+	QueryNodeResourceCapacities(start, end time.Time) *Future[ResourceResult]
+	QueryNodeResourcesAllocatable(start, end time.Time) *Future[ResourceResult]
 
 	// Load Balancers
 	QueryLBActiveMinutes(start, end time.Time) *Future[LBActiveMinutesResult]
 	QueryLBPricePerHr(start, end time.Time) *Future[LBPricePerHrResult]
 
 	// Cluster Management
+	QueryClusterInfo(start, end time.Time) *Future[ClusterInfoResult]
 	QueryClusterUptime(start, end time.Time) *Future[UptimeResult]
 	QueryClusterManagementDuration(start, end time.Time) *Future[ClusterManagementDurationResult]
 	QueryClusterManagementPricePerHr(start, end time.Time) *Future[ClusterManagementPricePerHrResult]
@@ -44,6 +50,17 @@ type MetricsQuerier interface {
 	// Pods
 	QueryPods(start, end time.Time) *Future[PodsResult]
 	QueryPodsUID(start, end time.Time) *Future[PodsResult]
+	QueryPodInfo(start, end time.Time) *Future[PodInfoResult]
+	QueryPodUptime(start, end time.Time) *Future[UptimeResult]
+	QueryPodOwners(start, end time.Time) *Future[OwnerResult]
+	QueryPodPVCVolumes(start, end time.Time) *Future[PodPVCVolumeResult]
+	QueryPodNetworkEgressBytes(start, end time.Time) *Future[PodNetworkBytesResult]
+	QueryPodNetworkIngressBytes(start, end time.Time) *Future[PodNetworkBytesResult]
+
+	// Container
+	QueryContainerUptime(start, end time.Time) *Future[ContainerUptimeResult]
+	QueryContainerResourceRequests(start, end time.Time) *Future[ContainerResourceResult]
+	QueryContainerResourceLimits(start, end time.Time) *Future[ContainerResourceResult]
 
 	// RAM
 	QueryRAMBytesAllocated(start, end time.Time) *Future[RAMBytesAllocatedResult]
@@ -70,18 +87,78 @@ type MetricsQuerier interface {
 	QueryGPUInfo(start, end time.Time) *Future[GPUInfoResult]
 	QueryIsGPUShared(start, end time.Time) *Future[IsGPUSharedResult]
 
+	// Device
+	QueryDCGMDeviceInfo(start, end time.Time) *Future[DCGMDeviceInfoResult]
+	QueryDCGMDeviceUptime(start, end time.Time) *Future[DCGMDeviceUptimeResult]
+	QueryDCGMContainerUsageAvg(start, end time.Time) *Future[DCGMDeviceContainerUsageResult]
+	QueryDCGMContainerUsageMax(start, end time.Time) *Future[DCGMDeviceContainerUsageResult]
+
 	// PVC
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
 	QueryPVCBytesRequested(start, end time.Time) *Future[PVCBytesRequestedResult]
 	QueryPVCInfo(start, end time.Time) *Future[PVCInfoResult]
+	QueryKMPVCInfo(start, end time.Time) *Future[PVCInfoResult]
+	QueryPVCUptime(start, end time.Time) *Future[UptimeResult]
+	QueryPVCBytesUsedAverage(start, end time.Time) *Future[PVCUIDValueResult]
+	QueryPVCBytesUsedMax(start, end time.Time) *Future[PVCUIDValueResult]
 
 	// PV
 	QueryPVBytes(start, end time.Time) *Future[PVBytesResult]
 	QueryPVPricePerGiBHour(start, end time.Time) *Future[PVPricePerGiBHourResult]
 	QueryPVInfo(start, end time.Time) *Future[PVInfoResult]
+	QueryPVActiveMinutes(start, end time.Time) *Future[PVActiveMinutesResult]
+	QueryPVUsedAverage(start, end time.Time) *Future[PVUsedAvgResult]
+	QueryPVUsedMax(start, end time.Time) *Future[PVUsedMaxResult]
+	QueryKMPVInfo(start, end time.Time) *Future[PVInfoResult]
+	QueryPVUptime(start, end time.Time) *Future[UptimeResult]
+
+	// Deployment
+	QueryDeploymentInfo(start, end time.Time) *Future[DeploymentInfoResult]
+	QueryDeploymentUptime(start, end time.Time) *Future[UptimeResult]
+	QueryDeploymentLabels(start, end time.Time) *Future[LabelsResult]
+	QueryDeploymentAnnotations(start, end time.Time) *Future[AnnotationsResult]
+	QueryDeploymentMatchLabels(start, end time.Time) *Future[DeploymentLabelsResult]
+
+	// StatefulSet
+	QueryStatefulSetInfo(start, end time.Time) *Future[StatefulSetInfoResult]
+	QueryStatefulSetUptime(start, end time.Time) *Future[UptimeResult]
+	QueryStatefulSetLabels(start, end time.Time) *Future[LabelsResult]
+	QueryStatefulSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
+	QueryStatefulSetMatchLabels(start, end time.Time) *Future[StatefulSetLabelsResult]
+
+	// DaemonSet
+	QueryDaemonSetInfo(start, end time.Time) *Future[DaemonSetInfoResult]
+	QueryDaemonSetUptime(start, end time.Time) *Future[UptimeResult]
+	QueryDaemonSetLabels(start, end time.Time) *Future[LabelsResult]
+	QueryDaemonSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
+
+	// Job
+	QueryJobInfo(start, end time.Time) *Future[JobInfoResult]
+	QueryJobUptime(start, end time.Time) *Future[UptimeResult]
+	QueryJobLabels(start, end time.Time) *Future[LabelsResult]
+	QueryJobAnnotations(start, end time.Time) *Future[AnnotationsResult]
+
+	// CronJob
+	QueryCronJobInfo(start, end time.Time) *Future[CronJobInfoResult]
+	QueryCronJobUptime(start, end time.Time) *Future[UptimeResult]
+	QueryCronJobLabels(start, end time.Time) *Future[LabelsResult]
+	QueryCronJobAnnotations(start, end time.Time) *Future[AnnotationsResult]
+
+	// ReplicaSet
+	QueryReplicaSetInfo(start, end time.Time) *Future[ReplicaSetInfoResult]
+	QueryReplicaSetUptime(start, end time.Time) *Future[UptimeResult]
+	QueryReplicaSetLabels(start, end time.Time) *Future[LabelsResult]
+	QueryReplicaSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
+	QueryReplicaSetOwners(start, end time.Time) *Future[OwnerResult]
 
 	// Namespace
+	QueryNamespaceInfo(start, end time.Time) *Future[NamespaceInfoResult]
 	QueryNamespaceUptime(start, end time.Time) *Future[UptimeResult]
+
+	// Service
+	QueryServiceInfo(start, end time.Time) *Future[ServiceInfoResult]
+	QueryServiceUptime(start, end time.Time) *Future[UptimeResult]
+	QueryServiceSelectorLabels(start, end time.Time) *Future[ServiceLabelsResult]
 
 	// Network Egress
 	QueryNetZoneGiB(start, end time.Time) *Future[NetZoneGiBResult]
@@ -112,11 +189,9 @@ type MetricsQuerier interface {
 	QueryNodeLabels(start, end time.Time) *Future[NodeLabelsResult]
 	QueryNamespaceLabels(start, end time.Time) *Future[NamespaceLabelsResult]
 	QueryPodLabels(start, end time.Time) *Future[PodLabelsResult]
-	QueryServiceLabels(start, end time.Time) *Future[ServiceLabelsResult]
-	QueryDeploymentLabels(start, end time.Time) *Future[DeploymentLabelsResult]
-	QueryStatefulSetLabels(start, end time.Time) *Future[StatefulSetLabelsResult]
-	QueryDaemonSetLabels(start, end time.Time) *Future[DaemonSetLabelsResult]
-	QueryJobLabels(start, end time.Time) *Future[JobLabelsResult]
+
+	QueryPodsWithDaemonSetOwner(start, end time.Time) *Future[PodsWithDaemonSetOwnerResult]
+	QueryPodsWithJobOwner(start, end time.Time) *Future[PodsWithJobOwnerResult]
 
 	// ReplicaSet -> Controller mapping
 	QueryPodsWithReplicaSetOwner(start, end time.Time) *Future[PodsWithReplicaSetOwnerResult]
@@ -124,23 +199,24 @@ type MetricsQuerier interface {
 	QueryReplicaSetsWithRollout(start, end time.Time) *Future[ReplicaSetsWithRolloutResult]
 
 	// ResourceQuotas
+	QueryResourceQuotaInfo(start, end time.Time) *Future[ResourceQuotaInfoResult]
 	QueryResourceQuotaUptime(start, end time.Time) *Future[UptimeResult]
-	QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *Future[ResourceQuotaSpecCPURequestAvgResult]
-	QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *Future[ResourceQuotaSpecCPURequestMaxResult]
-	QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *Future[ResourceQuotaSpecRAMRequestAvgResult]
-	QueryResourceQuotaSpecRAMRequestMax(start, end time.Time) *Future[ResourceQuotaSpecRAMRequestMaxResult]
-	QueryResourceQuotaSpecCPULimitAverage(start, end time.Time) *Future[ResourceQuotaSpecCPULimitAvgResult]
-	QueryResourceQuotaSpecCPULimitMax(start, end time.Time) *Future[ResourceQuotaSpecCPULimitMaxResult]
-	QueryResourceQuotaSpecRAMLimitAverage(start, end time.Time) *Future[ResourceQuotaSpecRAMLimitAvgResult]
-	QueryResourceQuotaSpecRAMLimitMax(start, end time.Time) *Future[ResourceQuotaSpecRAMLimitMaxResult]
-	QueryResourceQuotaStatusUsedCPURequestAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedCPURequestAvgResult]
-	QueryResourceQuotaStatusUsedCPURequestMax(start, end time.Time) *Future[ResourceQuotaStatusUsedCPURequestMaxResult]
-	QueryResourceQuotaStatusUsedRAMRequestAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMRequestAvgResult]
-	QueryResourceQuotaStatusUsedRAMRequestMax(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMRequestMaxResult]
-	QueryResourceQuotaStatusUsedCPULimitAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedCPULimitAvgResult]
-	QueryResourceQuotaStatusUsedCPULimitMax(start, end time.Time) *Future[ResourceQuotaStatusUsedCPULimitMaxResult]
-	QueryResourceQuotaStatusUsedRAMLimitAverage(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMLimitAvgResult]
-	QueryResourceQuotaStatusUsedRAMLimitMax(start, end time.Time) *Future[ResourceQuotaStatusUsedRAMLimitMaxResult]
+	QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecRAMRequestMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecCPULimitAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecCPULimitMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecRAMLimitAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaSpecRAMLimitMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedCPURequestAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedCPURequestMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedRAMRequestAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedRAMRequestMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedCPULimitAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedCPULimitMax(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedRAMLimitAverage(start, end time.Time) *Future[ResourceResult]
+	QueryResourceQuotaStatusUsedRAMLimitMax(start, end time.Time) *Future[ResourceResult]
 
 	// Data Coverage Query
 	QueryDataCoverage(limitDays int) (time.Time, time.Time, error)

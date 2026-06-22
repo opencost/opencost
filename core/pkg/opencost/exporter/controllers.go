@@ -31,6 +31,7 @@ type ComputePipelineSource interface {
 // PipelinesExportConfig is a configuration struct that contains the export resolutions for
 // allocation, assets, and network insights pipelines.
 type PipelinesExportConfig struct {
+	AppName                           string
 	ClusterUID                        string
 	ClusterName                       string
 	AllocationPiplineResolutions      []time.Duration
@@ -52,8 +53,9 @@ func defaultPipelineExportResolutions() []time.Duration {
 
 // NewPipelinesExportConfig returns the default export configuration for all pipelines
 // which is set to export hourly and daily for allocations, assets, and network insights.
-func NewPipelinesExportConfig(clusterUID, clusterName string) PipelinesExportConfig {
+func NewPipelinesExportConfig(appName, clusterUID, clusterName string) PipelinesExportConfig {
 	return PipelinesExportConfig{
+		AppName:                           appName,
 		ClusterUID:                        clusterUID,
 		ClusterName:                       clusterName,
 		AllocationPiplineResolutions:      defaultPipelineExportResolutions(),
@@ -175,10 +177,11 @@ func NewPipelineExportControllers(store storage.Storage, cm ComputePipelineSourc
 		var kubeModelController *export.ComputeExportController[kubemodel.KubeModelSet]
 		var err error
 		if config.Streaming {
-			kubeModelController, err = NewStreamingComputePipelineExportController(config.ClusterUID, store, kubeModelSource, res, config.Compression)
+			kubeModelController, err = NewStreamingKubeModelComputePipelineExportController(config.AppName, config.ClusterUID, store, kubeModelSource, res, config.Compression)
 		} else {
-			kubeModelController, err = NewComputePipelineExportController(config.ClusterUID, store, kubeModelSource, res)
+			kubeModelController, err = NewKubeModelComputePipelineExportController(config.AppName, config.ClusterUID, store, kubeModelSource, res)
 		}
+
 		if err != nil {
 			log.Errorf("Failed to create KubeModel export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue
@@ -199,10 +202,12 @@ func (pec *PipelineExportControllers) Start(interval time.Duration) {
 	pec.AllocationExportController.Start(interval)
 	pec.AssetExportController.Start(interval)
 	pec.NetworkInsightExportController.Start(interval)
+	pec.KubeModelExportController.Start(interval)
 }
 
 func (pec *PipelineExportControllers) Stop() {
 	pec.AllocationExportController.Stop()
 	pec.AssetExportController.Stop()
 	pec.NetworkInsightExportController.Stop()
+	pec.KubeModelExportController.Stop()
 }
