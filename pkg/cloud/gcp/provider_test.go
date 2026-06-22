@@ -456,7 +456,7 @@ func TestGCP_GetManagementPlatform(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gcp := &GCP{
-				Clientset: &mockClusterCache{nodes: tt.nodes},
+				Clientset: &clustercache.MockClusterCache{Nodes: tt.nodes},
 			}
 
 			result, err := gcp.GetManagementPlatform()
@@ -1098,10 +1098,10 @@ func TestGCP_parsePages(t *testing.T) {
 func TestGCP_DownloadPricingData(t *testing.T) {
 	gcp := &GCP{
 		Config: &mockConfig{},
-		Clientset: &mockClusterCache{
-			nodes: []*clustercache.Node{},
-			pvs:   []*clustercache.PersistentVolume{},
-			scs:   []*clustercache.StorageClass{},
+		Clientset: &clustercache.MockClusterCache{
+			Nodes:             []*clustercache.Node{},
+			PersistentVolumes: []*clustercache.PersistentVolume{},
+			StorageClasses:    []*clustercache.StorageClass{},
 		},
 	}
 
@@ -1153,8 +1153,8 @@ func TestGCP_ApplyReservedInstancePricing(t *testing.T) {
 				},
 			},
 		},
-		Clientset: &mockClusterCache{
-			nodes: []*clustercache.Node{
+		Clientset: &clustercache.MockClusterCache{
+			Nodes: []*clustercache.Node{
 				{
 					Name: "test-node",
 					Labels: map[string]string{
@@ -1331,59 +1331,4 @@ func (m *mockConfig) Update(updateFn func(*models.CustomPricing) error) (*models
 
 func (m *mockConfig) ConfigFileManager() *config.ConfigFileManager {
 	return nil
-}
-
-type mockClusterCache struct {
-	nodes []*clustercache.Node
-	pvs   []*clustercache.PersistentVolume
-	scs   []*clustercache.StorageClass
-}
-
-func (m *mockClusterCache) GetAllNodes() []*clustercache.Node {
-	return m.nodes
-}
-
-func (m *mockClusterCache) GetAllDaemonSets() []*clustercache.DaemonSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllDeployments() []*clustercache.Deployment {
-	return nil
-}
-
-func (m *mockClusterCache) Run()                                                      {}
-func (m *mockClusterCache) Stop()                                                     {}
-func (m *mockClusterCache) GetAllNamespaces() []*clustercache.Namespace               { return nil }
-func (m *mockClusterCache) GetAllPods() []*clustercache.Pod                           { return nil }
-func (m *mockClusterCache) GetAllServices() []*clustercache.Service                   { return nil }
-func (m *mockClusterCache) GetAllStatefulSets() []*clustercache.StatefulSet           { return nil }
-func (m *mockClusterCache) GetAllReplicaSets() []*clustercache.ReplicaSet             { return nil }
-func (m *mockClusterCache) GetAllPersistentVolumes() []*clustercache.PersistentVolume { return m.pvs }
-func (m *mockClusterCache) GetAllPersistentVolumeClaims() []*clustercache.PersistentVolumeClaim {
-	return nil
-}
-func (m *mockClusterCache) GetAllStorageClasses() []*clustercache.StorageClass { return m.scs }
-func (m *mockClusterCache) GetAllJobs() []*clustercache.Job                    { return nil }
-func (m *mockClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
-	return nil
-}
-func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
-	return nil
-}
-
-type mockMetadataClient struct{}
-
-func (m *mockMetadataClient) InstanceAttributeValue(attr string) (string, error) {
-	if attr == "cluster-name" {
-		return "test-cluster", nil
-	}
-	return "", fmt.Errorf("attribute not found")
-}
-
-func (m *mockMetadataClient) ProjectID() (string, error) {
-	return "test-project", nil
 }

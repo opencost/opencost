@@ -696,74 +696,6 @@ func Test_configUpdaterWithReaderAndType_forSpotValues(t *testing.T) {
 	}
 }
 
-// Mock cluster cache for testing
-type mockClusterCache struct {
-	pods []*clustercache.Pod
-}
-
-func (m *mockClusterCache) Run()  {}
-func (m *mockClusterCache) Stop() {}
-
-func (m *mockClusterCache) GetAllPods() []*clustercache.Pod {
-	return m.pods
-}
-
-func (m *mockClusterCache) GetAllNodes() []*clustercache.Node {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllPersistentVolumes() []*clustercache.PersistentVolume {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllPersistentVolumeClaims() []*clustercache.PersistentVolumeClaim {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllStorageClasses() []*clustercache.StorageClass {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllServices() []*clustercache.Service {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllDeployments() []*clustercache.Deployment {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllDaemonSets() []*clustercache.DaemonSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllStatefulSets() []*clustercache.StatefulSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllReplicaSets() []*clustercache.ReplicaSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllJobs() []*clustercache.Job {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllNamespaces() []*clustercache.Namespace {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
-	return nil
-}
-
 func TestAWS_getFargatePod(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -823,7 +755,7 @@ func TestAWS_getFargatePod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			aws := &AWS{
-				Clientset: &mockClusterCache{pods: tt.pods},
+				Clientset: &clustercache.MockClusterCache{Pods: tt.pods},
 			}
 
 			gotPod, gotBool := aws.getFargatePod(tt.awsKey)
