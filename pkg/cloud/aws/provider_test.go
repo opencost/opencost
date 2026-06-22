@@ -133,8 +133,8 @@ func Test_PricingData_Regression(t *testing.T) {
 			t.Errorf("Failed to download pricing data for region %s: %v", region, err)
 		}
 
-		// Unmarshal pricing data into AWSPricing
-		var pricingData AWSPricing
+		// Unmarshal pricing data into PriceListEC2Response
+		var pricingData PriceListEC2Response
 		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			t.Errorf("Failed to read pricing data for region %s: %v", region, err)
@@ -207,13 +207,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "",
 		VCpu:    "",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "M6UGCCQ3CDJQAA37",
 			OfferTermCode: "JRTCKXETXF",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"M6UGCCQ3CDJQAA37.JRTCKXETXF.6YS6EN2CT7": {
 					Unit: "GB-Mo",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "0.0800000000",
 						CNY: "",
 					},
@@ -236,13 +236,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "EBS only",
 		VCpu:    "2",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "8D49XP354UEYTHGM",
 			OfferTermCode: "MZU6U2429S",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"8D49XP354UEYTHGM.MZU6U2429S.2TG2D8R56U": {
 					Unit: "Quantity",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "1161",
 						CNY: "",
 					},
@@ -257,13 +257,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "EBS only",
 		VCpu:    "2",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "8D49XP354UEYTHGM",
 			OfferTermCode: "MZU6U2429S",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"8D49XP354UEYTHGM.MZU6U2429S.2TG2D8R56U": {
 					Unit: "Quantity",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "1161",
 						CNY: "",
 					},
@@ -274,13 +274,13 @@ func Test_populate_pricing(t *testing.T) {
 
 	expectedProdTermsLoadbalancer := &AWSProductTerms{
 		Sku: "Y9RYMSE644KDSV4S",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "Y9RYMSE644KDSV4S",
 			OfferTermCode: "JRTCKXETXF",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"Y9RYMSE644KDSV4S.JRTCKXETXF.6YS6EN2CT7": {
 					Unit: "Hrs",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "0.0225000000",
 						CNY: "",
 					},
@@ -337,13 +337,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "8 x 1000 SSD",
 		VCpu:    "96",
 		GPU:     "8",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "H7NGEAC6UEHNTKSJ",
 			OfferTermCode: "JRTCKXETXF",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"H7NGEAC6UEHNTKSJ.JRTCKXETXF.6YS6EN2CT7": {
 					Unit: "Hrs",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "32.7726000000",
 					},
 				},
@@ -392,13 +392,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "",
 		VCpu:    "",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &PriceListEC2Term{
 			Sku:           "R83VXG9NAPDASEGN",
 			OfferTermCode: "5Y9WH78GDR",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*PriceListEC2PriceDimension{
 				"R83VXG9NAPDASEGN.5Y9WH78GDR.Q7UJUT2CE6": {
 					Unit: "GB-Mo",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: PriceListEC2PricePerUnit{
 						USD: "",
 						CNY: "0.5312000000",
 					},
@@ -696,74 +696,6 @@ func Test_configUpdaterWithReaderAndType_forSpotValues(t *testing.T) {
 	}
 }
 
-// Mock cluster cache for testing
-type mockClusterCache struct {
-	pods []*clustercache.Pod
-}
-
-func (m *mockClusterCache) Run()  {}
-func (m *mockClusterCache) Stop() {}
-
-func (m *mockClusterCache) GetAllPods() []*clustercache.Pod {
-	return m.pods
-}
-
-func (m *mockClusterCache) GetAllNodes() []*clustercache.Node {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllPersistentVolumes() []*clustercache.PersistentVolume {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllPersistentVolumeClaims() []*clustercache.PersistentVolumeClaim {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllStorageClasses() []*clustercache.StorageClass {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllServices() []*clustercache.Service {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllDeployments() []*clustercache.Deployment {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllDaemonSets() []*clustercache.DaemonSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllStatefulSets() []*clustercache.StatefulSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllReplicaSets() []*clustercache.ReplicaSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllJobs() []*clustercache.Job {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllNamespaces() []*clustercache.Namespace {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
-	return nil
-}
-
 func TestAWS_getFargatePod(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -823,7 +755,7 @@ func TestAWS_getFargatePod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			aws := &AWS{
-				Clientset: &mockClusterCache{pods: tt.pods},
+				Clientset: &clustercache.MockClusterCache{Pods: tt.pods},
 			}
 
 			gotPod, gotBool := aws.getFargatePod(tt.awsKey)
@@ -1132,13 +1064,13 @@ func TestAWS_createNode_spotHistoryFallback(t *testing.T) {
 		priceKey := sku + "." + offerTermCode + "." + HourlyRateCode
 		return &AWSProductTerms{
 			Sku: sku,
-			OnDemand: &AWSOfferTerm{
+			OnDemand: &PriceListEC2Term{
 				Sku:           sku,
 				OfferTermCode: offerTermCode,
-				PriceDimensions: map[string]*AWSRateCode{
+				PriceDimensions: map[string]*PriceListEC2PriceDimension{
 					priceKey: {
 						Unit:         "Hrs",
-						PricePerUnit: AWSCurrencyCode{USD: cost},
+						PricePerUnit: PriceListEC2PricePerUnit{USD: cost},
 					},
 				},
 			},
@@ -1277,10 +1209,10 @@ func TestAWS_createNode_spotHistoryFallback(t *testing.T) {
 		// Terms without valid pricing dimensions
 		terms := &AWSProductTerms{
 			Sku: "SKU123",
-			OnDemand: &AWSOfferTerm{
+			OnDemand: &PriceListEC2Term{
 				Sku:             "SKU123",
 				OfferTermCode:   "JRTCKXETXF",
-				PriceDimensions: map[string]*AWSRateCode{},
+				PriceDimensions: map[string]*PriceListEC2PriceDimension{},
 			},
 			VCpu:   "4",
 			Memory: "16",

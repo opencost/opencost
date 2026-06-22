@@ -1,0 +1,35 @@
+package pricing
+
+import (
+	"maps"
+	"slices"
+	"time"
+
+	"github.com/opencost/opencost/core/pkg/unit"
+)
+
+type VolumePricingProperties struct {
+	Provider   Provider          `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Region     string            `json:"region,omitempty" yaml:"region,omitempty"`
+	VolumeType VolumeType        `json:"volumeType,omitempty" yaml:"volumeType,omitempty"`
+	Cluster    string            `json:"cluster,omitempty" yaml:"cluster,omitempty"`
+	ProviderID string            `json:"providerID,omitempty" yaml:"providerID,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Start      *time.Time        `json:"start,omitempty" yaml:"start,omitempty"`
+	End        *time.Time        `json:"end,omitempty" yaml:"end,omitempty"`
+}
+
+type VolumePricing struct {
+	Properties VolumePricingProperties `json:"properties" yaml:"properties"`
+	Prices     Prices                  `json:"prices" yaml:"pricing"`
+}
+
+func (vp *VolumePricing) GetCurrencies() []unit.Currency {
+	currencies := map[unit.Currency]struct{}{}
+
+	for currency := range vp.Prices {
+		currencies[currency] = struct{}{}
+	}
+
+	return slices.Collect(maps.Keys(currencies))
+}
