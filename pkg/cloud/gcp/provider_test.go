@@ -1332,16 +1332,3 @@ func (m *mockConfig) Update(updateFn func(*models.CustomPricing) error) (*models
 func (m *mockConfig) ConfigFileManager() *config.ConfigFileManager {
 	return nil
 }
-
-type mockMetadataClient struct{}
-
-func (m *mockMetadataClient) InstanceAttributeValue(attr string) (string, error) {
-	if attr == "cluster-name" {
-		return "test-cluster", nil
-	}
-	return "", fmt.Errorf("attribute not found")
-}
-
-func (m *mockMetadataClient) ProjectID() (string, error) {
-	return "test-project", nil
-}
