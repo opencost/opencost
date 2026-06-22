@@ -31,7 +31,7 @@ func (a *Any) MarshalJSON() ([]byte, error) {
 
 func (a *Any) UnmarshalJSON(b []byte) error {
 
-	var f interface{}
+	var f any
 
 	err := json.Unmarshal(b, &f)
 	if err != nil {
@@ -47,17 +47,17 @@ func (a *Any) UnmarshalJSON(b []byte) error {
 }
 
 // Converts interface{} to Any, carrying over relevant fields
-func (a *Any) InterfaceToAny(itf interface{}) error {
+func (a *Any) InterfaceToAny(itf any) error {
 
-	fmap := itf.(map[string]interface{})
+	fmap := itf.(map[string]any)
 
 	// parse properties map to AssetProperties
-	fproperties := fmap["properties"].(map[string]interface{})
+	fproperties := fmap["properties"].(map[string]any)
 	properties := toAssetProp(fproperties)
 
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
-	for k, v := range fmap["labels"].(map[string]interface{}) {
+	for k, v := range fmap["labels"].(map[string]any) {
 		labels[k] = v.(string)
 	}
 
@@ -77,7 +77,7 @@ func (a *Any) InterfaceToAny(itf interface{}) error {
 	a.End = end
 
 	if _, found := fmap["window"]; found {
-		a.Window = toWindow(fmap["window"].(map[string]interface{}))
+		a.Window = toWindow(fmap["window"].(map[string]any))
 	}
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
@@ -111,7 +111,7 @@ func (ca *Cloud) MarshalJSON() ([]byte, error) {
 
 func (ca *Cloud) UnmarshalJSON(b []byte) error {
 
-	var f interface{}
+	var f any
 
 	err := json.Unmarshal(b, &f)
 	if err != nil {
@@ -127,17 +127,17 @@ func (ca *Cloud) UnmarshalJSON(b []byte) error {
 }
 
 // Converts interface{} to Cloud, carrying over relevant fields
-func (ca *Cloud) InterfaceToCloud(itf interface{}) error {
+func (ca *Cloud) InterfaceToCloud(itf any) error {
 
-	fmap := itf.(map[string]interface{})
+	fmap := itf.(map[string]any)
 
 	// parse properties map to AssetProperties
-	fproperties := fmap["properties"].(map[string]interface{})
+	fproperties := fmap["properties"].(map[string]any)
 	properties := toAssetProp(fproperties)
 
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
-	for k, v := range fmap["labels"].(map[string]interface{}) {
+	for k, v := range fmap["labels"].(map[string]any) {
 		labels[k] = v.(string)
 	}
 
@@ -156,7 +156,7 @@ func (ca *Cloud) InterfaceToCloud(itf interface{}) error {
 	ca.Start = start
 	ca.End = end
 	if _, found := fmap["window"]; found {
-		ca.Window = toWindow(fmap["window"].(map[string]interface{}))
+		ca.Window = toWindow(fmap["window"].(map[string]any))
 	}
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
@@ -191,7 +191,7 @@ func (cm *ClusterManagement) MarshalJSON() ([]byte, error) {
 
 func (cm *ClusterManagement) UnmarshalJSON(b []byte) error {
 
-	var f interface{}
+	var f any
 
 	err := json.Unmarshal(b, &f)
 	if err != nil {
@@ -207,24 +207,24 @@ func (cm *ClusterManagement) UnmarshalJSON(b []byte) error {
 }
 
 // Converts interface{} to ClusterManagement, carrying over relevant fields
-func (cm *ClusterManagement) InterfaceToClusterManagement(itf interface{}) error {
+func (cm *ClusterManagement) InterfaceToClusterManagement(itf any) error {
 
-	fmap := itf.(map[string]interface{})
+	fmap := itf.(map[string]any)
 
 	// parse properties map to AssetProperties
-	fproperties := fmap["properties"].(map[string]interface{})
+	fproperties := fmap["properties"].(map[string]any)
 	properties := toAssetProp(fproperties)
 
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
-	for k, v := range fmap["labels"].(map[string]interface{}) {
+	for k, v := range fmap["labels"].(map[string]any) {
 		labels[k] = v.(string)
 	}
 
 	cm.Properties = &properties
 	cm.Labels = labels
 	if _, found := fmap["window"]; found {
-		cm.Window = toWindow(fmap["window"].(map[string]interface{}))
+		cm.Window = toWindow(fmap["window"].(map[string]any))
 	}
 
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
@@ -272,7 +272,7 @@ func (d *Disk) MarshalJSON() ([]byte, error) {
 
 func (d *Disk) UnmarshalJSON(b []byte) error {
 
-	var f interface{}
+	var f any
 
 	err := json.Unmarshal(b, &f)
 	if err != nil {
@@ -288,17 +288,17 @@ func (d *Disk) UnmarshalJSON(b []byte) error {
 }
 
 // Converts interface{} to Disk, carrying over relevant fields
-func (d *Disk) InterfaceToDisk(itf interface{}) error {
+func (d *Disk) InterfaceToDisk(itf any) error {
 
-	fmap := itf.(map[string]interface{})
+	fmap := itf.(map[string]any)
 
 	// parse properties map to AssetProperties
-	fproperties := fmap["properties"].(map[string]interface{})
+	fproperties := fmap["properties"].(map[string]any)
 	properties := toAssetProp(fproperties)
 
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
-	for k, v := range fmap["labels"].(map[string]interface{}) {
+	for k, v := range fmap["labels"].(map[string]any) {
 		labels[k] = v.(string)
 	}
 
@@ -312,7 +312,7 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 		return err
 	}
 
-	fbreakdown := fmap["breakdown"].(map[string]interface{})
+	fbreakdown := fmap["breakdown"].(map[string]any)
 
 	breakdown := toBreakdown(fbreakdown)
 
@@ -321,7 +321,7 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 	d.Start = start
 	d.End = end
 	if _, found := fmap["window"]; found {
-		d.Window = toWindow(fmap["window"].(map[string]interface{}))
+		d.Window = toWindow(fmap["window"].(map[string]any))
 	}
 	d.Breakdown = &breakdown
 
@@ -392,7 +392,7 @@ func (n *Network) MarshalJSON() ([]byte, error) {
 
 func (n *Network) UnmarshalJSON(b []byte) error {
 
-	var f interface{}
+	var f any
 
 	err := json.Unmarshal(b, &f)
 	if err != nil {
@@ -408,17 +408,17 @@ func (n *Network) UnmarshalJSON(b []byte) error {
 }
 
 // Converts interface{} to Network, carrying over relevant fields
-func (n *Network) InterfaceToNetwork(itf interface{}) error {
+func (n *Network) InterfaceToNetwork(itf any) error {
 
-	fmap := itf.(map[string]interface{})
+	fmap := itf.(map[string]any)
 
 	// parse properties map to AssetProperties
-	fproperties := fmap["properties"].(map[string]interface{})
+	fproperties := fmap["properties"].(map[string]any)
 	properties := toAssetProp(fproperties)
 
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
-	for k, v := range fmap["labels"].(map[string]interface{}) {
+	for k, v := range fmap["labels"].(map[string]any) {
 		labels[k] = v.(string)
 	}
 
@@ -437,7 +437,7 @@ func (n *Network) InterfaceToNetwork(itf interface{}) error {
 	n.Start = start
 	n.End = end
 	if _, found := fmap["window"]; found {
-		n.Window = toWindow(fmap["window"].(map[string]interface{}))
+		n.Window = toWindow(fmap["window"].(map[string]any))
 	}
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
@@ -492,7 +492,7 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 
 func (n *Node) UnmarshalJSON(b []byte) error {
 
-	var f interface{}
+	var f any
 
 	err := json.Unmarshal(b, &f)
 	if err != nil {
@@ -508,17 +508,17 @@ func (n *Node) UnmarshalJSON(b []byte) error {
 }
 
 // Converts interface{} to Node, carrying over relevant fields
-func (n *Node) InterfaceToNode(itf interface{}) error {
+func (n *Node) InterfaceToNode(itf any) error {
 
-	fmap := itf.(map[string]interface{})
+	fmap := itf.(map[string]any)
 
 	// parse properties map to AssetProperties
-	fproperties := fmap["properties"].(map[string]interface{})
+	fproperties := fmap["properties"].(map[string]any)
 	properties := toAssetProp(fproperties)
 
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
-	if labelsInterface, ok := fmap["labels"].(map[string]interface{}); ok {
+	if labelsInterface, ok := fmap["labels"].(map[string]any); ok {
 		for k, v := range labelsInterface {
 			if strValue, ok := v.(string); ok {
 				labels[k] = strValue
@@ -536,8 +536,8 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 		return err
 	}
 
-	fcpuBreakdown := fmap["cpuBreakdown"].(map[string]interface{})
-	framBreakdown := fmap["ramBreakdown"].(map[string]interface{})
+	fcpuBreakdown := fmap["cpuBreakdown"].(map[string]any)
+	framBreakdown := fmap["ramBreakdown"].(map[string]any)
 
 	cpuBreakdown := toBreakdown(fcpuBreakdown)
 	ramBreakdown := toBreakdown(framBreakdown)
@@ -547,7 +547,7 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 	n.Start = start
 	n.End = end
 	if _, found := fmap["window"]; found {
-		n.Window = toWindow(fmap["window"].(map[string]interface{}))
+		n.Window = toWindow(fmap["window"].(map[string]any))
 	}
 	n.CPUBreakdown = &cpuBreakdown
 	n.RAMBreakdown = &ramBreakdown
@@ -612,7 +612,7 @@ func (lb *LoadBalancer) MarshalJSON() ([]byte, error) {
 
 func (lb *LoadBalancer) UnmarshalJSON(b []byte) error {
 
-	var f interface{}
+	var f any
 
 	err := json.Unmarshal(b, &f)
 	if err != nil {
@@ -628,17 +628,17 @@ func (lb *LoadBalancer) UnmarshalJSON(b []byte) error {
 }
 
 // Converts interface{} to LoadBalancer, carrying over relevant fields
-func (lb *LoadBalancer) InterfaceToLoadBalancer(itf interface{}) error {
+func (lb *LoadBalancer) InterfaceToLoadBalancer(itf any) error {
 
-	fmap := itf.(map[string]interface{})
+	fmap := itf.(map[string]any)
 
 	// parse properties map to AssetProperties
-	fproperties := fmap["properties"].(map[string]interface{})
+	fproperties := fmap["properties"].(map[string]any)
 	properties := toAssetProp(fproperties)
 
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
-	for k, v := range fmap["labels"].(map[string]interface{}) {
+	for k, v := range fmap["labels"].(map[string]any) {
 		labels[k] = v.(string)
 	}
 
@@ -657,7 +657,7 @@ func (lb *LoadBalancer) InterfaceToLoadBalancer(itf interface{}) error {
 	lb.Start = start
 	lb.End = end
 	if _, found := fmap["window"]; found {
-		lb.Window = toWindow(fmap["window"].(map[string]interface{}))
+		lb.Window = toWindow(fmap["window"].(map[string]any))
 	}
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
@@ -696,7 +696,7 @@ func (sa *SharedAsset) MarshalJSON() ([]byte, error) {
 
 func (sa *SharedAsset) UnmarshalJSON(b []byte) error {
 
-	var f interface{}
+	var f any
 
 	err := json.Unmarshal(b, &f)
 	if err != nil {
@@ -712,24 +712,24 @@ func (sa *SharedAsset) UnmarshalJSON(b []byte) error {
 }
 
 // Converts interface{} to SharedAsset, carrying over relevant fields
-func (sa *SharedAsset) InterfaceToSharedAsset(itf interface{}) error {
+func (sa *SharedAsset) InterfaceToSharedAsset(itf any) error {
 
-	fmap := itf.(map[string]interface{})
+	fmap := itf.(map[string]any)
 
 	// parse properties map to AssetProperties
-	fproperties := fmap["properties"].(map[string]interface{})
+	fproperties := fmap["properties"].(map[string]any)
 	properties := toAssetProp(fproperties)
 
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
-	for k, v := range fmap["labels"].(map[string]interface{}) {
+	for k, v := range fmap["labels"].(map[string]any) {
 		labels[k] = v.(string)
 	}
 
 	sa.Properties = &properties
 	sa.Labels = labels
 	if _, found := fmap["window"]; found {
-		sa.Window = toWindow(fmap["window"].(map[string]interface{}))
+		sa.Window = toWindow(fmap["window"].(map[string]any))
 	}
 
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
@@ -778,14 +778,14 @@ func (asr *AssetSetResponse) RawMessageToAssetSetResponse(assetMap map[string]*j
 	// For each item in asset map, unmarshal to appropriate type
 	for key, rawMessage := range assetMap {
 
-		var f interface{}
+		var f any
 
 		err := json.Unmarshal(*rawMessage, &f)
 		if err != nil {
 			return err
 		}
 
-		fmap := f.(map[string]interface{})
+		fmap := f.(map[string]any)
 
 		switch t := fmap["type"]; t {
 		case "Cloud":
@@ -915,7 +915,7 @@ func (asrr *AssetSetRangeResponse) UnmarshalJSON(b []byte) error {
 // Extra decoding util functions, for clarity
 
 // Creates an AssetProperties directly from map[string]interface{}
-func toAssetProp(fproperties map[string]interface{}) AssetProperties {
+func toAssetProp(fproperties map[string]any) AssetProperties {
 	var properties AssetProperties
 
 	if category, v := fproperties["category"].(string); v {
@@ -947,7 +947,7 @@ func toAssetProp(fproperties map[string]interface{}) AssetProperties {
 
 }
 
-func toWindow(fproperties map[string]interface{}) Window {
+func toWindow(fproperties map[string]any) Window {
 
 	var start, end time.Time
 	var err error
@@ -977,7 +977,7 @@ func toWindow(fproperties map[string]interface{}) Window {
 }
 
 // Creates an Breakdown directly from map[string]interface{}
-func toBreakdown(fproperties map[string]interface{}) Breakdown {
+func toBreakdown(fproperties map[string]any) Breakdown {
 	var breakdown Breakdown
 
 	if idle, v := fproperties["idle"].(float64); v {
@@ -999,7 +999,7 @@ func toBreakdown(fproperties map[string]interface{}) Breakdown {
 
 // Not strictly nessesary, but cleans up the code and is a secondary check
 // for correct types
-func getTypedVal(itf interface{}) (interface{}, error) {
+func getTypedVal(itf any) (any, error) {
 	switch itf := itf.(type) {
 	case float64:
 		return float64(itf), nil

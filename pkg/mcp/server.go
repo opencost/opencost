@@ -47,7 +47,7 @@ type MCPRequest struct {
 
 // MCPResponse is the response from the OpenCost MCP server for a single turn.
 type MCPResponse struct {
-	Data      interface{}   `json:"data"`
+	Data      any           `json:"data"`
 	QueryInfo QueryMetadata `json:"queryInfo"`
 }
 
@@ -387,7 +387,7 @@ func (s *MCPServer) ProcessMCPRequest(ctx context.Context, request *MCPRequest) 
 	}
 
 	// 2. Query Dispatching
-	var data interface{}
+	var data any
 	var err error
 
 	queryStart := time.Now()

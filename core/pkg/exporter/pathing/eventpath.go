@@ -3,6 +3,7 @@ package pathing
 import (
 	"fmt"
 	"path"
+	"slices"
 	"time"
 )
 
@@ -34,10 +35,8 @@ func NewEventStoragePathFormatter(rootDir, clusterId, event string, subPaths ...
 		return nil, fmt.Errorf("event cannot be empty")
 	}
 
-	for _, subPath := range subPaths {
-		if subPath == "" {
-			return nil, fmt.Errorf("subpaths cannot be empty")
-		}
+	if slices.Contains(subPaths, "") {
+		return nil, fmt.Errorf("subpaths cannot be empty")
 	}
 
 	return &EventStoragePathFormatter{

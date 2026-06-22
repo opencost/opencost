@@ -71,7 +71,7 @@ func NewWorkerPool[T any, U any](workers int, work Worker[T, U]) WorkerPool[T, U
 	}
 
 	// startup the designated workers
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go owq.worker()
 	}
 
@@ -291,10 +291,7 @@ func (ow *collector[T, U]) Push(input T) error {
 		return err
 	}
 
-	ow.wg.Add(1)
-
-	go func() {
-		defer ow.wg.Done()
+	ow.wg.Go(func() {
 		defer close(onComplete)
 
 		result := <-onComplete
@@ -303,7 +300,7 @@ func (ow *collector[T, U]) Push(input T) error {
 			ow.results = append(ow.results, result)
 			ow.resultLock.Unlock()
 		}
-	}()
+	})
 
 	return nil
 }

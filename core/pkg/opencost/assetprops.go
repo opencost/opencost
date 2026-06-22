@@ -2,6 +2,7 @@ package opencost
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/util/promutil"
@@ -124,8 +125,8 @@ func ParseAssetProperty(text string) (AssetProperty, error) {
 		return AssetTeamProp, nil
 	}
 
-	if strings.HasPrefix(text, "label:") {
-		label := promutil.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
+	if after, ok := strings.CutPrefix(text, "label:"); ok {
+		label := promutil.SanitizeLabelName(strings.TrimSpace(after))
 		return AssetProperty(fmt.Sprintf("label:%s", label)), nil
 	}
 
@@ -437,10 +438,5 @@ func (ap *AssetProperties) String() string {
 }
 
 func hasProp(props []AssetProperty, prop AssetProperty) bool {
-	for _, p := range props {
-		if p == prop {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(props, prop)
 }

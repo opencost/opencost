@@ -59,13 +59,13 @@ func (c *CostConfiguration) Provider() string {
 }
 
 func (c *CostConfiguration) UnmarshalJSON(b []byte) error {
-	var f interface{}
+	var f any
 	err := json.Unmarshal(b, &f)
 	if err != nil {
 		return err
 	}
 
-	fmap, ok := f.(map[string]interface{})
+	fmap, ok := f.(map[string]any)
 	if !ok {
 		return fmt.Errorf("CostConfiguration: UnmarshalJSON: expected object")
 	}

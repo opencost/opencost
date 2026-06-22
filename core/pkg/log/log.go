@@ -77,11 +77,11 @@ func Error(msg string) {
 	log.Error().Msg(msg)
 }
 
-func Errorf(format string, a ...interface{}) {
+func Errorf(format string, a ...any) {
 	log.Error().Msgf(format, a...)
 }
 
-func DedupedErrorf(logTypeLimit int, format string, a ...interface{}) {
+func DedupedErrorf(logTypeLimit int, format string, a ...any) {
 	timesLogged := ctr.increment(format)
 
 	if timesLogged < logTypeLimit {
@@ -96,11 +96,11 @@ func Warn(msg string) {
 	log.Warn().Msg(msg)
 }
 
-func Warnf(format string, a ...interface{}) {
+func Warnf(format string, a ...any) {
 	log.Warn().Msgf(format, a...)
 }
 
-func DedupedWarningf(logTypeLimit int, format string, a ...interface{}) {
+func DedupedWarningf(logTypeLimit int, format string, a ...any) {
 	timesLogged := ctr.increment(format)
 
 	if timesLogged < logTypeLimit {
@@ -115,11 +115,11 @@ func Info(msg string) {
 	log.Info().Msg(msg)
 }
 
-func Infof(format string, a ...interface{}) {
+func Infof(format string, a ...any) {
 	log.Info().Msgf(format, a...)
 }
 
-func DedupedInfof(logTypeLimit int, format string, a ...interface{}) {
+func DedupedInfof(logTypeLimit int, format string, a ...any) {
 	timesLogged := ctr.increment(format)
 
 	if timesLogged < logTypeLimit {
@@ -130,7 +130,7 @@ func DedupedInfof(logTypeLimit int, format string, a ...interface{}) {
 	}
 }
 
-func Profilef(format string, a ...interface{}) {
+func Profilef(format string, a ...any) {
 	log.Info().Msgf(fmt.Sprintf("[Profiler] %s", format), a...)
 }
 
@@ -138,7 +138,7 @@ func Debug(msg string) {
 	log.Debug().Msg(msg)
 }
 
-func Debugf(format string, a ...interface{}) {
+func Debugf(format string, a ...any) {
 	log.Debug().Msgf(format, a...)
 }
 
@@ -146,7 +146,7 @@ func Trace(msg string) {
 	log.Trace().Msg(msg)
 }
 
-func Tracef(format string, a ...interface{}) {
+func Tracef(format string, a ...any) {
 	log.Trace().Msgf(format, a...)
 }
 
@@ -154,7 +154,7 @@ func Fatal(msg string) {
 	log.Fatal().Msg(msg)
 }
 
-func Fatalf(format string, a ...interface{}) {
+func Fatalf(format string, a ...any) {
 	log.Fatal().Msgf(format, a...)
 }
 

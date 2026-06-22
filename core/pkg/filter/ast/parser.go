@@ -6,6 +6,7 @@ package ast
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/hashicorp/go-multierror"
 )
@@ -73,11 +74,9 @@ func (p *parser) previous() token {
 // a kind that matches one of the arguments. Otherwise, it returns false and
 // DOES NOT advance the parser.
 func (p *parser) match(tokenKinds ...tokenKind) bool {
-	for _, kind := range tokenKinds {
-		if p.check(kind) {
-			p.advance()
-			return true
-		}
+	if slices.ContainsFunc(tokenKinds, p.check) {
+		p.advance()
+		return true
 	}
 	return false
 }
@@ -115,10 +114,8 @@ func (p *parser) synchronize(tokens ...tokenKind) {
 
 	for !p.atEnd() {
 		kind := p.peek().kind
-		for _, token := range tokens {
-			if kind == token {
-				return
-			}
+		if slices.Contains(tokens, kind) {
+			return
 		}
 
 		p.advance()

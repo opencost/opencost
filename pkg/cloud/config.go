@@ -24,7 +24,7 @@ type KeyedConfigWatcher interface {
 	GetConfigs() []KeyedConfig
 }
 
-func GetInterfaceValue[T any](fmap map[string]interface{}, key string) (T, error) {
+func GetInterfaceValue[T any](fmap map[string]any, key string) (T, error) {
 	var value T
 	interfaceValue, ok := fmap[key]
 	if !ok {

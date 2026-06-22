@@ -123,11 +123,11 @@ func (kpcrr KubePVCapacityBytesMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("persistentvolume"),
+			Name:  new("persistentvolume"),
 			Value: &kpcrr.pv,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcrr.uid,
 		},
 	}
@@ -180,15 +180,15 @@ func (kpcrr KubePVStatusPhaseMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("persistentvolume"),
+			Name:  new("persistentvolume"),
 			Value: &kpcrr.pv,
 		},
 		{
-			Name:  toStringPtr("phase"),
+			Name:  new("phase"),
 			Value: &kpcrr.phase,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcrr.uid,
 		},
 	}
@@ -245,19 +245,19 @@ func (kpvim KubecostPVInfoMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("persistentvolume"),
+			Name:  new("persistentvolume"),
 			Value: &kpvim.pv,
 		},
 		{
-			Name:  toStringPtr("storageclass"),
+			Name:  new("storageclass"),
 			Value: &kpvim.storageClass,
 		},
 		{
-			Name:  toStringPtr("provider_id"),
+			Name:  new("provider_id"),
 			Value: &kpvim.providerId,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpvim.uid,
 		},
 	}

@@ -116,16 +116,16 @@ func (s *GenericStore[Input, Output]) Replace(list []any, _ string) error {
 }
 
 // Stubs to satisfy the cache.Store interface
-func (s *GenericStore[Input, Output]) List() []interface{} {
+func (s *GenericStore[Input, Output]) List() []any {
 	return nil
 }
 func (s *GenericStore[Input, Output]) ListKeys() []string {
 	return nil
 }
-func (s *GenericStore[Input, Output]) Get(_ interface{}) (item interface{}, exists bool, err error) {
+func (s *GenericStore[Input, Output]) Get(_ any) (item any, exists bool, err error) {
 	return nil, false, nil
 }
-func (s *GenericStore[Input, Output]) GetByKey(_ string) (item interface{}, exists bool, err error) {
+func (s *GenericStore[Input, Output]) GetByKey(_ string) (item any, exists bool, err error) {
 	return nil, false, nil
 }
 func (s *GenericStore[Input, Output]) Resync() error {

@@ -738,7 +738,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 			name: "All Zeros",
 			promResult: []*source.QueryResult{
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":    "cluster1",
 						"node":          "node1",
 						"instance_type": "type1",
@@ -772,7 +772,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 			name: "Zero Node Count",
 			promResult: []*source.QueryResult{
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":    "cluster1",
 						"node":          "node1",
 						"instance_type": "type1",
@@ -806,7 +806,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 			name: "Missing Node Count",
 			promResult: []*source.QueryResult{
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":    "cluster1",
 						"node":          "node1",
 						"instance_type": "type1",
@@ -846,7 +846,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 			name: "All values present",
 			promResult: []*source.QueryResult{
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":    "cluster1",
 						"node":          "node1",
 						"instance_type": "type1",
@@ -903,7 +903,7 @@ func TestAssetCustompricing(t *testing.T) {
 
 	pvCostPromResult := []*source.QueryResult{
 		source.NewQueryResult(
-			map[string]interface{}{
+			map[string]any{
 				"cluster_id":       "cluster1",
 				"persistentvolume": "pvc1",
 				"provider_id":      "provider1",
@@ -920,7 +920,7 @@ func TestAssetCustompricing(t *testing.T) {
 
 	pvSizePromResult := []*source.QueryResult{
 		source.NewQueryResult(
-			map[string]interface{}{
+			map[string]any{
 				"cluster_id":       "cluster1",
 				"persistentvolume": "pvc1",
 				"provider_id":      "provider1",
@@ -937,7 +937,7 @@ func TestAssetCustompricing(t *testing.T) {
 
 	pvMinsPromResult := []*source.QueryResult{
 		source.NewQueryResult(
-			map[string]interface{}{
+			map[string]any{
 				"cluster_id":       "cluster1",
 				"persistentvolume": "pvc1",
 				"provider_id":      "provider1",
@@ -958,7 +958,7 @@ func TestAssetCustompricing(t *testing.T) {
 
 	pvAvgUsagePromResult := []*source.QueryResult{
 		source.NewQueryResult(
-			map[string]interface{}{
+			map[string]any{
 				"cluster_id":            "cluster1",
 				"persistentvolumeclaim": "pv-claim1",
 				"namespace":             "ns1",
@@ -979,7 +979,7 @@ func TestAssetCustompricing(t *testing.T) {
 
 	pvMaxUsagePromResult := []*source.QueryResult{
 		source.NewQueryResult(
-			map[string]interface{}{
+			map[string]any{
 				"cluster_id":            "cluster1",
 				"persistentvolumeclaim": "pv-claim1",
 				"namespace":             "ns1",
@@ -1000,7 +1000,7 @@ func TestAssetCustompricing(t *testing.T) {
 
 	pvInfoPromResult := []*source.QueryResult{
 		source.NewQueryResult(
-			map[string]interface{}{
+			map[string]any{
 				"cluster_id":            "cluster1",
 				"persistentvolumeclaim": "pv-claim1",
 				"volumename":            "pvc1",
@@ -1099,7 +1099,7 @@ func TestAssetCustompricing(t *testing.T) {
 
 			zeroCollectorPromResult := []*source.QueryResult{
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":    "cluster1",
 						"node":          "node1",
 						"instance_type": "type1",
@@ -1171,7 +1171,7 @@ func TestBuildLabelsMap(t *testing.T) {
 
 	nodePromResult := []*source.QueryResult{
 		source.NewQueryResult(
-			map[string]interface{}{
+			map[string]any{
 				"cluster_id":             "cluster1",
 				"node":                   "node1",
 				"instance_type":          "type1",
@@ -1188,7 +1188,7 @@ func TestBuildLabelsMap(t *testing.T) {
 			source.DefaultResultKeys(),
 		),
 		source.NewQueryResult(
-			map[string]interface{}{
+			map[string]any{
 				"cluster_id":             "cluster1",
 				"node":                   "node2",
 				"instance_type":          "type1",

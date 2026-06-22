@@ -110,12 +110,12 @@ type KeyedFieldType string
 
 func (k KeyedFieldType) Field() string {
 	str := string(k)
-	idx := strings.Index(str, "$")
-	if idx == -1 {
+	before, _, ok := strings.Cut(str, "$")
+	if !ok {
 		return ""
 	}
 
-	return str[0:idx]
+	return before
 }
 
 func (k KeyedFieldType) Key() string {

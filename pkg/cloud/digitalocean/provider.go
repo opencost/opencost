@@ -45,8 +45,8 @@ type PricingCache struct {
 // DOResponse represents the response from DigitalOcean's /v2/sizes API
 type DOResponse struct {
 	Sizes []DOSize `json:"sizes"`
-	Links DOLinks  `json:"links,omitempty"`
-	Meta  DOMeta   `json:"meta,omitempty"`
+	Links DOLinks  `json:"links"`
+	Meta  DOMeta   `json:"meta"`
 }
 
 // DOSize represents a DigitalOcean Droplet size
@@ -62,7 +62,7 @@ type DOSize struct {
 	Available    bool         `json:"available"`
 	Description  string       `json:"description"`
 	DiskInfo     []DODiskInfo `json:"disk_info,omitempty"`
-	GPUInfo      DOGPUInfo    `json:"gpu_info,omitempty"`
+	GPUInfo      DOGPUInfo    `json:"gpu_info"`
 }
 
 // DODiskInfo represents disk information for a DigitalOcean size
@@ -92,7 +92,7 @@ type DODiskSize struct {
 
 // DOLinks represents pagination links
 type DOLinks struct {
-	Pages DOPages `json:"pages,omitempty"`
+	Pages DOPages `json:"pages"`
 }
 
 // DOPages represents pagination page links
@@ -588,8 +588,8 @@ func (do *DOKS) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 }
 
 func parseArch(features string) string {
-	parts := strings.Split(features, ",")
-	for _, part := range parts {
+	parts := strings.SplitSeq(features, ",")
+	for part := range parts {
 		pair := strings.SplitN(part, "=", 2)
 		if len(pair) == 2 && (pair[0] == "kubernetes.io/arch" || pair[0] == "beta.kubernetes.io/arch") {
 			return pair[1]
@@ -867,7 +867,7 @@ func isDefaultNetworkPricing(cp *models.CustomPricing) bool {
 		cp.NatGatewayIngress == "0.045"
 }
 
-func (do *DOKS) AllNodePricing() (interface{}, error) {
+func (do *DOKS) AllNodePricing() (any, error) {
 	_, _ = do.fetchPricingData()
 	return do.Cache, nil
 }
@@ -997,7 +997,7 @@ func (do *DOKS) Regions() []string {
 	return []string{"nyc1", "sfo3", "ams3"}
 }
 
-func (do *DOKS) PricingSourceSummary() interface{} {
+func (do *DOKS) PricingSourceSummary() any {
 	return nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"sort"
@@ -125,7 +126,7 @@ func (d *PriceSheetDownloader) readPricesheet(ctx context.Context, data io.Reade
 	// is concerned). Skip them before making the CSV reader so we
 	// still get the benefit of the row length checks after the
 	// header.
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		_, err := buf.ReadBytes('\n')
 		if err != nil {
 			return nil, fmt.Errorf("skipping preamble line %d: %w", i, err)
@@ -181,9 +182,7 @@ func (d *PriceSheetDownloader) readPricesheet(ctx context.Context, data io.Reade
 			units[*meterInfo.Unit] = true
 		}
 
-		for key, pricing := range pricings {
-			results[key] = pricing
-		}
+		maps.Copy(results, pricings)
 	}
 
 	if len(results) == 0 {
@@ -221,11 +220,11 @@ func makeMeterInfo(row []string) (commerce.MeterInfo, error) {
 	}
 	newPrice, unit := normalisePrice(price, row[pricesheetUnit])
 	return commerce.MeterInfo{
-		MeterName:        ptr(row[pricesheetMeterName]),
-		MeterCategory:    ptr(row[pricesheetMeterCategory]),
-		MeterSubCategory: ptr(row[pricesheetMeterSubCategory]),
+		MeterName:        new(row[pricesheetMeterName]),
+		MeterCategory:    new(row[pricesheetMeterCategory]),
+		MeterSubCategory: new(row[pricesheetMeterSubCategory]),
 		Unit:             &unit,
-		MeterRegion:      ptr(row[pricesheetMeterRegion]),
+		MeterRegion:      new(row[pricesheetMeterRegion]),
 		MeterRates:       map[string]*float64{"0": &newPrice},
 	}, nil
 }
@@ -264,8 +263,9 @@ func currentBillingPeriod() string {
 	return time.Now().Format("200601")
 }
 
+//go:fix inline
 func ptr[T any](v T) *T {
-	return &v
+	return new(v)
 }
 
 // conversions lists all the units seen from the price sheet for

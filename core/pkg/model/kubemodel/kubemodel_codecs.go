@@ -158,10 +158,10 @@ func isReaderBinaryTag(buff *util.Buffer, tag string) bool {
 
 // typeToString determines the basic properties of the type, the qualifier, package path, and
 // type name, and returns the qualified type
-func typeToString(f interface{}) string {
+func typeToString(f any) string {
 	qual := ""
 	t := reflect.TypeOf(f)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 		qual = "*"
 	}

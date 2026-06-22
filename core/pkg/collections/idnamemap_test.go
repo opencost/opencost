@@ -2,6 +2,7 @@ package collections
 
 import (
 	"errors"
+	"maps"
 	"testing"
 )
 
@@ -350,10 +351,7 @@ func TestIdNameMap_Keys(t *testing.T) {
 		m.Insert(item)
 	}
 
-	keys := make(map[string]string)
-	for id, name := range m.Keys() {
-		keys[id] = name
-	}
+	keys := maps.Collect(m.Keys())
 
 	if len(keys) != 3 {
 		t.Errorf("expected 3 keys, got %d", len(keys))

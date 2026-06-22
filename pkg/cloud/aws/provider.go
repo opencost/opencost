@@ -1413,7 +1413,7 @@ func (aws *AWS) LoadBalancerPricing() (*models.LoadBalancer, error) {
 }
 
 // AllNodePricing returns all the billing data fetched.
-func (aws *AWS) AllNodePricing() (interface{}, error) {
+func (aws *AWS) AllNodePricing() (any, error) {
 	aws.DownloadPricingDataLock.RLock()
 	defer aws.DownloadPricingDataLock.RUnlock()
 	return aws.Pricing, nil
@@ -2713,7 +2713,7 @@ func (aws *AWS) Regions() []string {
 // PricingSourceSummary returns the pricing source summary for the provider.
 // The summary represents what was _parsed_ from the pricing source, not
 // everything that was _available_ in the pricing source.
-func (aws *AWS) PricingSourceSummary() interface{} {
+func (aws *AWS) PricingSourceSummary() any {
 	// encode the pricing source summary as a JSON string
 	return aws.Pricing
 }

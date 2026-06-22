@@ -1,19 +1,38 @@
 name: golangci-lint
-on: workflow_dispatch
+on:
+  pull_request:
+    branches:
+      - develop
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  golangci:
+  lint:
     name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          # Full history so golangci-lint can compute the merge base with the
+          # target branch for --new-from-merge-base.
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - name: golangci-lint
+        run: make ci-lint
+
+  go-fix:
+    name: go-fix
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: actions/setup-go@v6
         with:
           go-version: stable
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.5
+      - name: go fix
+        run: make go-fix-check

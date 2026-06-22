@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -168,11 +169,11 @@ var azureRegions = []string{
 type regionParts []string
 
 func (r regionParts) String() string {
-	var result string
+	var result strings.Builder
 	for _, p := range r {
-		result += p
+		result.WriteString(p)
 	}
-	return result
+	return result.String()
 }
 
 func getRegions(service string, subscriptionsClient subscriptions.Client, providersClient resources.ProvidersClient, subscriptionID string) (map[string]string, error) {
@@ -436,7 +437,7 @@ type Azure struct {
 // PricingSourceSummary returns the pricing source summary for the provider.
 // The summary represents what was _parsed_ from the pricing source, not
 // everything that was _available_ in the pricing source.
-func (az *Azure) PricingSourceSummary() interface{} {
+func (az *Azure) PricingSourceSummary() any {
 	return az.Pricing
 }
 
@@ -935,9 +936,7 @@ func (az *Azure) DownloadPricingData() error {
 			log.Warnf("converting meter to pricings: %s", err.Error())
 			continue
 		}
-		for key, pricing := range pricings {
-			allPrices[key] = pricing
-		}
+		maps.Copy(allPrices, pricings)
 	}
 	addAzureFilePricing(allPrices, regions)
 
@@ -1019,7 +1018,7 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 				var priceInUsd float64
 
 				if len(info.MeterRates) < 1 {
-					return nil, fmt.Errorf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *info.MeterSubCategory, "region": region})
+					return nil, fmt.Errorf("missing rate info %+v", map[string]any{"MeterSubCategory": *info.MeterSubCategory, "region": region})
 				}
 				for _, rate := range info.MeterRates {
 					priceInUsd += *rate
@@ -1055,8 +1054,8 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 
 	var instanceTypes []string
 	name := strings.TrimSuffix(meterName, " Low Priority")
-	instanceType := strings.Split(name, "/")
-	for _, it := range instanceType {
+	instanceType := strings.SplitSeq(name, "/")
+	for it := range instanceType {
 		if strings.Contains(meterSubCategory, "Promo") {
 			it = it + " Promo"
 		}
@@ -1071,7 +1070,7 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 	var priceInUsd float64
 
 	if len(info.MeterRates) < 1 {
-		return nil, fmt.Errorf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *info.MeterSubCategory, "region": region})
+		return nil, fmt.Errorf("missing rate info %+v", map[string]any{"MeterSubCategory": *info.MeterSubCategory, "region": region})
 	}
 	for _, rate := range info.MeterRates {
 		priceInUsd += *rate
@@ -1143,7 +1142,7 @@ func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
 }
 
 // AllNodePricing returns the Azure pricing objects stored
-func (az *Azure) AllNodePricing() (interface{}, error) {
+func (az *Azure) AllNodePricing() (any, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
 	return az.Pricing, nil
@@ -1437,7 +1436,6 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 
 	for diskPage.NotDone() {
 		for _, d := range diskPage.Values() {
-			d := d
 			disks = append(disks, &d)
 		}
 		err := diskPage.NextWithContext(context.Background())
@@ -1604,7 +1602,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*models.CustomPri
 				go az.DownloadPricingData()
 			}()
 
-			a := make(map[string]interface{})
+			a := make(map[string]any)
 			err := json.NewDecoder(r).Decode(&a)
 			if err != nil {
 				return fmt.Errorf("error decoding AzureStorageConfig: %s", err)

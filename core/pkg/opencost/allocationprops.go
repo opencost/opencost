@@ -2,6 +2,7 @@ package opencost
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 
@@ -160,13 +161,13 @@ func ParseProperty(text string) (AllocationProperty, error) {
 		return AllocationTeamProp, nil
 	}
 
-	if strings.HasPrefix(text, "label:") {
-		label := promutil.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
+	if after, ok := strings.CutPrefix(text, "label:"); ok {
+		label := promutil.SanitizeLabelName(strings.TrimSpace(after))
 		return AllocationProperty(fmt.Sprintf("label:%s", label)), nil
 	}
 
-	if strings.HasPrefix(text, "annotation:") {
-		annotation := promutil.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "annotation:")))
+	if after, ok := strings.CutPrefix(text, "annotation:"); ok {
+		annotation := promutil.SanitizeLabelName(strings.TrimSpace(after))
 		return AllocationProperty(fmt.Sprintf("annotation:%s", annotation)), nil
 	}
 
@@ -221,27 +222,19 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	clone.Services = services
 
 	labels := make(map[string]string, len(p.Labels))
-	for k, v := range p.Labels {
-		labels[k] = v
-	}
+	maps.Copy(labels, p.Labels)
 	clone.Labels = labels
 
 	nsLabels := make(map[string]string, len(p.NamespaceLabels))
-	for k, v := range p.NamespaceLabels {
-		nsLabels[k] = v
-	}
+	maps.Copy(nsLabels, p.NamespaceLabels)
 	clone.NamespaceLabels = nsLabels
 
 	annotations := make(map[string]string, len(p.Annotations))
-	for k, v := range p.Annotations {
-		annotations[k] = v
-	}
+	maps.Copy(annotations, p.Annotations)
 	clone.Annotations = annotations
 
 	nsAnnotations := make(map[string]string, len(p.NamespaceAnnotations))
-	for k, v := range p.NamespaceAnnotations {
-		nsAnnotations[k] = v
-	}
+	maps.Copy(nsAnnotations, p.NamespaceAnnotations)
 	clone.NamespaceAnnotations = nsAnnotations
 
 	clone.AggregatedMetadata = p.AggregatedMetadata
@@ -456,8 +449,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			if labels == nil && annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelNames := strings.Split(labelConfig.DepartmentLabel, ",")
-				for _, labelName := range labelNames {
+				labelNames := strings.SplitSeq(labelConfig.DepartmentLabel, ",")
+				for labelName := range labelNames {
 					labelName = labelConfig.Sanitize(labelName)
 					if labelValue, ok := labels[labelName]; ok {
 						names = append(names, labelValue)
@@ -474,8 +467,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			if labels == nil && annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelNames := strings.Split(labelConfig.EnvironmentLabel, ",")
-				for _, labelName := range labelNames {
+				labelNames := strings.SplitSeq(labelConfig.EnvironmentLabel, ",")
+				for labelName := range labelNames {
 					labelName = labelConfig.Sanitize(labelName)
 					if labelValue, ok := labels[labelName]; ok {
 						names = append(names, labelValue)
@@ -492,8 +485,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			if labels == nil && annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelNames := strings.Split(labelConfig.OwnerLabel, ",")
-				for _, labelName := range labelNames {
+				labelNames := strings.SplitSeq(labelConfig.OwnerLabel, ",")
+				for labelName := range labelNames {
 					labelName = labelConfig.Sanitize(labelName)
 					if labelValue, ok := labels[labelName]; ok {
 						names = append(names, labelValue)
@@ -510,8 +503,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			if labels == nil && annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelNames := strings.Split(labelConfig.ProductLabel, ",")
-				for _, labelName := range labelNames {
+				labelNames := strings.SplitSeq(labelConfig.ProductLabel, ",")
+				for labelName := range labelNames {
 					labelName = labelConfig.Sanitize(labelName)
 					if labelValue, ok := labels[labelName]; ok {
 						names = append(names, labelValue)
@@ -528,8 +521,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			if labels == nil && annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelNames := strings.Split(labelConfig.TeamLabel, ",")
-				for _, labelName := range labelNames {
+				labelNames := strings.SplitSeq(labelConfig.TeamLabel, ",")
+				for labelName := range labelNames {
 					labelName = labelConfig.Sanitize(labelName)
 					if labelValue, ok := labels[labelName]; ok {
 						names = append(names, labelValue)
@@ -627,9 +620,7 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 
 func copyStringMap(original map[string]string) map[string]string {
 	copy := make(map[string]string)
-	for key, value := range original {
-		copy[key] = value
-	}
+	maps.Copy(copy, original)
 
 	return copy
 }

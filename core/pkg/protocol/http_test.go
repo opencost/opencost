@@ -198,7 +198,7 @@ func TestHTTPProtocol_HTTPResponse(t *testing.T) {
 		Bananas: 4,
 	}
 
-	meta := map[string]interface{}{
+	meta := map[string]any{
 		"lastUpdated": time.Date(2025, time.September, 5, 13, 27, 3, 0, time.UTC),
 	}
 

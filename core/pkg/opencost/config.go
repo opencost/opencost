@@ -191,8 +191,8 @@ func (lc *LabelConfig) GetExternalAllocationName(labels map[string]string, aggre
 
 	// Determine if the aggregation property is, itself, a label or not. If
 	// not, determine the label associated with the given aggregation property.
-	if strings.HasPrefix(aggregateBy, "label:") {
-		labelNames = append(labelNames, promutil.SanitizeLabelName(strings.TrimPrefix(aggregateBy, "label:")))
+	if after, ok := strings.CutPrefix(aggregateBy, "label:"); ok {
+		labelNames = append(labelNames, promutil.SanitizeLabelName(after))
 		aggByLabel = true
 	} else {
 		// If lc is nil, use a default LabelConfig to do a best-effort match

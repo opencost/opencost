@@ -20,8 +20,8 @@ type Node struct {
 	AttachedVolumes      map[string]*NodeVolumeUsage `json:"attachedVolumes,omitempty"`
 	CpuMillicoreUsageMax Measurement                 `json:"cpuMillicoreUsageMax"` // Peak CPU usage observed
 	RAMByteUsageMax      Measurement                 `json:"ramByteUsageMax"`      // Peak RAM usage observed
-	Start                time.Time                   `json:"start,omitempty"`      // Node creation/start timestamp
-	End                  time.Time                   `json:"end,omitempty"`        // Node deletion/end timestamp (nil if still running)
+	Start                time.Time                   `json:"start"`                // Node creation/start timestamp
+	End                  time.Time                   `json:"end"`                  // Node deletion/end timestamp (nil if still running)
 }
 
 // NodeVolumeUsage tracks storage usage for a disk volume attached to a node.

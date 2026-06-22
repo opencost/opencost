@@ -85,7 +85,7 @@ func benchmarkStringBank(b *testing.B, bt bankTest, totalStrings, totalUnique in
 	b.Run(b.Name(), func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StartTimer()
-			for bb := 0; bb < totalStrings; bb++ {
+			for bb := range totalStrings {
 				bytes := randStrings[bb]
 
 				if useBankFunc {

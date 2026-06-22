@@ -433,7 +433,7 @@ func (otc *OTC) GpuPricing(nodeLabels map[string]string) (string, error) {
 }
 
 // TODO: Implement method
-func (otc *OTC) AllNodePricing() (interface{}, error) {
+func (otc *OTC) AllNodePricing() (any, error) {
 	return nil, nil
 }
 
@@ -494,7 +494,7 @@ func (otc *OTC) Regions() []string {
 // PricingSourceSummary returns the pricing source summary for the provider.
 // The summary represents what was _parsed_ from the pricing source, not what
 // was returned from the relevant API.
-func (otc *OTC) PricingSourceSummary() interface{} {
+func (otc *OTC) PricingSourceSummary() any {
 	// encode the pricing source summary as a JSON string
 	return otc.Pricing
 }

@@ -99,16 +99,13 @@ func (cim ClusterInfoMetric) Write(m *dto.Metric) error {
 	var labels []*dto.LabelPair
 	for k, v := range cim.labels {
 		labels = append(labels, &dto.LabelPair{
-			Name:  toStringPtr(k),
-			Value: toStringPtr(v),
+			Name:  new(k),
+			Value: new(v),
 		})
 	}
 	m.Label = labels
 	return nil
 }
-
-// returns a pointer to the string provided
-func toStringPtr(s string) *string { return &s }
 
 //--------------------------------------------------------------------------
 //  Cost Model Metrics Initialization

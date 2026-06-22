@@ -11,7 +11,7 @@ import (
 )
 
 // errorType used to check HasError
-var errorType = reflect.TypeOf((*error)(nil)).Elem()
+var errorType = reflect.TypeFor[error]()
 
 // NoStoreAPIWarning is a warning that we would consider an error. It returns partial data relating only to the
 // store apis which were reachable. In order to ensure integrity of data across all clusters, we'll need to identify
@@ -230,7 +230,7 @@ func (ec *QueryErrorCollector) ToErrorAndWarningStrings() (errors []string, warn
 // As is a special method that implicitly works with the `errors.As()` go
 // helper to locate the _first_ instance of the provided target type in the
 // collection.
-func (ec *QueryErrorCollector) As(target interface{}) bool {
+func (ec *QueryErrorCollector) As(target any) bool {
 	if target == nil {
 		log.Errorf("ErrorCollection.As() target cannot be nil")
 		return false
@@ -238,7 +238,7 @@ func (ec *QueryErrorCollector) As(target interface{}) bool {
 
 	val := reflect.ValueOf(target)
 	typ := val.Type()
-	if typ.Kind() != reflect.Ptr || val.IsNil() {
+	if typ.Kind() != reflect.Pointer || val.IsNil() {
 		log.Errorf("ErrorCollection.As() target must be a non-nil pointer")
 		return false
 	}
@@ -253,7 +253,7 @@ func (ec *QueryErrorCollector) As(target interface{}) bool {
 			val.Elem().Set(reflect.ValueOf(err))
 			return true
 		}
-		if x, ok := err.(interface{ As(interface{}) bool }); ok && x.As(target) {
+		if x, ok := err.(interface{ As(any) bool }); ok && x.As(target) {
 			return true
 		}
 	}
@@ -304,7 +304,7 @@ func NewCommError(messages ...string) CommError {
 }
 
 // CommErrorf creates a new CommError using a string formatter
-func CommErrorf(format string, args ...interface{}) CommError {
+func CommErrorf(format string, args ...any) CommError {
 	return NewCommError(fmt.Sprintf(format, args...))
 }
 

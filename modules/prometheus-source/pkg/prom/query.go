@@ -269,13 +269,13 @@ func (ctx *Context) RawQuery(query string, t time.Time) ([]byte, error) {
 	return body, err
 }
 
-func (ctx *Context) query(query string, t time.Time) (interface{}, v1.Warnings, error) {
+func (ctx *Context) query(query string, t time.Time) (any, v1.Warnings, error) {
 	body, err := ctx.RawQuery(query, t)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var toReturn interface{}
+	var toReturn any
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
 		return nil, nil, fmt.Errorf("query '%s' caused unmarshal error: %s", query, err)
@@ -419,14 +419,14 @@ func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.
 	return body, err
 }
 
-func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, v1.Warnings, error) {
+func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (any, v1.Warnings, error) {
 	body, err := ctx.RawQueryRange(query, start, end, step)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var toReturn interface{}
+	var toReturn any
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
 		return nil, nil, fmt.Errorf("query '%s' caused unmarshal error: %s", query, err)
@@ -458,10 +458,10 @@ func (ctx *Context) alignWindow(start time.Time, end time.Time, step time.Durati
 }
 
 // Extracts the warnings from the resulting json if they exist (part of the prometheus response api).
-func warningsFrom(result interface{}) v1.Warnings {
+func warningsFrom(result any) v1.Warnings {
 	var warnings v1.Warnings
 
-	if resultMap, ok := result.(map[string]interface{}); ok {
+	if resultMap, ok := result.(map[string]any); ok {
 		if warningProp, ok := resultMap["warnings"]; ok {
 			if w, ok := warningProp.([]string); ok {
 				warnings = w

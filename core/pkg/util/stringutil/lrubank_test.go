@@ -126,7 +126,7 @@ func TestEviction_BelowCapacityNoEviction(t *testing.T) {
 	bank := NewLruStringBank(capacity, 200*time.Millisecond).(*lruStringBank)
 	defer bank.Stop()
 
-	for i := 0; i < capacity; i++ {
+	for i := range capacity {
 		bank.LoadOrStore(fmt.Sprintf("v%d", i), fmt.Sprintf("v%d", i))
 	}
 
@@ -147,7 +147,7 @@ func TestEviction_ExceedCapacityTrimsToCapacity(t *testing.T) {
 	bank := NewLruStringBank(capacity, 350*time.Millisecond).(*lruStringBank)
 	defer bank.Stop()
 
-	for i := 0; i < capacity+3; i++ {
+	for i := range capacity + 3 {
 		bank.LoadOrStore(fmt.Sprintf("v%d", i), fmt.Sprintf("v%d", i))
 		time.Sleep(20 * time.Millisecond) // ensure distinct timestamps
 	}
@@ -199,7 +199,7 @@ func TestClear_EmptiesMap(t *testing.T) {
 	bank := NewLruStringBank(10, time.Minute).(*lruStringBank)
 	defer bank.Stop()
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		bank.LoadOrStore(fmt.Sprintf("v%d", i), fmt.Sprintf("v%d", i))
 	}
 
@@ -308,10 +308,10 @@ func TestConcurrentLoadOrStore(t *testing.T) {
 	const opsEach = 100
 
 	var wg sync.WaitGroup
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		g := i
 		wg.Go(func() {
-			for i := 0; i < opsEach; i++ {
+			for i := range opsEach {
 				key := fmt.Sprintf("k%d", (g*opsEach+i)%30)
 				bank.LoadOrStore(key, key)
 			}
@@ -347,7 +347,7 @@ func TestConcurrentLoadOrStoreWithEviction(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		g := i
 		stop := time.After(duration)
 
@@ -389,19 +389,17 @@ func TestConcurrentClear(t *testing.T) {
 	defer bank.Stop()
 
 	var wg sync.WaitGroup
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
 			bank.LoadOrStore(fmt.Sprintf("k%d", i), "v")
 		}(i)
 	}
-	for i := 0; i < 3; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 3 {
+		wg.Go(func() {
 			bank.Clear()
-		}()
+		})
 	}
 
 	wg.Wait()

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,7 +45,7 @@ type Scaleway struct {
 // PricingSourceSummary returns the pricing source summary for the provider.
 // The summary represents what was _parsed_ from the pricing source, not
 // everything that was _available_ in the pricing source.
-func (c *Scaleway) PricingSourceSummary() interface{} {
+func (c *Scaleway) PricingSourceSummary() any {
 	return c.Pricing
 }
 func (c *Scaleway) DownloadPricingData() error {
@@ -93,15 +94,13 @@ func (c *Scaleway) DownloadPricingData() error {
 			NodesInfos: map[string]*instance.ServerType{},
 		}
 
-		for name, infos := range resp.Servers {
-			c.Pricing[zone.String()].NodesInfos[name] = infos
-		}
+		maps.Copy(c.Pricing[zone.String()].NodesInfos, resp.Servers)
 	}
 
 	return nil
 }
 
-func (c *Scaleway) AllNodePricing() (interface{}, error) {
+func (c *Scaleway) AllNodePricing() (any, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 	return c.Pricing, nil
@@ -319,7 +318,7 @@ func (c *Scaleway) UpdateConfig(r io.Reader, updateType string) (*models.CustomP
 	defer c.DownloadPricingData()
 
 	return c.Config.Update(func(c *models.CustomPricing) error {
-		a := make(map[string]interface{})
+		a := make(map[string]any)
 		err := json.NewDecoder(r).Decode(&a)
 		if err != nil {
 			return err

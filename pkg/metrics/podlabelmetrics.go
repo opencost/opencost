@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"maps"
+
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/prometheus/client_golang/prometheus"
@@ -19,9 +21,7 @@ type KubePodLabelsCollector struct {
 
 func (kpmc *KubePodLabelsCollector) SetLabelsWhiteList() {
 	kpmc.labelsWhitelist = make(map[string]bool)
-	for k, v := range kpmc.metricsConfig.LabelsWhitelist {
-		kpmc.labelsWhitelist[k] = v
-	}
+	maps.Copy(kpmc.labelsWhitelist, kpmc.metricsConfig.LabelsWhitelist)
 }
 
 // Describe sends the super-set of all possible descriptors of pod labels only

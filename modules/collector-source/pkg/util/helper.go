@@ -23,7 +23,7 @@ func MetricNameFor(metric string, labels []string, values []string) string {
 	var sb strings.Builder
 	sb.WriteString(metric)
 	sb.WriteRune('{')
-	for i := 0; i < len(labels); i++ {
+	for i := range labels {
 		sb.WriteRune('"')
 		sb.WriteString(labels[i])
 		sb.WriteString(`"="`)
@@ -50,6 +50,7 @@ func ToMap(labels []string, values []string) map[string]string {
 	return m
 }
 
+//go:fix inline
 func Ptr[T any](v T) *T {
-	return &v
+	return new(v)
 }

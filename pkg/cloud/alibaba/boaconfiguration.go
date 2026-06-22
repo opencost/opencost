@@ -83,13 +83,13 @@ func (bc *BOAConfiguration) Provider() string {
 }
 
 func (bc *BOAConfiguration) UnmarshalJSON(b []byte) error {
-	var f interface{}
+	var f any
 	err := json.Unmarshal(b, &f)
 	if err != nil {
 		return err
 	}
 
-	fmap := f.(map[string]interface{})
+	fmap := f.(map[string]any)
 
 	account, err := cloud.GetInterfaceValue[string](fmap, "account")
 	if err != nil {

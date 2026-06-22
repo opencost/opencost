@@ -2,6 +2,7 @@ package matcher
 
 import (
 	"fmt"
+	"strings"
 )
 
 // And is a set of filters that should be evaluated as a logical
@@ -15,13 +16,14 @@ func (a *And[T]) Add(m Matcher[T]) {
 }
 
 func (a *And[T]) String() string {
-	s := "(and"
+	var s strings.Builder
+	s.WriteString("(and")
 	for _, f := range a.Matchers {
-		s += fmt.Sprintf(" %s", f)
+		fmt.Fprintf(&s, " %s", f)
 	}
 
-	s += ")"
-	return s
+	s.WriteString(")")
+	return s.String()
 }
 
 // Matches is the canonical in-Go function for determining if T

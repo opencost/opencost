@@ -2,6 +2,7 @@ package alibaba
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -40,7 +41,7 @@ func TestCreateDescribePriceACSRequest(t *testing.T) {
 
 	cases := []struct {
 		name          string
-		testStruct    interface{}
+		testStruct    any
 		expectedError error
 	}{
 		{
@@ -84,7 +85,7 @@ func TestProcessDescribePriceAndCreateAlibabaPricing(t *testing.T) {
 
 	cases := []struct {
 		name          string
-		teststruct    interface{}
+		teststruct    any
 		expectedError error
 	}{
 		{
@@ -501,7 +502,7 @@ func TestDetermineKeyForPricing(t *testing.T) {
 	}
 	cases := []struct {
 		name          string
-		testVar       interface{}
+		testVar       any
 		expectedKey   string
 		expectedError error
 	}{
@@ -977,7 +978,7 @@ func TestCreateDescribeNodePriceACSRequest(t *testing.T) {
 
 	cases := []struct {
 		name                 string
-		testStruct           interface{}
+		testStruct           any
 		expectedError        error
 		expectedDiskCategory string
 	}{
@@ -1726,13 +1727,7 @@ func TestRegions_WithCustomRegions(t *testing.T) {
 	}
 
 	// Check if custom region is included
-	found := false
-	for _, region := range regions {
-		if region == "custom-region" {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(regions, "custom-region")
 	if !found {
 		t.Logf("Custom region not found in regions list, but that's okay")
 	}
@@ -2107,7 +2102,7 @@ func TestPricingSourceSummary_WithValidPricing(t *testing.T) {
 	}
 
 	// Check if summary contains expected data
-	summaryMap, ok := summary.(map[string]interface{})
+	summaryMap, ok := summary.(map[string]any)
 	if ok {
 		if len(summaryMap) == 0 {
 			t.Fatalf("PricingSourceSummary should return non-empty summary")

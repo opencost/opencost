@@ -17,6 +17,6 @@ func jsonEncodeString(buffer *bytes.Buffer, name, val, comma string) {
 }
 
 // jsonEncode encodes any object to JSON
-func jsonEncode(buffer *bytes.Buffer, name string, obj interface{}, comma string) {
+func jsonEncode(buffer *bytes.Buffer, name string, obj any, comma string) {
 	jsonutil.Encode(buffer, name, obj, comma)
 }

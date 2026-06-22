@@ -258,7 +258,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			c.AwsServiceKeySecret = a.ServiceKeySecret
 			c.AthenaProjectID = a.AccountID
 		} else {
-			a := make(map[string]interface{})
+			a := make(map[string]any)
 			err := json.NewDecoder(r).Decode(&a)
 			if err != nil {
 				return err
@@ -1577,7 +1577,7 @@ func (gcp *gcpKey) Features() string {
 }
 
 // AllNodePricing returns the GCP pricing objects stored
-func (gcp *GCP) AllNodePricing() (interface{}, error) {
+func (gcp *GCP) AllNodePricing() (any, error) {
 	gcp.DownloadPricingDataLock.RLock()
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	return gcp.Pricing, nil
@@ -1717,6 +1717,6 @@ func getUsageType(labels map[string]string) string {
 // PricingSourceSummary returns the pricing source summary for the provider.
 // The summary represents what was _parsed_ from the pricing source, not
 // everything that was _available_ in the pricing source.
-func (gcp *GCP) PricingSourceSummary() interface{} {
+func (gcp *GCP) PricingSourceSummary() any {
 	return gcp.Pricing
 }

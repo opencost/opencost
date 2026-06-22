@@ -156,15 +156,16 @@ type PipelineData[T any] interface {
 	*T
 }
 
+//go:fix inline
 func ptr[T any](v T) *T {
-	return &v
+	return new(v)
 }
 
 func TestExporters(t *testing.T) {
 	t.Run("allocation exporter", func(t *testing.T) {
 		allocSource := NewMockAllocationSource()
 		memStore := storage.NewMemoryStorage()
-		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, ptr(TestResolution))
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, new(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
@@ -193,7 +194,7 @@ func TestExporters(t *testing.T) {
 	t.Run("asset exporter", func(t *testing.T) {
 		assetSource := NewMockAssetSource()
 		memStore := storage.NewMemoryStorage()
-		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AssetsPipelineName, ptr(TestResolution))
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AssetsPipelineName, new(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
@@ -222,7 +223,7 @@ func TestExporters(t *testing.T) {
 	t.Run("network insight exporter", func(t *testing.T) {
 		netInsightSource := NewMockNetworkInsightSource()
 		memStore := storage.NewMemoryStorage()
-		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.NetworkInsightPipelineName, ptr(TestResolution))
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.NetworkInsightPipelineName, new(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
@@ -251,7 +252,7 @@ func TestExporters(t *testing.T) {
 	t.Run("KubeModel exporter", func(t *testing.T) {
 		kubeModelSource := NewMockKubeModelSource()
 		memStore := storage.NewMemoryStorage()
-		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.KubeModelPipelineName, ptr(TestResolution))
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.KubeModelPipelineName, new(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
@@ -315,15 +316,15 @@ func TestPipelineExportControllers(t *testing.T) {
 		time.Sleep(time.Second + (750 * time.Millisecond))
 		exportControllers.Stop()
 
-		allocPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, ptr(TestResolution))
+		allocPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, new(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create allocations path formatter: %v", err)
 		}
-		assetPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AssetsPipelineName, ptr(TestResolution))
+		assetPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AssetsPipelineName, new(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create assets path formatter: %v", err)
 		}
-		netPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.NetworkInsightPipelineName, ptr(TestResolution))
+		netPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.NetworkInsightPipelineName, new(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create net insights path formatter: %v", err)
 		}
@@ -353,15 +354,15 @@ func TestPipelineExportControllers(t *testing.T) {
 		time.Sleep(time.Second + (750 * time.Millisecond))
 		exportControllers.Stop()
 
-		allocPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, ptr(TestResolution))
+		allocPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, new(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create allocations path formatter: %v", err)
 		}
-		assetPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AssetsPipelineName, ptr(TestResolution))
+		assetPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AssetsPipelineName, new(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create assets path formatter: %v", err)
 		}
-		netPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.NetworkInsightPipelineName, ptr(TestResolution))
+		netPath, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.NetworkInsightPipelineName, new(TestResolution))
 		if err != nil {
 			t.Fatalf("failed to create net insights path formatter: %v", err)
 		}

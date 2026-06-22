@@ -305,15 +305,15 @@ func (pam PodAnnotationsMetric) Write(m *dto.Metric) error {
 	}
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &pam.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  new("pod"),
 			Value: &pam.pod,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &pam.uid,
 		})
 	m.Label = labels
@@ -379,15 +379,15 @@ func (nam KubePodLabelsMetric) Write(m *dto.Metric) error {
 
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  new("pod"),
 			Value: &nam.pod,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &nam.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &nam.uid,
 		},
 	)
@@ -444,19 +444,19 @@ func (kpcs KubePodContainerStatusRestartsTotalMetric) Write(m *dto.Metric) error
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kpcs.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  new("pod"),
 			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("container"),
+			Name:  new("container"),
 			Value: &kpcs.container,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcs.uid,
 		},
 	)
@@ -515,23 +515,23 @@ func (kpcs KubePodContainerStatusTerminatedReasonMetric) Write(m *dto.Metric) er
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kpcs.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  new("pod"),
 			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("container"),
+			Name:  new("container"),
 			Value: &kpcs.container,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcs.uid,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("reason"),
+			Name:  new("reason"),
 			Value: &kpcs.reason,
 		},
 	)
@@ -588,19 +588,19 @@ func (kpcs KubePodStatusPhaseMetric) Write(m *dto.Metric) error {
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kpcs.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  new("pod"),
 			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcs.uid,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("phase"),
+			Name:  new("phase"),
 			Value: &kpcs.phase,
 		},
 	)
@@ -659,19 +659,19 @@ func (kpcs KubePodContainerStatusRunningMetric) Write(m *dto.Metric) error {
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kpcs.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  new("pod"),
 			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("container"),
+			Name:  new("container"),
 			Value: &kpcs.container,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcs.uid,
 		},
 	)
@@ -737,31 +737,31 @@ func (kpcrr KubePodContainerResourceRequestsMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kpcrr.namespace,
 		},
 		{
-			Name:  toStringPtr("pod"),
+			Name:  new("pod"),
 			Value: &kpcrr.pod,
 		},
 		{
-			Name:  toStringPtr("container"),
+			Name:  new("container"),
 			Value: &kpcrr.container,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcrr.uid,
 		},
 		{
-			Name:  toStringPtr("node"),
+			Name:  new("node"),
 			Value: &kpcrr.node,
 		},
 		{
-			Name:  toStringPtr("resource"),
+			Name:  new("resource"),
 			Value: &kpcrr.resource,
 		},
 		{
-			Name:  toStringPtr("unit"),
+			Name:  new("unit"),
 			Value: &kpcrr.unit,
 		},
 	}
@@ -826,31 +826,31 @@ func (kpcrr KubePodContainerResourceLimitsMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kpcrr.namespace,
 		},
 		{
-			Name:  toStringPtr("pod"),
+			Name:  new("pod"),
 			Value: &kpcrr.pod,
 		},
 		{
-			Name:  toStringPtr("container"),
+			Name:  new("container"),
 			Value: &kpcrr.container,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcrr.uid,
 		},
 		{
-			Name:  toStringPtr("node"),
+			Name:  new("node"),
 			Value: &kpcrr.node,
 		},
 		{
-			Name:  toStringPtr("resource"),
+			Name:  new("resource"),
 			Value: &kpcrr.resource,
 		},
 		{
-			Name:  toStringPtr("unit"),
+			Name:  new("unit"),
 			Value: &kpcrr.unit,
 		},
 	}
@@ -909,23 +909,23 @@ func (kpcrr KubePodContainerResourceLimitsCPUCoresMetric) Write(m *dto.Metric) e
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kpcrr.namespace,
 		},
 		{
-			Name:  toStringPtr("pod"),
+			Name:  new("pod"),
 			Value: &kpcrr.pod,
 		},
 		{
-			Name:  toStringPtr("container"),
+			Name:  new("container"),
 			Value: &kpcrr.container,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcrr.uid,
 		},
 		{
-			Name:  toStringPtr("node"),
+			Name:  new("node"),
 			Value: &kpcrr.node,
 		},
 	}
@@ -984,23 +984,23 @@ func (kpcrr KubePodContainerResourceLimitsMemoryBytesMetric) Write(m *dto.Metric
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kpcrr.namespace,
 		},
 		{
-			Name:  toStringPtr("pod"),
+			Name:  new("pod"),
 			Value: &kpcrr.pod,
 		},
 		{
-			Name:  toStringPtr("container"),
+			Name:  new("container"),
 			Value: &kpcrr.container,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcrr.uid,
 		},
 		{
-			Name:  toStringPtr("node"),
+			Name:  new("node"),
 			Value: &kpcrr.node,
 		},
 	}
@@ -1061,28 +1061,28 @@ func (kpo KubePodOwnerMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kpo.namespace,
 		},
 		{
-			Name:  toStringPtr("pod"),
+			Name:  new("pod"),
 			Value: &kpo.pod,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpo.uid,
 		},
 		{
-			Name:  toStringPtr("owner_name"),
+			Name:  new("owner_name"),
 			Value: &kpo.ownerName,
 		},
 		{
-			Name:  toStringPtr("owner_kind"),
+			Name:  new("owner_kind"),
 			Value: &kpo.ownerKind,
 		},
 		{
-			Name:  toStringPtr("owner_is_controller"),
-			Value: toStringPtr(fmt.Sprintf("%t", kpo.ownerIsController)),
+			Name:  new("owner_is_controller"),
+			Value: new(fmt.Sprintf("%t", kpo.ownerIsController)),
 		},
 	}
 	return nil

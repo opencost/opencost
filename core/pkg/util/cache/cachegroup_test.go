@@ -121,7 +121,7 @@ func TestGroupCacheMany(t *testing.T) {
 	<-next
 	var wg sync.WaitGroup
 	wg.Add(10)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		go func(ii int) {
 			t.Logf("Created Go Routine: %d\n", ii)
 			now := time.Now()

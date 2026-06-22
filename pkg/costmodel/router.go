@@ -91,12 +91,12 @@ func filterFields(fields string, data map[string]*CostData) map[string]CostData 
 	}
 	filteredData := make(map[string]CostData)
 	for cname, costdata := range data {
-		s := reflect.TypeOf(*costdata)
+		s := reflect.TypeFor[CostData]()
 		val := reflect.ValueOf(*costdata)
 		costdata2 := CostData{}
 		cd2 := reflect.New(reflect.Indirect(reflect.ValueOf(costdata2)).Type()).Elem()
 		n := s.NumField()
-		for i := 0; i < n; i++ {
+		for i := range n {
 			field := s.Field(i)
 			value := val.Field(i)
 			value2 := cd2.Field(i)
@@ -154,7 +154,7 @@ func adminAuthMiddleware(next httprouter.Handle) httprouter.Handle {
 	}
 }
 
-func WriteData(w http.ResponseWriter, data interface{}, err error) {
+func WriteData(w http.ResponseWriter, data any, err error) {
 	if err != nil {
 		proto.WriteError(w, proto.InternalServerError(err.Error()))
 		return

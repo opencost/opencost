@@ -37,7 +37,7 @@ type STACKIT struct {
 	pimStorage map[string]*pimStoragePricing
 }
 
-func (s *STACKIT) PricingSourceSummary() interface{} {
+func (s *STACKIT) PricingSourceSummary() any {
 	s.DownloadPricingDataLock.RLock()
 	defer s.DownloadPricingDataLock.RUnlock()
 	return s.pimFlavors
@@ -61,7 +61,7 @@ func (s *STACKIT) DownloadPricingData() error {
 	return nil
 }
 
-func (s *STACKIT) AllNodePricing() (interface{}, error) {
+func (s *STACKIT) AllNodePricing() (any, error) {
 	s.DownloadPricingDataLock.RLock()
 	defer s.DownloadPricingDataLock.RUnlock()
 	return s.pimFlavors, nil
@@ -311,7 +311,7 @@ func (s *STACKIT) UpdateConfigFromConfigMap(a map[string]string) (*models.Custom
 
 func (s *STACKIT) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
 	cp, err := s.Config.Update(func(c *models.CustomPricing) error {
-		a := make(map[string]interface{})
+		a := make(map[string]any)
 		err := json.NewDecoder(r).Decode(&a)
 		if err != nil {
 			return err

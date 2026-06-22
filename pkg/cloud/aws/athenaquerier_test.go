@@ -803,7 +803,7 @@ func TestGetAthenaRowValue(t *testing.T) {
 	// Test with valid data
 	row := types.Row{
 		Data: []types.Datum{
-			{VarCharValue: stringPtr("test-value")},
+			{VarCharValue: new("test-value")},
 		},
 	}
 
@@ -839,7 +839,7 @@ func TestGetAthenaRowValueFloat(t *testing.T) {
 	// Test with valid data
 	row := types.Row{
 		Data: []types.Datum{
-			{VarCharValue: stringPtr("3.14159")},
+			{VarCharValue: new("3.14159")},
 		},
 	}
 
@@ -877,7 +877,7 @@ func TestGetAthenaRowValueFloat(t *testing.T) {
 	// Test with invalid float
 	rowWithInvalid := types.Row{
 		Data: []types.Datum{
-			{VarCharValue: stringPtr("not-a-number")},
+			{VarCharValue: new("not-a-number")},
 		},
 	}
 

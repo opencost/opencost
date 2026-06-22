@@ -163,7 +163,7 @@ func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) (
 	ngilen := len(usage.NetworkNatGatewayIngress)
 
 	l := max(zlen, rlen, ilen, ngelen, ngilen)
-	for i := 0; i < l; i++ {
+	for i := range l {
 		var cost float64 = 0
 		var timestamp float64
 

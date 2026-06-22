@@ -2,6 +2,7 @@ package matcher
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Or is a set of filters that should be evaluated as a logical
@@ -15,13 +16,14 @@ func (o *Or[T]) Add(m Matcher[T]) {
 }
 
 func (o *Or[T]) String() string {
-	s := "(or"
+	var s strings.Builder
+	s.WriteString("(or")
 	for _, f := range o.Matchers {
-		s += fmt.Sprintf(" %s", f)
+		fmt.Fprintf(&s, " %s", f)
 	}
 
-	s += ")"
-	return s
+	s.WriteString(")")
+	return s.String()
 }
 
 // Matches is the canonical in-Go function for determining if T

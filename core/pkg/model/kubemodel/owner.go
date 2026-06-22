@@ -24,8 +24,8 @@ type Owner struct {
 	Kind         OwnerKind         `json:"kind"`
 	Labels       map[string]string `json:"labels,omitempty"`
 	Annotations  map[string]string `json:"annotations,omitempty"`
-	Start        time.Time         `json:"start,omitempty"`
-	End          time.Time         `json:"end,omitempty"`
+	Start        time.Time         `json:"start"`
+	End          time.Time         `json:"end"`
 }
 
 func (kms *KubeModelSet) RegisterOwner(uid, name, namespace, kind string) error {

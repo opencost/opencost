@@ -23,7 +23,7 @@ const (
 // specify the bucket storage implementation, and a configuration object specific to that storage implementation.
 type StorageConfig struct {
 	Type   StorageProvider `yaml:"type"`
-	Config interface{}     `yaml:"config"`
+	Config any             `yaml:"config"`
 	Prefix string          `yaml:"prefix"`
 }
 

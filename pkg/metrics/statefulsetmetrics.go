@@ -107,15 +107,15 @@ func (s StatefulsetMatchLabelsMetric) Write(m *dto.Metric) error {
 		})
 	}
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("namespace"),
+		Name:  new("namespace"),
 		Value: &s.namespace,
 	})
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("statefulSet"),
+		Name:  new("statefulSet"),
 		Value: &s.statefulsetName,
 	})
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("uid"),
+		Name:  new("uid"),
 		Value: &s.uid,
 	})
 	m.Label = labels

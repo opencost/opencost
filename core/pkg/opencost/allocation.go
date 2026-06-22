@@ -2,6 +2,7 @@ package opencost
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"sort"
 	"strings"
@@ -472,9 +473,7 @@ type ProportionalAssetResourceCosts map[string]ProportionalAssetResourceCost
 func (parcs ProportionalAssetResourceCosts) Clone() ProportionalAssetResourceCosts {
 	cloned := ProportionalAssetResourceCosts{}
 
-	for key, parc := range parcs {
-		cloned[key] = parc
-	}
+	maps.Copy(cloned, parcs)
 	return cloned
 }
 
@@ -647,9 +646,7 @@ type SharedCostBreakdowns map[string]SharedCostBreakdown
 func (scbs SharedCostBreakdowns) Clone() SharedCostBreakdowns {
 	cloned := SharedCostBreakdowns{}
 
-	for key, scb := range scbs {
-		cloned[key] = scb
-	}
+	maps.Copy(cloned, scbs)
 	return cloned
 }
 
@@ -2874,14 +2871,10 @@ func (as *AllocationSet) Clone() *AllocationSet {
 	}
 
 	externalKeys := make(map[string]bool, len(as.ExternalKeys))
-	for k, v := range as.ExternalKeys {
-		externalKeys[k] = v
-	}
+	maps.Copy(externalKeys, as.ExternalKeys)
 
 	idleKeys := make(map[string]bool, len(as.IdleKeys))
-	for k, v := range as.IdleKeys {
-		idleKeys[k] = v
-	}
+	maps.Copy(idleKeys, as.IdleKeys)
 
 	var errors []string
 	var warnings []string

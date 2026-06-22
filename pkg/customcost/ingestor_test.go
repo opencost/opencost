@@ -93,12 +93,10 @@ func TestIngestor_Stop_ConcurrentCalls(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			ingestor.Stop()
-		}()
+		})
 	}
 
 	done := make(chan struct{})
@@ -194,11 +192,11 @@ func TestIngestor_BuildWindow_WithPlugin(t *testing.T) {
 
 // mockClientProtocol implements plugin.ClientProtocol for testing.
 type mockClientProtocol struct {
-	dispenseResult interface{}
+	dispenseResult any
 	dispenseErr    error
 }
 
-func (m *mockClientProtocol) Dispense(string) (interface{}, error) {
+func (m *mockClientProtocol) Dispense(string) (any, error) {
 	return m.dispenseResult, m.dispenseErr
 }
 func (m *mockClientProtocol) Ping() error  { return nil }

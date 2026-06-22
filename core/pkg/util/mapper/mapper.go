@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -187,9 +188,7 @@ func (gm *GoMap) Set(key, value string) error {
 // data out of the argument.
 func NewGoMap(m map[string]string) Map {
 	copied := map[string]string{}
-	for k, v := range m {
-		copied[k] = v
-	}
+	maps.Copy(copied, m)
 	return &GoMap{m: copied}
 }
 

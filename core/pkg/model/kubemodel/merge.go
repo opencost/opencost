@@ -430,9 +430,7 @@ func copyResourceQuantities(rq ResourceQuantities) ResourceQuantities {
 		return nil
 	}
 	copied := make(ResourceQuantities, len(rq))
-	for k, v := range rq {
-		copied[k] = v
-	}
+	maps.Copy(copied, rq)
 	return copied
 }
 

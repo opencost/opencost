@@ -119,8 +119,8 @@ func cloudCostAutocompleteValues(cc *opencost.CloudCost, field string) []string 
 		}
 		return keys
 	}
-	if strings.HasPrefix(field, "label:") {
-		labelName := strings.TrimPrefix(field, "label:")
+	if after, ok := strings.CutPrefix(field, "label:"); ok {
+		labelName := after
 		if value, ok := cloudCostLabelValueFold(cc.Properties.Labels, labelName); ok {
 			return []string{value}
 		}

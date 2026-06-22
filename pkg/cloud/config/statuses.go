@@ -77,13 +77,13 @@ type Status struct {
 }
 
 func (s *Status) UnmarshalJSON(b []byte) error {
-	var f interface{}
+	var f any
 	err := json.Unmarshal(b, &f)
 	if err != nil {
 		return err
 	}
 
-	fmap := f.(map[string]interface{})
+	fmap := f.(map[string]any)
 
 	sourceFloat, err := cloud.GetInterfaceValue[float64](fmap, "source")
 	if err != nil {

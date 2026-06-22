@@ -36,7 +36,7 @@ func (m *mockProvider) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	return nil, nil
 }
 
-func (m *mockProvider) AllNodePricing() (interface{}, error) {
+func (m *mockProvider) AllNodePricing() (any, error) {
 	return nil, nil
 }
 
@@ -107,7 +107,7 @@ func (m *mockProvider) Regions() []string {
 	return nil
 }
 
-func (m *mockProvider) PricingSourceSummary() interface{} {
+func (m *mockProvider) PricingSourceSummary() any {
 	return nil
 }
 

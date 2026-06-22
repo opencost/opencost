@@ -85,16 +85,16 @@ func (hp HTTPProtocol) NotFound() HTTPError {
 
 // HTTPResponse represents a data envelope for our HTTP messaging
 type HTTPResponse struct {
-	Code    int                    `json:"code"`
-	Data    interface{}            `json:"data"`
-	Meta    map[string]interface{} `json:"meta,omitempty"`
-	Message string                 `json:"message,omitempty"`
-	Warning string                 `json:"warning,omitempty"`
+	Code    int            `json:"code"`
+	Data    any            `json:"data"`
+	Meta    map[string]any `json:"meta,omitempty"`
+	Message string         `json:"message,omitempty"`
+	Warning string         `json:"warning,omitempty"`
 }
 
 // ToResponse accepts a data payload and/or error to encode into a new HTTPResponse instance. Responses
 // which should not contain an error should pass nil for err.
-func (hp HTTPProtocol) ToResponse(data interface{}, err error) *HTTPResponse {
+func (hp HTTPProtocol) ToResponse(data any, err error) *HTTPResponse {
 	if err != nil {
 		return &HTTPResponse{
 			Code:    http.StatusInternalServerError,
@@ -122,7 +122,7 @@ func (hp HTTPProtocol) WriteRawNoContent(w http.ResponseWriter) {
 
 // WriteJSONData uses json content-type and json encoder with no data envelope allowing to remove
 // xss CWE as well as backwards compatibility to exisitng FE expectations
-func (hp HTTPProtocol) WriteJSONData(w http.ResponseWriter, data interface{}) {
+func (hp HTTPProtocol) WriteJSONData(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		log.Error("Failed to encode JSON response: " + err.Error())
@@ -138,7 +138,7 @@ func (hp HTTPProtocol) WriteRawError(w http.ResponseWriter, httpStatusCode int, 
 }
 
 // WriteEncodedError writes an error response in the format of HTTPResponse
-func (hp HTTPProtocol) WriteEncodedError(w http.ResponseWriter, httpStatusCode int, errorResponse interface{}) {
+func (hp HTTPProtocol) WriteEncodedError(w http.ResponseWriter, httpStatusCode int, errorResponse any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatusCode)
 	if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
@@ -150,7 +150,7 @@ func (hp HTTPProtocol) WriteEncodedError(w http.ResponseWriter, httpStatusCode i
 
 // WriteData wraps the data payload in an HTTPResponse and writes the resulting response using the
 // http.ResponseWriter
-func (hp HTTPProtocol) WriteData(w http.ResponseWriter, data interface{}) {
+func (hp HTTPProtocol) WriteData(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	w.WriteHeader(status)
@@ -167,7 +167,7 @@ func (hp HTTPProtocol) WriteData(w http.ResponseWriter, data interface{}) {
 }
 
 // WriteDataWithWarning writes the data payload similiar to WriteData except it provides an additional warning message.
-func (hp HTTPProtocol) WriteDataWithWarning(w http.ResponseWriter, data interface{}, warning string) {
+func (hp HTTPProtocol) WriteDataWithWarning(w http.ResponseWriter, data any, warning string) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	resp := &HTTPResponse{
@@ -184,7 +184,7 @@ func (hp HTTPProtocol) WriteDataWithWarning(w http.ResponseWriter, data interfac
 }
 
 // WriteDataWithMessage writes the data payload similiar to WriteData except it provides an additional string message.
-func (hp HTTPProtocol) WriteDataWithMessage(w http.ResponseWriter, data interface{}, message string) {
+func (hp HTTPProtocol) WriteDataWithMessage(w http.ResponseWriter, data any, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	resp := &HTTPResponse{
@@ -222,7 +222,7 @@ func (hp HTTPProtocol) WriteProtoWithMessage(w http.ResponseWriter, data proto.M
 }
 
 // WriteDataWithMessageAndWarning writes the data payload similiar to WriteData except it provides a warning and additional message string.
-func (hp HTTPProtocol) WriteDataWithMessageAndWarning(w http.ResponseWriter, data interface{}, message string, warning string) {
+func (hp HTTPProtocol) WriteDataWithMessageAndWarning(w http.ResponseWriter, data any, message string, warning string) {
 	w.Header().Set("Content-Type", "application/json")
 	status := http.StatusOK
 	resp := &HTTPResponse{
@@ -310,7 +310,7 @@ func (r *HTTPResponse) WithCode(code int) *HTTPResponse {
 	return r
 }
 
-func (r *HTTPResponse) WithData(data interface{}) *HTTPResponse {
+func (r *HTTPResponse) WithData(data any) *HTTPResponse {
 	if r == nil {
 		r = &HTTPResponse{}
 	}
@@ -320,7 +320,7 @@ func (r *HTTPResponse) WithData(data interface{}) *HTTPResponse {
 	return r
 }
 
-func (r *HTTPResponse) WithMeta(meta map[string]interface{}) *HTTPResponse {
+func (r *HTTPResponse) WithMeta(meta map[string]any) *HTTPResponse {
 	if r == nil {
 		r = &HTTPResponse{}
 	}

@@ -29,13 +29,13 @@ func (uai *UsageApiIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 		RequestSummarizedUsagesDetails: usageapi.RequestSummarizedUsagesDetails{
 			Granularity:       usageapi.RequestSummarizedUsagesDetailsGranularityDaily,
 			GroupBy:           []string{"resourceId", "service", "subscriptionId", "tenantName"},
-			IsAggregateByTime: common.Bool(false),
+			IsAggregateByTime: new(false),
 			TimeUsageStarted:  &common.SDKTime{Time: start},
 			TimeUsageEnded:    &common.SDKTime{Time: end},
 			QueryType:         usageapi.RequestSummarizedUsagesDetailsQueryTypeCost,
-			TenantId:          common.String(uai.TenancyID),
+			TenantId:          new(uai.TenancyID),
 		},
-		Limit: common.Int(500),
+		Limit: new(500),
 	}
 
 	resp, err := client.RequestSummarizedUsages(context.Background(), req)

@@ -2,6 +2,7 @@ package cloudcost
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -127,9 +128,7 @@ func (im *IngestionManager) GetIngestors() map[string]*ingestor {
 
 	// Return a copy to avoid race conditions
 	copy := make(map[string]*ingestor)
-	for k, v := range im.ingestors {
-		copy[k] = v
-	}
+	maps.Copy(copy, im.ingestors)
 	return copy
 }
 

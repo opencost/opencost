@@ -191,7 +191,7 @@ func NewRateLimitedClient(
 	}
 
 	// Start concurrent request processing
-	for i := 0; i < maxConcurrency; i++ {
+	for range maxConcurrency {
 		go rlpc.worker()
 	}
 

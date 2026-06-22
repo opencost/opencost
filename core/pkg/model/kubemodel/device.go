@@ -19,8 +19,8 @@ type Device struct {
 	PowerWattSeconds  float64     `json:"powerWattSeconds"`  // Device power consumption in watt-seconds (Joules)
 	PowerWattMax      float64     `json:"powerWattMax"`      // Device max power consumption in watts
 	// Version 2 fields - Lifecycle tracking
-	Start           time.Time   `json:"start,omitempty"` // Device availability start
-	End             time.Time   `json:"end,omitempty"`   // Device availability end
+	Start           time.Time   `json:"start"`           // Device availability start
+	End             time.Time   `json:"end"`             // Device availability end
 	DurationSeconds Measurement `json:"durationSeconds"` // Duration device was available
 }
 

@@ -116,19 +116,19 @@ func (kjsf KubeJobStatusFailedMetric) Write(m *dto.Metric) error {
 	}
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("job_name"),
+			Name:  new("job_name"),
 			Value: &kjsf.job,
 		},
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kjsf.namespace,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kjsf.uid,
 		},
 		{
-			Name:  toStringPtr("reason"),
+			Name:  new("reason"),
 			Value: &kjsf.reason,
 		},
 	}

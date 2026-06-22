@@ -187,19 +187,19 @@ func (kpcrr KubeNodeStatusCapacityMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  new("node"),
 			Value: &kpcrr.node,
 		},
 		{
-			Name:  toStringPtr("resource"),
+			Name:  new("resource"),
 			Value: &kpcrr.resource,
 		},
 		{
-			Name:  toStringPtr("unit"),
+			Name:  new("unit"),
 			Value: &kpcrr.unit,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcrr.uid,
 		},
 	}
@@ -247,11 +247,11 @@ func (nam KubeNodeStatusCapacityMemoryBytesMetric) Write(m *dto.Metric) error {
 	}
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  new("node"),
 			Value: &nam.node,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &nam.uid,
 		},
 	}
@@ -299,11 +299,11 @@ func (nam KubeNodeStatusCapacityCPUCoresMetric) Write(m *dto.Metric) error {
 	}
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  new("node"),
 			Value: &nam.node,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &nam.uid,
 		},
 	}
@@ -420,19 +420,19 @@ func (nam KubeNodeStatusConditionMetric) Write(m *dto.Metric) error {
 	}
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  new("node"),
 			Value: &nam.node,
 		},
 		{
-			Name:  toStringPtr("condition"),
+			Name:  new("condition"),
 			Value: &nam.condition,
 		},
 		{
-			Name:  toStringPtr("status"),
+			Name:  new("status"),
 			Value: &nam.status,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &nam.uid,
 		},
 	}
@@ -507,19 +507,19 @@ func (kpcrr KubeNodeStatusAllocatableMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  new("node"),
 			Value: &kpcrr.node,
 		},
 		{
-			Name:  toStringPtr("resource"),
+			Name:  new("resource"),
 			Value: &kpcrr.resource,
 		},
 		{
-			Name:  toStringPtr("unit"),
+			Name:  new("unit"),
 			Value: &kpcrr.unit,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcrr.uid,
 		},
 	}
@@ -570,11 +570,11 @@ func (kpcrr KubeNodeStatusAllocatableCPUCoresMetric) Write(m *dto.Metric) error 
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  new("node"),
 			Value: &kpcrr.node,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcrr.uid,
 		},
 	}
@@ -625,11 +625,11 @@ func (kpcrr KubeNodeStatusAllocatableMemoryBytesMetric) Write(m *dto.Metric) err
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  new("node"),
 			Value: &kpcrr.node,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpcrr.uid,
 		},
 	}
