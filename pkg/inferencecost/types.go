@@ -19,19 +19,14 @@ const (
 type AllocationMethod string
 
 const (
-	// AllocationMethodComputeTimeWithCacheHits splits costs by input / output token
-	// time with KV cache denominator correction applied. Most accurate.  
-	AllocationMethodComputeTimeWithCacheHits AllocationMethod = "compute_time_with_cache_hits"
-
-	// AllocationMethodComputeTime splits input / output token time without cache
-	// correction. Used when block size is unknown (cache_config_info join failed or
-	// metric absent) or when there were no cache hits in the window. Causes artificial decrease in 
-	// per million token costs for input tokens.
+	// AllocationMethodComputeTime splits costs proportionally by vLLM prefill and
+	// decode time. inputCostPerMillionTokens uses PromptTokens as the denominator
+	// (delivered tokens); see cacheSavingsFraction for KV cache benefit.
 	AllocationMethodComputeTime AllocationMethod = "compute_time"
 
 	// AllocationMethodPrefixCachingOff splits by input / output token time; prefix
-	// caching is explicitly disabled on the vLLM instance so cache correction is
-	// not applicable.
+	// caching is explicitly disabled on the vLLM instance. cacheSavingsFraction
+	// will be zero by configuration, not by absence of cache hits.
 	AllocationMethodPrefixCachingOff AllocationMethod = "prefix_caching_off"
 
 	// AllocationMethodMultiplier splits using a fixed output/input cost multiplier
@@ -72,24 +67,28 @@ type InferenceCost struct {
 	OutputProcessingTime float64
 
 	// KV cache data from vLLM Prometheus metrics.
-	// CacheHitBlocks is zero when prefix_cache_hits_total is unavailable.
-	CacheHitBlocks float64
-	// BlockSize is the tokens-per-block value from vllm:cache_config_info.
-	// Zero when the cache_config_info metric is absent or the pod join failed.
-	BlockSize float64
+	// CachedTokens is the number of prompt tokens served from the KV cache,
+	// sourced directly from vllm:prefix_cache_hits_total (token-level counter).
+	// Zero when the metric is unavailable.
+	CachedTokens float64
 	// PrefixCachingEnabled reflects the enable_prefix_caching label from
 	// vllm:cache_config_info. False when the metric is absent.
 	PrefixCachingEnabled bool
-	// CachedTokens = CacheHitBlocks * BlockSize (derived in combineMetrics).
-	CachedTokens float64
+	// CacheConfigKnown is true when vllm:cache_config_info was successfully
+	// joined for this model. When false, PrefixCachingEnabled is meaningless.
+	CacheConfigKnown bool
 
 	// EffectiveInputTokens is PromptTokens - CachedTokens when cache correction
 	// is enabled, otherwise equals PromptTokens.
 	EffectiveInputTokens float64
 
+	// CacheSavingsFraction is CachedTokens / PromptTokens (0–1). Represents the
+	// fraction of prompt tokens served from the KV cache. Zero when PromptTokens
+	// is zero or prefix caching is disabled.
+	CacheSavingsFraction float64
+
 	// InputCost and OutputCost are the dollar amounts attributed to input and
-	// output processing respectively, stored directly so that the API response
-	// preserves them even when EffectiveInputTokens is zero (100% cache hit rate).
+	// output processing respectively.
 	InputCost  map[CostBasis]float64
 	OutputCost map[CostBasis]float64
 

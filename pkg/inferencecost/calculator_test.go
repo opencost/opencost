@@ -103,7 +103,8 @@ func TestCalculator_ComputeTimeSplit_InputOutputSumToTotal(t *testing.T) {
 	}
 	newCalc(cfg).CalculateCosts([]*InferenceCost{m})
 
-	// input_cost + output_cost must equal total for each basis
+	// input_cost + output_cost must equal total for each basis.
+	// Back-compute dollar amounts from the per-million rates using PromptTokens.
 	for _, basis := range []CostBasis{CostBasisUsage, CostBasisAllocation} {
 		var totalCost float64
 		if basis == CostBasisUsage {
@@ -111,7 +112,7 @@ func TestCalculator_ComputeTimeSplit_InputOutputSumToTotal(t *testing.T) {
 		} else {
 			totalCost = m.AllocationTotalCost
 		}
-		inputCost := m.InputCostPerMillionTokens[basis] / 1_000_000 * m.EffectiveInputTokens
+		inputCost := m.InputCostPerMillionTokens[basis] / 1_000_000 * m.PromptTokens
 		outputCost := m.OutputCostPerMillionTokens[basis] / 1_000_000 * m.GenerationTokens
 		if !floatEq(inputCost+outputCost, totalCost) {
 			t.Errorf("basis=%s: input+output=%.6f want %.6f", basis, inputCost+outputCost, totalCost)
@@ -119,44 +120,78 @@ func TestCalculator_ComputeTimeSplit_InputOutputSumToTotal(t *testing.T) {
 	}
 }
 
-// ---- KV cache denominator correction ----
+// ---- KV cache savings fraction ----
 
-func TestCalculator_CacheCorrection_LowersEffectiveTokens(t *testing.T) {
+func TestCalculator_CacheSavingsFraction(t *testing.T) {
 	cfg := &Config{
 		AllocationMode:            AllocationModeComputeTime,
 		OutputTokenCostMultiplier: 2.5,
 	}
-	// 2 cache hit blocks × 4 tokens = 8 cached tokens
-	// effective input = 20 - 8 = 12
+	// 8 cached tokens out of 20 prompt tokens → 40% savings
 	m := &InferenceCost{
 		AllocationTotalCost:  1.0,
 		UsageTotalCost:       1.0,
 		PromptTokens:         20,
 		GenerationTokens:     10,
 		TotalTokens:          30,
-		CacheHitBlocks:       2,
-		BlockSize:            4,
-		PrefixCachingEnabled: true,
 		CachedTokens:         8,
+		CacheConfigKnown:     true,
+		PrefixCachingEnabled: true,
 		EffectiveInputTokens: 12,
 		InputProcessingTime:  60,
 		OutputProcessingTime: 40,
 	}
 	newCalc(cfg).CalculateCosts([]*InferenceCost{m})
 
-	// With no correction, inputCPM = (1.0*0.6/20)*1e6 = 30000
-	// With correction,    inputCPM = (1.0*0.6/12)*1e6 = 50000
-	wantCorrected := (1.0 * 0.6 / 12) * 1_000_000
+	// inputCostPerMillionTokens uses PromptTokens (20) as denominator.
+	wantInputCPM := (1.0 * 0.6 / 20) * 1_000_000
 	got := m.InputCostPerMillionTokens[CostBasisUsage]
-	if !floatEq(got, wantCorrected) {
-		t.Errorf("cache-corrected input CPM want %f got %f", wantCorrected, got)
+	if !floatEq(got, wantInputCPM) {
+		t.Errorf("input CPM want %f got %f", wantInputCPM, got)
 	}
-	if m.AllocationMethod != AllocationMethodComputeTimeWithCacheHits {
-		t.Errorf("expected compute_time_with_cache_hits, got %s", m.AllocationMethod)
+	// CacheSavingsFraction = 8/20 = 0.4
+	if !floatEq(m.CacheSavingsFraction, 0.4) {
+		t.Errorf("CacheSavingsFraction want 0.4 got %f", m.CacheSavingsFraction)
+	}
+	// Method collapses to compute_time regardless of cache hits.
+	if m.AllocationMethod != AllocationMethodComputeTime {
+		t.Errorf("expected compute_time, got %s", m.AllocationMethod)
 	}
 }
 
-func TestCalculator_CacheCorrection_Disabled_WhenBlockSizeZero(t *testing.T) {
+func TestCalculator_CacheCorrection_Disabled_WhenConfigUnknown(t *testing.T) {
+	cfg := &Config{
+		AllocationMode:            AllocationModeComputeTime,
+		OutputTokenCostMultiplier: 2.5,
+	}
+	// CacheConfigKnown=false simulates vllm:cache_config_info being unavailable.
+	m := &InferenceCost{
+		AllocationTotalCost:  1.0,
+		UsageTotalCost:       1.0,
+		PromptTokens:         20,
+		GenerationTokens:     10,
+		TotalTokens:          30,
+		CachedTokens:         0,
+		CacheConfigKnown:     false,
+		EffectiveInputTokens: 20,
+		InputProcessingTime:  60,
+		OutputProcessingTime: 40,
+	}
+	newCalc(cfg).CalculateCosts([]*InferenceCost{m})
+
+	if m.AllocationMethod != AllocationMethodComputeTime {
+		t.Errorf("expected compute_time when cache config unknown, got %s", m.AllocationMethod)
+	}
+	wantInput := (1.0 * 0.6 / 20) * 1_000_000
+	if !floatEq(m.InputCostPerMillionTokens[CostBasisUsage], wantInput) {
+		t.Errorf("want %f got %f", wantInput, m.InputCostPerMillionTokens[CostBasisUsage])
+	}
+	if m.CacheSavingsFraction != 0 {
+		t.Errorf("CacheSavingsFraction want 0 when config unknown, got %f", m.CacheSavingsFraction)
+	}
+}
+
+func TestCalculator_PrefixCachingOff_WhenConfigKnownAndDisabled(t *testing.T) {
 	cfg := &Config{
 		AllocationMode:            AllocationModeComputeTime,
 		OutputTokenCostMultiplier: 2.5,
@@ -164,25 +199,20 @@ func TestCalculator_CacheCorrection_Disabled_WhenBlockSizeZero(t *testing.T) {
 	m := &InferenceCost{
 		AllocationTotalCost:  1.0,
 		UsageTotalCost:       1.0,
-		PromptTokens:         20,
-		GenerationTokens:     10,
-		TotalTokens:          30,
-		CacheHitBlocks:       5,
-		BlockSize:            0,
+		PromptTokens:         100,
+		GenerationTokens:     50,
+		TotalTokens:          150,
 		CachedTokens:         0,
-		EffectiveInputTokens: 20, // set by collector when block size is 0
-		InputProcessingTime:  60,
-		OutputProcessingTime: 40,
+		CacheConfigKnown:     true,
+		PrefixCachingEnabled: false, // explicitly disabled
+		EffectiveInputTokens: 100,
+		InputProcessingTime:  70,
+		OutputProcessingTime: 30,
 	}
 	newCalc(cfg).CalculateCosts([]*InferenceCost{m})
 
-	if m.AllocationMethod != AllocationMethodComputeTime {
-		t.Errorf("expected compute_time when block size 0 (unknown), got %s", m.AllocationMethod)
-	}
-	// denominator should be PromptTokens (20) not adjusted
-	wantInput := (1.0 * 0.6 / 20) * 1_000_000
-	if !floatEq(m.InputCostPerMillionTokens[CostBasisUsage], wantInput) {
-		t.Errorf("want %f got %f", wantInput, m.InputCostPerMillionTokens[CostBasisUsage])
+	if m.AllocationMethod != AllocationMethodPrefixCachingOff {
+		t.Errorf("expected prefix_caching_off, got %s", m.AllocationMethod)
 	}
 }
 
@@ -197,11 +227,10 @@ func TestCalculator_CacheCorrection_Disabled_WhenNoCacheHits(t *testing.T) {
 		PromptTokens:         100,
 		GenerationTokens:     50,
 		TotalTokens:          150,
-		CacheHitBlocks:       0, // no hits in this window
-		BlockSize:            16,
+		CachedTokens:         0, // no hits in this window
+		CacheConfigKnown:     true,
 		PrefixCachingEnabled: true, // caching is on, just no hits occurred
-		CachedTokens:         0,
-		EffectiveInputTokens: 100, // falls back to PromptTokens
+		EffectiveInputTokens: 100,
 		InputProcessingTime:  70,
 		OutputProcessingTime: 30,
 	}

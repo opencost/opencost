@@ -81,7 +81,7 @@ avg_over_time(llm_total_cost{model_name="Qwen/Qwen3-32B", cost_basis="allocation
 **Cost per 1M tokens.** This metric serves dual purposes based on the `phase` label:
 
 - **Without `phase` label (blended):** Combined cost for all tokens (prompt + generation)
-- **`phase=prompt`:** Cost per 1M effective input tokens (cached tokens excluded when KV cache correction is active)
+- **`phase=prompt`:** Cost per 1M delivered input tokens (uses `promptTokens` as denominator; see `llm_cache_savings_fraction` for KV cache utilization)
 - **`phase=generation`:** Cost per 1M output tokens
 
 **Labels:** `model_name`, `model_version`, `namespace`, `cost_basis`, `phase`, `allocation_method`
@@ -95,9 +95,8 @@ The `allocation_method` label (present only when `phase` is set) indicates how t
 
 | Value | Meaning |
 |-------|---------|
-| `compute_time_with_cache_hits` | Cost split by vLLM timing with KV cache correction. Cached tokens excluded from input denominator. Most accurate. |
-| `prefix_caching_off` | Prefix caching is explicitly disabled on this vLLM instance so cache correction is not applicable. |
-| `compute_time` | Cost split by vLLM timing without cache correction (block size unknown or no cache hits in window). |
+| `compute_time` | Cost split proportionally by vLLM prefill/decode time. KV cache utilization is reported separately in `llm_cache_savings_fraction`. |
+| `prefix_caching_off` | Same time-based split but prefix caching is explicitly disabled on the vLLM instance — `llm_cache_savings_fraction` will be zero by configuration. |
 | `multiplier` | Fixed output/input cost ratio (vLLM timing metrics unavailable; default ratio 2.5×). |
 | *(empty)* | No tokens processed or total cost is zero (allocation join failed — see [Labeling Requirements](#labeling-requirements)). |
 
@@ -105,12 +104,12 @@ The `allocation_method` label (present only when `phase` is set) indicates how t
 # Current blended cost per 1M tokens
 llm_cost_per_million_tokens{model_name="Qwen/Qwen3-32B", cost_basis="allocation", phase=""}
 
-# Input (prompt) cost per 1M effective tokens
+# Input (prompt) cost per 1M delivered input tokens
 llm_cost_per_million_tokens{
   model_name="Qwen/Qwen3-32B",
   cost_basis="allocation",
   phase="prompt",
-  allocation_method="compute_time_with_cache_hits"
+  allocation_method="compute_time"
 }
 
 # Output (generation) cost per 1M tokens
@@ -131,6 +130,28 @@ llm_cost_per_million_tokens{cost_basis="allocation", phase=""}
 
 # Sum input and output costs
 sum by (model_name, namespace) (llm_cost_per_million_tokens{phase=~"prompt|generation"})
+```
+
+### `llm_cache_savings_fraction`
+
+**Fraction of prompt tokens served from the KV cache** (range 0–1). A value of `0.9` means 90% of prompt tokens were cache hits and required no prefill computation.
+
+**Labels:** `model_name`, `model_version`, `namespace`
+
+Zero when prefix caching is disabled (`allocation_method=prefix_caching_off` on `llm_cost_per_million_tokens`) or when no cache hits occurred in the window.
+
+```promql
+# Current cache hit fraction for a model
+llm_cache_savings_fraction{model_name="Qwen/Qwen3-32B"}
+
+# Models with less than 50% cache hit rate (potential tuning opportunity)
+llm_cache_savings_fraction < 0.5
+
+# Cache hit rate trend over 24 hours
+avg_over_time(llm_cache_savings_fraction{model_name="Qwen/Qwen3-32B"}[24h])
+
+# Compare cache utilization across all models
+sort_desc(llm_cache_savings_fraction)
 ```
 
 ### Example Alerting Rule
@@ -195,6 +216,7 @@ curl "http://localhost:9003/inferenceCost/total?window=7d&aggregate=model_name&c
         "outputCost": 14.10,
         "inputCostPerMillionTokens": 2.37,
         "outputCostPerMillionTokens": 4.70,
+        "cacheSavingsFraction": 0.067,
         "allocationMethod": "compute_time"
       }
     },
@@ -314,14 +336,11 @@ OpenCost uses **compute-time based allocation** by default:
    - `vllm:request_prefill_time_seconds_sum` — total time spent on input (prefill)
    - `vllm:request_time_per_output_token_seconds_sum` — total time spent on output (decode)
 2. Allocates infrastructure cost proportionally: `InputCost = TotalCost × (PrefillTime / TotalTime)`
-3. Calculates per-million rates using `EffectiveInputTokens` (cache-corrected when applicable) for input and `GenerationTokens` for output
+3. Calculates per-million rates using `PromptTokens` for input (all delivered prompt tokens) and `GenerationTokens` for output
 
-**KV cache correction** is applied automatically when:
-- `vllm:cache_config_info` is present in Prometheus and its `enable_prefix_caching` label is `true`
-- Cache hits (`vllm:prefix_cache_hits_total`) were recorded in the window
-- The `block_size` label on `vllm:cache_config_info` is joined to the model via pod identity
+**KV cache savings** are reported in `cacheSavingsFraction` (`cachedTokens / promptTokens`, range 0–1). The dollar cost split already reflects cache savings implicitly — when the KV cache serves tokens without prefill work, prefill time is lower, so less cost is attributed to input. `cacheSavingsFraction` makes this benefit explicit and user-readable.
 
-The block size is read dynamically from the `block_size` label on `vllm:cache_config_info` — no manual configuration is required.
+`cacheSavingsFraction` is sourced directly from `vllm:prefix_cache_hits_total`, which reports cached **tokens** (not blocks). It is non-zero when cache hits were recorded in the window and the metric is available. `vllm:cache_config_info` is queried separately, but only to detect whether prefix caching is explicitly disabled — not for any arithmetic.
 
 **Fallback**: if [vLLM](https://vllm.ai/) timing metrics are unavailable, the Calculator falls back to a fixed multiplier (default 2.5×: output tokens cost 2.5× input tokens).
 
@@ -335,20 +354,20 @@ Model: Qwen/Qwen3-32B  |  Window: 1 hour
 Infrastructure (allocation basis):
   AllocationTotalCost = $3.20/hr (GPU + shared infra share)
 
-Token metrics from [vLLM](https://vllm.ai/):
+Token metrics from vLLM:
   PromptTokens = 12,000,000
   GenerationTokens = 3,000,000
   TotalTokens = 15,000,000
   PrefillTime = 600s, DecodeTime = 600s  → each 50%
 
 KV cache:
-  CacheHitBlocks = 50,000  |  BlockSize = 16 tokens
-  CachedTokens = 800,000
-  EffectiveInputTokens = 12,000,000 - 800,000 = 11,200,000
+  CachedTokens = 800,000  (from vllm:prefix_cache_hits_total — token-level counter)
+  CacheSavingsFraction = 800,000 / 12,000,000 = 6.7%
 
-Blended:    $3.20 / 15,000,000 × 1,000,000 = $0.213/M tokens
-Input:      ($3.20 × 0.5) / 11,200,000 × 1,000,000 = $0.143/M effective input tokens
-Output:     ($3.20 × 0.5) / 3,000,000 × 1,000,000 = $0.533/M output tokens
+Blended:              $3.20 / 15,000,000 × 1,000,000 = $0.213/M tokens
+Input (delivered):    ($3.20 × 0.5) / 12,000,000 × 1,000,000 = $0.133/M prompt tokens
+Output:               ($3.20 × 0.5) / 3,000,000 × 1,000,000 = $0.533/M output tokens
+Cache savings:        6.7% of prompt tokens served from KV cache
 ```
 
 ## Required [vLLM](https://vllm.ai/) Metrics
@@ -359,8 +378,8 @@ Output:     ($3.20 × 0.5) / 3,000,000 × 1,000,000 = $0.533/M output tokens
 | `vllm:generation_tokens_total` | Token counts, blended cost rate |
 | `vllm:request_prefill_time_seconds_sum` | Compute-time allocation (input/output split) |
 | `vllm:request_time_per_output_token_seconds_sum` | Compute-time allocation (input/output split) |
-| `vllm:prefix_cache_hits_total` | KV cache block correction (optional) |
-| `vllm:cache_config_info` | KV cache block size (from `block_size` label; joined with token metrics) |
+| `vllm:prefix_cache_hits_total` | `cacheSavingsFraction` (token-level counter; optional) |
+| `vllm:cache_config_info` | `prefix_caching_off` detection (from `enable_prefix_caching` label; optional) |
 
 All metrics must carry `model_name` and `namespace` labels. Verify availability:
 
@@ -401,12 +420,13 @@ If the values differ, update the pod label on the vLLM deployment to match.
 kubectl exec -n <namespace> <vllm-pod> -- curl -s localhost:8000/metrics | grep prefill_time
 ```
 
-### `allocationMethod=compute_time` instead of `compute_time_with_cache_hits`
+### `cacheSavingsFraction` is zero but prefix caching is expected to be active
 
 One of the following:
-- **Prefix caching is disabled** on this vLLM instance (`enable_prefix_caching=false` in `vllm:cache_config_info`) — in this case the method will be `prefix_caching_off`, which is accurate and expected
+- **Prefix caching is disabled** on this vLLM instance (`enable_prefix_caching=false` in `vllm:cache_config_info`) — `allocationMethod` will be `prefix_caching_off`, which is accurate and expected
 - **No cache hits occurred** in this window despite prefix caching being enabled — normal for low-traffic or first-request windows
-- **`vllm:cache_config_info` metric is missing** — check that vLLM is emitting it and that OpenCost can query it via Prometheus. OpenCost logs a warning if the metric exists but the pod-label join fails:
+- **`vllm:prefix_cache_hits_total` metric is missing or zero** — check that vLLM is emitting it. This metric reports cached tokens directly; if unavailable, `cacheSavingsFraction` will be zero.
+- **`vllm:cache_config_info` metric is missing** — this only affects `prefix_caching_off` detection, not `cacheSavingsFraction`. OpenCost logs a warning if the metric exists but the pod-label join fails:
   ```
   InferenceCost: vllm:cache_config_info exists in Prometheus but the join with
   vllm:prompt_tokens_total produced no results — likely a pod-label mismatch

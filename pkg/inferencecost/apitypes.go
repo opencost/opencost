@@ -32,10 +32,19 @@ type InferenceCostResponse struct {
 	OutputCost float64 `json:"outputCost"`
 
 	// Per-million cost metrics for differentiated pricing.
-	// InputCostPerMillionTokens uses EffectiveInputTokens as the denominator
-	// (cache-corrected when KV cache block size is configured).
+	// InputCostPerMillionTokens uses PromptTokens as the denominator (all delivered
+	// input tokens, including those served from KV cache).
 	InputCostPerMillionTokens  float64 `json:"inputCostPerMillionTokens"`
 	OutputCostPerMillionTokens float64 `json:"outputCostPerMillionTokens"`
+
+	// CacheSavingsFraction is the fraction of prompt tokens served from the KV
+	// cache (CachedTokens / PromptTokens, range 0–1). Zero when prefix caching is
+	// disabled (see allocationMethod) or when no cache hits occurred in the window.
+	CacheSavingsFraction float64 `json:"cacheSavingsFraction"`
+
+	// cachedTokens is carried for aggregation recomputation of CacheSavingsFraction
+	// and is not included in the JSON output.
+	cachedTokens float64
 
 	// AllocationMethod records which input/output cost-split path was used.
 	// Informational; omitted when empty.
@@ -83,10 +92,6 @@ func newInferenceCostResponse(ic *InferenceCost, basis CostBasis, win opencost.W
 	cpmt := ic.CostPerMillionTokens[basis]
 	icpmt := ic.InputCostPerMillionTokens[basis]
 	ocpmt := ic.OutputCostPerMillionTokens[basis]
-
-	// Use stored dollar amounts directly — these are set by the calculator and
-	// remain correct even when EffectiveInputTokens is zero (100% cache hit rate),
-	// where back-computing from the per-million rate would incorrectly yield zero.
 	inputCost := ic.InputCost[basis]
 	outputCost := ic.OutputCost[basis]
 
@@ -112,6 +117,8 @@ func newInferenceCostResponse(ic *InferenceCost, basis CostBasis, win opencost.W
 		OutputCost:                 outputCost,
 		InputCostPerMillionTokens:  icpmt,
 		OutputCostPerMillionTokens: ocpmt,
+		CacheSavingsFraction:       ic.CacheSavingsFraction,
+		cachedTokens:               ic.CachedTokens,
 		AllocationMethod:           ic.AllocationMethod,
 	}
 }

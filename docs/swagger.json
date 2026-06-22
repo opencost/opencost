@@ -573,16 +573,20 @@
           },
           "inputCostPerMillionTokens": {
             "type": "number",
-            "description": "Infrastructure cost per 1M effective input tokens. When KV cache block size is configured, cached tokens are excluded from the denominator, in USD."
+            "description": "Infrastructure cost per 1M delivered input (prompt) tokens, in USD. Uses promptTokens as the denominator so the rate is meaningful regardless of KV cache hit rate. See cacheSavingsFraction for cache utilization."
           },
           "outputCostPerMillionTokens": {
             "type": "number",
             "description": "Infrastructure cost per 1M output (generation) tokens, in USD."
           },
+          "cacheSavingsFraction": {
+            "type": "number",
+            "description": "Fraction of prompt tokens served from the KV cache (range 0–1). Sourced from vllm:prefix_cache_hits_total, which reports cached tokens directly. Zero when prefix caching is disabled (see allocationMethod), when no cache hits occurred in the window, or when the metric is unavailable."
+          },
           "allocationMethod": {
             "type": "string",
-            "enum": ["compute_time_with_cache_hits", "prefix_caching_off", "compute_time", "multiplier"],
-            "description": "Method used to split costs between input and output tokens. `compute_time_with_cache_hits`: split by vLLM prefill/decode time with KV cache correction applied (most accurate). `prefix_caching_off`: split by vLLM prefill/decode time when prefix caching is explicitly disabled. `compute_time`: split by vLLM prefill/decode time without cache correction (used when block size is unknown or no cache hits in window). `multiplier`: fixed output/input ratio (fallback when timing metrics are unavailable)."
+            "enum": ["compute_time", "prefix_caching_off", "multiplier"],
+            "description": "Method used to split costs between input and output tokens. `compute_time`: split proportionally by vLLM prefill/decode time; KV cache savings are reflected in cacheSavingsFraction. `prefix_caching_off`: same time-based split but prefix caching is explicitly disabled on the vLLM instance — cacheSavingsFraction will be zero by configuration. `multiplier`: fixed output/input ratio (fallback when timing metrics are unavailable)."
           }
         }
       },

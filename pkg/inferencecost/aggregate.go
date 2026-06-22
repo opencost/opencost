@@ -78,6 +78,7 @@ func addResponse(dst, src *InferenceCostResponse) {
 	dst.TotalTokens += src.TotalTokens
 	dst.InputCost += src.InputCost
 	dst.OutputCost += src.OutputCost
+	dst.cachedTokens += src.cachedTokens
 
 	// Recompute blended rate from accumulated totals.
 	if dst.TotalTokens > 0 {
@@ -86,15 +87,12 @@ func addResponse(dst, src *InferenceCostResponse) {
 		dst.CostPerMillionTokens = 0
 	}
 
-	// Recompute input rate from accumulated InputCost.
-	// The denominator is approximated from the accumulated PromptTokens
-	// (we don't store EffectiveInputTokens on the response; PromptTokens is
-	// a reasonable approximation for aggregated views and matches the
-	// blended-rate denominator convention).
 	if dst.PromptTokens > 0 {
 		dst.InputCostPerMillionTokens = dst.InputCost / dst.PromptTokens * 1_000_000
+		dst.CacheSavingsFraction = dst.cachedTokens / dst.PromptTokens
 	} else {
 		dst.InputCostPerMillionTokens = 0
+		dst.CacheSavingsFraction = 0
 	}
 
 	if dst.GenerationTokens > 0 {

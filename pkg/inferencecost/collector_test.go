@@ -156,7 +156,7 @@ func TestCollector_UsageCost_ExcludesIdle(t *testing.T) {
 }
 
 // TestCollector_CombineMetrics_DerivesCachedTokens verifies that combineMetrics
-// sets CachedTokens and EffectiveInputTokens correctly from CacheHitBlocks * BlockSize.
+// passes CachedTokens through directly and derives EffectiveInputTokens correctly.
 func TestCollector_CombineMetrics_DerivesCachedTokens(t *testing.T) {
 	cfg := baseConfig()
 
@@ -167,11 +167,12 @@ func TestCollector_CombineMetrics_DerivesCachedTokens(t *testing.T) {
 	genTokens := map[string]float64{"llama-3:llm-prod": 10}
 	inputTime := map[string]float64{}
 	outputTime := map[string]float64{}
-	cacheHits := map[string]float64{"llama-3:llm-prod": 2} // 2 blocks × 4 = 8 cached tokens
-	cacheConfigs := map[string]*cacheConfig{"llama-3:llm-prod": {blockSize: 4, prefixCachingEnabled: true}}
+	// vllm:prefix_cache_hits_total reports tokens directly (not blocks).
+	cachedTokens := map[string]float64{"llama-3:llm-prod": 8}
+	cacheConfigs := map[string]*cacheConfig{"llama-3:llm-prod": {prefixCachingEnabled: true}}
 
 	c := &Collector{config: cfg}
-	results := c.combineMetrics(allocCosts, promptTokens, genTokens, inputTime, outputTime, cacheHits, cacheConfigs, time.Now())
+	results := c.combineMetrics(allocCosts, promptTokens, genTokens, inputTime, outputTime, cachedTokens, cacheConfigs, time.Now())
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -195,9 +196,9 @@ func TestCollector_CombineMetrics_NoCacheHits_FallsBackToPromptTokens(t *testing
 	}
 	promptTokens := map[string]float64{"llama-3:llm-prod": 1000}
 	genTokens := map[string]float64{"llama-3:llm-prod": 500}
-	// cacheHits map is empty — simulates metric being unavailable
+	// cachedTokens map is empty — simulates metric being unavailable
 	cacheHits := map[string]float64{}
-	cacheConfigs := map[string]*cacheConfig{"llama-3:llm-prod": {blockSize: 16, prefixCachingEnabled: true}}
+	cacheConfigs := map[string]*cacheConfig{"llama-3:llm-prod": {prefixCachingEnabled: true}}
 
 	c := &Collector{config: cfg}
 	results := c.combineMetrics(allocCosts, promptTokens, genTokens,
@@ -395,7 +396,7 @@ func TestCollector_CombineMetrics_IncludesTimingOnlyKeysInUnion(t *testing.T) {
 	if !floatEq(m.OutputProcessingTime, 40) {
 		t.Errorf("OutputProcessingTime want 40 got %f", m.OutputProcessingTime)
 	}
-	if !floatEq(m.CacheHitBlocks, 2) {
-		t.Errorf("CacheHitBlocks want 2 got %f", m.CacheHitBlocks)
+	if !floatEq(m.CachedTokens, 2) {
+		t.Errorf("CachedTokens want 2 got %f", m.CachedTokens)
 	}
 }

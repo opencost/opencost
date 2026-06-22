@@ -18,6 +18,7 @@ func newTestExporter(t *testing.T) (*Exporter, *prometheus.Registry) {
 	for _, c := range []prometheus.Collector{
 		e.totalCost,
 		e.costPerMillionTokens,
+		e.cacheSavingsFraction,
 	} {
 		if err := reg.Register(c); err != nil {
 			t.Fatalf("failed to register collector: %v", err)
@@ -73,6 +74,7 @@ func TestExporter_MetricNames(t *testing.T) {
 	required := []string{
 		"llm_total_cost",
 		"llm_cost_per_million_tokens",
+		"llm_cache_savings_fraction",
 	}
 	for _, want := range required {
 		found := false
@@ -141,7 +143,6 @@ func TestExporter_TwoCostBasisSeriesPerModel(t *testing.T) {
 // llm_cost_per_million_tokens has the correct phase labels and allocation_method.
 func TestExporter_PhaseLabelsAndAllocationMethod(t *testing.T) {
 	for _, method := range []AllocationMethod{
-		AllocationMethodComputeTimeWithCacheHits,
 		AllocationMethodComputeTime,
 		AllocationMethodPrefixCachingOff,
 		AllocationMethodMultiplier,
@@ -205,6 +206,30 @@ func TestExporter_HelpStringsContainReconciliationNote(t *testing.T) {
 			t.Errorf("%s Help string should mention reconciliation, got: %q", name, help)
 		}
 	}
+}
+
+// TestExporter_CacheSavingsFraction verifies that llm_cache_savings_fraction is exported correctly.
+func TestExporter_CacheSavingsFraction(t *testing.T) {
+	e, reg := newTestExporter(t)
+	ic := sampleMetric(AllocationMethodComputeTime)
+	ic.CacheSavingsFraction = 0.4
+	e.Export([]*InferenceCost{ic})
+
+	mfs, _ := reg.Gather()
+	for _, mf := range mfs {
+		if mf.GetName() != "llm_cache_savings_fraction" {
+			continue
+		}
+		if len(mf.GetMetric()) != 1 {
+			t.Fatalf("expected 1 series for llm_cache_savings_fraction, got %d", len(mf.GetMetric()))
+		}
+		val := mf.GetMetric()[0].GetGauge().GetValue()
+		if !floatEq(val, 0.4) {
+			t.Errorf("llm_cache_savings_fraction want 0.4 got %f", val)
+		}
+		return
+	}
+	t.Error("llm_cache_savings_fraction metric not found")
 }
 
 // TestExporter_Values verifies that exported gauge values match InferenceCost fields.
