@@ -484,9 +484,9 @@ func TestNodeCostAnnotations(t *testing.T) {
 					"topology.kubernetes.io/region": "regionone",
 				},
 				Annotations: map[string]string{
-					"opencost.io/node-cpu-hourly-cost": "111",
-					"opencost.io/node-ram-hourly-cost": "222",
-					"opencost.io/node-gpu-hourly-cost": "333",
+					annotationNodeCPUCost: "111",
+					annotationNodeRAMCost: "222",
+					annotationNodeGPUCost: "333",
 				},
 			},
 		}),
