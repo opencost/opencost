@@ -8,10 +8,8 @@ import (
 	export "github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	"github.com/opencost/opencost/core/pkg/exporter/validator"
-	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/storage"
-	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/core/pkg/util/typeutil"
 )
 
@@ -52,8 +50,12 @@ func NewComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], S validat
 	config ComputeExporterConfig,
 	store storage.Storage,
 ) (export.ComputeExporter[T], error) {
+	pipelineName := pipelines.NameFor[T]()
+	if pipelineName == "" {
+		return nil, fmt.Errorf("failed to extract pipeline name for type: %s", typeutil.TypeOf[T]())
+	}
 
-	pathing, err := GetExporterPathing[T, U, S](config)
+	pathing, err := pathing.NewDefaultStoragePathFormatter(config.AppName, config.ClusterUID, config.ClusterName, pipelineName, &config.Resolution)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create path formatter: %w", err)
 	}
@@ -91,30 +93,4 @@ func NewComputePipelineExportController[T any, U export.BinaryMarshalerPtr[T], S
 	}
 
 	return export.NewComputeExportController(source, exporter, config.Resolution), nil
-}
-
-func GetExporterPathing[T any, U export.BinaryMarshalerPtr[T], S validator.SetConstraint[T]](
-	config ComputeExporterConfig,
-) (pathing.StoragePathFormatter[opencost.Window], error) {
-	pipelineName := pipelines.NameFor[T]()
-	if pipelineName == "" {
-		return nil, fmt.Errorf("failed to extract pipeline name for type: %s", typeutil.TypeOf[T]())
-	}
-	res := timeutil.FormatStoreResolution(config.Resolution)
-
-	var pathFormatter pathing.StoragePathFormatter[opencost.Window]
-	var err error
-
-	switch pipelineName {
-	case pipelines.KubeModelPipelineName:
-		pathFormatter, err = pathing.NewKubeModelStoragePathFormatter(config.AppName, config.ClusterUID, res)
-	default:
-		// Use ClusterName for "clusterId" here to maintain legacy pattern
-		pathFormatter, err = pathing.NewDefaultStoragePathFormatter(config.ClusterName, pipelineName, &config.Resolution)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create path formatter[%s]: %w", pipelineName, err)
-	}
-	return pathFormatter, nil
 }
