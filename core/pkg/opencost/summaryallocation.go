@@ -1650,34 +1650,28 @@ func (sasr *SummaryAllocationSetRange) InsertExternalAllocations(that *Allocatio
 		return nil
 	}
 
-	var err error
 	for _, thatAS := range that.Allocations {
-		if thatAS == nil || err != nil {
+		if thatAS == nil {
 			continue
 		}
 
 		// Find matching AllocationSet in asr
 		i, ok := keys[thatAS.Window.String()]
 		if !ok {
-			err = fmt.Errorf("cannot merge AllocationSet into window that does not exist: %s", thatAS.Window.String())
-			continue
+			return fmt.Errorf("cannot merge AllocationSet into window that does not exist: %s", thatAS.Window.String())
 		}
 		sas := sasr.SummaryAllocationSets[i]
 
 		// Insert each Allocation from the given set
 		for _, alloc := range thatAS.Allocations {
 			externalSA := NewSummaryAllocation(alloc, true, true)
-			// This error will be returned below
-			// TODO:CLEANUP should Each have early-error-return functionality?
-			err = sas.Insert(externalSA)
-			if err != nil {
+			if err := sas.Insert(externalSA); err != nil {
 				return err
 			}
 		}
 	}
 
-	// err might be nil
-	return err
+	return nil
 }
 
 func (sasr *SummaryAllocationSetRange) TotalCost() float64 {
