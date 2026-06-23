@@ -172,7 +172,7 @@ func TestExporters(t *testing.T) {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
 
-		allocExporter, err := NewComputePipelineExporter[opencost.AllocationSet](TestClusterName, TestResolution, memStore)
+		allocExporter, err := NewComputePipelineExporter[opencost.AllocationSet](ComputeExporterConfig{AppName: TestAppName, ClusterUID: TestClusterID, ClusterName: TestClusterName, Resolution: TestResolution}, memStore)
 		if err != nil {
 			t.Fatalf("failed to create allocation exporter: %v", err)
 		}
@@ -201,7 +201,7 @@ func TestExporters(t *testing.T) {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
 
-		assetExporter, err := NewComputePipelineExporter[opencost.AssetSet](TestClusterName, TestResolution, memStore)
+		assetExporter, err := NewComputePipelineExporter[opencost.AssetSet](ComputeExporterConfig{AppName: TestAppName, ClusterUID: TestClusterID, ClusterName: TestClusterName, Resolution: TestResolution}, memStore)
 		if err != nil {
 			t.Fatalf("failed to create allocation exporter: %v", err)
 		}
@@ -230,7 +230,7 @@ func TestExporters(t *testing.T) {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
 
-		netInsightExporter, err := NewComputePipelineExporter[opencost.NetworkInsightSet](TestClusterName, TestResolution, memStore)
+		netInsightExporter, err := NewComputePipelineExporter[opencost.NetworkInsightSet](ComputeExporterConfig{AppName: TestAppName, ClusterUID: TestClusterID, ClusterName: TestClusterName, Resolution: TestResolution}, memStore)
 		if err != nil {
 			t.Fatalf("failed to create net insights exporter: %v", err)
 		}
@@ -260,7 +260,7 @@ func TestExporters(t *testing.T) {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
 
-		kubeModelExporter, err := NewKubeModelComputePipelineExporter[kubemodel.KubeModelSet](TestAppName, TestClusterID, TestResolution, memStore)
+		kubeModelExporter, err := NewComputePipelineExporter[kubemodel.KubeModelSet](ComputeExporterConfig{AppName: TestAppName, ClusterUID: TestClusterID, Resolution: TestResolution}, memStore)
 		if err != nil {
 			t.Fatalf("failed to create KubeModel exporter: %v", err)
 		}
@@ -278,20 +278,20 @@ func TestExporters(t *testing.T) {
 			t.Fatalf("failed to export KubeModel data: %v", err)
 		}
 
-		validateFileCreation[kubemodel.KubeModelSet](t, memStore, p, exporter.BingenExt, start, end)
+		validateFileCreation[kubemodel.KubeModelSet](t, memStore, p, "", start, end)
 	})
 
 	t.Run("unknown exporter", func(t *testing.T) {
 		memStore := storage.NewMemoryStorage()
 
 		// Invalid pipeline
-		_, err := NewComputePipelineExporter[UnknownSet](TestClusterName, TestResolution, memStore)
+		_, err := NewComputePipelineExporter[UnknownSet](ComputeExporterConfig{ClusterName: TestClusterName, Resolution: TestResolution}, memStore)
 		if err == nil {
 			t.Fatalf("expected error creating unknown pipeline exporter, got nil")
 		}
 
 		// Invalid cluster id
-		_, err = NewComputePipelineExporter[opencost.AllocationSet]("", TestResolution, memStore)
+		_, err = NewComputePipelineExporter[opencost.AllocationSet](ComputeExporterConfig{ClusterName: "", Resolution: TestResolution}, memStore)
 		if err == nil {
 			t.Fatalf("expected error creating allocation pipeline exporter with empty cluster id, got nil")
 		}
@@ -381,7 +381,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSource()
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestAppName, TestClusterID, TestClusterName))
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestAppName, TestClusterID, TestClusterName, true, false))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 2 {
 			t.Fatalf("expected 2 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))
@@ -399,7 +399,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSourceWith(48 * time.Hour)
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestAppName, TestClusterID, TestClusterName))
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig(TestAppName, TestClusterID, TestClusterName, true, true))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 0 {
 			t.Fatalf("expected 0 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))
@@ -416,7 +416,7 @@ func TestPipelineExportControllers(t *testing.T) {
 		pipelineComputeSource := NewMockPipelineComputeSource()
 		memStore := storage.NewMemoryStorage()
 
-		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig("", "", ""))
+		exportControllers := NewPipelineExportControllers(memStore, pipelineComputeSource, NewPipelinesExportConfig("", "", "", false, false))
 
 		if len(exportControllers.AllocationExportController.Resolutions()) != 0 {
 			t.Fatalf("expected 0 allocation resolutions, got %d", len(exportControllers.AllocationExportController.Resolutions()))

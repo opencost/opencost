@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/env"
 	ocexporter "github.com/opencost/opencost/core/pkg/opencost/exporter"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
 var (
-	exportInterval     = 5 * time.Minute
-	janitorInterval    = timeutil.Day
-	defaultResolutions = []time.Duration{time.Hour, timeutil.Day}
+	exportInterval  = 5 * time.Minute
+	janitorInterval = timeutil.Day
 )
 
 // Pipeline manages the KubeModel export controller group and the retention janitor.
@@ -30,11 +30,7 @@ func NewPipeline(appName, clusterUID string, store storage.Storage, cm ocexporte
 		return nil, fmt.Errorf("NewPipeline: clusterUID cannot be empty")
 	}
 
-	config := ocexporter.PipelinesExportConfig{
-		AppName:                      appName,
-		ClusterUID:                   clusterUID,
-		KubeModelPipelineResolutions: defaultResolutions,
-	}
+	config := ocexporter.NewPipelinesExportConfig(appName, clusterUID, "", false, env.GetExportKubeModel())
 
 	controllers := ocexporter.NewPipelineExportControllers(store, cm, config)
 
