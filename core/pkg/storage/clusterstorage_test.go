@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"io"
@@ -169,5 +170,116 @@ func TestClusterStorage_ReadStream(t *testing.T) {
 
 	if string(data) != string(expected) {
 		t.Fatalf("stream contents mismatch: got %q want %q", string(data), string(expected))
+	}
+}
+
+func TestClusterStorage_WriteStream(t *testing.T) {
+	writeHandler := func(captured *[]byte) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPut || r.URL.Path != "/clusterStorage/write" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var err error
+			*captured, err = io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}
+	}
+
+	t.Run("single chunk reaches server and Close returns nil", func(t *testing.T) {
+		want := []byte("hello from stream")
+		var received []byte
+
+		srv := httptest.NewServer(writeHandler(&received))
+		defer srv.Close()
+
+		cs := newClusterStorageFromURL(t, srv.URL)
+
+		w, err := cs.WriteStream("some/path")
+		if err != nil {
+			t.Fatalf("WriteStream: %s", err)
+		}
+		if _, err = w.Write(want); err != nil {
+			_ = w.Close()
+			t.Fatalf("Write: %s", err)
+		}
+		if err = w.Close(); err != nil {
+			t.Fatalf("Close: %s", err)
+		}
+
+		// Checking received immediately after Close() proves it is synchronous.
+		if !bytes.Equal(received, want) {
+			t.Errorf("body mismatch: got %q, want %q", received, want)
+		}
+	})
+
+	t.Run("multi-chunk write concatenates correctly", func(t *testing.T) {
+		chunks := [][]byte{[]byte("alpha"), []byte("beta"), []byte("gamma")}
+		want := bytes.Join(chunks, nil)
+		var received []byte
+
+		srv := httptest.NewServer(writeHandler(&received))
+		defer srv.Close()
+
+		cs := newClusterStorageFromURL(t, srv.URL)
+
+		w, err := cs.WriteStream("some/path")
+		if err != nil {
+			t.Fatalf("WriteStream: %s", err)
+		}
+		for _, chunk := range chunks {
+			if _, err = w.Write(chunk); err != nil {
+				_ = w.Close()
+				t.Fatalf("Write: %s", err)
+			}
+		}
+		if err = w.Close(); err != nil {
+			t.Fatalf("Close: %s", err)
+		}
+
+		if !bytes.Equal(received, want) {
+			t.Errorf("body mismatch: got %q, want %q", received, want)
+		}
+	})
+
+	t.Run("server error propagates through Close", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = io.Copy(io.Discard, r.Body)
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		cs := newClusterStorageFromURL(t, srv.URL)
+
+		w, err := cs.WriteStream("some/path")
+		if err != nil {
+			t.Fatalf("WriteStream: %s", err)
+		}
+		_, _ = w.Write([]byte("data"))
+		if err = w.Close(); err == nil {
+			t.Fatalf("expected error from Close on server error, got nil")
+		}
+	})
+}
+
+// newClusterStorageFromURL constructs a ClusterStorage pointed at the given test server URL.
+func newClusterStorageFromURL(t *testing.T, rawURL string) *ClusterStorage {
+	t.Helper()
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("parsing test server URL: %s", err)
+	}
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		t.Fatalf("parsing test server port: %s", err)
+	}
+	return &ClusterStorage{
+		client: &http.Client{},
+		host:   u.Hostname(),
+		port:   port,
 	}
 }

@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"io"
 	"testing"
 	"time"
 
@@ -138,6 +139,10 @@ type UnknownSet struct{}
 func (u *UnknownSet) MarshalBinary() ([]byte, error) {
 	return []byte{}, nil
 }
+func (u *UnknownSet) MarshalBinaryTo(writer io.Writer) error {
+	return nil
+}
+
 func (u *UnknownSet) UnmarshalBinary(data []byte) error {
 	return nil
 }
