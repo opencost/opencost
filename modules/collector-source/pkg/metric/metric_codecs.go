@@ -12,11 +12,13 @@
 package metric
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"iter"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -28,16 +30,12 @@ import (
 const (
 	// GeneratorPackageName is the package the generator is targetting
 	GeneratorPackageName string = "metric"
-)
+	StringHeaderSize            = int64(unsafe.Sizeof(""))
 
-// BinaryTags represent the formatting tag used for specific optimization features
-const (
 	// BinaryTagStringTable is written and/or read prior to the existence of a string
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
-)
 
-const (
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 1
 )
@@ -60,14 +58,19 @@ type BingenConfiguration struct {
 
 	// FileBackedStringTableDir is the directory to write the string table files for reading.
 	FileBackedStringTableDir string
+
+	// FileBackedStringTableMemoMaxBytes limits in-memory memoization for file-backed table lookups.
+	// 0 disables memoization.
+	FileBackedStringTableMemoMaxBytes int64
 }
 
 // DefaultBingenConfiguration creates the default implementation of the bingen configuration
 // and returns it.
 func DefaultBingenConfiguration() *BingenConfiguration {
 	return &BingenConfiguration{
-		FileBackedStringTableEnabled: false,
-		FileBackedStringTableDir:     os.TempDir(),
+		FileBackedStringTableEnabled:      false,
+		FileBackedStringTableDir:          os.TempDir(),
+		FileBackedStringTableMemoMaxBytes: 0,
 	}
 }
 
@@ -99,12 +102,19 @@ func BingenFileBackedStringTableDir() string {
 	return bingenConfig.FileBackedStringTableDir
 }
 
+// BingenFileBackedStringTableMemoMaxBytes returns the maximum bytes used for file-backed memo cache.
+func BingenFileBackedStringTableMemoMaxBytes() int64 {
+	bingenConfigLock.RLock()
+	defer bingenConfigLock.RUnlock()
+
+	return bingenConfig.FileBackedStringTableMemoMaxBytes
+}
+
 //--------------------------------------------------------------------------
 //  Type Map
 //--------------------------------------------------------------------------
 
-// Generated type map for resolving interface implementations to
-// to concrete types
+// Generated type map for resolving interface implementations to to concrete types
 var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"Update":    reflect.TypeFor[Update](),
 	"UpdateSet": reflect.TypeFor[UpdateSet](),
@@ -134,21 +144,6 @@ func isReaderBinaryTag(buff *util.Buffer, tag string) bool {
 	}
 
 	return string(data[:len(tag)]) == tag
-}
-
-// appendBytes combines a and b into a new byte array
-func appendBytes(a []byte, b []byte) []byte {
-	al := len(a)
-	bl := len(b)
-	tl := al + bl
-
-	// allocate a new byte array for the combined
-	// use native copy for speedy byte copying
-	result := make([]byte, tl)
-	copy(result, a)
-	copy(result[al:], b)
-
-	return result
 }
 
 // typeToString determines the basic properties of the type, the qualifier, package path, and
@@ -263,33 +258,33 @@ type BingenFieldInfo struct {
 //  String Table Writer
 //--------------------------------------------------------------------------
 
-// StringTableWriter maps strings to specific indices for encoding
-type StringTableWriter struct {
-	l       sync.Mutex
+// StringTableWriter is the interface used to write the string table for encoding.
+type StringTableWriter interface {
+	// AddOrGet adds a string to the string table and returns the new index or
+	// an existing index.
+	AddOrGet(s string) int
+
+	// WriteTo will write the StringTable data (with the header) to the provided
+	// Buffer starting a the current write position
+	WriteTo(b *util.Buffer)
+}
+
+// IndexedStringTableWriter maps strings to specific indices for encoding
+type IndexedStringTableWriter struct {
 	indices map[string]int
 	next    int
 }
 
-// NewStringTableWriter Creates a new StringTableWriter instance with provided contents
-func NewStringTableWriter(contents ...string) *StringTableWriter {
-	st := &StringTableWriter{
-		indices: make(map[string]int, len(contents)),
-		next:    len(contents),
+// NewIndexedStringTableWriter Creates a new IndexedStringTableWriter instance.
+func NewIndexedStringTableWriter() *IndexedStringTableWriter {
+	return &IndexedStringTableWriter{
+		indices: make(map[string]int),
+		next:    0,
 	}
-
-	for i, entry := range contents {
-		st.indices[entry] = i
-	}
-
-	return st
 }
 
-// AddOrGet atomically retrieves a string entry's index if it exist. Otherwise, it will
-// add the entry and return the index.
-func (st *StringTableWriter) AddOrGet(s string) int {
-	st.l.Lock()
-	defer st.l.Unlock()
-
+// AddOrGet retrieves a string entry's index if it exists. Otherwise, it adds the entry and returns the new index.
+func (st *IndexedStringTableWriter) AddOrGet(s string) int {
 	if ind, ok := st.indices[s]; ok {
 		return ind
 	}
@@ -302,10 +297,7 @@ func (st *StringTableWriter) AddOrGet(s string) int {
 }
 
 // ToSlice Converts the contents to a string array for encoding.
-func (st *StringTableWriter) ToSlice() []string {
-	st.l.Lock()
-	defer st.l.Unlock()
-
+func (st *IndexedStringTableWriter) ToSlice() []string {
 	if st.next == 0 {
 		return []string{}
 	}
@@ -318,18 +310,95 @@ func (st *StringTableWriter) ToSlice() []string {
 }
 
 // ToBytes Converts the contents to a binary encoded representation
-func (st *StringTableWriter) ToBytes() []byte {
+func (st *IndexedStringTableWriter) ToBytes() []byte {
 	buff := util.NewBuffer()
-	buff.WriteBytes([]byte(BinaryTagStringTable)) // bingen table header
+	st.WriteTo(buff)
+	return buff.Bytes()
+}
 
+// WriteTo will write the StringTable data (with the header) to the provided
+// Buffer starting a the current write position
+func (st *IndexedStringTableWriter) WriteTo(buff *util.Buffer) {
+	// bingen string table header
+	buff.WriteBytes([]byte(BinaryTagStringTable))
+
+	// get an ordered string slice to encode
 	strs := st.ToSlice()
 
 	buff.WriteInt(len(strs)) // table length
 	for _, s := range strs {
 		buff.WriteString(s)
 	}
+}
 
-	return buff.Bytes()
+type indexed struct {
+	s     string
+	count uint64
+	index int
+}
+
+func newIndexed(s string, index int) *indexed {
+	return &indexed{
+		s:     s,
+		count: 1,
+		index: index,
+	}
+}
+
+// PrepassStringTableWriter maps strings to specific indices for encoding, sorted by the total
+// number of times they're accessed
+type PrepassStringTableWriter struct {
+	prepass map[string]*indexed
+	next    int
+}
+
+// NewPrepassStringTableWriter creates a new PrepassStringTableWriter instance.
+func NewPrepassStringTableWriter() *PrepassStringTableWriter {
+	return &PrepassStringTableWriter{
+		prepass: make(map[string]*indexed),
+	}
+}
+
+// AddOrGet retrieves a string entry's index if it exists. Otherwise, it adds the entry and returns the new index.
+func (st *PrepassStringTableWriter) AddOrGet(s string) int {
+	if ind, ok := st.prepass[s]; ok {
+		ind.count += 1
+		return ind.index
+	}
+
+	current := st.next
+	st.next++
+
+	st.prepass[s] = newIndexed(s, current)
+	return current
+}
+
+// WriteSortedTo sorts the string table by the number of accesses, writes the table in that
+// order, then returns a new StringTableWriter implementation that can be used for the new
+// sorted order index lookups.
+func (st *PrepassStringTableWriter) WriteSortedTo(buff *util.Buffer) StringTableWriter {
+	sl := make([]*indexed, st.next)
+	for _, ind := range st.prepass {
+		sl[ind.index] = ind
+	}
+
+	slices.SortFunc(sl, func(a *indexed, b *indexed) int {
+		return -cmp.Compare(a.count, b.count)
+	})
+
+	sti := NewIndexedStringTableWriter()
+	for _, ind := range sl {
+		sti.AddOrGet(ind.s)
+	}
+
+	sti.WriteTo(buff)
+	return sti
+}
+
+// WriteTo will write the StringTable data (with the header) to the provided
+// Buffer starting a the current write position
+func (st *PrepassStringTableWriter) WriteTo(buff *util.Buffer) {
+	panic("Prepass StringTableWriter cannot write directly")
 }
 
 //--------------------------------------------------------------------------
@@ -350,7 +419,7 @@ type StringTableReader interface {
 
 // SliceStringTableReader is a basic pre-loaded []string that provides index-based access.
 // The cost of this implementation is holding all strings in memory, which provides faster
-// lookup performance for memory usage.
+// lookup performance at the expense of memory usage.
 type SliceStringTableReader struct {
 	table []string
 }
@@ -411,11 +480,12 @@ type fileStringRef struct {
 type FileStringTableReader struct {
 	f    *os.File
 	refs []fileStringRef
+	memo []string
 }
 
 // NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
 // and appends each payload to a new temp file. It does not retain full strings in memory.
-func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableReader {
+func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string, memoMaxBytes int64) StringTableReader {
 	// helper func to cast a string in-place to a byte slice.
 	// NOTE: Return value is READ-ONLY. DO NOT MODIFY!
 	byteSliceFor := func(s string) []byte {
@@ -469,9 +539,40 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 		}
 	}
 
+	var memo []string
+
+	// Pre-load cache with strings up to memoMaxBytes, respecting string boundaries
+	if memoMaxBytes > 0 && len(refs) > 0 {
+		memo = make([]string, len(refs))
+		var cumulativeSize int64
+		for i, ref := range refs {
+			// Check if adding this string would exceed the limit
+			if cumulativeSize+int64(ref.length)+StringHeaderSize > memoMaxBytes {
+				// Would exceed limit, stop here
+				break
+			}
+
+			// Read string from file and cache it
+			if ref.length > 0 {
+				b := make([]byte, ref.length)
+				_, err := f.ReadAt(b, ref.off)
+				if err != nil {
+					// If we can't read, skip this entry but continue
+					continue
+				}
+
+				// Cast the allocated bytes to a string in-place
+				str := unsafe.String(unsafe.SliceData(b), len(b))
+				memo[i] = str
+				cumulativeSize += int64(ref.length) + StringHeaderSize
+			}
+		}
+	}
+
 	return &FileStringTableReader{
 		f:    f,
 		refs: refs,
+		memo: memo,
 	}
 }
 
@@ -489,14 +590,19 @@ func (fstr *FileStringTableReader) At(index int) string {
 		return ""
 	}
 
+	// Check cache first
+	if fstr.memo != nil && len(fstr.memo) > index && fstr.memo[index] != "" {
+		return fstr.memo[index]
+	}
+
+	// Cache miss - read from file
 	b := make([]byte, ref.length)
 	_, err := fstr.f.ReadAt(b, ref.off)
 	if err != nil {
 		return ""
 	}
 
-	// cast the allocated bytes to a string in-place, as we
-	// were the ones that allocated the bytes
+	// Cast the allocated bytes to a string in-place, as we were the ones that allocated the bytes
 	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
@@ -519,6 +625,7 @@ func (fstr *FileStringTableReader) Close() error {
 	err := fstr.f.Close()
 	fstr.f = nil
 	fstr.refs = nil
+	fstr.memo = nil
 
 	if path != "" {
 		_ = os.Remove(path)
@@ -535,7 +642,49 @@ func (fstr *FileStringTableReader) Close() error {
 // and table data
 type EncodingContext struct {
 	Buffer *util.Buffer
-	Table  *StringTableWriter
+	Table  StringTableWriter
+}
+
+// NewEncodingContext creates a new EncodingContext instance that will create a new []byte buffer
+// for writing, and return the context
+func NewEncodingContext(tableWriter StringTableWriter) *EncodingContext {
+	return &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  tableWriter,
+	}
+}
+
+// NewEncodingContextFromWriter creates a new EncodingContext instance that will create a new Buffer
+// from the provided io.Writer and StringTableWriter.
+func NewEncodingContextFromWriter(writer io.Writer, tableWriter StringTableWriter) *EncodingContext {
+	return &EncodingContext{
+		Buffer: util.NewBufferFromWriter(writer),
+		Table:  tableWriter,
+	}
+}
+
+// NewEncodingContextFromBuffer creates a new EncodingContext instance that will leverage an existing
+// Buffer and StringTableWriter.
+func NewEncodingContextFromBuffer(buffer *util.Buffer, tableWriter StringTableWriter) *EncodingContext {
+	return &EncodingContext{
+		Buffer: buffer,
+		Table:  tableWriter,
+	}
+}
+
+// ToBytes returns the encoded string table bytes (if applicable) combined with the encoded buffer bytes. If
+// a string table is being used, the string table bytes will be written first to ensure correct ordering for
+// decoding.
+func (ec *EncodingContext) ToBytes() []byte {
+	encBytes := ec.Buffer.Bytes()
+	if ec.Table != nil {
+		buff := util.NewBuffer()
+		ec.Table.WriteTo(buff)
+		buff.WriteBytes(encBytes)
+		return buff.Bytes()
+	}
+
+	return encBytes
 }
 
 // IsStringTable returns true if the table is available
@@ -583,7 +732,7 @@ func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
 
 		// create correct string table implementation
 		if IsBingenFileBackedStringTableEnabled() {
-			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
+			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir(), BingenFileBackedStringTableMemoMaxBytes())
 		} else {
 			table = NewSliceStringTableReaderFrom(buff)
 		}
@@ -630,18 +779,25 @@ type BinDecoder interface {
 // MarshalBinary serializes the internal properties of this Update instance
 // into a byte array
 func (target *Update) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
-		Table:  nil,
-	}
+	ctx := NewEncodingContext(nil)
 
 	e := target.MarshalBinaryWithContext(ctx)
 	if e != nil {
 		return nil, e
 	}
 
-	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
+	return ctx.ToBytes(), nil
+}
+
+// MarshalBinary serializes the internal properties of this Update instance
+// into an io.Writer.
+func (target *Update) MarshalBinaryTo(writer io.Writer) error {
+	buff := util.NewBufferFromWriter(writer)
+	defer buff.Flush()
+
+	ctx := NewEncodingContextFromBuffer(buff, nil)
+
+	return target.MarshalBinaryWithContext(ctx)
 }
 
 // MarshalBinaryWithContext serializes the internal properties of this Update instance
@@ -653,9 +809,9 @@ func (target *Update) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 			if e, ok := r.(error); ok {
 				err = e
 			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
+				err = fmt.Errorf("unexpected panic: %s", s)
 			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
+				err = fmt.Errorf("unexpected panic: %+v", r)
 			}
 		}
 	}()
@@ -669,6 +825,7 @@ func (target *Update) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 	} else {
 		buff.WriteString(target.Name) // write string
 	}
+
 	if target.Labels == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
@@ -683,17 +840,21 @@ func (target *Update) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 			} else {
 				buff.WriteString(v) // write string
 			}
+
 			if ctx.IsStringTable() {
 				c := ctx.Table.AddOrGet(z)
 				buff.WriteInt(c) // write table index
 			} else {
 				buff.WriteString(z) // write string
 			}
+
 		}
 		// --- [end][write][map](map[string]string) ---
 
 	}
+
 	buff.WriteFloat64(target.Value) // write float64
+
 	if target.AdditionalInfo == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
@@ -708,16 +869,19 @@ func (target *Update) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 			} else {
 				buff.WriteString(vv) // write string
 			}
+
 			if ctx.IsStringTable() {
 				e := ctx.Table.AddOrGet(zz)
 				buff.WriteInt(e) // write table index
 			} else {
 				buff.WriteString(zz) // write string
 			}
+
 		}
 		// --- [end][write][map](map[string]string) ---
 
 	}
+
 	return nil
 }
 
@@ -726,6 +890,7 @@ func (target *Update) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 func (target *Update) UnmarshalBinary(data []byte) error {
 	ctx := NewDecodingContextFromBytes(data)
 	defer ctx.Close()
+
 	err := target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
@@ -739,6 +904,7 @@ func (target *Update) UnmarshalBinary(data []byte) error {
 func (target *Update) UnmarshalBinaryFromReader(reader io.Reader) error {
 	ctx := NewDecodingContextFromReader(reader)
 	defer ctx.Close()
+
 	err := target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
@@ -756,9 +922,9 @@ func (target *Update) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 			if e, ok := r.(error); ok {
 				err = e
 			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
+				err = fmt.Errorf("unexpected panic: %s", s)
 			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
+				err = fmt.Errorf("unexpected panic: %+v", r)
 			}
 		}
 	}()
@@ -767,7 +933,7 @@ func (target *Update) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	version := buff.ReadUInt8()
 
 	if version > DefaultCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling Update. Expected %d or less, got %d", DefaultCodecVersion, version)
+		return fmt.Errorf("Invalid Version Unmarshalling Update. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	var b string
@@ -786,7 +952,7 @@ func (target *Update) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		// --- [begin][read][map](map[string]string) ---
 		e := buff.ReadInt() // map len
 		d := make(map[string]string, e)
-		for i := 0; i < e; i++ {
+		for range e {
 			var v string
 			var g string
 			if ctx.IsStringTable() {
@@ -815,6 +981,7 @@ func (target *Update) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		// --- [end][read][map](map[string]string) ---
 
 	}
+
 	o := buff.ReadFloat64() // read float64
 	target.Value = o
 
@@ -824,7 +991,7 @@ func (target *Update) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		// --- [begin][read][map](map[string]string) ---
 		q := buff.ReadInt() // map len
 		p := make(map[string]string, q)
-		for j := 0; j < q; j++ {
+		for range q {
 			var vv string
 			var s string
 			if ctx.IsStringTable() {
@@ -853,6 +1020,7 @@ func (target *Update) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		// --- [end][read][map](map[string]string) ---
 
 	}
+
 	return nil
 }
 
@@ -863,20 +1031,37 @@ func (target *Update) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 // MarshalBinary serializes the internal properties of this UpdateSet instance
 // into a byte array
 func (target *UpdateSet) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
-		Table:  NewStringTableWriter(),
-	}
+	ctx := NewEncodingContext(NewIndexedStringTableWriter())
 
 	e := target.MarshalBinaryWithContext(ctx)
 	if e != nil {
 		return nil, e
 	}
 
-	encBytes := ctx.Buffer.Bytes()
-	sTableBytes := ctx.Table.ToBytes()
-	merged := appendBytes(sTableBytes, encBytes)
-	return merged, nil
+	return ctx.ToBytes(), nil
+}
+
+// MarshalBinary serializes the internal properties of this UpdateSet instance
+// into an io.Writer.
+func (target *UpdateSet) MarshalBinaryTo(writer io.Writer) error {
+	buff := util.NewBufferFromWriter(writer)
+	defer buff.Flush()
+
+	// run a pre-pass to collect all strings into the string table and discard all writes to the main
+	// buffer. Then, we write the string table, sorted by number of repeated uses (descending), to the
+	// main buffer, and use the resulting table as part of the context for the main pass.
+	prepass := NewPrepassStringTableWriter()
+	prepassCtx := NewEncodingContextFromWriter(io.Discard, prepass)
+
+	e := target.MarshalBinaryWithContext(prepassCtx)
+	if e != nil {
+		return e
+	}
+
+	tableWriter := prepass.WriteSortedTo(buff)
+	ctx := NewEncodingContextFromBuffer(buff, tableWriter)
+
+	return target.MarshalBinaryWithContext(ctx)
 }
 
 // MarshalBinaryWithContext serializes the internal properties of this UpdateSet instance
@@ -888,9 +1073,9 @@ func (target *UpdateSet) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 			if e, ok := r.(error); ok {
 				err = e
 			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
+				err = fmt.Errorf("unexpected panic: %s", s)
 			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
+				err = fmt.Errorf("unexpected panic: %+v", r)
 			}
 		}
 	}()
@@ -913,8 +1098,9 @@ func (target *UpdateSet) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
 		// --- [begin][write][slice]([]Update) ---
-		buff.WriteInt(len(target.Updates)) // array length
-		for i := 0; i < len(target.Updates); i++ {
+		buff.WriteInt(len(target.Updates)) // slice length
+		for i := range target.Updates {
+
 			// --- [begin][write][struct](Update) ---
 			buff.WriteInt(0) // [compatibility, unused]
 			errB := target.Updates[i].MarshalBinaryWithContext(ctx)
@@ -927,6 +1113,7 @@ func (target *UpdateSet) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 		// --- [end][write][slice]([]Update) ---
 
 	}
+
 	return nil
 }
 
@@ -935,6 +1122,7 @@ func (target *UpdateSet) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 func (target *UpdateSet) UnmarshalBinary(data []byte) error {
 	ctx := NewDecodingContextFromBytes(data)
 	defer ctx.Close()
+
 	err := target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
@@ -948,6 +1136,7 @@ func (target *UpdateSet) UnmarshalBinary(data []byte) error {
 func (target *UpdateSet) UnmarshalBinaryFromReader(reader io.Reader) error {
 	ctx := NewDecodingContextFromReader(reader)
 	defer ctx.Close()
+
 	err := target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
@@ -965,9 +1154,9 @@ func (target *UpdateSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 			if e, ok := r.(error); ok {
 				err = e
 			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
+				err = fmt.Errorf("unexpected panic: %s", s)
 			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
+				err = fmt.Errorf("unexpected panic: %+v", r)
 			}
 		}
 	}()
@@ -976,13 +1165,13 @@ func (target *UpdateSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	version := buff.ReadUInt8()
 
 	if version > DefaultCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling UpdateSet. Expected %d or less, got %d", DefaultCodecVersion, version)
+		return fmt.Errorf("Invalid Version Unmarshalling UpdateSet. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	// --- [begin][read][reference](time.Time) ---
-	a := &time.Time{}
-	b := buff.ReadInt()    // byte array length
-	c := buff.ReadBytes(b) // byte array
+	a := new(time.Time)
+	b := buff.ReadInt() // byte array length
+	c := buff.ReadBytes(b)
 	errA := a.UnmarshalBinary(c)
 	if errA != nil {
 		return errA
@@ -994,11 +1183,12 @@ func (target *UpdateSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 		target.Updates = nil
 	} else {
 		// --- [begin][read][slice]([]Update) ---
-		e := buff.ReadInt() // array len
+		e := buff.ReadInt() // slice len
 		d := make([]Update, e)
-		for i := 0; i < e; i++ {
+		for i := range e {
+
 			// --- [begin][read][struct](Update) ---
-			g := &Update{}
+			g := new(Update)
 			buff.ReadInt() // [compatibility, unused]
 			errB := g.UnmarshalBinaryWithContext(ctx)
 			if errB != nil {
@@ -1013,6 +1203,7 @@ func (target *UpdateSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 		// --- [end][read][slice]([]Update) ---
 
 	}
+
 	return nil
 }
 
@@ -1022,7 +1213,7 @@ func (target *UpdateSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 
 // UpdateSetStream is a single use field stream for the contents of an UpdateSet instance. Instead of creating an instance and populating
 // the fields on that instance, we provide a streaming iterator which yields (BingenFieldInfo, *BingenValue) tuples for each
-// stremable element. All slices and maps will be flattened one depth and each element streamed individually.
+// streamable element. All slices and maps will be flattened one depth and each element streamed individually.
 type UpdateSetStream struct {
 	reader io.Reader
 	ctx    *DecodingContext
@@ -1064,7 +1255,7 @@ func (stream *UpdateSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
 		version := buff.ReadUInt8()
 
 		if version > DefaultCodecVersion {
-			stream.err = fmt.Errorf("Invalid Version Unmarshaling UpdateSet. Expected %d or less, got %d", DefaultCodecVersion, version)
+			stream.err = fmt.Errorf("Invalid Version Unmarshalling UpdateSet. Expected %d or less, got %d", DefaultCodecVersion, version)
 			return
 		}
 
@@ -1074,40 +1265,42 @@ func (stream *UpdateSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
 		}
 
 		// --- [begin][read][reference](time.Time) ---
-		b := &time.Time{}
-		c := buff.ReadInt()    // byte array length
-		d := buff.ReadBytes(c) // byte array
+		b := new(time.Time)
+		c := buff.ReadInt() // byte array length
+		d := buff.ReadBytes(c)
 		errA := b.UnmarshalBinary(d)
 		if errA != nil {
 			stream.err = errA
 			return
+
 		}
 		a := *b
 		// --- [end][read][reference](time.Time) ---
-
 		if !yield(fi, singleV(a)) {
 			return
 		}
+
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[[]Update](),
 			Name: "Updates",
 		}
-
 		if buff.ReadUInt8() == uint8(0) {
 			if !yield(fi, nil) {
 				return
 			}
 		} else {
 			// --- [begin][read][streaming-slice]([]Update) ---
-			e := buff.ReadInt() // array len
-			for i := 0; i < e; i++ {
+			e := buff.ReadInt() // slice len
+			for i := range e {
+
 				// --- [begin][read][struct](Update) ---
-				g := &Update{}
+				g := new(Update)
 				buff.ReadInt() // [compatibility, unused]
 				errB := g.UnmarshalBinaryWithContext(ctx)
 				if errB != nil {
 					stream.err = errB
 					return
+
 				}
 				f := *g
 				// --- [end][read][struct](Update) ---
@@ -1119,5 +1312,6 @@ func (stream *UpdateSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
 			// --- [end][read][streaming-slice]([]Update) ---
 
 		}
+
 	}
 }

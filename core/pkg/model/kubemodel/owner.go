@@ -17,7 +17,6 @@ const (
 )
 
 // Owner represents a Kubernetes resource owner (workload controller)
-// @bingen:generate:Owner
 type Owner struct {
 	UID          string            `json:"uid"`
 	NamespaceUID string            `json:"namespaceUid"`
