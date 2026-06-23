@@ -140,7 +140,9 @@ type multiKeyGCPAllocation struct {
 func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
-		return nil, err
+		// loadConfig always returns a non-nil default alongside the error;
+		// propagate both so callers can use defaults instead of panicking.
+		return c, err
 	}
 	if c.Discount == "" {
 		c.Discount = "30%"
@@ -301,7 +303,7 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	if err != nil {
 		log.Errorf("Error opening config: %s", err.Error())
 	}
-	if c.ClusterName != "" {
+	if c != nil && c.ClusterName != "" {
 		attribute = c.ClusterName
 	}
 
@@ -1007,13 +1009,16 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 	parsePagesHelper = func(pageToken string) error {
 		if pageToken == "done" {
 			return nil
-		} else if pageToken != "" {
-			url = url + "&pageToken=" + pageToken
 		}
-		resp, err := httpClient.Get(url)
+		reqURL := url
+		if pageToken != "" {
+			reqURL = url + "&pageToken=" + pageToken
+		}
+		resp, err := httpClient.Get(reqURL)
 		if err != nil {
 			return err
 		}
+		defer resp.Body.Close()
 		page, token, err := gcp.parsePage(resp.Body, inputKeys, pvKeys)
 		if err != nil {
 			return err
@@ -1611,7 +1616,7 @@ func (gcp *GCP) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 		log.Debugf("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 
 		// Add pricing URL, but redact the key (hence, "***"")
-		meta.Source = fmt.Sprintf("Downloaded pricing from %s", gcp.buildBillingAPIURL("***", c.CurrencyCode))
+		meta.Source = fmt.Sprintf("Downloaded pricing from %s", gcp.buildBillingAPIURL("***", c.CurrencyCode).String())
 
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 
@@ -1631,7 +1636,7 @@ func (gcp *GCP) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 			log.Debugf("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 
 			// Add pricing URL, but redact the key (hence, "***"")
-			meta.Source = fmt.Sprintf("Downloaded pricing from %s", gcp.buildBillingAPIURL("***", c.CurrencyCode))
+			meta.Source = fmt.Sprintf("Downloaded pricing from %s", gcp.buildBillingAPIURL("***", c.CurrencyCode).String())
 
 			n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 
