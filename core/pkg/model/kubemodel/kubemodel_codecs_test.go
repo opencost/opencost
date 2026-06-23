@@ -1,6 +1,7 @@
 package kubemodel
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -32,6 +33,20 @@ func TestKubeModelSetCodecRoundTrip(t *testing.T) {
 
 		act := new(KubeModelSet)
 		err = act.UnmarshalBinary(b)
+		require.NoError(t, err)
+
+		KubeModelSetEquals(t, kms, act)
+	})
+
+	t.Run("full KubeModelSet streaming (MarshalBinaryTo/UnmarshalBinaryFromReader)", func(t *testing.T) {
+		kms := NewMockKubeModelSet(start, end)
+
+		var buf bytes.Buffer
+		err := kms.MarshalBinaryTo(&buf)
+		require.NoError(t, err)
+
+		act := new(KubeModelSet)
+		err = act.UnmarshalBinaryFromReader(&buf)
 		require.NoError(t, err)
 
 		KubeModelSetEquals(t, kms, act)

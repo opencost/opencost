@@ -25,7 +25,6 @@ type KubeModelSet struct {
 	Pods                   map[string]*Pod                   `json:"pods"`              // @bingen:field[version=2]
 	Containers             map[string]*Container             `json:"containers"`        // @bingen:field[version=2]
 	DCGMDevices            map[string]*DCGMDevice            `json:"dcgmDevices"`       // @bingen:field[version=2]
-	idx                    *kubeModelSetIndexes              // @bingen:field[ignore]
 }
 
 func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
@@ -55,24 +54,8 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 		ResourceQuotas:         map[string]*ResourceQuota{},
 		Services:               map[string]*Service{},
 		PersistentVolumes:      map[string]*PersistentVolume{},
-		idx:                    newKubeModelSetIndexes(),
 	}
 	return kms
-}
-
-// GetNamespaceByName retrieves a namespace by its name using the index
-func (kms *KubeModelSet) GetNamespaceByName(name string) (*Namespace, bool) {
-	if kms.idx == nil {
-		return nil, false
-	}
-
-	uid, ok := kms.idx.namespaceNameToID[name]
-	if !ok {
-		return nil, false
-	}
-
-	ns, ok := kms.Namespaces[uid]
-	return ns, ok
 }
 
 // IsEmpty returns true if the KubeModelSet is nil, has no cluster, or contains no resources
@@ -115,16 +98,4 @@ func checkWindow(window Window, start, end time.Time) error {
 		)
 	}
 	return nil
-}
-
-type kubeModelSetIndexes struct {
-	namespaceNameToID map[string]string
-	namespaceByName   map[string]*Namespace
-}
-
-func newKubeModelSetIndexes() *kubeModelSetIndexes {
-	return &kubeModelSetIndexes{
-		namespaceNameToID: make(map[string]string),
-		namespaceByName:   make(map[string]*Namespace),
-	}
 }

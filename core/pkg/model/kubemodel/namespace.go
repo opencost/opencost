@@ -47,9 +47,6 @@ func (kms *KubeModelSet) RegisterNamespace(namespace *Namespace) error {
 		}
 
 		kms.Namespaces[namespace.UID] = namespace
-
-		kms.idx.namespaceByName[namespace.Name] = namespace
-
 		kms.Metadata.ObjectCount++
 	}
 
