@@ -1670,6 +1670,9 @@ func (sasr *SummaryAllocationSetRange) InsertExternalAllocations(that *Allocatio
 			// This error will be returned below
 			// TODO:CLEANUP should Each have early-error-return functionality?
 			err = sas.Insert(externalSA)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

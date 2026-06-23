@@ -1126,3 +1126,31 @@ func TestSummaryAllocationSetRange_AccumulateBy_Month(t *testing.T) {
 		}
 	}
 }
+
+func TestSummaryAllocationSetRange_InsertExternalAllocations(t *testing.T) {
+	start := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2021, time.January, 2, 0, 0, 0, 0, time.UTC)
+	day := 24 * time.Hour
+
+	sas1 := NewMockUnitSummaryAllocationSet(start, day)
+	sasr := NewSummaryAllocationSetRange(sas1)
+
+	// Create a valid Allocation
+	a1 := &Allocation{
+		Name:  "container1",
+		Start: start,
+		End:   end,
+	}
+
+	// Create AllocationSetRange with one valid and one nil allocation
+	as1 := NewAllocationSet(start, end)
+	as1.Allocations["valid"] = a1
+	as1.Allocations["invalid"] = nil
+
+	asr := NewAllocationSetRange(as1)
+
+	err := sasr.InsertExternalAllocations(asr)
+	if err == nil {
+		t.Fatalf("expected error from InsertExternalAllocations, got nil")
+	}
+}
