@@ -1352,7 +1352,7 @@ func (aws *AWS) spotPricingFromHistory(k models.Key) (*SpotPriceHistoryEntry, bo
 
 	price, err := aws.SpotPriceHistoryCache.GetSpotPrice(region, instanceType, availabilityZone)
 	if err != nil {
-		log.DedupedWarningf(10, "Failed to get spot price history for instance %s: %s", k.ID(), err.Error())
+		log.Debugf("Failed to get spot price history for instance %s: %s", k.ID(), err.Error())
 		return nil, false
 	}
 	return price, true
@@ -1483,7 +1483,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			UsageType:    PreemptibleType,
 		}, meta, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
-		log.DedupedWarningf(5, "Node %s marked preemptible but no spot feed data available; falling back to other pricing sources", k.ID())
+		log.Debugf("Node %s marked preemptible but no spot feed data available; falling back to other pricing sources", k.ID())
 
 		// Try to get spot pricing from DescribeSpotPriceHistory API
 		if historyEntry, ok := aws.spotPricingFromHistory(k); ok {
@@ -1505,7 +1505,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 
 		if publicPricingFound {
 			// return public price if found
-			log.DedupedWarningf(5, "No spot price history available for %s, falling back to on-demand pricing", k.ID())
+			log.Debugf("No spot price history available for %s, falling back to on-demand pricing", k.ID())
 			return &models.Node{
 				Cost:         cost,
 				VCPU:         terms.VCpu,
