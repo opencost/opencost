@@ -23,7 +23,6 @@ type ServicePricingProperties struct {
 	End      *time.Time      `json:"end,omitempty" yaml:"end,omitempty"`
 }
 
-// TODO: precompute this somewhere along the way?
 func (sp *ServicePricingProperties) String() string {
 	return fmt.Sprintf("%s:%s:%s",
 		sp.Provider,
