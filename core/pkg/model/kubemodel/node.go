@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// @bingen:generate:Node
 // Node represents a Kubernetes node with capacity-based resource tracking.
 // All resource measures (CPU, RAM) represent node capacity, not requests or limits.
 // This aligns with the principle that cost allocation should be based on provisioned capacity.

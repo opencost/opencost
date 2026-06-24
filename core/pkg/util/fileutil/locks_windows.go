@@ -22,3 +22,18 @@ func ReadLockedFD(f *os.File) ([]byte, error) {
 func ReadLocked(filename string) ([]byte, error) {
 	return nil, fmt.Errorf("ReadLocked is not implemented on Windows. Please open an issue.")
 }
+
+// LockFile directly attempts to flock EX the file instance provided.
+func LockFile(f *os.File) error {
+	return fmt.Errorf("LockFile is not implemented on Windows. Please open an issue.")
+}
+
+// ReadLockFile directly attempts to flock SH the file instance provided.
+func ReadLockFile(f *os.File) error {
+	return fmt.Errorf("ReadLockFile is not implemented on Windows. Please open an issue.")
+}
+
+// UnlockFile directly attempts to flock UN the file instance provided.
+func UnlockFile(f *os.File) error {
+	return fmt.Errorf("UnlockFile is not implemented on Windows. Please open an issue.")
+}

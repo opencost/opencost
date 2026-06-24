@@ -106,3 +106,8 @@ func (pbs *PrefixedBucketStorage) Stat(name string) (*StorageInfo, error) {
 func (pbs *PrefixedBucketStorage) Write(name string, data []byte) error {
 	return pbs.storage.Write(conditionalPrefix(pbs.prefix, name), data)
 }
+
+// WriteStream uploads the contents written to the returned writer as an object into the bucket.
+func (pbs *PrefixedBucketStorage) WriteStream(name string) (io.WriteCloser, error) {
+	return pbs.storage.WriteStream(conditionalPrefix(pbs.prefix, name))
+}

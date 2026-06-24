@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// @bingen:generate:Device
 type Device struct {
 	UID               string      `json:"uid"`            // Device UUID (hardware identifier)
 	Type              string      `json:"type,omitempty"` // Device type (e.g., "device", "tpu")
