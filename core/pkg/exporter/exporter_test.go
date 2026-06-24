@@ -1,6 +1,8 @@
 package exporter
 
 import (
+	"bytes"
+	"compress/gzip"
 	"testing"
 	"time"
 
@@ -71,11 +73,12 @@ func TestStorageExporters(t *testing.T) {
 		}
 
 		encoder := NewBingenEncoder[opencost.AllocationSet]()
-		export := NewComputeStorageExporter[opencost.AllocationSet](
+		export := NewComputeStorageExporter(
 			p,
 			encoder,
 			store,
 			validator.NewSetValidator[opencost.AllocationSet](24*time.Hour),
+			false,
 		)
 
 		start := time.Now().UTC().Truncate(res)
@@ -100,6 +103,109 @@ func TestStorageExporters(t *testing.T) {
 
 		var as *opencost.AllocationSet = new(opencost.AllocationSet)
 		err = as.UnmarshalBinary(data)
+		if err != nil {
+			t.Fatalf("failed to unmarshal data: %v", err)
+		}
+
+		if as.IsEmpty() {
+			t.Fatalf("expected allocation set to be non-empty, got empty")
+		}
+	})
+
+	t.Run("test streaming compute storage exporter", func(t *testing.T) {
+		res := 24 * time.Hour
+		store := storage.NewMemoryStorage()
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, &res)
+		if err != nil {
+			t.Fatalf("failed to create path formatter: %v", err)
+		}
+
+		encoder := NewBingenEncoder[opencost.AllocationSet]()
+		export := NewComputeStorageExporter[opencost.AllocationSet](
+			p,
+			encoder,
+			store,
+			validator.NewSetValidator[opencost.AllocationSet](24*time.Hour),
+			true,
+		)
+
+		start := time.Now().UTC().Truncate(res)
+		end := start.Add(res)
+
+		toExport := opencost.GenerateMockAllocationSet(start)
+		err = export.Export(opencost.NewClosedWindow(start, end), toExport)
+		if err != nil {
+			t.Fatalf("failed to export data: %v", err)
+		}
+
+		expectedPath := p.ToFullPath("", opencost.NewClosedWindow(start, end), "")
+
+		data, err := store.Read(expectedPath)
+		if err != nil {
+			t.Fatalf("failed to read data from store: %v", err)
+		}
+
+		if len(data) == 0 {
+			t.Fatalf("expected data to be non-empty, got empty")
+		}
+
+		var as *opencost.AllocationSet = new(opencost.AllocationSet)
+		err = as.UnmarshalBinary(data)
+		if err != nil {
+			t.Fatalf("failed to unmarshal data: %v", err)
+		}
+
+		if as.IsEmpty() {
+			t.Fatalf("expected allocation set to be non-empty, got empty")
+		}
+	})
+
+	t.Run("test compressed streaming compute storage exporter", func(t *testing.T) {
+		res := 24 * time.Hour
+		store := storage.NewMemoryStorage()
+		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, &res)
+		if err != nil {
+			t.Fatalf("failed to create path formatter: %v", err)
+		}
+
+		encoder := NewGZipEncoderWithLevel(NewBingenEncoder[opencost.AllocationSet](), gzip.BestSpeed)
+		export := NewComputeStorageExporter(
+			p,
+			encoder,
+			store,
+			validator.NewSetValidator[opencost.AllocationSet](24*time.Hour),
+			true,
+		)
+
+		start := time.Now().UTC().Truncate(res)
+		end := start.Add(res)
+
+		toExport := opencost.GenerateMockAllocationSet(start)
+		err = export.Export(opencost.NewClosedWindow(start, end), toExport)
+		if err != nil {
+			t.Fatalf("failed to export data: %v", err)
+		}
+
+		expectedPath := p.ToFullPath("", opencost.NewClosedWindow(start, end), "gz")
+		t.Logf("Reading from path: %s\n", expectedPath)
+
+		data, err := store.Read(expectedPath)
+		if err != nil {
+			t.Fatalf("failed to read data from store: %v", err)
+		}
+
+		if len(data) == 0 {
+			t.Fatalf("expected data to be non-empty, got empty")
+		}
+
+		reader, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			t.Fatalf("failed to create gzip reader")
+		}
+		defer reader.Close()
+
+		var as *opencost.AllocationSet = new(opencost.AllocationSet)
+		err = as.UnmarshalBinaryFromReader(reader)
 		if err != nil {
 			t.Fatalf("failed to unmarshal data: %v", err)
 		}

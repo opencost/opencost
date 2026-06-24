@@ -321,6 +321,51 @@ func (sbr *randomByteReader) Read(b []byte) (int, error) {
 	return bytesCopied, err
 }
 
+func TestBufferWriterSupport(t *testing.T) {
+	byteBuff := new(bytes.Buffer)
+
+	buf := NewBufferFromWriter(byteBuff)
+	buf.WriteBool(true)
+	buf.WriteInt(42)
+	buf.WriteFloat64(3.14)
+	buf.WriteString("Testing, 1, 2, 3!")
+	buf.WriteUInt64(uint64(123456))
+	buf.WriteInt16(44)
+	buf.WriteFloat32(float32(5.0))
+	buf.Flush()
+
+	readerBuff := NewBufferFromBytes(byteBuff.Bytes())
+	b := readerBuff.ReadBool()
+	i := readerBuff.ReadInt()
+	f := readerBuff.ReadFloat64()
+	s := readerBuff.ReadString()
+	ui64 := readerBuff.ReadUInt64()
+	i16 := readerBuff.ReadInt16()
+	f32 := readerBuff.ReadFloat32()
+
+	if !b {
+		t.Errorf("expected true, got: false")
+	}
+	if i != 42 {
+		t.Errorf("expected 42, got: %d", i)
+	}
+	if f != 3.14 {
+		t.Errorf("expected 3.14, got: %f", f)
+	}
+	if s != "Testing, 1, 2, 3!" {
+		t.Errorf("expected 'Testing, 1, 2, 3!', got: '%s'", s)
+	}
+	if ui64 != uint64(123456) {
+		t.Errorf("expected 123456, got: %d", ui64)
+	}
+	if i16 != int16(44) {
+		t.Errorf("expected 44, got: %d", i16)
+	}
+	if f32 != float32(5.0) {
+		t.Errorf("expected 5.0, got: %f", f32)
+	}
+}
+
 func TestBufferReaderSupport(t *testing.T) {
 	buf := NewBuffer()
 	buf.WriteBool(true)

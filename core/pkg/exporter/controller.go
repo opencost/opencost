@@ -115,7 +115,7 @@ func NewComputeExportController[T any](
 		source:     source,
 		resolution: resolution,
 		exporter:   exporter,
-		typeName:   reflect.TypeOf((*T)(nil)).Elem().String(),
+		typeName:   reflect.TypeFor[T]().String(),
 	}
 }
 

@@ -225,6 +225,16 @@ Retrieve cloud cost data with provider, service, and region filtering.
 - `region` (optional): Filter by region (e.g., "us-west-1", "us-central1")
 - `accountID` (optional): Filter by account ID
 
+#### `get_efficiency`
+Retrieve resource efficiency metrics with rightsizing recommendations and cost savings analysis.
+
+**Parameters:**
+- `window` (required): Time window (e.g., "7d", "1h", "30m")
+- `aggregate` (optional): Aggregation properties (e.g., "pod", "namespace", "controller")
+- `filter` (optional): Filter expression for allocations
+- `buffer_multiplier` (optional): Buffer multiplier for recommendations (default: 1.2 for 20% headroom)
+- `step` (optional): Query step size (e.g., "1h", "6h"); smaller steps reduce peak memory by batching large windows, but may increase query time/requests
+
 ### Supported Asset Types
 
 - **Node**: Compute instances with CPU, RAM, GPU details
@@ -258,6 +268,14 @@ const cloudCosts = await mcpClient.callTool('get_cloud_costs', {
   service: 'ec2',
   accumulate: 'day',
   filter: 'regionID:"us-west-1"'
+});
+
+// Get efficiency metrics with rightsizing recommendations
+const efficiency = await mcpClient.callTool('get_efficiency', {
+  window: '7d',
+  aggregate: 'namespace,controller',
+  step: '6h',
+  buffer_multiplier: 1.2
 });
 ```
 
