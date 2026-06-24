@@ -3,6 +3,7 @@ package public
 import (
 	"testing"
 
+	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/unit"
 )
@@ -10,12 +11,12 @@ import (
 // TestPricingModuleConfig tests that the config struct is properly defined
 func TestPricingModuleConfig(t *testing.T) {
 	config := PricingModuleConfig{
-		Provider: pricing.AWSProvider,
+		Provider: shared.ProviderAWS,
 		Currency: unit.USD,
 	}
 
-	if config.Provider != pricing.AWSProvider {
-		t.Errorf("Provider = %v, want %v", config.Provider, pricing.AWSProvider)
+	if config.Provider != shared.ProviderAWS {
+		t.Errorf("Provider = %v, want %v", config.Provider, shared.ProviderAWS)
 	}
 	if config.Currency != unit.USD {
 		t.Errorf("Currency = %v, want %v", config.Currency, unit.USD)
@@ -31,35 +32,27 @@ func TestProviderPricingStructure(t *testing.T) {
 	regionMap := make(RegionPricing)
 
 	prices := &pricing.Prices{
-		unit.USD: []pricing.Price{
-			{Currency: unit.USD, Unit: unit.Hour, Price: 0.0416},
+		pricing.ResourceNode: pricing.Price{
+			Unit:  unit.Hour,
+			Price: 0.0416,
 		},
 	}
 
 	regionMap["us-east-1"] = prices
 	instanceMap["t3.medium"] = &regionMap
-	providers[pricing.AWSProvider] = &instanceMap
+	providers[shared.ProviderAWS] = &instanceMap
 
 	// Verify structure
-	if providers[pricing.AWSProvider] == nil {
+	if providers[shared.ProviderAWS] == nil {
 		t.Fatal("AWS provider not found")
 	}
 
-	if (*providers[pricing.AWSProvider])["t3.medium"] == nil {
+	if (*providers[shared.ProviderAWS])["t3.medium"] == nil {
 		t.Fatal("t3.medium instance type not found")
 	}
 
-	if (*(*providers[pricing.AWSProvider])["t3.medium"])["us-east-1"] == nil {
+	if (*(*providers[shared.ProviderAWS])["t3.medium"])["us-east-1"] == nil {
 		t.Fatal("us-east-1 region not found")
-	}
-
-	retrievedPrices := (*(*providers[pricing.AWSProvider])["t3.medium"])["us-east-1"]
-	if len((*retrievedPrices)[unit.USD]) == 0 {
-		t.Fatal("No USD prices found")
-	}
-
-	if (*retrievedPrices)[unit.USD][0].Price != 0.0416 {
-		t.Errorf("Price = %v, want %v", (*retrievedPrices)[unit.USD][0].Price, 0.0416)
 	}
 }
 

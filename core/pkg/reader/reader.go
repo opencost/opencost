@@ -25,6 +25,10 @@ func NewSliceReader[T any](items []T) *SliceReader[T] {
 }
 
 func (r *SliceReader[T]) Read(ctx context.Context, dst []T) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
 	if r.pos >= len(r.items) {
 		return 0, Done
 	}

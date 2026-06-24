@@ -4,16 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"sync"
 
-	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/reader"
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
+// PricingModule must satisfy the pricing.PricingModule interface
+var _ pricing.PricingModule = (*PricingModule)(nil)
+
 type PricingModule struct {
-	currency unit.Currency
-	store    pricing.PricingStore
+	mu    sync.RWMutex
+	store pricing.PricingStore
 }
 
 func NewBasicPricingModule(store pricing.PricingStore) (*PricingModule, error) {
@@ -39,166 +43,238 @@ func NewBasicPricingModule(store pricing.PricingStore) (*PricingModule, error) {
 		}
 	}
 
-	currencies := pricingSet.Currencies()
-	if len(currencies) > 0 {
-		log.Warnf("detected multiple currencies in basic pricing module (%v): defaulting to %s", currencies, currencies[0])
-	}
-
 	pm := &PricingModule{
-		currency: currencies[0],
-		store:    store,
+		store: store,
 	}
 
 	return pm, nil
 }
 
-func (pm *PricingModule) GetCurrency() unit.Currency {
-	return pm.currency
-}
+func (pm *PricingModule) GetClusterPricing(ctx context.Context, props pricing.ClusterPricingProperties) (*pricing.ClusterPricing, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
 
-func (pm *PricingModule) SetCurrency(ctx context.Context, currency unit.Currency) error {
-	prevCurrency := pm.currency
-	if currency == prevCurrency {
-		return nil
+	cp, err := pm.getClusterPricing(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	// 1. Convert existing node pricing to new currency
+	if cp != nil {
+		return cp, nil
+	}
+
+	return nil, errors.New("no cluster pricing")
+}
+
+func (pm *PricingModule) NewClusterPricingReader(ctx context.Context) (reader.Reader[*pricing.ClusterPricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	cp, err := pm.getClusterPricing(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting node pricing: %w", err)
+	}
+
+	return reader.NewSliceReader([]*pricing.ClusterPricing{cp}), nil
+}
+
+func (pm *PricingModule) GetNetworkPricing(ctx context.Context, props pricing.NetworkPricingProperties) (*pricing.NetworkPricing, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	nps, err := pm.getNetworkPricing(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Search through the mock data for a matching network pricing entry
+	for _, np := range nps {
+		if np.Properties.Provider == props.Provider &&
+			np.Properties.TrafficDirection == props.TrafficDirection &&
+			np.Properties.TrafficType == props.TrafficType &&
+			np.Properties.IsNatGateway == props.IsNatGateway {
+			return np, nil
+		}
+	}
+	return nil, fmt.Errorf("network pricing not found for provider=%s, trafficDirection=%s, trafficType=%s, isNatGateway=%t",
+		props.Provider, props.TrafficDirection, props.TrafficType, props.IsNatGateway)
+}
+
+func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*pricing.NetworkPricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	np, err := pm.getNetworkPricing(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting node pricing: %w", err)
+	}
+
+	return reader.NewSliceReader(slices.Clone(np)), nil
+}
+
+func (pm *PricingModule) GetNodePricing(ctx context.Context, props pricing.NodePricingProperties) (*pricing.NodePricing, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
 	np, err := pm.getNodePricing(ctx)
 	if err != nil {
-		return fmt.Errorf("getting node pricing: %w", err)
+		return nil, err
 	}
 
-	// Set up new Prices for the new currency
-	newPrices := []pricing.Price{}
-
-	// Convert all existing prices to the new currency
-	oldPrices, ok := np.Prices[prevCurrency]
-	if !ok {
-		log.Warnf("setting currency to '%s': no node prices found for existing currency '%s'", currency, pm.currency)
-		// There are no prices for the current currency.
-		// Set default prices using the new currency.
-		newPrices = GetDefaultNodePricing().Prices[unit.USD]
+	if np != nil {
+		return np, nil
 	}
 
-	for _, price := range oldPrices {
-		newPrices = append(newPrices, pricing.Price{
-			Currency: currency,
-			Unit:     price.Unit,
-			Price:    price.Price,
-		})
-	}
-
-	// Set new prices under new currency
-	np.Prices = make(pricing.Prices, 1)
-	np.Prices[currency] = newPrices
-
-	// Set node pricing on the module
-	err = pm.setNodePricing(ctx, np)
-	if err != nil {
-		return fmt.Errorf("setting node pricing: %w", err)
-	}
-
-	// 2. Convert existing volume pricing to new currency
-	vp, err := pm.getVolumePricing(ctx)
-	if err != nil {
-		return fmt.Errorf("getting node pricing: %w", err)
-	}
-
-	// Set up new Prices for the new currency
-	newPrices = []pricing.Price{}
-
-	// Convert all existing prices to the new currency
-	oldPrices, ok = vp.Prices[prevCurrency]
-	if !ok {
-		log.Warnf("setting currency to '%s': no node prices found for existing currency '%s'", currency, pm.currency)
-		// There are no prices for the current currency.
-		// Set default prices using the new currency.
-		newPrices = GetDefaultVolumePricing().Prices[unit.USD]
-	}
-
-	for _, price := range oldPrices {
-		newPrices = append(newPrices, pricing.Price{
-			Currency: currency,
-			Unit:     price.Unit,
-			Price:    price.Price,
-		})
-	}
-
-	// Set new prices under new currency
-	vp.Prices = make(pricing.Prices, 1)
-	vp.Prices[currency] = newPrices
-
-	// Set node pricing on the module
-	err = pm.setVolumePricing(ctx, vp)
-	if err != nil {
-		return fmt.Errorf("setting node pricing: %w", err)
-	}
-
-	return nil
-}
-
-func (pm *PricingModule) SetNodePricePerCPUCoreHour(ctx context.Context, price float64) error {
-	return pm.setNodePrice(ctx, unit.VCPUHour, price)
-}
-
-func (pm *PricingModule) SetNodePricePerRAMGiBHour(ctx context.Context, price float64) error {
-	return pm.setNodePrice(ctx, unit.RAMGiBHour, price)
-}
-
-func (pm *PricingModule) SetNodePricePerGPUHour(ctx context.Context, price float64) error {
-	return pm.setNodePrice(ctx, unit.GPUHour, price)
-}
-
-func (pm *PricingModule) SetNodePricePerLocalDiskGiBHour(ctx context.Context, price float64) error {
-	return pm.setNodePrice(ctx, unit.StorageGiBHour, price)
-}
-
-func (pm *PricingModule) SetVolumePricePerStorageGiBHour(ctx context.Context, price float64) error {
-	return pm.setVolumePrice(ctx, unit.StorageGiBHour, price)
+	return nil, errors.New("no node pricing")
 }
 
 func (pm *PricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*pricing.NodePricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
 	np, err := pm.getNodePricing(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting node pricing: %w", err)
 	}
+
 	return reader.NewSliceReader([]*pricing.NodePricing{np}), nil
 }
 
-func (pm *PricingModule) NewVolumePricingReader(ctx context.Context) (reader.Reader[*pricing.VolumePricing], error) {
-	vp, err := pm.getVolumePricing(ctx)
+func (pm *PricingModule) GetPersistentVolumePricing(ctx context.Context, props pricing.PersistentVolumePricingProperties) (*pricing.PersistentVolumePricing, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	pvp, err := pm.getPersistentVolumePricing(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if pvp != nil {
+		return pvp, nil
+	}
+
+	return nil, errors.New("no persistent volume pricing")
+}
+
+func (pm *PricingModule) NewPersistentVolumePricingReader(ctx context.Context) (reader.Reader[*pricing.PersistentVolumePricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	pvp, err := pm.getPersistentVolumePricing(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting volume pricing: %w", err)
 	}
-	return reader.NewSliceReader([]*pricing.VolumePricing{vp}), nil
+
+	return reader.NewSliceReader([]*pricing.PersistentVolumePricing{pvp}), nil
 }
 
-func (pm *PricingModule) setNodePrice(ctx context.Context, unit unit.Unit, price float64) error {
+func (pm *PricingModule) GetServicePricing(ctx context.Context, props pricing.ServicePricingProperties) (*pricing.ServicePricing, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	sp, err := pm.getServicePricing(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if sp != nil {
+		return sp, nil
+	}
+
+	return nil, errors.New("no service pricing")
+}
+
+func (pm *PricingModule) NewServicePricingReader(ctx context.Context) (reader.Reader[*pricing.ServicePricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	sp, err := pm.getServicePricing(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting service pricing: %w", err)
+	}
+
+	return reader.NewSliceReader([]*pricing.ServicePricing{sp}), nil
+}
+
+func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	return pm.store.GetPricingSet(ctx)
+}
+
+func (pm *PricingModule) SourceKind() string {
+	return "basic"
+}
+
+func (pm *PricingModule) SourceName() string {
+	return "basic"
+}
+
+func (pm *PricingModule) Checksum(ctx context.Context) (string, error) {
+	pricingSet, err := pm.store.GetPricingSet(ctx)
+	if err != nil {
+		return "", fmt.Errorf("basic pricing module: error getting pricing set: %w", err)
+	}
+
+	checksum, err := pricingSet.Checksum()
+	if err != nil {
+		return "", fmt.Errorf("basic pricing module: error computing checksum: %s", err)
+	}
+
+	return checksum, nil
+}
+
+// Public CRUD functions
+
+func (pm *PricingModule) SetNodePricePerCPUCoreHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setNodePrice(ctx, pricing.ResourceCPU, unit.VCPUHour, price)
+}
+
+func (pm *PricingModule) SetNodePricePerRAMGiBHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setNodePrice(ctx, pricing.ResourceRAM, unit.GiBHour, price)
+}
+
+func (pm *PricingModule) SetNodePricePerGPUHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setNodePrice(ctx, pricing.ResourceGPU, unit.GPUHour, price)
+}
+
+func (pm *PricingModule) SetNodePricePerLocalDiskGiBHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setNodePrice(ctx, pricing.ResourceStorage, unit.GiBHour, price)
+}
+
+func (pm *PricingModule) SetVolumePricePerStorageGiBHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setVolumePrice(ctx, pricing.ResourceStorage, unit.GiBHour, price)
+}
+
+// Private functions to set a price by resource and unit
+
+func (pm *PricingModule) setNodePrice(ctx context.Context, resource pricing.Resource, unit unit.Unit, price float64) error {
 	np, err := pm.getNodePricing(ctx)
 	if err != nil {
 		return fmt.Errorf("getting node pricing: %w", err)
 	}
 
-	prices, ok := np.Prices[pm.currency]
-	if !ok {
-		log.Warnf("setting price per %s to '%f': no node prices found for existing currency '%s'", unit, price, pm.currency)
-		// There are no prices for the current currency.
-		// Set default prices using the new currency.
-		np = GetDefaultNodePricing()
+	if np.Prices == nil {
+		np.Prices = pricing.Prices{}
 	}
+	np.Prices[resource] = pricing.Price{Unit: unit, Price: price}
 
-	// Set the price with unit GiBHour to the given price
-	for i, p := range prices {
-		if p.Unit == unit {
-			prices[i] = pricing.Price{
-				Currency: p.Currency,
-				Unit:     p.Unit,
-				Price:    price,
-			}
-		}
-	}
-
-	// Set the new node pricing
 	err = pm.setNodePricing(ctx, np)
 	if err != nil {
 		return fmt.Errorf("setting node pricing: %w", err)
@@ -207,38 +283,63 @@ func (pm *PricingModule) setNodePrice(ctx context.Context, unit unit.Unit, price
 	return nil
 }
 
-func (pm *PricingModule) setVolumePrice(ctx context.Context, unit unit.Unit, price float64) error {
-	vp, err := pm.getVolumePricing(ctx)
+func (pm *PricingModule) setVolumePrice(ctx context.Context, resource pricing.Resource, unit unit.Unit, price float64) error {
+	vp, err := pm.getPersistentVolumePricing(ctx)
 	if err != nil {
 		return fmt.Errorf("getting volume pricing: %w", err)
 	}
 
-	prices, ok := vp.Prices[pm.currency]
-	if !ok {
-		log.Warnf("setting price per %s to '%f': no volume prices found for existing currency '%s'", unit, price, pm.currency)
-		// There are no prices for the current currency.
-		// Set default prices using the new currency.
-		vp = GetDefaultVolumePricing()
+	if vp.Prices == nil {
+		vp.Prices = pricing.Prices{}
 	}
+	vp.Prices[resource] = pricing.Price{Unit: unit, Price: price}
 
-	// Set the price with unit GiBHour to the given price
-	for i, p := range prices {
-		if p.Unit == unit {
-			prices[i] = pricing.Price{
-				Currency: p.Currency,
-				Unit:     p.Unit,
-				Price:    price,
-			}
-		}
-	}
-
-	// Set the new volume pricing
-	err = pm.setVolumePricing(ctx, vp)
+	err = pm.setPersistentVolumePricing(ctx, vp)
 	if err != nil {
-		return fmt.Errorf("setting node pricing: %w", err)
+		return fmt.Errorf("setting volume pricing: %w", err)
 	}
 
 	return nil
+}
+
+// Private functions to get and set pricing
+
+func (pm *PricingModule) getClusterPricing(ctx context.Context) (*pricing.ClusterPricing, error) {
+	ps, err := pm.store.GetPricingSet(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting pricing: %w", err)
+	}
+
+	if len(ps.ClusterPricing) == 0 {
+		return nil, errors.New("not found")
+	}
+
+	// Only one default ClusterPricing is allowed in basic pricing.
+	// If multiple exist, return only the first one.
+	return ps.ClusterPricing[0], nil
+}
+
+func (pm *PricingModule) setClusterPricing(ctx context.Context, cp *pricing.ClusterPricing) error {
+	// TODO
+	return errors.New("not implemented")
+}
+
+func (pm *PricingModule) getNetworkPricing(ctx context.Context) ([]*pricing.NetworkPricing, error) {
+	ps, err := pm.store.GetPricingSet(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting pricing: %w", err)
+	}
+
+	if len(ps.NetworkPricing) == 0 {
+		return nil, errors.New("not found")
+	}
+
+	return ps.NetworkPricing, nil
+}
+
+func (pm *PricingModule) setNetworkPricing(ctx context.Context, np *pricing.NetworkPricing) error {
+	// TODO
+	return errors.New("not implemented")
 }
 
 func (pm *PricingModule) getNodePricing(ctx context.Context) (*pricing.NodePricing, error) {
@@ -247,13 +348,13 @@ func (pm *PricingModule) getNodePricing(ctx context.Context) (*pricing.NodePrici
 		return nil, fmt.Errorf("getting pricing: %w", err)
 	}
 
-	if len(ps.Nodes) == 0 {
+	if len(ps.NodePricing) == 0 {
 		return nil, errors.New("not found")
 	}
 
 	// Only one default NodePricing is allowed in basic pricing.
 	// If multiple exist, return only the first one.
-	return ps.Nodes[0], nil
+	return ps.NodePricing[0], nil
 }
 
 func (pm *PricingModule) setNodePricing(ctx context.Context, np *pricing.NodePricing) error {
@@ -261,18 +362,6 @@ func (pm *PricingModule) setNodePricing(ctx context.Context, np *pricing.NodePri
 		return errors.New("nil node pricing")
 	}
 
-	// Make sure precisely one currency is set
-	currs := np.GetCurrencies()
-	if len(currs) == 0 {
-		return errors.New("pricing is empty")
-	}
-	if len(currs) > 1 {
-		return fmt.Errorf("setting multiple currencies: %v", currs)
-	}
-
-	// Update PricingModule to use given currency
-	pm.currency = currs[0]
-
 	// Get the pricing set
 	ps, err := pm.store.GetPricingSet(ctx)
 	if err != nil {
@@ -280,7 +369,7 @@ func (pm *PricingModule) setNodePricing(ctx context.Context, np *pricing.NodePri
 	}
 
 	// Only one default NodePricing is allowed in basic pricing.
-	ps.Nodes = []*pricing.NodePricing{np}
+	ps.NodePricing = []*pricing.NodePricing{np}
 
 	// Set the new pricing set
 	err = pm.store.SetPricingSet(ctx, ps)
@@ -291,37 +380,25 @@ func (pm *PricingModule) setNodePricing(ctx context.Context, np *pricing.NodePri
 	return nil
 }
 
-func (pm *PricingModule) getVolumePricing(ctx context.Context) (*pricing.VolumePricing, error) {
+func (pm *PricingModule) getPersistentVolumePricing(ctx context.Context) (*pricing.PersistentVolumePricing, error) {
 	ps, err := pm.store.GetPricingSet(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting pricing: %w", err)
 	}
 
-	if len(ps.Volumes) == 0 {
+	if len(ps.PersistentVolumePricing) == 0 {
 		return nil, errors.New("not found")
 	}
 
 	// Only one default VolumePricing is allowed in basic pricing.
 	// If multiple exist, return only the first one.
-	return ps.Volumes[0], nil
+	return ps.PersistentVolumePricing[0], nil
 }
 
-func (pm *PricingModule) setVolumePricing(ctx context.Context, vp *pricing.VolumePricing) error {
+func (pm *PricingModule) setPersistentVolumePricing(ctx context.Context, vp *pricing.PersistentVolumePricing) error {
 	if vp == nil {
 		return errors.New("nil volume pricing")
 	}
-
-	// Make sure precisely one currency is set
-	currs := vp.GetCurrencies()
-	if len(currs) == 0 {
-		return errors.New("pricing is empty")
-	}
-	if len(currs) > 1 {
-		return fmt.Errorf("setting multiple currencies: %v", currs)
-	}
-
-	// Update PricingModule to use given currency
-	pm.currency = currs[0]
 
 	// Get the pricing set
 	ps, err := pm.store.GetPricingSet(ctx)
@@ -330,7 +407,7 @@ func (pm *PricingModule) setVolumePricing(ctx context.Context, vp *pricing.Volum
 	}
 
 	// Only one default VolumePricing is allowed in basic pricing.
-	ps.Volumes = []*pricing.VolumePricing{vp}
+	ps.PersistentVolumePricing = []*pricing.PersistentVolumePricing{vp}
 
 	// Set the new pricing set
 	err = pm.store.SetPricingSet(ctx, ps)
@@ -339,4 +416,24 @@ func (pm *PricingModule) setVolumePricing(ctx context.Context, vp *pricing.Volum
 	}
 
 	return nil
+}
+
+func (pm *PricingModule) getServicePricing(ctx context.Context) (*pricing.ServicePricing, error) {
+	ps, err := pm.store.GetPricingSet(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting pricing: %w", err)
+	}
+
+	if len(ps.ServicePricing) == 0 {
+		return nil, errors.New("not found")
+	}
+
+	// Only one default ServicePricing is allowed in basic pricing.
+	// If multiple exist, return only the first one.
+	return ps.ServicePricing[0], nil
+}
+
+func (pm *PricingModule) setServicePricing(ctx context.Context, sp *pricing.ServicePricing) error {
+	// TODO
+	return errors.New("not implemented")
 }

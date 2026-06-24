@@ -17,20 +17,11 @@ func TestParseUnit_Strings(t *testing.T) {
 		{name: "minute", input: "min", expect: Minute, expectErr: false},
 		{name: "hour", input: "hr", expect: Hour, expectErr: false},
 
-		// Data storage units - decimal
+		// Data storage units
 		{name: "byte", input: "B", expect: Byte, expectErr: false},
-		{name: "kilobyte", input: "KB", expect: KB, expectErr: false},
-		{name: "megabyte", input: "MB", expect: MB, expectErr: false},
-		{name: "gigabyte", input: "GB", expect: GB, expectErr: false},
-		{name: "terabyte", input: "TB", expect: TB, expectErr: false},
-		{name: "petabyte", input: "PB", expect: PB, expectErr: false},
-
-		// Data storage units - binary
 		{name: "kibibyte", input: "KiB", expect: KiB, expectErr: false},
 		{name: "mebibyte", input: "MiB", expect: MiB, expectErr: false},
 		{name: "gibibyte", input: "GiB", expect: GiB, expectErr: false},
-		{name: "tebibyte", input: "TiB", expect: TiB, expectErr: false},
-		{name: "pebibyte", input: "PiB", expect: PiB, expectErr: false},
 
 		// Compute resources
 		{name: "mCPU", input: "mCPU", expect: MCPU, expectErr: false},
@@ -38,14 +29,12 @@ func TestParseUnit_Strings(t *testing.T) {
 		{name: "GPU", input: "GPU", expect: GPU, expectErr: false},
 
 		// Compute resources over time
+		{name: "GiB-hr", input: "GiB-hr", expect: GiBHour, expectErr: false},
 		{name: "vCPU-hr", input: "vCPU-hr", expect: VCPUHour, expectErr: false},
-		{name: "RAM-GiB-hr", input: "RAM-GiB-hr", expect: RAMGiBHour, expectErr: false},
 		{name: "GPU-hr", input: "GPU-hr", expect: GPUHour, expectErr: false},
-		{name: "storage-GiB-hr", input: "storage-GiB-hr", expect: StorageGiBHour, expectErr: false},
 
 		// Case insensitive tests
 		{name: "uppercase ms", input: "MS", expect: Millisecond, expectErr: false},
-		{name: "uppercase kb", input: "kb", expect: KB, expectErr: false},
 		{name: "mixed case GiB", input: "gib", expect: GiB, expectErr: false},
 		{name: "mixed case mCPU", input: "Mcpu", expect: MCPU, expectErr: false},
 		{name: "mixed case vCPU-hr", input: "VCPU-HR", expect: VCPUHour, expectErr: false},

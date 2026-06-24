@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/pricing"
+	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/unit"
 	"github.com/opencost/opencost/modules/pricing/public"
 	"github.com/spf13/cobra"
@@ -44,16 +44,16 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid currency '%s': %w", currency, err)
 	}
 
-	var prov pricing.Provider
+	var prov shared.Provider
 	switch provider {
 	case "all":
-		prov = pricing.AllProvider
+		prov = shared.ProviderEmpty
 	case "aws":
-		prov = pricing.AWSProvider
+		prov = shared.ProviderAWS
 	case "azure":
-		prov = pricing.AzureProvider
+		prov = shared.ProviderAzure
 	case "gcp":
-		prov = pricing.GCPProvider
+		prov = shared.ProviderGCP
 	default:
 		return fmt.Errorf("unsupported provider: %s", provider)
 	}
@@ -70,7 +70,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	log.Infof("Generated %d node pricing entries and %d volume pricing entries",
-		len(pricingSet.Nodes), len(pricingSet.Volumes))
+		len(pricingSet.NodePricing), len(pricingSet.PersistentVolumePricing))
 
 	// Set default output path if not specified
 	if output == "" {

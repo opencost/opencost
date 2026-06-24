@@ -43,8 +43,8 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 	start := time.Now()
 
 	ps := &pricing.PricingSet{
-		Nodes:   []*pricing.NodePricing{},
-		Volumes: []*pricing.VolumePricing{},
+		NodePricing:             []*pricing.NodePricing{},
+		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
 	}
 
 	// Fetch VM pricing
@@ -80,7 +80,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 		log.Debugf("PricingSource (Azure): fetched VM page %d, next: %s", pageCount, url)
 	}
 
-	log.Infof("PricingSource (Azure): fetched %d VM pricing entries across %d pages", len(ps.Nodes), pageCount)
+	log.Infof("PricingSource (Azure): fetched %d VM pricing entries across %d pages", len(ps.NodePricing), pageCount)
 
 	// Fetch disk pricing
 	url = a.buildDiskURL()
@@ -119,7 +119,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 	}
 
 	log.Infof("PricingSource (Azure): completed in %s — %d node pricing, %d volume pricing",
-		time.Since(start).Round(time.Second), len(ps.Nodes), len(ps.Volumes))
+		time.Since(start).Round(time.Second), len(ps.NodePricing), len(ps.PersistentVolumePricing))
 
 	return ps, nil
 }
@@ -156,34 +156,30 @@ func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet)
 			continue
 		}
 
+		// TODO: handle currency?
 		// Parse the currency from config, default to USD if invalid
-		currency, err := unit.ParseCurrency(a.config.CurrencyCode)
-		if err != nil {
-			log.Warnf("invalid currency code '%s', defaulting to USD: %s", a.config.CurrencyCode, err.Error())
-			currency = unit.USD
-		}
-
-		priceObj := pricing.Price{
-			Currency: currency,
-			Unit:     unit.Hour,
-			Price:    float64(item.RetailPrice),
-		}
+		// currency, err := unit.ParseCurrency(a.config.CurrencyCode)
+		// if err != nil {
+		// 	log.Warnf("invalid currency code '%s', defaulting to USD: %s", a.config.CurrencyCode, err.Error())
+		// 	currency = unit.USD
+		// }
 
 		nodePricing := &pricing.NodePricing{
 			Properties: pricing.NodePricingProperties{
-				Provider:     pricing.Provider(shared.ProviderAzure),
+				Provider:     shared.ProviderAzure,
 				Region:       item.ArmRegionName,
 				InstanceType: item.ArmSkuName,
 				Provisioning: pricing.ProvisioningOnDemand,
 			},
 			Prices: pricing.Prices{
-				currency: []pricing.Price{
-					priceObj,
+				pricing.ResourceNode: pricing.Price{
+					Unit:  unit.Hour,
+					Price: float64(item.RetailPrice),
 				},
 			},
 		}
 
-		ps.Nodes = append(ps.Nodes, nodePricing)
+		ps.NodePricing = append(ps.NodePricing, nodePricing)
 	}
 
 	return page.NextPageLink, nil
@@ -210,31 +206,31 @@ func (a *AzurePricingSource) parseDiskPage(body io.Reader, ps *pricing.PricingSe
 			continue
 		}
 
-		currency, err := unit.ParseCurrency(a.config.CurrencyCode)
-		if err != nil {
-			log.Warnf("invalid currency code '%s', defaulting to USD: %s", a.config.CurrencyCode, err.Error())
-			currency = unit.USD
-		}
+		// TODO: handle currency?
+		// currency, err := unit.ParseCurrency(a.config.CurrencyCode)
+		// if err != nil {
+		// 	log.Warnf("invalid currency code '%s', defaulting to USD: %s", a.config.CurrencyCode, err.Error())
+		// 	currency = unit.USD
+		// }
 
 		// Azure disk pricing is per GB-month, convert to per GB-hour
 		hourlyPrice := float64(item.RetailPrice) / 730.0
 
-		volumePricing := &pricing.VolumePricing{
-			Properties: pricing.VolumePricingProperties{
-				Provider:   pricing.AzureProvider,
+		volumePricing := &pricing.PersistentVolumePricing{
+			Properties: pricing.PersistentVolumePricingProperties{
+				Provider:   shared.ProviderAzure,
 				Region:     item.ArmRegionName,
 				VolumeType: volumeType,
 			},
 			Prices: pricing.Prices{
-				currency: []pricing.Price{{
-					Currency: currency,
-					Unit:     unit.Hour,
-					Price:    hourlyPrice,
-				}},
+				pricing.ResourceStorage: pricing.Price{
+					Unit:  unit.Hour,
+					Price: hourlyPrice,
+				},
 			},
 		}
 
-		ps.Volumes = append(ps.Volumes, volumePricing)
+		ps.PersistentVolumePricing = append(ps.PersistentVolumePricing, volumePricing)
 	}
 
 	return page.NextPageLink, nil

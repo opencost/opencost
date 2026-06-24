@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/unit"
 )
@@ -28,8 +29,8 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	start := time.Now()
 
 	ps := &pricing.PricingSet{
-		Nodes:   []*pricing.NodePricing{},
-		Volumes: []*pricing.VolumePricing{},
+		NodePricing:             []*pricing.NodePricing{},
+		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
 	}
 	skuToNodeKey := make(map[string]nodeKey)
 	skuToVolumeKey := make(map[string]volumeKey)
@@ -106,7 +107,7 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 		termCount++
 		if termCount%logInterval == 0 {
 			log.Infof("PricingSource (AWS): processed %d terms, %d node pricing, %d volume pricing so far...",
-				termCount, len(ps.Nodes), len(ps.Volumes))
+				termCount, len(ps.NodePricing), len(ps.PersistentVolumePricing))
 		}
 
 		// Check if this SKU is for a node or volume we're tracking
@@ -140,34 +141,32 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 			return
 		}
 
+		// TODO: handle currency?
 		// Parse the currency from config, default to USD if invalid
-		currency, err := unit.ParseCurrency(p.config.CurrencyCode)
-		if err != nil {
-			log.Warnf("invalid currency code '%s', defaulting to USD: %s", p.config.CurrencyCode, err.Error())
-			currency = unit.USD
-		}
+		// currency, err := unit.ParseCurrency(p.config.CurrencyCode)
+		// if err != nil {
+		// 	log.Warnf("invalid currency code '%s', defaulting to USD: %s", p.config.CurrencyCode, err.Error())
+		// 	currency = unit.USD
+		// }
 
 		// Handle node pricing
 		if isNode {
-			priceObj := pricing.Price{
-				Currency: currency,
-				Unit:     unit.Hour,
-				Price:    price,
-			}
-
 			nodePricing := &pricing.NodePricing{
 				Properties: pricing.NodePricingProperties{
-					Provider:     pricing.AWSProvider,
+					Provider:     shared.ProviderAWS,
 					Region:       nk.Region,
 					InstanceType: nk.InstanceType,
 					Provisioning: pricing.ProvisioningOnDemand,
 				},
 				Prices: pricing.Prices{
-					currency: []pricing.Price{priceObj},
+					pricing.ResourceNode: pricing.Price{
+						Unit:  unit.Hour,
+						Price: price,
+					},
 				},
 			}
 
-			ps.Nodes = append(ps.Nodes, nodePricing)
+			ps.NodePricing = append(ps.NodePricing, nodePricing)
 		}
 
 		// Handle volume pricing
@@ -175,24 +174,21 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 			// AWS volume pricing is per GB-month, convert to per GB-hour
 			hourlyPrice := price / 730.0
 
-			priceObj := pricing.Price{
-				Currency: currency,
-				Unit:     unit.Hour,
-				Price:    hourlyPrice,
-			}
-
-			volumePricing := &pricing.VolumePricing{
-				Properties: pricing.VolumePricingProperties{
-					Provider:   pricing.AWSProvider,
+			volumePricing := &pricing.PersistentVolumePricing{
+				Properties: pricing.PersistentVolumePricingProperties{
+					Provider:   shared.ProviderAWS,
 					Region:     vk.Region,
 					VolumeType: vk.VolumeType,
 				},
 				Prices: pricing.Prices{
-					currency: []pricing.Price{priceObj},
+					pricing.ResourceStorage: pricing.Price{
+						Unit:  unit.Hour,
+						Price: hourlyPrice,
+					},
 				},
 			}
 
-			ps.Volumes = append(ps.Volumes, volumePricing)
+			ps.PersistentVolumePricing = append(ps.PersistentVolumePricing, volumePricing)
 		}
 	}
 
@@ -202,7 +198,7 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	}
 
 	log.Infof("PricingSource (AWS): completed in %s — %d products, %d terms, %d node pricing, %d volume pricing",
-		time.Since(start).Round(time.Second), productCount, termCount, len(ps.Nodes), len(ps.Volumes))
+		time.Since(start).Round(time.Second), productCount, termCount, len(ps.NodePricing), len(ps.PersistentVolumePricing))
 
 	return ps, nil
 }

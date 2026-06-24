@@ -2,19 +2,22 @@ package public
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/reader"
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
+// PricingModule must satisfy the pricing.PricingModule interface
+var _ pricing.PricingModule = (*PricingModule)(nil)
+
 type PricingModuleConfig struct {
-	Provider        pricing.Provider
+	Provider        shared.Provider
 	Currency        unit.Currency
 	RefreshInterval time.Duration
 }
@@ -61,7 +64,7 @@ func NewPricingModule(config PricingModuleConfig) (*PricingModule, error) {
 	return pm, nil
 }
 
-type ProviderPricing map[pricing.Provider]*InstanceTypePricing
+type ProviderPricing map[shared.Provider]*InstanceTypePricing
 
 type InstanceTypePricing map[string]*RegionPricing
 
@@ -71,7 +74,7 @@ func (pm *PricingModule) indexPricingSet(_ context.Context, pricingSet *pricing.
 	providers := make(ProviderPricing)
 
 	// Index nodes
-	for _, node := range pricingSet.Nodes {
+	for _, node := range pricingSet.NodePricing {
 		provider := node.Properties.Provider
 		instanceType := node.Properties.InstanceType
 		region := node.Properties.Region
@@ -91,7 +94,7 @@ func (pm *PricingModule) indexPricingSet(_ context.Context, pricingSet *pricing.
 	}
 
 	// Index volumes
-	for _, volume := range pricingSet.Volumes {
+	for _, volume := range pricingSet.PersistentVolumePricing {
 		provider := volume.Properties.Provider
 		volumeType := string(volume.Properties.VolumeType)
 		region := volume.Properties.Region
@@ -112,19 +115,27 @@ func (pm *PricingModule) indexPricingSet(_ context.Context, pricingSet *pricing.
 
 	pm.Providers = &providers
 	log.Infof("Indexed %d node pricing records and %d volume pricing records for provider %s (%s)",
-		len(pricingSet.Nodes), len(pricingSet.Volumes), pm.config.Provider, pm.config.Currency)
+		len(pricingSet.NodePricing), len(pricingSet.PersistentVolumePricing), pm.config.Provider, pm.config.Currency)
 
 	return nil
 }
 
 // GetNodePricing provides fast lookup for node pricing by provider, instance type, and region
-func (pm *PricingModule) GetNodePricing(provider pricing.Provider, instanceType string, region string) (*pricing.NodePricing, error) {
+func (pm *PricingModule) GetNodePricing(ctx context.Context, props pricing.NodePricingProperties) (*pricing.NodePricing, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
 	if pm.Providers == nil {
 		return nil, fmt.Errorf("pricing not loaded")
 	}
+
+	provider := props.Provider
+	instanceType := props.InstanceType
+	region := props.Region
 
 	providerPricing := (*pm.Providers)[provider]
 	if providerPricing == nil {
@@ -152,14 +163,22 @@ func (pm *PricingModule) GetNodePricing(provider pricing.Provider, instanceType 
 	}, nil
 }
 
-// GetVolumePricing provides fast lookup for node pricing by provider, instance type, and region
-func (pm *PricingModule) GetVolumePricing(provider pricing.Provider, volumeType string, region string) (*pricing.VolumePricing, error) {
+// GetPersistentVolumePricing provides fast lookup for volume pricing by provider, volume type, and region
+func (pm *PricingModule) GetPersistentVolumePricing(ctx context.Context, props pricing.PersistentVolumePricingProperties) (*pricing.PersistentVolumePricing, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
 	if pm.Providers == nil {
 		return nil, fmt.Errorf("pricing not loaded")
 	}
+
+	provider := props.Provider
+	volumeType := string(props.VolumeType)
+	region := props.Region
 
 	providerPricing := (*pm.Providers)[provider]
 	if providerPricing == nil {
@@ -177,8 +196,8 @@ func (pm *PricingModule) GetVolumePricing(provider pricing.Provider, volumeType 
 	}
 
 	// Reconstruct NodePricing from Prices
-	return &pricing.VolumePricing{
-		Properties: pricing.VolumePricingProperties{
+	return &pricing.PersistentVolumePricing{
+		Properties: pricing.PersistentVolumePricingProperties{
 			Provider:   provider,
 			VolumeType: pricing.VolumeType(volumeType),
 			Region:     region,
@@ -190,20 +209,135 @@ func (pm *PricingModule) GetVolumePricing(provider pricing.Provider, volumeType 
 func (pm *PricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*pricing.NodePricing], error) {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	return reader.NewSliceReader(pm.pricingSet.Nodes), nil
+	return reader.NewSliceReader(pm.pricingSet.NodePricing), nil
 }
 
-func (pm *PricingModule) NewVolumePricingReader(ctx context.Context) (reader.Reader[*pricing.VolumePricing], error) {
+func (pm *PricingModule) NewPersistentVolumePricingReader(ctx context.Context) (reader.Reader[*pricing.PersistentVolumePricing], error) {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	return reader.NewSliceReader(pm.pricingSet.Volumes), nil
+	return reader.NewSliceReader(pm.pricingSet.PersistentVolumePricing), nil
+}
+
+// GetClusterPricing returns cluster pricing matching the given provider.
+func (pm *PricingModule) GetClusterPricing(ctx context.Context, props pricing.ClusterPricingProperties) (*pricing.ClusterPricing, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	if pm.pricingSet == nil {
+		return nil, fmt.Errorf("pricing not loaded")
+	}
+
+	for _, cp := range pm.pricingSet.ClusterPricing {
+		if cp.Properties.Provider == props.Provider {
+			return cp, nil
+		}
+	}
+
+	return nil, fmt.Errorf("cluster pricing not found for provider=%s", props.Provider)
+}
+
+func (pm *PricingModule) NewClusterPricingReader(ctx context.Context) (reader.Reader[*pricing.ClusterPricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return reader.NewSliceReader(pm.pricingSet.ClusterPricing), nil
+}
+
+// GetNetworkPricing returns network pricing matching the given provider, traffic
+// direction, traffic type, and NAT gateway flag.
+func (pm *PricingModule) GetNetworkPricing(ctx context.Context, props pricing.NetworkPricingProperties) (*pricing.NetworkPricing, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	if pm.pricingSet == nil {
+		return nil, fmt.Errorf("pricing not loaded")
+	}
+
+	for _, np := range pm.pricingSet.NetworkPricing {
+		if np.Properties.Provider == props.Provider &&
+			np.Properties.TrafficDirection == props.TrafficDirection &&
+			np.Properties.TrafficType == props.TrafficType &&
+			np.Properties.IsNatGateway == props.IsNatGateway {
+			return np, nil
+		}
+	}
+
+	return nil, fmt.Errorf("network pricing not found for provider=%s, trafficDirection=%s, trafficType=%s, isNatGateway=%t",
+		props.Provider, props.TrafficDirection, props.TrafficType, props.IsNatGateway)
+}
+
+func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*pricing.NetworkPricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return reader.NewSliceReader(pm.pricingSet.NetworkPricing), nil
+}
+
+// GetServicePricing returns service pricing matching the given provider and region.
+func (pm *PricingModule) GetServicePricing(ctx context.Context, props pricing.ServicePricingProperties) (*pricing.ServicePricing, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	if pm.pricingSet == nil {
+		return nil, fmt.Errorf("pricing not loaded")
+	}
+
+	for _, sp := range pm.pricingSet.ServicePricing {
+		if sp.Properties.Provider == props.Provider &&
+			sp.Properties.Region == props.Region {
+			return sp, nil
+		}
+	}
+
+	return nil, fmt.Errorf("service pricing not found for provider=%s, region=%s", props.Provider, props.Region)
+}
+
+func (pm *PricingModule) NewServicePricingReader(ctx context.Context) (reader.Reader[*pricing.ServicePricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return reader.NewSliceReader(pm.pricingSet.ServicePricing), nil
 }
 
 // GetPricingSet returns the current in-memory pricing set
-func (pm *PricingModule) GetPricingSet() *pricing.PricingSet {
+func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	return pm.pricingSet
+	return pm.pricingSet, nil
+}
+
+// TODO: Make this a const? This string is correct, but is also defined in KCM.
+func (pm *PricingModule) SourceKind() string {
+	return "public"
+}
+
+// TODO: This seems like a reasonable choice for a source name... but let's think about it a bit more.
+func (pm *PricingModule) SourceName() string {
+	return string(pm.config.Provider)
+}
+
+func (pm *PricingModule) Checksum(ctx context.Context) (string, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	if pm.pricingSet == nil {
+		return "", fmt.Errorf("pricing not loaded")
+	}
+
+	return pm.pricingSet.Checksum()
 }
 
 // ComparePricingSet compares the current in-memory pricing set with a new one
@@ -212,25 +346,17 @@ func (pm *PricingModule) ComparePricingSet(newPricingSet *pricing.PricingSet) (b
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
-	if pm.pricingSet == nil {
-		return false, fmt.Errorf("current pricing set is nil")
-	}
-	if newPricingSet == nil {
-		return false, fmt.Errorf("new pricing set is nil")
-	}
-
-	// Compare by serializing both to JSON and computing checksums
-	currentJSON, err := pm.serializePricingSet(pm.pricingSet)
+	sum, err := pm.pricingSet.Checksum()
 	if err != nil {
-		return false, fmt.Errorf("failed to serialize current pricing set: %w", err)
+		return false, fmt.Errorf("failed to checksum current pricing set: %w", err)
 	}
 
-	newJSON, err := pm.serializePricingSet(newPricingSet)
+	newSum, err := newPricingSet.Checksum()
 	if err != nil {
 		return false, fmt.Errorf("failed to serialize new pricing set: %w", err)
 	}
 
-	return string(currentJSON) == string(newJSON), nil
+	return sum == newSum, nil
 }
 
 // UpdatePricingSet replaces the current pricing set with a new one and re-indexes it
@@ -252,20 +378,15 @@ func (pm *PricingModule) UpdatePricingSet(ctx context.Context, newPricingSet *pr
 	}
 
 	log.Infof("Updated pricing set: %d node pricing records and %d volume pricing records",
-		len(newPricingSet.Nodes), len(newPricingSet.Volumes))
+		len(newPricingSet.NodePricing), len(newPricingSet.PersistentVolumePricing))
 
 	return nil
-}
-
-// serializePricingSet converts a pricing set to JSON bytes for comparison
-func (pm *PricingModule) serializePricingSet(ps *pricing.PricingSet) ([]byte, error) {
-	return json.Marshal(ps)
 }
 
 // backgroundRefresh periodically fetches new pricing data and updates the module
 func (pm *PricingModule) backgroundRefresh() {
 	defer close(pm.doneCh)
-	
+
 	ticker := time.NewTicker(pm.config.RefreshInterval)
 	defer ticker.Stop()
 
@@ -273,7 +394,7 @@ func (pm *PricingModule) backgroundRefresh() {
 		select {
 		case <-ticker.C:
 			log.Infof("Starting scheduled pricing refresh for %s (%s)", pm.config.Provider, pm.config.Currency)
-			
+
 			// Fetch new pricing data
 			newPricingSet, err := GeneratePricingForProvider(pm.config.Provider, pm.config.Currency)
 			if err != nil {
