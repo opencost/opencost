@@ -11,7 +11,7 @@ import (
 
 type PersistentVolumePricing struct {
 	Properties PersistentVolumePricingProperties `json:"properties" yaml:"properties"`
-	Prices     Prices                            `json:"prices" yaml:"pricing"`
+	Prices     Prices                            `json:"prices" yaml:"prices"`
 }
 
 func (vp *PersistentVolumePricing) String() string {
@@ -29,7 +29,6 @@ type PersistentVolumePricingProperties struct {
 	End        *time.Time        `json:"end,omitempty" yaml:"end,omitempty"`
 }
 
-// TODO: precompute this somewhere along the way?
 func (vp *PersistentVolumePricingProperties) String() string {
 	return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s",
 		vp.Provider,

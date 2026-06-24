@@ -1,6 +1,7 @@
 package pricing
 
 import (
+	"cmp"
 	"encoding/hex"
 	"fmt"
 	"hash/fnv"
@@ -28,8 +29,11 @@ func (ps *PricingSet) IsEmpty() bool {
 }
 
 // Checksum returns a hash that is stable across map and slice ordering and
-// sensitive to both pricing properties and price values. It does not mutate
-// the receiver.
+// sensitive to both pricing properties and price values.
+//
+// TODO: Consider commutative hash folding via a multiset hashing algorithm
+// if the string-based Checksum() implementation is too resource intensive
+// for large pricing sets. For now, this string version is more readable.
 func (ps *PricingSet) Checksum() (string, error) {
 	if ps == nil {
 		ps = &PricingSet{}
@@ -74,67 +78,33 @@ func (ps *PricingSet) Checksum() (string, error) {
 }
 
 // Sort sorts the pricing data to ensure deterministic serialization.
-// Sorted by: Provider, Region, <Instance/Volume>Type
 func (ps *PricingSet) Sort() {
 	if ps == nil {
 		return
 	}
 
-	// Sort nodes
-	slices.SortFunc(ps.NodePricing, func(a, b *NodePricing) int {
-		// Compare by Provider
-		if a.Properties.Provider != b.Properties.Provider {
-			if a.Properties.Provider < b.Properties.Provider {
-				return -1
-			}
-			return 1
-		}
-
-		// Compare by Region
-		if a.Properties.Region != b.Properties.Region {
-			if a.Properties.Region < b.Properties.Region {
-				return -1
-			}
-			return 1
-		}
-
-		// Compare by InstanceType
-		if a.Properties.InstanceType != b.Properties.InstanceType {
-			if a.Properties.InstanceType < b.Properties.InstanceType {
-				return -1
-			}
-			return 1
-		}
-
-		return 0
+	// Sort clusters
+	slices.SortFunc(ps.ClusterPricing, func(a, b *ClusterPricing) int {
+		return cmp.Compare(a.String(), b.String())
 	})
 
-	// Sort volumes
+	// Sort network
+	slices.SortFunc(ps.NetworkPricing, func(a, b *NetworkPricing) int {
+		return cmp.Compare(a.String(), b.String())
+	})
+
+	// Sort nodes
+	slices.SortFunc(ps.NodePricing, func(a, b *NodePricing) int {
+		return cmp.Compare(a.String(), b.String())
+	})
+
+	// Sort persistent volumes
 	slices.SortFunc(ps.PersistentVolumePricing, func(a, b *PersistentVolumePricing) int {
-		// Compare by Provider
-		if a.Properties.Provider != b.Properties.Provider {
-			if a.Properties.Provider < b.Properties.Provider {
-				return -1
-			}
-			return 1
-		}
+		return cmp.Compare(a.String(), b.String())
+	})
 
-		// Compare by Region
-		if a.Properties.Region != b.Properties.Region {
-			if a.Properties.Region < b.Properties.Region {
-				return -1
-			}
-			return 1
-		}
-
-		// Compare by VolumeType
-		if a.Properties.VolumeType < b.Properties.VolumeType {
-			return -1
-		}
-		if a.Properties.VolumeType > b.Properties.VolumeType {
-			return 1
-		}
-
-		return 0
+	// Sort services
+	slices.SortFunc(ps.ServicePricing, func(a, b *ServicePricing) int {
+		return cmp.Compare(a.String(), b.String())
 	})
 }

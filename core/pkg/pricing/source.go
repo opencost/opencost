@@ -3,7 +3,6 @@ package pricing
 import (
 	"context"
 
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/reader"
 )
 
@@ -19,30 +18,27 @@ type PricingSource interface {
 	SourceName() string
 }
 
-// TODO: add the following function for Opencost pricing
-// GetClusterPricing(ClusterPricingProperties) (*ClusterPricing, error)
 type ClusterPricingSource interface {
+	GetClusterPricing(ctx context.Context, props ClusterPricingProperties) (*ClusterPricing, error)
 	NewClusterPricingReader(ctx context.Context) (reader.Reader[*ClusterPricing], error)
 }
 
-// TODO: add the following function for Opencost pricing
-// GetNetworkPricing(NetworkPricingProperties) (*NetworkPricing, error)
 type NetworkPricingSource interface {
+	GetNetworkPricing(ctx context.Context, props NetworkPricingProperties) (*NetworkPricing, error)
 	NewNetworkPricingReader(ctx context.Context) (reader.Reader[*NetworkPricing], error)
 }
 
 type NodePricingSource interface {
 	NewNodePricingReader(ctx context.Context) (reader.Reader[*NodePricing], error)
-	GetNodePricing(provider shared.Provider, instanceType string, region string) (*NodePricing, error)
+	GetNodePricing(ctx context.Context, props NodePricingProperties) (*NodePricing, error)
 }
 
 type PersistentVolumePricingSource interface {
 	NewPersistentVolumePricingReader(ctx context.Context) (reader.Reader[*PersistentVolumePricing], error)
-	GetPersistentVolumePricing(PersistentVolumePricingProperties) (*PersistentVolumePricing, error)
+	GetPersistentVolumePricing(ctx context.Context, props PersistentVolumePricingProperties) (*PersistentVolumePricing, error)
 }
 
-// TODO: add the following function for Opencost pricing
-// GetServicePricing(ServicePricingProperties) (*ServicePricing, error)
 type ServicePricingSource interface {
+	GetServicePricing(ctx context.Context, props ServicePricingProperties) (*ServicePricing, error)
 	NewServicePricingReader(ctx context.Context) (reader.Reader[*ServicePricing], error)
 }

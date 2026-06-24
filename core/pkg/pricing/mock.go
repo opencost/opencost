@@ -9,10 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/reader"
 	"gopkg.in/yaml.v3"
 )
+
+// MockPricingModule must satisfy the PricingModule interface
+var _ PricingModule = (*MockPricingModule)(nil)
 
 type MockPricingModule struct {
 	ClusterPricing          []*ClusterPricing
@@ -58,35 +60,74 @@ func NewMockPricingModule() (*MockPricingModule, error) {
 	return mpm, nil
 }
 
-// TODO GetClusterPricing
+func (mpm *MockPricingModule) GetClusterPricing(ctx context.Context, props ClusterPricingProperties) (*ClusterPricing, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Search through the mock data for a matching cluster pricing entry
+	for _, cp := range mpm.ClusterPricing {
+		if cp.Properties.Provider == props.Provider {
+			return cp, nil
+		}
+	}
+	return nil, fmt.Errorf("cluster pricing not found for provider=%s", props.Provider)
+}
 
 func (mpm *MockPricingModule) NewClusterPricingReader(ctx context.Context) (reader.Reader[*ClusterPricing], error) {
 	return reader.NewSliceReader(mpm.ClusterPricing), nil
 }
 
-// TODO GetNetworkPricing
+func (mpm *MockPricingModule) GetNetworkPricing(ctx context.Context, props NetworkPricingProperties) (*NetworkPricing, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Search through the mock data for a matching network pricing entry
+	for _, np := range mpm.NetworkPricing {
+		if np.Properties.Provider == props.Provider &&
+			np.Properties.TrafficDirection == props.TrafficDirection &&
+			np.Properties.TrafficType == props.TrafficType &&
+			np.Properties.IsNatGateway == props.IsNatGateway {
+			return np, nil
+		}
+	}
+	return nil, fmt.Errorf("network pricing not found for provider=%s, trafficDirection=%s, trafficType=%s, isNatGateway=%t",
+		props.Provider, props.TrafficDirection, props.TrafficType, props.IsNatGateway)
+}
 
 func (mpm *MockPricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*NetworkPricing], error) {
 	return reader.NewSliceReader(mpm.NetworkPricing), nil
 }
 
-func (mpm *MockPricingModule) GetNodePricing(provider shared.Provider, instanceType string, region string) (*NodePricing, error) {
+func (mpm *MockPricingModule) GetNodePricing(ctx context.Context, props NodePricingProperties) (*NodePricing, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// Search through the mock data for a matching node pricing entry
 	for _, np := range mpm.NodePricing {
-		if np.Properties.Provider == provider &&
-			np.Properties.InstanceType == instanceType &&
-			np.Properties.Region == region {
+		if np.Properties.Provider == props.Provider &&
+			np.Properties.Region == props.Region &&
+			np.Properties.InstanceType == props.InstanceType &&
+			np.Properties.Provisioning == props.Provisioning &&
+			np.Properties.Commitment == props.Commitment {
 			return np, nil
 		}
 	}
-	return nil, fmt.Errorf("node pricing not found for provider=%s, instanceType=%s, region=%s", provider, instanceType, region)
+	return nil, fmt.Errorf("node pricing not found for provider=%s, region=%s, instanceType=%s, provisioning=%s, commitment=%s",
+		props.Provider, props.Region, props.InstanceType, props.Provisioning, props.Commitment)
 }
 
 func (mpm *MockPricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*NodePricing], error) {
 	return reader.NewSliceReader(mpm.NodePricing), nil
 }
 
-func (mpm *MockPricingModule) GetPersistentVolumePricing(props PersistentVolumePricingProperties) (*PersistentVolumePricing, error) {
+func (mpm *MockPricingModule) GetPersistentVolumePricing(ctx context.Context, props PersistentVolumePricingProperties) (*PersistentVolumePricing, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// Search through the mock data for a matching volume pricing entry
 	for _, vp := range mpm.PersistentVolumePricing {
 		if vp.Properties.Provider == props.Provider &&
@@ -102,7 +143,20 @@ func (mpm *MockPricingModule) NewPersistentVolumePricingReader(ctx context.Conte
 	return reader.NewSliceReader(mpm.PersistentVolumePricing), nil
 }
 
-// TODO GetServicePricing
+func (mpm *MockPricingModule) GetServicePricing(ctx context.Context, props ServicePricingProperties) (*ServicePricing, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Search through the mock data for a matching service pricing entry
+	for _, sp := range mpm.ServicePricing {
+		if sp.Properties.Provider == props.Provider &&
+			sp.Properties.Region == props.Region {
+			return sp, nil
+		}
+	}
+	return nil, fmt.Errorf("service pricing not found for provider=%s, region=%s", props.Provider, props.Region)
+}
 
 func (mpm *MockPricingModule) NewServicePricingReader(ctx context.Context) (reader.Reader[*ServicePricing], error) {
 	return reader.NewSliceReader(mpm.ServicePricing), nil
@@ -144,7 +198,7 @@ func (mpm *MockPricingModule) loadTestFile(filename string) error {
 	path := filepath.Join("test", filename)
 	bs, err := pricingTestFS.ReadFile(path)
 	if err != nil {
-		panic(fmt.Errorf("failed to read embedded pricing file: %w", err))
+		return fmt.Errorf("failed to read embedded pricing file: %w", err)
 	}
 
 	var set *PricingSet

@@ -10,7 +10,7 @@ import (
 
 type NetworkPricing struct {
 	Properties NetworkPricingProperties `json:"properties" yaml:"properties"`
-	Prices     Prices                   `json:"prices" yaml:"pricing"`
+	Prices     Prices                   `json:"prices" yaml:"prices"`
 }
 
 func (sp *NetworkPricing) String() string {
@@ -26,7 +26,6 @@ type NetworkPricingProperties struct {
 	End              *time.Time                 `json:"end,omitempty" yaml:"end,omitempty"`
 }
 
-// TODO: precompute this somewhere along the way?
 func (sp *NetworkPricingProperties) String() string {
 	return fmt.Sprintf("%s:%s:%s:nat=%t:%s",
 		sp.Provider,

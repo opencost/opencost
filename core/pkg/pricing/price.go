@@ -1,7 +1,6 @@
 package pricing
 
 import (
-	"errors"
 	"sort"
 	"strconv"
 	"strings"
@@ -9,14 +8,16 @@ import (
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
-var NotFound = errors.New("Not found")
-
 type Price struct {
 	Unit  unit.Unit `json:"unit" yaml:"unit"`
 	Price float64   `json:"price" yaml:"price"`
 }
 
 type Prices map[Resource]Price
+
+func (p Prices) String() string {
+	return p.canonical()
+}
 
 // canonical returns a deterministic string representation of the prices,
 // independent of map iteration order. It is used to make pricing checksums
@@ -36,8 +37,9 @@ func (p Prices) canonical() string {
 	for _, r := range resources {
 		price := p[Resource(r)]
 		b.WriteString(r)
-		b.WriteByte('=')
+		b.WriteByte('[')
 		b.WriteString(string(price.Unit))
+		b.WriteByte(']')
 		b.WriteByte('=')
 		b.WriteString(strconv.FormatFloat(price.Price, 'f', -1, 64))
 		b.WriteByte(';')

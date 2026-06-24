@@ -9,7 +9,7 @@ import (
 
 type ClusterPricing struct {
 	Properties ClusterPricingProperties `json:"properties" yaml:"properties"`
-	Prices     Prices                   `json:"prices" yaml:"pricing"`
+	Prices     Prices                   `json:"prices" yaml:"prices"`
 }
 
 func (sp *ClusterPricing) String() string {
@@ -22,12 +22,8 @@ type ClusterPricingProperties struct {
 	End      *time.Time      `json:"end,omitempty" yaml:"end,omitempty"`
 }
 
-// TODO: precompute this somewhere along the way?
 func (sp *ClusterPricingProperties) String() string {
-	return fmt.Sprintf("%s:%s",
-		sp.Provider,
-		sp.timeKey(),
-	)
+	return fmt.Sprintf("%s:%s", sp.Provider, sp.timeKey())
 }
 
 func (sp *ClusterPricingProperties) timeKey() string {

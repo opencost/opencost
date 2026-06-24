@@ -156,3 +156,44 @@ persistentVolumePricing:
       storage:
         unit: GiB-hr
         price: 0.0000247
+clusterPricing:
+  - properties:
+      provider: AWS
+    prices:
+      cluster:
+        unit: hr
+        price: 0.10
+networkPricing:
+  - properties:
+      provider: AWS
+      trafficDirection: Egress
+      trafficType: Internet
+    prices:
+      networktraffic:
+        unit: GB
+        price: 0.09
+  - properties:
+      provider: AWS
+      trafficDirection: Egress
+      trafficType: CrossRegion
+    prices:
+      networktraffic:
+        unit: GB
+        price: 0.02
+  - properties:
+      provider: AWS
+      trafficDirection: Egress
+      trafficType: Internet
+      isNatGateway: true
+    prices:
+      networktraffic:
+        unit: GB
+        price: 0.045
+servicePricing:
+  - properties:
+      provider: AWS
+      region: us-east-1
+    prices:
+      service:
+        unit: hr
+        price: 0.025

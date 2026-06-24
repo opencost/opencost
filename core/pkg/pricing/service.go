@@ -9,7 +9,7 @@ import (
 
 type ServicePricing struct {
 	Properties ServicePricingProperties `json:"properties" yaml:"properties"`
-	Prices     Prices                   `json:"prices" yaml:"pricing"`
+	Prices     Prices                   `json:"prices" yaml:"prices"`
 }
 
 func (sp *ServicePricing) String() string {

@@ -11,7 +11,7 @@ import (
 
 type NodePricing struct {
 	Properties NodePricingProperties `json:"properties" yaml:"properties"`
-	Prices     Prices                `json:"prices" yaml:"pricing"`
+	Prices     Prices                `json:"prices" yaml:"prices"`
 }
 
 func (np *NodePricing) String() string {
@@ -31,7 +31,6 @@ type NodePricingProperties struct {
 	End          *time.Time        `json:"end,omitempty" yaml:"end,omitempty"`
 }
 
-// TODO: precompute this somewhere along the way?
 func (np *NodePricingProperties) String() string {
 	return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s:%s",
 		np.Provider,

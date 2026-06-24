@@ -4,13 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"sync"
 
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/reader"
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
+// PricingModule must satisfy the pricing.PricingModule interface
+var _ pricing.PricingModule = (*PricingModule)(nil)
+
 type PricingModule struct {
+	mu    sync.RWMutex
 	store pricing.PricingStore
 }
 
@@ -44,6 +50,167 @@ func NewBasicPricingModule(store pricing.PricingStore) (*PricingModule, error) {
 	return pm, nil
 }
 
+func (pm *PricingModule) GetClusterPricing(ctx context.Context, props pricing.ClusterPricingProperties) (*pricing.ClusterPricing, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	cp, err := pm.getClusterPricing(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if cp != nil {
+		return cp, nil
+	}
+
+	return nil, errors.New("no cluster pricing")
+}
+
+func (pm *PricingModule) NewClusterPricingReader(ctx context.Context) (reader.Reader[*pricing.ClusterPricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	cp, err := pm.getClusterPricing(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting node pricing: %w", err)
+	}
+
+	return reader.NewSliceReader([]*pricing.ClusterPricing{cp}), nil
+}
+
+func (pm *PricingModule) GetNetworkPricing(ctx context.Context, props pricing.NetworkPricingProperties) (*pricing.NetworkPricing, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	nps, err := pm.getNetworkPricing(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Search through the mock data for a matching network pricing entry
+	for _, np := range nps {
+		if np.Properties.Provider == props.Provider &&
+			np.Properties.TrafficDirection == props.TrafficDirection &&
+			np.Properties.TrafficType == props.TrafficType &&
+			np.Properties.IsNatGateway == props.IsNatGateway {
+			return np, nil
+		}
+	}
+	return nil, fmt.Errorf("network pricing not found for provider=%s, trafficDirection=%s, trafficType=%s, isNatGateway=%t",
+		props.Provider, props.TrafficDirection, props.TrafficType, props.IsNatGateway)
+}
+
+func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*pricing.NetworkPricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	np, err := pm.getNetworkPricing(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting node pricing: %w", err)
+	}
+
+	return reader.NewSliceReader(slices.Clone(np)), nil
+}
+
+func (pm *PricingModule) GetNodePricing(ctx context.Context, props pricing.NodePricingProperties) (*pricing.NodePricing, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	np, err := pm.getNodePricing(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if np != nil {
+		return np, nil
+	}
+
+	return nil, errors.New("no node pricing")
+}
+
+func (pm *PricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*pricing.NodePricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	np, err := pm.getNodePricing(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting node pricing: %w", err)
+	}
+
+	return reader.NewSliceReader([]*pricing.NodePricing{np}), nil
+}
+
+func (pm *PricingModule) GetPersistentVolumePricing(ctx context.Context, props pricing.PersistentVolumePricingProperties) (*pricing.PersistentVolumePricing, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	pvp, err := pm.getPersistentVolumePricing(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if pvp != nil {
+		return pvp, nil
+	}
+
+	return nil, errors.New("no persistent volume pricing")
+}
+
+func (pm *PricingModule) NewPersistentVolumePricingReader(ctx context.Context) (reader.Reader[*pricing.PersistentVolumePricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	pvp, err := pm.getPersistentVolumePricing(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting volume pricing: %w", err)
+	}
+
+	return reader.NewSliceReader([]*pricing.PersistentVolumePricing{pvp}), nil
+}
+
+func (pm *PricingModule) GetServicePricing(ctx context.Context, props pricing.ServicePricingProperties) (*pricing.ServicePricing, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	sp, err := pm.getServicePricing(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if sp != nil {
+		return sp, nil
+	}
+
+	return nil, errors.New("no service pricing")
+}
+
+func (pm *PricingModule) NewServicePricingReader(ctx context.Context) (reader.Reader[*pricing.ServicePricing], error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	sp, err := pm.getServicePricing(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting service pricing: %w", err)
+	}
+
+	return reader.NewSliceReader([]*pricing.ServicePricing{sp}), nil
+}
+
+func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet, error) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	return pm.store.GetPricingSet(ctx)
+}
+
+func (pm *PricingModule) SourceKind() string {
+	return "basic"
+}
+
+func (pm *PricingModule) SourceName() string {
+	return "basic"
+}
+
 func (pm *PricingModule) Checksum(ctx context.Context) (string, error) {
 	pricingSet, err := pm.store.GetPricingSet(ctx)
 	if err != nil {
@@ -58,77 +225,40 @@ func (pm *PricingModule) Checksum(ctx context.Context) (string, error) {
 	return checksum, nil
 }
 
-func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet, error) {
-	return pm.store.GetPricingSet(ctx)
-}
-
-func (pm *PricingModule) SourceKind() string {
-	return "basic"
-}
-
-func (pm *PricingModule) SourceName() string {
-	return "basic"
-}
-
-func (pm *PricingModule) NewClusterPricingReader(ctx context.Context) (reader.Reader[*pricing.ClusterPricing], error) {
-	cp, err := pm.getClusterPricing(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("getting node pricing: %w", err)
-	}
-	return reader.NewSliceReader([]*pricing.ClusterPricing{cp}), nil
-}
-
-func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*pricing.NetworkPricing], error) {
-	np, err := pm.getNetworkPricing(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("getting node pricing: %w", err)
-	}
-	return reader.NewSliceReader(np), nil
-}
-
-func (pm *PricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*pricing.NodePricing], error) {
-	np, err := pm.getNodePricing(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("getting node pricing: %w", err)
-	}
-	return reader.NewSliceReader([]*pricing.NodePricing{np}), nil
-}
-
-func (pm *PricingModule) NewPersistentVolumePricingReader(ctx context.Context) (reader.Reader[*pricing.PersistentVolumePricing], error) {
-	vp, err := pm.getPersistentVolumePricing(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("getting volume pricing: %w", err)
-	}
-	return reader.NewSliceReader([]*pricing.PersistentVolumePricing{vp}), nil
-}
-
-func (pm *PricingModule) NewServicePricingReader(ctx context.Context) (reader.Reader[*pricing.ServicePricing], error) {
-	sp, err := pm.getServicePricing(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("getting volume pricing: %w", err)
-	}
-	return reader.NewSliceReader([]*pricing.ServicePricing{sp}), nil
-}
-
 // Public CRUD functions
 
 func (pm *PricingModule) SetNodePricePerCPUCoreHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	return pm.setNodePrice(ctx, pricing.ResourceCPU, unit.VCPUHour, price)
 }
 
 func (pm *PricingModule) SetNodePricePerRAMGiBHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	return pm.setNodePrice(ctx, pricing.ResourceRAM, unit.GiBHour, price)
 }
 
 func (pm *PricingModule) SetNodePricePerGPUHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	return pm.setNodePrice(ctx, pricing.ResourceGPU, unit.GPUHour, price)
 }
 
 func (pm *PricingModule) SetNodePricePerLocalDiskGiBHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	return pm.setNodePrice(ctx, pricing.ResourceStorage, unit.GiBHour, price)
 }
 
 func (pm *PricingModule) SetVolumePricePerStorageGiBHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	return pm.setVolumePrice(ctx, pricing.ResourceStorage, unit.GiBHour, price)
 }
 
