@@ -11,6 +11,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/util/apiutil"
+	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/cloudcost"
 	"github.com/opencost/opencost/pkg/customcost"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -191,13 +192,15 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 
 	// Define tool handlers
 	handleAllocationCosts := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args AllocationArgs) (*mcp_sdk.CallToolResult, interface{}, error) {
-		// Parse step duration if provided
 		var step time.Duration
-		var err error
 		if args.Step != "" {
-			step, err = time.ParseDuration(args.Step)
+			var err error
+			step, err = timeutil.ParseDuration(args.Step)
 			if err != nil {
 				return nil, nil, fmt.Errorf("invalid step duration '%s': %w", args.Step, err)
+			}
+			if step <= 0 {
+				return nil, nil, fmt.Errorf("invalid step duration '%s': must be > 0", args.Step)
 			}
 		}
 
@@ -278,10 +281,23 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 	}
 
 	handleEfficiency := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args EfficiencyArgs) (*mcp_sdk.CallToolResult, interface{}, error) {
+		var step time.Duration
+		if args.Step != "" {
+			var err error
+			step, err = timeutil.ParseDuration(args.Step)
+			if err != nil {
+				return nil, nil, fmt.Errorf("invalid step duration '%s': %w", args.Step, err)
+			}
+			if step <= 0 {
+				return nil, nil, fmt.Errorf("invalid step duration '%s': must be > 0", args.Step)
+			}
+		}
+
 		queryRequest := &opencost_mcp.OpenCostQueryRequest{
 			QueryType: opencost_mcp.EfficiencyQueryType,
 			Window:    args.Window,
 			EfficiencyParams: &opencost_mcp.EfficiencyQuery{
+				Step:                       step,
 				Aggregate:                  args.Aggregate,
 				Filter:                     args.Filter,
 				EfficiencyBufferMultiplier: args.BufferMultiplier,
@@ -408,4 +424,5 @@ type EfficiencyArgs struct {
 	Aggregate        string   `json:"aggregate,omitempty"`         // Aggregation level (e.g., "pod", "namespace", "controller")
 	Filter           string   `json:"filter,omitempty"`            // Filter expression (same as allocation filters)
 	BufferMultiplier *float64 `json:"buffer_multiplier,omitempty"` // Buffer multiplier for recommendations (default: 1.2 for 20% headroom, e.g., 1.4 for 40%)
+	Step             string   `json:"step,omitempty"`              // Query step size (e.g., "1h", "6h"); smaller steps reduce peak memory by batching large windows, but may increase query time/requests
 }

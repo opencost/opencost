@@ -53,6 +53,10 @@ type Storage interface {
 	// to write a new file or overwrite an existing file.
 	Write(path string, data []byte) error
 
+	// WriteStream creates a new relative path and returns the `io.WriteCloser` that can be used to
+	// write into the storage path. Ensure that Close() is run on the returned writer.
+	WriteStream(path string) (io.WriteCloser, error)
+
 	// Remove uses the relative path of the storage combined with the provided path to
 	// remove a file from storage permanently.
 	Remove(path string) error
