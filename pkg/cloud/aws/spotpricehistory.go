@@ -2,31 +2,16 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	awsSDK "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/aws/smithy-go"
 
 	"github.com/opencost/opencost/core/pkg/log"
-)
-
-var (
-	// ErrSpotPriceAuthFailure indicates a permanent authorization failure
-	// for spot price history API access. This error is cached permanently.
-	ErrSpotPriceAuthFailure = errors.New("spot price history unavailable due to insufficient AWS permissions")
-
-	// globalSpotPriceAuthFailure is set to true when any spot price lookup
-	// fails due to authorization errors. Once set, all future lookups will
-	// immediately return ErrSpotPriceAuthFailure without calling AWS API.
-	// This prevents repeated auth failures across different instance types/AZs.
-	globalSpotPriceAuthFailure atomic.Bool
 )
 
 // SpotPriceHistoryKey uniquely identifies a spot price lookup by region,
@@ -55,10 +40,6 @@ type SpotPriceHistoryEntry struct {
 }
 
 func (spe SpotPriceHistoryEntry) shouldRefresh() bool {
-	// Never refresh permanent authorization failures
-	if errors.Is(spe.Error, ErrSpotPriceAuthFailure) {
-		return false
-	}
 	return time.Since(spe.RetrievedAt) > SpotPriceHistoryCacheAge
 }
 
@@ -177,12 +158,6 @@ func (a *AWSSpotPriceHistoryFetcher) getEC2Client(region string) *ec2.Client {
 }
 
 func (a *AWSSpotPriceHistoryFetcher) FetchSpotPrice(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
-	// Check global auth failure flag first to avoid unnecessary API calls
-	if globalSpotPriceAuthFailure.Load() {
-		log.Debugf("Skipping spot price lookup for %s due to previous auth failure", key)
-		return nil, ErrSpotPriceAuthFailure
-	}
-
 	log.Debugf("Retrieving spot price history for %s", key)
 	client := a.getEC2Client(key.Region)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -203,24 +178,6 @@ func (a *AWSSpotPriceHistoryFetcher) FetchSpotPrice(key SpotPriceHistoryKey) (*S
 
 	resp, err := client.DescribeSpotPriceHistory(ctx, input)
 	if err != nil {
-		// Check for authorization errors using existing pattern
-		var awsErr smithy.APIError
-		if errors.As(err, &awsErr) {
-			errorCode := awsErr.ErrorCode()
-			switch errorCode {
-			case "AuthFailure", "InvalidClientTokenId", "UnauthorizedOperation",
-				"AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch",
-				"ExpiredToken", "ExpiredTokenException", "InvalidToken",
-				"TokenRefreshRequired", "IncompleteSignature",
-				"MissingAuthenticationToken", "RequestExpired":
-				// Set global flag to prevent future API calls for any instance type/AZ
-				globalSpotPriceAuthFailure.Store(true)
-				log.DedupedInfof(3, "Spot price history unavailable due to insufficient AWS permissions (%s). All future spot price lookups will be skipped: %s", errorCode, awsErr.ErrorMessage())
-				return nil, fmt.Errorf("%w: %s", ErrSpotPriceAuthFailure, awsErr.ErrorMessage())
-			default:
-				// Non-auth error, fall through to generic error handling
-			}
-		}
 		return nil, fmt.Errorf("describing spot price history for %s: %w", key, err)
 	}
 	if len(resp.SpotPriceHistory) == 0 {
