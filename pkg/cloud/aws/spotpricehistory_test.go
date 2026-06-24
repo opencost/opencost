@@ -252,7 +252,7 @@ func TestSpotPriceHistoryEntry_shouldRefresh(t *testing.T) {
 func TestSpotPriceHistoryCache_GetSpotPrice_AuthErrorCached(t *testing.T) {
 	// Reset global flag before test
 	globalSpotPriceAuthFailure.Store(false)
-
+	t.Cleanup(func() { globalSpotPriceAuthFailure.Store(false) })
 	var fetchCount atomic.Int32
 	mockFetcher := &mockSpotPriceHistoryFetcher{
 		fetchFunc: func(key SpotPriceHistoryKey) (*SpotPriceHistoryEntry, error) {
