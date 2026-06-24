@@ -1352,6 +1352,7 @@ func (aws *AWS) spotPricingFromHistory(k models.Key) (*SpotPriceHistoryEntry, bo
 
 	price, err := aws.SpotPriceHistoryCache.GetSpotPrice(region, instanceType, availabilityZone)
 	if err != nil {
+		log.Debugf("Failed to get spot price history for instance %s: %s", k.ID(), err.Error())
 		return nil, false
 	}
 	return price, true
