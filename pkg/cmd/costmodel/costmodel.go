@@ -51,11 +51,17 @@ func Execute(conf *Config) error {
 			log.Errorf("couldn't start CSV export worker: %v", err)
 		}
 
+		// Register inference cost routes unconditionally so clients receive 501
+		// (not 404) when INFERENCE_COST_ENABLED=false. The QueryService nil-
+		// checks in each handler produce the 501 when qs is nil.
+		var inferenceCostQueryService *inferencecost.QueryService
 		if conf.InferenceCostEnabled {
-			if err := StartInferenceCostCollector(ctx, a, router); err != nil {
+			if err := StartInferenceCostCollector(ctx, a, &inferenceCostQueryService); err != nil {
 				log.Errorf("Failed to start inference cost collector: %v", err)
 			}
 		}
+		router.GET("/inferenceCost/total", inferenceCostQueryService.GetInferenceCostTotalHandler())
+		router.GET("/inferenceCost/timeseries", inferenceCostQueryService.GetInferenceCostTimeseriesHandler())
 
 		// Register OpenCost Specific Endpoints
 		router.GET("/allocation", a.ComputeAllocationHandler)
@@ -149,11 +155,11 @@ func Execute(conf *Config) error {
 }
 
 // StartInferenceCostCollector initialises and starts the inference cost
-// collection loop as a background goroutine, and registers the
-// /inferenceCost/total and /inferenceCost/timeseries query endpoints on the
-// provided router. It is a no-op if the collector cannot be initialised
-// (error is logged, existing functionality is unaffected).
-func StartInferenceCostCollector(ctx context.Context, a *costmodel.Accesses, router *httprouter.Router) error {
+// collection loop as a background goroutine, and populates *qs with the
+// QueryService so the caller can register routes. It is a no-op if the
+// collector cannot be initialised (error is logged, existing functionality
+// is unaffected).
+func StartInferenceCostCollector(ctx context.Context, a *costmodel.Accesses, qs **inferencecost.QueryService) error {
 	cfg := inferencecost.DefaultConfig()
 
 	collector, err := inferencecost.NewCollector(cfg, a.Model)
@@ -169,13 +175,9 @@ func StartInferenceCostCollector(ctx context.Context, a *costmodel.Accesses, rou
 	calculator := inferencecost.NewCalculator(cfg)
 	runner := inferencecost.NewRunner(collector, calculator, exporter, cfg.CollectionInterval)
 
-	// Register on-demand query endpoints. The collector and calculator are
-	// shared between the background runner and the API; both paths are
-	// read-only (they only call CollectMetrics / CalculateCosts which carry
-	// no mutable state), so sharing is safe.
-	queryService := inferencecost.NewQueryService(collector, calculator)
-	router.GET("/inferenceCost/total", queryService.GetInferenceCostTotalHandler())
-	router.GET("/inferenceCost/timeseries", queryService.GetInferenceCostTimeseriesHandler())
+	// The collector and calculator are shared between the background runner
+	// and the API; both paths are read-only, so sharing is safe.
+	*qs = inferencecost.NewQueryService(collector, calculator)
 
 	go runner.Start(ctx)
 	log.Infof("InferenceCost: collector started (interval=%s)", cfg.CollectionInterval)

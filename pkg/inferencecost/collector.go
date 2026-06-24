@@ -220,13 +220,16 @@ func (c *Collector) queryCacheConfigs(ctx context.Context, t time.Time) (map[str
 
 	// Check for models that have token data but no cache config — likely a join
 	// failure due to pod-label mismatch between cache_config_info and prompt_tokens_total.
-	rawResult, _, rawErr := c.promClient.Query(ctx, `max by (namespace) (vllm:cache_config_info)`, t)
-	if rawErr == nil {
-		if rawVec, ok := rawResult.(model.Vector); ok && len(rawVec) > 0 && len(out) == 0 {
-			log.Warnf("InferenceCost: vllm:cache_config_info exists in Prometheus but the join with "+
-				"vllm:prompt_tokens_total produced no results — likely a pod-label mismatch between "+
-				"the two metrics (check that both carry matching 'namespace' and 'pod' labels). "+
-				"prefix_caching_off detection will be disabled; allocation method will be 'compute_time'.")
+	// Only run the diagnostic query when the join produced nothing; skip it on the happy path.
+	if len(out) == 0 {
+		rawResult, _, rawErr := c.promClient.Query(ctx, `max by (namespace) (vllm:cache_config_info)`, t)
+		if rawErr == nil {
+			if rawVec, ok := rawResult.(model.Vector); ok && len(rawVec) > 0 {
+				log.Warnf("InferenceCost: vllm:cache_config_info exists in Prometheus but the join with "+
+					"vllm:prompt_tokens_total produced no results — likely a pod-label mismatch between "+
+					"the two metrics (check that both carry matching 'namespace' and 'pod' labels). "+
+					"prefix_caching_off detection will be disabled; allocation method will be 'compute_time'.")
+			}
 		}
 	}
 
@@ -290,10 +293,10 @@ func (c *Collector) queryAllocationCosts(ctx context.Context, start, end time.Ti
 	// Log the differences
 	for key, result := range results {
 		modelName, namespace := parseKey(key)
-		if (result.allocationTotalCost > 0) {
-			log.Debugf("InferenceCost: model=%s ns=%s alloc=$%.4f usage=$%.4f (%.1f%% of alloc)",
-						modelName, namespace, result.allocationTotalCost, result.usageTotalCost,
-						(result.usageTotalCost/result.allocationTotalCost)*100)
+		if result.allocationTotalCost > 0 {
+			log.Debugf("InferenceCost: model=%s ns=%s alloc=$%.4f usage=$%.4f (%.1f%% of alloc)", 
+				modelName, namespace, result.allocationTotalCost, result.usageTotalCost, 
+				(result.usageTotalCost/result.allocationTotalCost)*100)
 		}
 	}
 	return results, nil

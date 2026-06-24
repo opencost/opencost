@@ -67,7 +67,12 @@ func (e *Exporter) Register() error {
 }
 
 // Export sets gauge values for all metrics derived from the given InferenceCost slice.
+// Gauges are reset before each export so decommissioned models do not persist.
 func (e *Exporter) Export(metrics []*InferenceCost) {
+	e.totalCost.Reset()
+	e.costPerMillionTokens.Reset()
+	e.cacheSavingsFraction.Reset()
+
 	for _, m := range metrics {
 		version := m.Properties.ModelVersion
 		if version == "" {

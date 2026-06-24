@@ -96,7 +96,7 @@ func (qs *QueryService) GetInferenceCostTimeseriesHandler() func(http.ResponseWr
 
 		setRange, err := qs.query(r.Context(), req)
 		if err != nil {
-			protocol.WriteError(w, protocol.InternalServerError(fmt.Sprintf("query failed: %s", err)))
+			protocol.WriteError(w, protocol.InternalServerError(fmt.Sprintf("InferenceCost query failed: %s", err)))
 			return
 		}
 

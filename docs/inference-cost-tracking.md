@@ -8,7 +8,7 @@ The inference cost tracking feature:
 1. Collects token metrics from [vLLM](https://vllm.ai/) via Prometheus (`prompt_tokens_total`, `generation_tokens_total`, prefill/decode timing, KV cache hits)
 2. Collects infrastructure costs (GPU, CPU, RAM, shared infra) from OpenCost's allocation layer
 3. Calculates blended and differentiated (input/output) cost per million tokens under two cost bases: `allocation` and `usage`
-4. Exports four Prometheus gauge metrics per model/namespace
+4. Exports Inference Prometheus gauge metrics per model/namespace
 5. Serves two REST API endpoints for on-demand cost queries with filtering, aggregation, and time-series support
 
 ## Enabling Inference Cost Tracking
@@ -54,7 +54,7 @@ Use `allocation` for chargeback/showback and bill reconciliation. Use `usage` fo
 
 ## Prometheus Metrics
 
-When `INFERENCE_COST_ENABLED=true`, OpenCost registers and emits three gauge metrics every collection interval. All metrics carry `model_name`, `model_version`, `namespace`, and `cost_basis` labels.
+When `INFERENCE_COST_ENABLED=true`, OpenCost registers and emits inference gauge metrics every collection interval. All metrics carry `model_name`, `model_version`, `namespace`, and `cost_basis` labels.
 
 Note: `pod`, `controller`, `controller_kind`, `container` aggregation are available via [REST APIs](#rest-api-endpoints).
 
@@ -316,7 +316,7 @@ The feature is implemented in `pkg/inferencecost/` and consists of:
 |-----------|------|----------------|
 | **Collector** | `collector.go` | Queries the OpenCost allocation layer for infrastructure costs and Prometheus for [vLLM](https://vllm.ai/) token/timing/cache metrics |
 | **Calculator** | `calculator.go` | Computes blended and differentiated (input/output) cost-per-million-token rates for both cost bases |
-| **Exporter** | `exporter.go` | Registers and emits the four `llm_*` Prometheus gauges |
+| **Exporter** | `exporter.go` | Registers and emits the `llm_*` Prometheus gauges |
 | **QueryService** | `queryservice.go` | Handles HTTP requests for `/inferenceCost/total` and `/inferenceCost/timeseries` |
 | **Runner** | `runner.go` | Drives periodic background collection for the Prometheus exporter |
 | **Types / API Types** | `types.go`, `apitypes.go` | Internal and HTTP-facing data models |

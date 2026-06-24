@@ -89,7 +89,9 @@ func addResponse(dst, src *InferenceCostResponse) {
 
 	if dst.PromptTokens > 0 {
 		dst.InputCostPerMillionTokens = dst.InputCost / dst.PromptTokens * 1_000_000
-		dst.CacheSavingsFraction = dst.cachedTokens / dst.PromptTokens
+		// Clamped to [0, 1]: see calculator.go for the full explanation of why
+		// cachedTokens can exceed promptTokens in high-reuse workloads.
+		dst.CacheSavingsFraction = min(dst.cachedTokens/dst.PromptTokens, 1.0)
 	} else {
 		dst.InputCostPerMillionTokens = 0
 		dst.CacheSavingsFraction = 0

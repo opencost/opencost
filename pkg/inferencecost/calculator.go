@@ -46,8 +46,14 @@ func (c *Calculator) calculateModelCosts(m *InferenceCost) {
 	}
 
 	// Cache savings fraction: fraction of prompt tokens served from KV cache.
+	// Clamped to [0, 1]: vllm:prefix_cache_hits_total counts tokens retrieved
+	// from cache per request, while vllm:prompt_tokens_total counts new input
+	// tokens. In workloads with heavy prefix reuse (e.g. benchmarks), cached
+	// tokens can exceed prompt tokens within a short window because cache hits
+	// reflect prefixes established by earlier requests, including those outside
+	// the current window. Values >1 before clamping indicate extreme cache reuse.
 	if m.PromptTokens > 0 {
-		m.CacheSavingsFraction = m.CachedTokens / m.PromptTokens
+		m.CacheSavingsFraction = min(m.CachedTokens/m.PromptTokens, 1.0)
 	}
 
 	// Input/output split — choose the allocation method.
@@ -115,7 +121,7 @@ func (c *Calculator) calculateComputeTimeSplit(m *InferenceCost) {
 }
 
 // calculateMultiplierSplit allocates costs using a fixed output/input ratio.
-// Uses EffectiveInputTokens as the input denominator for consistency.
+// Uses EffectiveInputTokens for cost allocation; InputCostPerMillionTokens uses PromptTokens as denominator.
 func (c *Calculator) calculateMultiplierSplit(m *InferenceCost) {
 	m.AllocationMethod = AllocationMethodMultiplier
 

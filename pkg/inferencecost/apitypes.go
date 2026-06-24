@@ -38,8 +38,16 @@ type InferenceCostResponse struct {
 	OutputCostPerMillionTokens float64 `json:"outputCostPerMillionTokens"`
 
 	// CacheSavingsFraction is the fraction of prompt tokens served from the KV
-	// cache (CachedTokens / PromptTokens, range 0–1). Zero when prefix caching is
-	// disabled (see allocationMethod) or when no cache hits occurred in the window.
+	// cache (CachedTokens / PromptTokens, clamped to [0, 1]). Zero when prefix
+	// caching is disabled (see allocationMethod) or when no cache hits occurred
+	// in the window.
+	//
+	// Note: in workloads with heavy prefix reuse (e.g. benchmarks with long
+	// shared system prompts), the raw ratio can exceed 1.0 because
+	// vllm:prefix_cache_hits_total counts tokens retrieved from cache per
+	// request — including prefixes established by earlier requests outside the
+	// current window — while vllm:prompt_tokens_total only counts new input
+	// tokens delivered in this window. The value is clamped to 1.0 in that case.
 	CacheSavingsFraction float64 `json:"cacheSavingsFraction"`
 
 	// cachedTokens is carried for aggregation recomputation of CacheSavingsFraction

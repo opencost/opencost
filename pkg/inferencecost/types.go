@@ -82,9 +82,10 @@ type InferenceCost struct {
 	// is enabled, otherwise equals PromptTokens.
 	EffectiveInputTokens float64
 
-	// CacheSavingsFraction is CachedTokens / PromptTokens (0–1). Represents the
-	// fraction of prompt tokens served from the KV cache. Zero when PromptTokens
-	// is zero or prefix caching is disabled.
+	// CacheSavingsFraction is CachedTokens / PromptTokens, clamped to [0, 1].
+	// Represents the fraction of prompt tokens served from the KV cache. Zero
+	// when PromptTokens is zero or prefix caching is disabled. The raw ratio can
+	// exceed 1 in high-reuse workloads; see apitypes.go for the full explanation.
 	CacheSavingsFraction float64
 
 	// InputCost and OutputCost are the dollar amounts attributed to input and
@@ -98,7 +99,7 @@ type InferenceCost struct {
 	// Derived cost-per-million-token metrics, keyed by CostBasis.
 	// Blended (input+output together), using TotalTokens as denominator.
 	CostPerMillionTokens map[CostBasis]float64
-	// Per-million input tokens, using EffectiveInputTokens as denominator.
+	// Per-million input tokens, using PromptTokens as denominator.
 	InputCostPerMillionTokens map[CostBasis]float64
 	// Per-million output tokens, using GenerationTokens as denominator.
 	OutputCostPerMillionTokens map[CostBasis]float64
