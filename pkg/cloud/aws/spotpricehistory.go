@@ -104,6 +104,7 @@ func (sph *SpotPriceHistoryCache) GetSpotPrice(region, instanceType, availabilit
 		if err == nil {
 			err = fmt.Errorf("fetcher returned nil entry for %s", key)
 		}
+		log.Warnf("Failed to get spot price history for %s: %s", key, err)
 		entry = &SpotPriceHistoryEntry{
 			RetrievedAt: time.Now(),
 			Error:       err,
