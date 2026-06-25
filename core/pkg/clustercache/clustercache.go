@@ -182,9 +182,6 @@ type CronJob struct {
 	Annotations map[string]string
 }
 
-type Volume struct {
-}
-
 // GetPublicIPAddresses returns all external IP addresses associated with the node
 func (n *Node) GetPublicIPAddresses() []string {
 	var publicIPs []string

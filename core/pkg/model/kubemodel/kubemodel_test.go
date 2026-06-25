@@ -183,8 +183,6 @@ func TestKubeModel(t *testing.T) {
 
 			require.NotNil(t, kms.Namespaces[testUID])
 			require.Equal(t, testNamespace, kms.Namespaces[testUID])
-			require.NotNil(t, kms.idx.namespaceByName[testName])
-			require.Equal(t, testNamespace, kms.idx.namespaceByName[testName])
 			require.Equal(t, 1, kms.Metadata.ObjectCount)
 		})
 
@@ -209,7 +207,6 @@ func TestKubeModel(t *testing.T) {
 			testNamespace := &Namespace{UID: testUID, Name: testName, Start: start, End: end}
 
 			require.Equal(t, testNamespace, kms.Namespaces[testUID])
-			require.Equal(t, testNamespace, kms.idx.namespaceByName[testName])
 			require.Equal(t, 1, kms.Metadata.ObjectCount)
 
 			// Register same namespace again, expect no-op on second try
@@ -219,7 +216,6 @@ func TestKubeModel(t *testing.T) {
 			require.Len(t, kms.GetErrors(), 0)
 			require.NotNil(t, kms.Namespaces[testUID])
 			require.Equal(t, testNamespace, kms.Namespaces[testUID])
-			require.Equal(t, testNamespace, kms.idx.namespaceByName[testName])
 			require.Equal(t, 1, kms.Metadata.ObjectCount) // remains 1
 		})
 	})

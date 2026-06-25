@@ -7,6 +7,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/exporter/pathing/pathutils"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/pipelines"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
@@ -26,13 +27,19 @@ type BingenStoragePathFormatter struct {
 	resolution string
 }
 
-func NewDefaultStoragePathFormatter(clusterId, pipeline string, resolution *time.Duration) (StoragePathFormatter[opencost.Window], error) {
+func NewDefaultStoragePathFormatter(appName, clusterID, clusterName, pipeline string, resolution *time.Duration) (StoragePathFormatter[opencost.Window], error) {
 	res := "."
 	if resolution != nil {
 		res = timeutil.FormatStoreResolution(*resolution)
 	}
 
-	return NewBingenStoragePathFormatter(DefaultRootDir, clusterId, pipeline, res)
+	// KubeModel uses a distinct pathing pattern which breaks with the original
+	// Allocations and Assets bingen pathing.
+	if pipeline == pipelines.KubeModelPipelineName {
+		return NewKubeModelStoragePathFormatter(appName, clusterID, res)
+	}
+
+	return NewBingenStoragePathFormatter(DefaultRootDir, clusterName, pipeline, res)
 }
 
 // NewBingenStoragePathFormatter creates a StoragePathFormatter for a cluster separated storage path

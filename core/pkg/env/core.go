@@ -20,6 +20,9 @@ const (
 	Resolution1dRetentionEnvVar  = "RESOLUTION_1D_RETENTION"  // int: number of days
 	Resolution1hRetentionEnvVar  = "RESOLUTION_1H_RETENTION"  // int: number of hours
 	Resolution10mRetentionEnvVar = "RESOLUTION_10M_RETENTION" // int: number of 10m segments
+
+	ExportLegacyDataModelEnvVar = "EXPORT_LEGACY_DATA_MODEL"
+	ExportKubeModelEnvVar       = "EXPORT_KUBEMODEL"
 )
 
 // GetAPIPort returns the environment variable value for APIPortEnvVar which
@@ -60,4 +63,12 @@ func IsPProfEnabled() bool {
 
 func GetInstallNamespace(def string) string {
 	return Get(InstallNamespaceEnvVar, def)
+}
+
+func GetExportLegacyDataModel() bool {
+	return GetBool(ExportLegacyDataModelEnvVar, true)
+}
+
+func GetExportKubeModel() bool {
+	return GetBool(ExportKubeModelEnvVar, true)
 }
