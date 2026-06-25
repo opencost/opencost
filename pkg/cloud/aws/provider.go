@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go"
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 
@@ -858,7 +859,10 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 	}
 
 	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
-	resp, err := http.Get(pricingURL)
+	// This file is large and can take a while to stream, so the streaming client
+	// bounds connect/TLS/response-header time but not the total body read - enough
+	// to bail on a hung endpoint without truncating a legitimate slow download.
+	resp, err := httputil.StreamingGet(context.Background(), pricingURL)
 	if err != nil {
 		log.Errorf("Bogus fetch of \"%s\": %v", pricingURL, err)
 		return nil, pricingURL, err
