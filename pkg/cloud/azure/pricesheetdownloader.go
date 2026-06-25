@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 )
 
 type PriceSheetDownloader struct {
@@ -80,7 +81,10 @@ func (d PriceSheetDownloader) saveData(ctx context.Context, url, tempName string
 		return nil, fmt.Errorf("creating %s temp file: %w", tempName, err)
 	}
 
-	resp, err := http.Get(url)
+	// The price sheet can be large, so the streaming client bounds connect/TLS/
+	// response-header time but not the body read, avoiding truncation of a slow
+	// download. Pass the caller's context so the download is cancelable.
+	resp, err := httputil.StreamingGet(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("downloading: %w", err)
 	}
