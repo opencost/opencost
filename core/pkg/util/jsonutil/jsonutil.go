@@ -26,7 +26,7 @@ func EncodeString(buffer *bytes.Buffer, name, val, comma string) {
 }
 
 // Encode encodes any object to JSON
-func Encode(buffer *bytes.Buffer, name string, obj interface{}, comma string) {
+func Encode(buffer *bytes.Buffer, name string, obj any, comma string) {
 	buffer.WriteString(fmt.Sprintf("\"%s\":", name))
 	if bytes, err := json.Marshal(obj); err != nil {
 		buffer.WriteString("null")

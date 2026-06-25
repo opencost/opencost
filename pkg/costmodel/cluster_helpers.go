@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"strconv"
 	"time"
@@ -21,14 +22,10 @@ import (
 // the first map.
 func mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2 map[nodeIdentifierNoProviderID]string) map[nodeIdentifierNoProviderID]string {
 	merged := map[nodeIdentifierNoProviderID]string{}
-	for k, v := range clusterAndNameToType2 {
-		merged[k] = v
-	}
+	maps.Copy(merged, clusterAndNameToType2)
 
 	// This ordering ensures the mappings in the first arg are preferred.
-	for k, v := range clusterAndNameToType1 {
-		merged[k] = v
-	}
+	maps.Copy(merged, clusterAndNameToType1)
 
 	return merged
 }
@@ -768,9 +765,7 @@ func buildLabelsMap(
 		if _, ok := m[key]; !ok {
 			m[key] = map[string]string{}
 		}
-		for k, l := range result.Labels {
-			m[key][k] = l
-		}
+		maps.Copy(m[key], result.Labels)
 	}
 	return m
 }

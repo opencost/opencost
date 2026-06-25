@@ -17,19 +17,19 @@ var (
 	NaNWarning warning = newWarning("Found NaN value parsing vector data point for metric")
 )
 
-func DataFieldFormatErr(query string, promResponse interface{}) error {
+func DataFieldFormatErr(query string, promResponse any) error {
 	return fmt.Errorf("Error parsing Prometheus response: 'data' field improperly formatted. Query: '%s'. Response: '%+v'", query, promResponse)
 }
 
-func DataPointFormatErr(query string, promResponse interface{}) error {
+func DataPointFormatErr(query string, promResponse any) error {
 	return fmt.Errorf("Error parsing Prometheus response: improperly formatted datapoint. Query: '%s'. Response: '%+v'", query, promResponse)
 }
 
-func MetricFieldDoesNotExistErr(query string, promResponse interface{}) error {
+func MetricFieldDoesNotExistErr(query string, promResponse any) error {
 	return fmt.Errorf("Error parsing Prometheus response: 'metric' field does not exist in data result vector. Query: '%s'. Response: '%+v'", query, promResponse)
 }
 
-func MetricFieldFormatErr(query string, promResponse interface{}) error {
+func MetricFieldFormatErr(query string, promResponse any) error {
 	return fmt.Errorf("Error parsing Prometheus response: 'metric' field improperly formatted. Query: '%s'. Response: '%+v'", query, promResponse)
 }
 
@@ -37,7 +37,7 @@ func NoDataErr(query string) error {
 	return source.NewNoDataError(query)
 }
 
-func PromUnexpectedResponseErr(query string, promResponse interface{}) error {
+func PromUnexpectedResponseErr(query string, promResponse any) error {
 	return fmt.Errorf("Error parsing Prometheus response: unexpected response. Query: '%s'. Response: '%+v'", query, promResponse)
 }
 
@@ -45,19 +45,19 @@ func QueryResultNilErr(query string) error {
 	return source.NewCommError(query)
 }
 
-func ResultFieldDoesNotExistErr(query string, promResponse interface{}) error {
+func ResultFieldDoesNotExistErr(query string, promResponse any) error {
 	return fmt.Errorf("Error parsing Prometheus response: 'result' field does not exist. Query: '%s'. Response: '%+v'", query, promResponse)
 }
 
-func ResultFieldFormatErr(query string, promResponse interface{}) error {
+func ResultFieldFormatErr(query string, promResponse any) error {
 	return fmt.Errorf("Error parsing Prometheus response: 'result' field improperly formatted. Query: '%s'. Response: '%+v'", query, promResponse)
 }
 
-func ResultFormatErr(query string, promResponse interface{}) error {
+func ResultFormatErr(query string, promResponse any) error {
 	return fmt.Errorf("Error parsing Prometheus response: 'result' field improperly formatted. Query: '%s'. Response: '%+v'", query, promResponse)
 }
 
-func ValueFieldDoesNotExistErr(query string, promResponse interface{}) error {
+func ValueFieldDoesNotExistErr(query string, promResponse any) error {
 	return fmt.Errorf("Error parsing Prometheus response: 'value' field does not exist in data result vector. Query: '%s'. Response: '%+v'", query, promResponse)
 }
 
@@ -70,7 +70,7 @@ func NewQueryResultError(query string, err error) *source.QueryResults {
 
 // NewQueryResults accepts the raw prometheus query result and returns an array of
 // QueryResult objects
-func NewQueryResults(query string, queryResult interface{}, resultKeys *source.ResultKeys) *source.QueryResults {
+func NewQueryResults(query string, queryResult any, resultKeys *source.ResultKeys) *source.QueryResults {
 	qrs := source.NewQueryResults(query)
 
 	if queryResult == nil {
@@ -78,7 +78,7 @@ func NewQueryResults(query string, queryResult interface{}, resultKeys *source.R
 		return qrs
 	}
 
-	data, ok := queryResult.(map[string]interface{})["data"]
+	data, ok := queryResult.(map[string]any)["data"]
 	if !ok {
 		e, err := wrapPrometheusError(query, queryResult)
 		if err != nil {
@@ -90,7 +90,7 @@ func NewQueryResults(query string, queryResult interface{}, resultKeys *source.R
 	}
 
 	// Deep Check for proper formatting
-	d, ok := data.(map[string]interface{})
+	d, ok := data.(map[string]any)
 	if !ok {
 		qrs.Error = DataFieldFormatErr(query, data)
 		return qrs
@@ -100,7 +100,7 @@ func NewQueryResults(query string, queryResult interface{}, resultKeys *source.R
 		qrs.Error = ResultFieldDoesNotExistErr(query, d)
 		return qrs
 	}
-	resultsData, ok := resultData.([]interface{})
+	resultsData, ok := resultData.([]any)
 	if !ok {
 		qrs.Error = ResultFieldFormatErr(query, resultData)
 		return qrs
@@ -111,7 +111,7 @@ func NewQueryResults(query string, queryResult interface{}, resultKeys *source.R
 
 	// Parse raw results and into QueryResults
 	for _, val := range resultsData {
-		resultInterface, ok := val.(map[string]interface{})
+		resultInterface, ok := val.(map[string]any)
 		if !ok {
 			qrs.Error = ResultFormatErr(query, val)
 			return qrs
@@ -122,7 +122,7 @@ func NewQueryResults(query string, queryResult interface{}, resultKeys *source.R
 			qrs.Error = MetricFieldDoesNotExistErr(query, resultInterface)
 			return qrs
 		}
-		metricMap, ok := metricInterface.(map[string]interface{})
+		metricMap, ok := metricInterface.(map[string]any)
 		if !ok {
 			qrs.Error = MetricFieldFormatErr(query, metricInterface)
 			return qrs
@@ -155,7 +155,7 @@ func NewQueryResults(query string, queryResult interface{}, resultKeys *source.R
 
 			vectors = append(vectors, v)
 		} else {
-			values, ok := resultInterface["values"].([]interface{})
+			values, ok := resultInterface["values"].([]any)
 			if !ok {
 				qrs.Error = fmt.Errorf("Values field is improperly formatted")
 				return qrs
@@ -188,10 +188,10 @@ func NewQueryResults(query string, queryResult interface{}, resultKeys *source.R
 
 // parseDataPoint parses a data point from raw prometheus query results and returns
 // a new Vector instance containing the parsed data along with any warnings or errors.
-func parseDataPoint(query string, dataPoint interface{}) (*util.Vector, warning, error) {
+func parseDataPoint(query string, dataPoint any) (*util.Vector, warning, error) {
 	var w warning = nil
 
-	value, ok := dataPoint.([]interface{})
+	value, ok := dataPoint.([]any)
 	if !ok || len(value) != 2 {
 		return nil, w, DataPointFormatErr(query, dataPoint)
 	}
@@ -217,7 +217,7 @@ func parseDataPoint(query string, dataPoint interface{}) (*util.Vector, warning,
 	}, w, nil
 }
 
-func labelsForMetric(metricMap map[string]interface{}) string {
+func labelsForMetric(metricMap map[string]any) string {
 	var pairs []string
 	for k, v := range metricMap {
 		pairs = append(pairs, fmt.Sprintf("%s: %+v", k, v))
@@ -226,8 +226,8 @@ func labelsForMetric(metricMap map[string]interface{}) string {
 	return fmt.Sprintf("{%s}", strings.Join(pairs, ", "))
 }
 
-func wrapPrometheusError(query string, qr interface{}) (string, error) {
-	e, ok := qr.(map[string]interface{})["error"]
+func wrapPrometheusError(query string, qr any) (string, error) {
+	e, ok := qr.(map[string]any)["error"]
 	if !ok {
 		return "", PromUnexpectedResponseErr(query, qr)
 	}

@@ -106,15 +106,15 @@ func (dmlm DeploymentMatchLabelsMetric) Write(m *dto.Metric) error {
 		})
 	}
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("namespace"),
+		Name:  new("namespace"),
 		Value: &dmlm.namespace,
 	})
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("deployment"),
+		Name:  new("deployment"),
 		Value: &dmlm.deploymentName,
 	})
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("uid"),
+		Name:  new("uid"),
 		Value: &dmlm.uid,
 	})
 	m.Label = labels
@@ -223,15 +223,15 @@ func (kdr KubeDeploymentReplicasMetric) Write(m *dto.Metric) error {
 	}
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kdr.namespace,
 		},
 		{
-			Name:  toStringPtr("deployment"),
+			Name:  new("deployment"),
 			Value: &kdr.deployment,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kdr.uid,
 		},
 	}
@@ -284,15 +284,15 @@ func (kdr KubeDeploymentStatusAvailableReplicasMetric) Write(m *dto.Metric) erro
 	}
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kdr.namespace,
 		},
 		{
-			Name:  toStringPtr("deployment"),
+			Name:  new("deployment"),
 			Value: &kdr.deployment,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kdr.uid,
 		},
 	}

@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash/fnv"
+	maps0 "maps"
 	"sort"
 	"strings"
 
@@ -85,8 +86,8 @@ func ParseCloudCostProperty(text string) (CloudCostProperty, error) {
 		return CloudCostProperty(CloudCostServiceProp), nil
 	}
 
-	if strings.HasPrefix(text, "label:") {
-		label := strings.TrimSpace(strings.TrimPrefix(text, "label:"))
+	if after, ok := strings.CutPrefix(text, "label:"); ok {
+		label := strings.TrimSpace(after)
 		return CloudCostProperty(fmt.Sprintf("label:%s", label)), nil
 	}
 
@@ -117,9 +118,7 @@ type CloudCostLabels map[string]string
 
 func (ccl CloudCostLabels) Clone() CloudCostLabels {
 	result := make(map[string]string, len(ccl))
-	for k, v := range ccl {
-		result[k] = v
-	}
+	maps0.Copy(result, ccl)
 	return result
 }
 

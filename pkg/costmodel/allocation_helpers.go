@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"strconv"
 	"strings"
@@ -1090,9 +1091,7 @@ func resToNodeLabels(resNodeLabels []*source.NodeLabelsResult) map[nodeKey]map[s
 		labels := res.Labels
 		// labels are retrieved from prometheus here so it will be in prometheus sanitized state
 		// e.g. topology.kubernetes.io/zone => topology_kubernetes_io_zone
-		for labelKey, labelValue := range labels {
-			nodeLabels[nodeKey][labelKey] = labelValue
-		}
+		maps.Copy(nodeLabels[nodeKey], labels)
 	}
 
 	return nodeLabels
@@ -1111,9 +1110,7 @@ func resToNamespaceLabels(resNamespaceLabels []*source.NamespaceLabelsResult) ma
 			namespaceLabels[nsKey] = map[string]string{}
 		}
 
-		for k, l := range res.Labels {
-			namespaceLabels[nsKey][k] = l
-		}
+		maps.Copy(namespaceLabels[nsKey], res.Labels)
 	}
 
 	return namespaceLabels
@@ -1145,9 +1142,7 @@ func resToPodLabels(resPodLabels []*source.PodLabelsResult, podUIDKeyMap map[pod
 				podLabels[key] = map[string]string{}
 			}
 
-			for k, l := range res.Labels {
-				podLabels[key][k] = l
-			}
+			maps.Copy(podLabels[key], res.Labels)
 		}
 	}
 
@@ -1167,9 +1162,7 @@ func resToNamespaceAnnotations(resNamespaceAnnotations []*source.NamespaceAnnota
 			namespaceAnnotations[namespace] = map[string]string{}
 		}
 
-		for k, l := range res.Annotations {
-			namespaceAnnotations[namespace][k] = l
-		}
+		maps.Copy(namespaceAnnotations[namespace], res.Annotations)
 	}
 
 	return namespaceAnnotations
@@ -1199,9 +1192,7 @@ func resToPodAnnotations(resPodAnnotations []*source.PodAnnotationsResult, podUI
 				podAnnotations[key] = map[string]string{}
 			}
 
-			for k, l := range res.Annotations {
-				podAnnotations[key][k] = l
-			}
+			maps.Copy(podAnnotations[key], res.Annotations)
 		}
 	}
 
@@ -1228,9 +1219,7 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 			if nodeLabels != nil {
 				nodeKey := newNodeKey(pod.Key.Cluster, pod.Node)
 				if labels, ok := nodeLabels[nodeKey]; ok {
-					for k, v := range labels {
-						allocLabels[k] = v
-					}
+					maps.Copy(allocLabels, labels)
 				}
 			}
 
@@ -1243,9 +1232,7 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 			}
 
 			if labels, ok := podLabels[podKey]; ok {
-				for k, v := range labels {
-					allocLabels[k] = v
-				}
+				maps.Copy(allocLabels, labels)
 			}
 
 			alloc.Properties.Labels = allocLabels
@@ -1277,9 +1264,7 @@ func applyAnnotations(podMap map[podKey]*pod, namespaceAnnotations map[string]ma
 				}
 			}
 			if labels, ok := podAnnotations[key]; ok {
-				for k, v := range labels {
-					allocAnnotations[k] = v
-				}
+				maps.Copy(allocAnnotations, labels)
 			}
 
 			alloc.Properties.Annotations = allocAnnotations
@@ -1301,9 +1286,7 @@ func resToDeploymentLabels(resDeploymentLabels []*source.DeploymentLabelsResult)
 			deploymentLabels[controllerKey] = map[string]string{}
 		}
 
-		for k, l := range res.Labels {
-			deploymentLabels[controllerKey][k] = l
-		}
+		maps.Copy(deploymentLabels[controllerKey], res.Labels)
 	}
 
 	// Prune duplicate deployments. That is, if the same deployment exists with
@@ -1334,9 +1317,7 @@ func resToStatefulSetLabels(resStatefulSetLabels []*source.StatefulSetLabelsResu
 			statefulSetLabels[controllerKey] = map[string]string{}
 		}
 
-		for k, l := range res.Labels {
-			statefulSetLabels[controllerKey][k] = l
-		}
+		maps.Copy(statefulSetLabels[controllerKey], res.Labels)
 	}
 
 	// Prune duplicate stateful sets. That is, if the same stateful set exists
@@ -1562,9 +1543,7 @@ func getServiceLabels(resServiceLabels []*source.ServiceLabelsResult) map[servic
 			serviceLabels[serviceKey] = map[string]string{}
 		}
 
-		for k, l := range res.Labels {
-			serviceLabels[serviceKey][k] = l
-		}
+		maps.Copy(serviceLabels[serviceKey], res.Labels)
 	}
 
 	// Prune duplicate services. That is, if the same service exists with

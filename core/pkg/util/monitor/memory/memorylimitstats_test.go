@@ -118,7 +118,7 @@ func TestNoisyInputStability(t *testing.T) {
 	base := float64(256 * 1024 * 1024) // 256 MiB
 
 	var limits []uint64
-	for i := 0; i < 200; i++ {
+	for range 200 {
 		// ±10% noise around base
 		noise := (rng.Float64()*0.2 - 0.1) * base
 		_, _ = m.Record(uint64(base + noise))

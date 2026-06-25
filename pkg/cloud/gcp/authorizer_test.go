@@ -58,7 +58,7 @@ func TestServiceAccountKey_MarshalJSON(t *testing.T) {
 	data, err := json.Marshal(key)
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = json.Unmarshal(data, &result)
 	require.NoError(t, err)
 
@@ -219,7 +219,7 @@ func TestWorkloadIdentity_MarshalJSON(t *testing.T) {
 	data, err := json.Marshal(wi)
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = json.Unmarshal(data, &result)
 	require.NoError(t, err)
 

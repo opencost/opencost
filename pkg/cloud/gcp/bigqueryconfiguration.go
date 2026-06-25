@@ -144,13 +144,13 @@ func (bqc *BigQueryConfiguration) GetBigQueryClient(ctx context.Context) (*bigqu
 
 // UnmarshalJSON assumes data is save as an BigQueryConfigurationDTO
 func (bqc *BigQueryConfiguration) UnmarshalJSON(b []byte) error {
-	var f interface{}
+	var f any
 	err := json.Unmarshal(b, &f)
 	if err != nil {
 		return err
 	}
 
-	fmap := f.(map[string]interface{})
+	fmap := f.(map[string]any)
 
 	projectID, err := cloud.GetInterfaceValue[string](fmap, "projectID")
 	if err != nil {

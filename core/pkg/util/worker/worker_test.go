@@ -55,7 +55,7 @@ func TestWorkerPoolExactWorkers(t *testing.T) {
 	wg.Add(workers)
 
 	pool := NewWorkerPool(workers, work)
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		onComplete := make(chan void)
 
 		go func() {
@@ -94,7 +94,7 @@ func TestOrderedWorkGroup(t *testing.T) {
 	input := make([]int, tasks)
 
 	// we create more tasks than workers to test queueing
-	for i := 0; i < tasks; i++ {
+	for i := range tasks {
 		input[i] = i + 1
 		err := ordered.Push(input[i])
 		if err != nil {
@@ -104,7 +104,7 @@ func TestOrderedWorkGroup(t *testing.T) {
 
 	// get results and verify they match the recorded inputs
 	results := ordered.Wait()
-	for i := 0; i < tasks; i++ {
+	for i := range tasks {
 		if results[i] != input[i] {
 			t.Errorf("Expected Results[%d](%d) to equal Input[%d](%d)\n", i, results[i], i, input[i])
 		}
@@ -133,7 +133,7 @@ func TestConcurrentRun(t *testing.T) {
 
 	// pre-build inputs
 	input := make([]int, tasks)
-	for i := 0; i < tasks; i++ {
+	for i := range tasks {
 		input[i] = i + 1
 	}
 
@@ -162,13 +162,13 @@ func TestConcurrentDoOrdered(t *testing.T) {
 
 	// pre-build inputs
 	input := make([]int, tasks)
-	for i := 0; i < tasks; i++ {
+	for i := range tasks {
 		input[i] = i + 1
 	}
 
 	// get results and verify they match the recorded inputs
 	results := ConcurrentDo(work, input)
-	for i := 0; i < tasks; i++ {
+	for i := range tasks {
 		if results[i] != input[i] {
 			t.Errorf("Expected Results[%d](%d) to equal Input[%d](%d)\n", i, results[i], i, input[i])
 		}
@@ -193,7 +193,7 @@ func TestConcurrentCollect(t *testing.T) {
 	const expectedResults = 50
 
 	var inputs []*A
-	for i := 0; i < tasks; i++ {
+	for i := range tasks {
 		inputs = append(inputs, &A{Value: i})
 	}
 
@@ -308,7 +308,7 @@ func TestConcurrentOrderedProcess(t *testing.T) {
 
 	// create tasks
 	inputs := make([]int, tasks)
-	for i := 0; i < tasks; i++ {
+	for i := range tasks {
 		inputs[i] = i + 1
 	}
 

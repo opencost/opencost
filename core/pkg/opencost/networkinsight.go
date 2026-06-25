@@ -419,7 +419,7 @@ func (ni *NetworkInsight) filterNetworkDetails(networkDetailFilter NetworkInsigh
 
 // SetWithNetworkInsightProperty sets the corresponding property
 // variable in the struct with the value passed to the function.
-func (ni *NetworkInsight) SetWithNetworkInsightProperty(property NetworkInsightProperty, value interface{}) error {
+func (ni *NetworkInsight) SetWithNetworkInsightProperty(property NetworkInsightProperty, value any) error {
 	switch property {
 	case NetworkInsightsCluster:
 		ni.Cluster = value.(string)

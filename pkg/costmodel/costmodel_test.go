@@ -3,6 +3,7 @@ package costmodel
 import (
 	"math"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,14 +39,14 @@ func TestIsValidNodeName(t *testing.T) {
 	}
 
 	chars := "abcdefghijklmnopqrstuvwxyz"
-	longName := ""
+	var longName strings.Builder
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < 255; i++ {
-		longName += string(chars[r.Intn(len(chars))])
+	for range 255 {
+		longName.WriteString(string(chars[r.Intn(len(chars))]))
 	}
 
 	fails := []string{
-		longName,
+		longName.String(),
 		"192.168.1.1:80",
 		"10.0.0.1:443",
 		"127.0.0.1:8080",

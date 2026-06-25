@@ -105,7 +105,7 @@ func (o *Oracle) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	return o.RateCardStore.ForLB(o.DefaultPricing)
 }
 
-func (o *Oracle) AllNodePricing() (interface{}, error) {
+func (o *Oracle) AllNodePricing() (any, error) {
 	if err := o.ensurePricingData(); err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func (o *Oracle) GetPVKey(pv *clustercache.PersistentVolume, parameters map[stri
 
 func (o *Oracle) UpdateConfig(r io.Reader, _ string) (*models.CustomPricing, error) {
 	return o.Config.Update(func(pricing *models.CustomPricing) error {
-		a := make(map[string]interface{})
+		a := make(map[string]any)
 		err := json.NewDecoder(r).Decode(&a)
 		if err != nil {
 			return err
@@ -277,7 +277,7 @@ func (o *Oracle) Regions() []string {
 	return oracleRegions()
 }
 
-func (o *Oracle) PricingSourceSummary() interface{} {
+func (o *Oracle) PricingSourceSummary() any {
 	if err := o.ensurePricingData(); err != nil {
 		return err
 	}

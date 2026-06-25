@@ -97,15 +97,15 @@ func (kpvcrr KubePVCResourceRequestsStorageBytesMetric) Write(m *dto.Metric) err
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("persistentvolumeclaim"),
+			Name:  new("persistentvolumeclaim"),
 			Value: &kpvcrr.pvc,
 		},
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kpvcrr.namespace,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpvcrr.uid,
 		},
 	}
@@ -163,23 +163,23 @@ func (kpvci KubePVCInfoMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &kpvci.namespace,
 		},
 		{
-			Name:  toStringPtr("persistentvolumeclaim"),
+			Name:  new("persistentvolumeclaim"),
 			Value: &kpvci.pvc,
 		},
 		{
-			Name:  toStringPtr("storageclass"),
+			Name:  new("storageclass"),
 			Value: &kpvci.storageclass,
 		},
 		{
-			Name:  toStringPtr("volumename"),
+			Name:  new("volumename"),
 			Value: &kpvci.volume,
 		},
 		{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &kpvci.uid,
 		},
 	}

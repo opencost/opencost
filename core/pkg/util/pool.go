@@ -49,7 +49,7 @@ func NewFixedMapPool(size int) VectorMapPool {
 	}
 
 	// Pre-Populate the buffer with maps
-	for i := 0; i < size; i++ {
+	for range size {
 		mp.maps <- make(map[uint64]float64)
 	}
 
@@ -125,7 +125,7 @@ func (mp *UnboundedMapPool) Put(m map[uint64]float64) {
 func NewUnboundedMapPool() VectorMapPool {
 	return &UnboundedMapPool{
 		maps: &sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return make(map[uint64]float64)
 			},
 		},

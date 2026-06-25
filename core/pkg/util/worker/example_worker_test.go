@@ -31,7 +31,7 @@ func Example_concurrentWorkers() {
 	defer workerPool.Shutdown()
 
 	// Loop over 100 inputs and run slowAddTenToFloat
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		// Run accepts a receive channel for each input, but it is not required.
 		// To demonstrate receiving, we'll receive the results when the input
 		// is 50:
@@ -78,7 +78,7 @@ func Example_concurrentOrdered() {
 	orderedGroup := worker.NewOrderedGroup(workerPool, numInputs)
 
 	// loop over our inputs and pass them to the group
-	for i := 0; i < numInputs; i++ {
+	for i := range numInputs {
 		// ordered group has a strict size constraint (set in the NewOrderedGroup func), and will
 		// error if the number of inputs pushed exceeds that size constraint
 		err := orderedGroup.Push(i)
@@ -120,7 +120,7 @@ func Example_concurrentOrderedSimple() {
 	// Let's create our inputs 0-12 like in the previous example
 	const numInputs = 12
 	inputs := make([]int, numInputs)
-	for i := 0; i < numInputs; i++ {
+	for i := range numInputs {
 		inputs[i] = i
 	}
 
@@ -128,7 +128,7 @@ func Example_concurrentOrderedSimple() {
 	results := worker.ConcurrentDo(slowAddTenToFloat, inputs)
 
 	// Note that the order of the results is consistent with the order of inputs
-	for i := 0; i < numInputs; i++ {
+	for i := range numInputs {
 		fmt.Printf("Received Result: %.2f for Input: %d\n", results[i], inputs[i])
 	}
 

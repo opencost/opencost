@@ -64,7 +64,7 @@ type customPVKey struct {
 // PricingSourceSummary returns the pricing source summary for the provider.
 // The summary represents what was _parsed_ from the pricing source, not what
 // was returned from the relevant API.
-func (cp *CustomProvider) PricingSourceSummary() interface{} {
+func (cp *CustomProvider) PricingSourceSummary() any {
 	return cp.Pricing
 }
 
@@ -100,7 +100,7 @@ func (cp *CustomProvider) UpdateConfigFromConfigMap(a map[string]string) (*model
 
 func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
 	// Parse config updates from reader
-	a := make(map[string]interface{})
+	a := make(map[string]any)
 	err := json.NewDecoder(r).Decode(&a)
 	if err != nil {
 		return nil, err
@@ -160,7 +160,7 @@ func (*CustomProvider) GetOrphanedResources() ([]models.OrphanedResource, error)
 	return nil, errors.New("not implemented")
 }
 
-func (cp *CustomProvider) AllNodePricing() (interface{}, error) {
+func (cp *CustomProvider) AllNodePricing() (any, error) {
 	cp.DownloadPricingDataLock.RLock()
 	defer cp.DownloadPricingDataLock.RUnlock()
 

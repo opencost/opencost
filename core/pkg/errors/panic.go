@@ -29,7 +29,7 @@ func (pt PanicType) String() string {
 
 // Panic represents a panic that occurred, captured by a recovery.
 type Panic struct {
-	Error interface{}
+	Error any
 	Stack string
 	Type  PanicType
 }
@@ -110,7 +110,7 @@ func HandleHTTPPanic(rw http.ResponseWriter, rq *http.Request) {
 }
 
 // generate stacktrace, dispatch the panic via channel
-func dispatch(err interface{}, panicType PanicType) {
+func dispatch(err any, panicType PanicType) {
 	stack := make([]byte, 1024*8)
 	stack = stack[:runtime.Stack(stack, false)]
 

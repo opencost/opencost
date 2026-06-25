@@ -3,6 +3,7 @@ package costmodel
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
@@ -177,9 +178,8 @@ func GetNamespaceLabelsMetrics(qrs []*source.QueryResult, defaultClusterID strin
 
 		nsKey := ns + "," + clusterID
 		if nsLabels, ok := toReturn[nsKey]; ok {
-			for k, v := range val.GetLabels() {
-				nsLabels[k] = v // override with more recently assigned if we changed labels within the window.
-			}
+			// override with more recently assigned if we changed labels within the window.
+			maps.Copy(nsLabels, val.GetLabels())
 		} else {
 			toReturn[nsKey] = val.GetLabels()
 		}
@@ -210,9 +210,7 @@ func GetPodLabelsMetrics(qrs []*source.QueryResult, defaultClusterID string) (ma
 		nsKey := ns + "," + pod + "," + clusterID
 		if labels, ok := toReturn[nsKey]; ok {
 			newlabels := val.GetLabels()
-			for k, v := range newlabels {
-				labels[k] = v
-			}
+			maps.Copy(labels, newlabels)
 		} else {
 			toReturn[nsKey] = val.GetLabels()
 		}
@@ -238,9 +236,8 @@ func GetNamespaceAnnotationsMetrics(qrs []*source.QueryResult, defaultClusterID 
 
 		nsKey := ns + "," + clusterID
 		if nsAnnotations, ok := toReturn[nsKey]; ok {
-			for k, v := range val.GetAnnotations() {
-				nsAnnotations[k] = v // override with more recently assigned if we changed labels within the window.
-			}
+			// override with more recently assigned if we changed labels within the window.
+			maps.Copy(nsAnnotations, val.GetAnnotations())
 		} else {
 			toReturn[nsKey] = val.GetAnnotations()
 		}
@@ -271,9 +268,7 @@ func GetPodAnnotationsMetrics(qrs []*source.QueryResult, defaultClusterID string
 
 		nsKey := ns + "," + pod + "," + clusterID
 		if labels, ok := toReturn[nsKey]; ok {
-			for k, v := range val.GetAnnotations() {
-				labels[k] = v
-			}
+			maps.Copy(labels, val.GetAnnotations())
 		} else {
 			toReturn[nsKey] = val.GetAnnotations()
 		}

@@ -193,7 +193,7 @@ func TestPutRestoresFullCapacity(t *testing.T) {
 }
 
 func TestIsPowerOfTwo(t *testing.T) {
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		cap := 1 << i
 
 		if !isPowerOfTwo(cap) {
@@ -232,11 +232,11 @@ func TestConcurrentGetPut(t *testing.T) {
 	const goroutines = 64
 	const iters = 1000
 
-	for g := 0; g < goroutines; g++ {
+	for g := range goroutines {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			for i := 0; i < iters; i++ {
+			for i := range iters {
 				n := (id*iters + i) % 4096
 				if n == 0 {
 					n = 1
@@ -262,7 +262,7 @@ func TestGetExactPowerOfTwo(t *testing.T) {
 	// Exact powers of two are the boundary between two pools; confirm correct
 	// bucket selection and full round-trip for each.
 	bp := newBufferPool()
-	for i := 0; i < 17; i++ {
+	for i := range 17 {
 		n := 1 << i
 		buf := bp.Get(n)
 		if len(buf) != n {

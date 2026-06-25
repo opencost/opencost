@@ -48,13 +48,11 @@ func TestCounter_Threadsafety(t *testing.T) {
 
 	// Run 1000 goroutines, logging 10000 times each as fast as they can
 	for i := 1; i <= 1000; i++ {
-		wg.Add(1)
-		go func() {
+		wg.Go(func() {
 			for j := 1; j <= 10000; j++ {
 				DedupedInfof(10, "this log seen %d times", j)
 			}
-			wg.Done()
-		}()
+		})
 	}
 
 	wg.Wait()

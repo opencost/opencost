@@ -319,7 +319,7 @@ func TestExponentialBackOff(t *testing.T) {
 
 	w := 100 * time.Millisecond
 
-	for retry := 0; retry < 5; retry++ {
+	for retry := range 5 {
 		AssertDurationEqual(t, ExpectedResults[retry], httputil.ExponentialBackoffWaitFor(w, retry))
 	}
 }
@@ -360,7 +360,7 @@ func TestConcurrentRateLimiting(t *testing.T) {
 
 	errs := make(chan error, TotalRequests)
 
-	for i := 0; i < TotalRequests; i++ {
+	for range TotalRequests {
 		go func() {
 			req, err := http.NewRequest(http.MethodPost, "", nil)
 			if err != nil {
@@ -375,7 +375,7 @@ func TestConcurrentRateLimiting(t *testing.T) {
 		}()
 	}
 
-	for i := 0; i < TotalRequests; i++ {
+	for range TotalRequests {
 		err := <-errs
 		if err == nil {
 			t.Fatal("Expected a RateLimitedResponseError. Err was nil.")

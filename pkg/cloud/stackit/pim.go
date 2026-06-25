@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -95,7 +96,7 @@ func fetchAllPIMSKUs(req pimSearchRequest) ([]pimSKU, error) {
 	var allSKUs []pimSKU
 	cursor := ""
 
-	for page := 0; page < pimMaxPages; page++ {
+	for range pimMaxPages {
 		reqURL := fmt.Sprintf("%s/v2/skus/search?pageSize=%d", pimBaseURL, pimMaxPage)
 		if cursor != "" {
 			reqURL += "&cursor=" + url.QueryEscape(cursor)
@@ -297,9 +298,7 @@ func downloadPIMPricing() (map[string]*pimFlavorPricing, map[string]*pimStorageP
 		log.Warnf("STACKIT: failed to fetch GPU pricing from PIM API: %v", err)
 	} else {
 		gpuFlavors := parsePIMVMFlavors(gpuSKUs)
-		for k, v := range gpuFlavors {
-			flavors[k] = v
-		}
+		maps.Copy(flavors, gpuFlavors)
 		log.Infof("STACKIT: fetched %d GPU flavor prices from PIM API", len(gpuFlavors))
 	}
 

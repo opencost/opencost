@@ -17,7 +17,7 @@ import (
 )
 
 // Type alias for a receiver func
-type WatchHandler = func(interface{})
+type WatchHandler = func(any)
 
 // WatchController defines a contract for an object which watches a specific resource set for
 // add, updates, and removals
@@ -29,7 +29,7 @@ type WatchController interface {
 	Run(int, chan struct{})
 
 	// GetAll returns all of the resources
-	GetAll() []interface{}
+	GetAll() []any
 
 	// SetUpdateHandler sets a specific handler for adding/updating individual resources
 	SetUpdateHandler(WatchHandler) WatchController
@@ -56,19 +56,19 @@ func NewCachingWatcher(restClient rest.Interface, resource string, resourceType 
 	resourceCache := cache.NewListWatchFromClient(restClient, resource, namespace, fieldSelector)
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	indexer, informer := cache.NewTransformingIndexerInformer(resourceCache, resourceType, 0, cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			key, err := cache.MetaNamespaceKeyFunc(obj)
 			if err == nil {
 				queue.Add(key)
 			}
 		},
-		UpdateFunc: func(old interface{}, new interface{}) {
+		UpdateFunc: func(old any, new any) {
 			key, err := cache.MetaNamespaceKeyFunc(new)
 			if err == nil {
 				queue.Add(key)
 			}
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			// IndexerInformer uses a delta queue, therefore for deletes we have to use this
 			// key function.
 			key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
@@ -87,13 +87,13 @@ func NewCachingWatcher(restClient rest.Interface, resource string, resourceType 
 	}
 }
 
-func (c *CachingWatchController) GetAll() []interface{} {
+func (c *CachingWatchController) GetAll() []any {
 	list := c.indexer.List()
 
 	// since the indexer returns the as-is pointer to the resource,
 	// we deep copy the resources such that callers don't corrupt the
 	// index
-	cloneList := make([]interface{}, 0, len(list))
+	cloneList := make([]any, 0, len(list))
 	for _, v := range list {
 		if deepCopyable, ok := v.(rt.Object); ok {
 			cloneList = append(cloneList, deepCopyable.DeepCopyObject())
@@ -152,7 +152,7 @@ func (c *CachingWatchController) handle(key string) error {
 }
 
 // handleErr checks if an error happened and makes sure we will retry later.
-func (c *CachingWatchController) handleErr(err error, key interface{}) {
+func (c *CachingWatchController) handleErr(err error, key any) {
 	if err == nil {
 		// Forget about the #AddRateLimited history of the key on every successful synchronization.
 		// This ensures that future processing of updates for this key is not delayed because of
@@ -194,7 +194,7 @@ func (c *CachingWatchController) Run(threadiness int, stopCh chan struct{}) {
 	defer c.queue.ShutDown()
 	log.Infof("Starting %s controller", c.resourceType)
 
-	for i := 0; i < threadiness; i++ {
+	for range threadiness {
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}
 
@@ -209,7 +209,7 @@ func (c *CachingWatchController) runWorker() {
 
 // trimUnwantedFields removes unwanted fields from the object
 // - managedFields as this metadata can be quite large
-func trimUnwantedFields(obj interface{}) (interface{}, error) {
+func trimUnwantedFields(obj any) (any, error) {
 	if accessor, err := meta.Accessor(obj); err == nil {
 		accessor.SetManagedFields(nil)
 	}

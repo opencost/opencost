@@ -283,7 +283,7 @@ type Provider interface {
 	PVPricing(PVKey) (*PV, error)
 	NetworkPricing() (*Network, error)           // TODO: add key interface arg for dynamic price fetching
 	LoadBalancerPricing() (*LoadBalancer, error) // TODO: add key interface arg for dynamic price fetching
-	AllNodePricing() (interface{}, error)
+	AllNodePricing() (any, error)
 	DownloadPricingData() error
 	GetKey(map[string]string, *clustercache.Node) Key
 	GetPVKey(*clustercache.PersistentVolume, map[string]string, string) PVKey
@@ -297,7 +297,7 @@ type Provider interface {
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	Regions() []string
-	PricingSourceSummary() interface{}
+	PricingSourceSummary() any
 }
 
 // ProviderConfig describes config storage common to all providers.

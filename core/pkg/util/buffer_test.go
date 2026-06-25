@@ -303,10 +303,7 @@ func (sbr *randomByteReader) Read(b []byte) (int, error) {
 		return 0, io.EOF
 	}
 
-	toCopy := rand.IntN(4) + 1
-	if toCopy > len(b) {
-		toCopy = len(b)
-	}
+	toCopy := min(rand.IntN(4)+1, len(b))
 
 	var err error
 	remaining := len(sbr.bytes) - sbr.pos

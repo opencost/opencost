@@ -97,13 +97,13 @@ func (uac *UsageApiConfiguration) GetUsageApiClient() (*usageapi.UsageapiClient,
 }
 
 func (uac *UsageApiConfiguration) UnmarshalJSON(b []byte) error {
-	var f interface{}
+	var f any
 	err := json.Unmarshal(b, &f)
 	if err != nil {
 		return err
 	}
 
-	fmap := f.(map[string]interface{})
+	fmap := f.(map[string]any)
 
 	tenancyId, err := cloud.GetInterfaceValue[string](fmap, "tenancyID")
 	if err != nil {

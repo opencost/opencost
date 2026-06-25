@@ -689,7 +689,7 @@ func TestNewMCPServer(t *testing.T) {
 type mockProvider struct{}
 
 func (mp *mockProvider) GetConfig() (*models.CustomPricing, error)                { return nil, nil }
-func (mp *mockProvider) AllNodePricing() (interface{}, error)                     { return nil, nil }
+func (mp *mockProvider) AllNodePricing() (any, error)                             { return nil, nil }
 func (mp *mockProvider) ClusterInfo() (map[string]string, error)                  { return nil, nil }
 func (mp *mockProvider) GetAddresses() ([]byte, error)                            { return nil, nil }
 func (mp *mockProvider) GetDisks() ([]byte, error)                                { return nil, nil }
@@ -719,7 +719,7 @@ func (mp *mockProvider) PricingSourceStatus() map[string]*models.PricingSource  
 func (mp *mockProvider) ClusterManagementPricing() (string, float64, error)             { return "", 0, nil }
 func (mp *mockProvider) CombinedDiscountForNode(string, bool, float64, float64) float64 { return 0 }
 func (mp *mockProvider) Regions() []string                                              { return nil }
-func (mp *mockProvider) PricingSourceSummary() interface{}                              { return nil }
+func (mp *mockProvider) PricingSourceSummary() any                                      { return nil }
 
 func TestGenerateQueryID(t *testing.T) {
 	// Test that generateQueryID returns a non-empty string

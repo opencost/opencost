@@ -432,7 +432,7 @@ func GetOVHMonthlyNodepools() []string {
 		return nil
 	}
 	var pools []string
-	for _, p := range strings.Split(val, ",") {
+	for p := range strings.SplitSeq(val, ",") {
 		p = strings.TrimSpace(p)
 		if p != "" {
 			pools = append(pools, p)

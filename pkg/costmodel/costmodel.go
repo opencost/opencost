@@ -677,9 +677,7 @@ func findDeletedPodInfo(dataSource source.OpenCostDataSource, missingContainers 
 			if !ok {
 				labels = make(map[string]string)
 			}
-			for k, v := range costData.NamespaceLabels {
-				labels[k] = v
-			}
+			maps.Copy(labels, costData.NamespaceLabels)
 			costData.Labels = labels
 		}
 	}

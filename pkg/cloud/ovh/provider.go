@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -349,10 +350,8 @@ func isMonthlyBilling(labels map[string]string, monthlyPools []string) bool {
 	}
 
 	if pool, ok := labels[NodepoolLabel]; ok {
-		for _, mp := range monthlyPools {
-			if pool == mp {
-				return true
-			}
+		if slices.Contains(monthlyPools, pool) {
+			return true
 		}
 	}
 
@@ -575,7 +574,7 @@ func (c *OVH) GetOrphanedResources() ([]models.OrphanedResource, error) {
 }
 
 // AllNodePricing returns all cached node pricing data.
-func (c *OVH) AllNodePricing() (interface{}, error) {
+func (c *OVH) AllNodePricing() (any, error) {
 	c.DownloadLock.RLock()
 	defer c.DownloadLock.RUnlock()
 	return c.Pricing, nil
@@ -591,7 +590,7 @@ func (c *OVH) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricin
 	defer c.DownloadPricingData()
 
 	return c.Config.Update(func(cp *models.CustomPricing) error {
-		a := make(map[string]interface{})
+		a := make(map[string]any)
 		err := coreJSON.NewDecoder(r).Decode(&a)
 		if err != nil {
 			return err
@@ -680,6 +679,6 @@ func (c *OVH) PricingSourceStatus() map[string]*models.PricingSource {
 }
 
 // PricingSourceSummary returns the parsed pricing data.
-func (c *OVH) PricingSourceSummary() interface{} {
+func (c *OVH) PricingSourceSummary() any {
 	return c.Pricing
 }

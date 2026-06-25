@@ -3321,7 +3321,7 @@ func TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate(t *testin
 
 	var allocationSets []*AllocationSet
 
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		allocationSets = append(allocationSets, GenerateMockAllocationSet(start))
 		start = start.AddDate(0, 0, 1)
 	}

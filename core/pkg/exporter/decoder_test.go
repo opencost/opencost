@@ -26,7 +26,7 @@ type decoderTestCase[T any] struct {
 
 func generateBadBytes() []byte {
 	buff := util.NewBuffer()
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		buff.WriteUInt64(9999999)
 	}
 

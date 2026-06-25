@@ -59,8 +59,8 @@ func TestLoggerConsistency(t *testing.T) {
 	}
 }
 
-func parseLogMessage(t *testing.T, logMessage string) map[string]interface{} {
-	var loggedData map[string]interface{}
+func parseLogMessage(t *testing.T, logMessage string) map[string]any {
+	var loggedData map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(logMessage)), &loggedData); err != nil {
 		t.Fatalf("Failed to parse logged message: %v", err)
 	}
@@ -218,31 +218,31 @@ func TestDedupedLogging(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		logFunc      func(int, string, ...interface{})
+		logFunc      func(int, string, ...any)
 		logTypeLimit int
 		format       string
-		args         []interface{}
+		args         []any
 	}{
 		{
 			name:         "DedupedErrorf",
 			logFunc:      DedupedErrorf,
 			logTypeLimit: 3,
 			format:       "test error %d",
-			args:         []interface{}{1},
+			args:         []any{1},
 		},
 		{
 			name:         "DedupedWarningf",
 			logFunc:      DedupedWarningf,
 			logTypeLimit: 2,
 			format:       "test warning %d",
-			args:         []interface{}{1},
+			args:         []any{1},
 		},
 		{
 			name:         "DedupedInfof",
 			logFunc:      DedupedInfof,
 			logTypeLimit: 4,
 			format:       "test info %d",
-			args:         []interface{}{1},
+			args:         []any{1},
 		},
 	}
 

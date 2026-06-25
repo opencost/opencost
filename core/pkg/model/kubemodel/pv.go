@@ -30,8 +30,8 @@ type PersistentVolume struct {
 	// Availability zone for cross-AZ cost tracking
 	Zone string `json:"zone,omitempty"`
 	// Volume lifecycle timestamps
-	Start time.Time `json:"start"`         // Volume creation timestamp
-	End   time.Time `json:"end,omitempty"` // Volume deletion timestamp (nil if still active)
+	Start time.Time `json:"start"` // Volume creation timestamp
+	End   time.Time `json:"end"`   // Volume deletion timestamp (nil if still active)
 	// Duration volume existed within measurement window
 	DurationSeconds Measurement `json:"durationSeconds"`
 	// JSON-encoded node affinity for local volumes

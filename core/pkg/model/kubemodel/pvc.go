@@ -22,9 +22,9 @@ type PersistentVolumeClaim struct {
 	// ReadWriteOnce, ReadWriteMany, ReadOnlyMany
 	AccessModes           []string    `json:"accessModes,omitempty"`
 	ActualUsedByteSeconds Measurement `json:"actualUsedByteSeconds,omitempty"`
-	Start                 time.Time   `json:"start"`         // PVC creation timestamp
-	End                   time.Time   `json:"end,omitempty"` // PVC deletion timestamp (nil if still active)
-	BoundAt               time.Time   `json:"boundAt,omitempty"`
+	Start                 time.Time   `json:"start"` // PVC creation timestamp
+	End                   time.Time   `json:"end"`   // PVC deletion timestamp (nil if still active)
+	BoundAt               time.Time   `json:"boundAt"`
 	DurationSeconds       Measurement `json:"durationSeconds,omitempty"`
 }
 

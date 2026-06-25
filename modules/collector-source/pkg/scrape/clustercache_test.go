@@ -8,7 +8,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
-	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -331,7 +330,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 							UID:       "uuid1",
 							Spec: v1.PersistentVolumeClaimSpec{
 								VolumeName:       "vol1",
-								StorageClassName: util.Ptr("storageClass1"),
+								StorageClassName: new("storageClass1"),
 								Resources: v1.VolumeResourceRequirements{
 									Requests: v1.ResourceList{
 										v1.ResourceStorage: resource.MustParse("4096"),
@@ -575,7 +574,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 							UID:       "uuid1",
 							Spec: v1.PersistentVolumeClaimSpec{
 								VolumeName:       "vol1",
-								StorageClassName: util.Ptr("storageClass1"),
+								StorageClassName: new("storageClass1"),
 								Resources: v1.VolumeResourceRequirements{
 									Requests: v1.ResourceList{
 										v1.ResourceStorage: resource.MustParse("4096"),

@@ -16,8 +16,8 @@ type Pod struct {
 	DurationSeconds      Measurement       `json:"durationSeconds"`
 	NetworkTransferBytes Measurement       `json:"networkTransferBytes"`
 	NetworkReceiveBytes  Measurement       `json:"networkReceiveBytes"`
-	Start                time.Time         `json:"start,omitempty"` // Pod creation/start timestamp
-	End                  time.Time         `json:"end,omitempty"`   // Pod deletion/end timestamp (nil if still running)
+	Start                time.Time         `json:"start"` // Pod creation/start timestamp
+	End                  time.Time         `json:"end"`   // Pod deletion/end timestamp (nil if still running)
 }
 
 func (kms *KubeModelSet) RegisterPod(uid, name, namespace string) error {

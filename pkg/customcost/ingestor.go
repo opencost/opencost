@@ -272,19 +272,15 @@ func (ing *CustomCostIngestor) Stop() {
 	var wg sync.WaitGroup
 
 	if ing.exitBuildCh != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			ing.exitBuildCh <- msg
-		}()
+		})
 	}
 
 	if ing.exitRunCh != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			ing.exitRunCh <- msg
-		}()
+		})
 	}
 
 	wg.Wait()

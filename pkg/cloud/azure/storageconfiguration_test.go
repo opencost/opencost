@@ -538,11 +538,11 @@ func TestStorageConfiguration_Equals(t *testing.T) {
 
 func TestStorageConfiguration_JSON(t *testing.T) {
 	testCases := map[string]struct {
-		input          map[string]interface{}
+		input          map[string]any
 		afterUnmarshal StorageConfiguration
 	}{
 		"Nil Authorizer": {
-			input: map[string]interface{}{
+			input: map[string]any{
 				"subscriptionID": "subscriptionID",
 				"account":        "account",
 				"container":      "container",
@@ -560,13 +560,13 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 			},
 		},
 		"SharedKeyCredential Authorizer": {
-			input: map[string]interface{}{
+			input: map[string]any{
 				"subscriptionID": "subscriptionID",
 				"account":        "account",
 				"container":      "container",
 				"path":           "path",
 				"cloud":          "cloud",
-				"authorizer": map[string]interface{}{
+				"authorizer": map[string]any{
 					"authorizerType": "AzureAccessKey",
 					"accessKey":      "accessKey",
 					"account":        "account",
@@ -585,13 +585,13 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 			},
 		},
 		"Default AuthorizerHolder Authorizer": {
-			input: map[string]interface{}{
+			input: map[string]any{
 				"subscriptionID": "subscriptionID",
 				"account":        "account",
 				"container":      "container",
 				"path":           "path",
 				"cloud":          "cloud",
-				"authorizer": map[string]interface{}{
+				"authorizer": map[string]any{
 					"authorizerType": "AzureDefaultCredential",
 				},
 			},
@@ -607,13 +607,13 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 			},
 		},
 		"ClientSecretCredential Authorizer": {
-			input: map[string]interface{}{
+			input: map[string]any{
 				"subscriptionID": "subscriptionID",
 				"account":        "account",
 				"container":      "container",
 				"path":           "path",
 				"cloud":          "cloud",
-				"authorizer": map[string]interface{}{
+				"authorizer": map[string]any{
 					"authorizerType": "AzureClientSecretCredential",
 					"tenantID":       "tenantID",
 					"clientID":       "clientID",
@@ -636,16 +636,16 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 			},
 		},
 		"StorageConnectionStringCredential Authorizer": {
-			input: map[string]interface{}{
+			input: map[string]any{
 				"subscriptionID": "subscriptionID",
 				"account":        "account",
 				"container":      "container",
 				"path":           "path",
 				"cloud":          "cloud",
-				"authorizer": map[string]interface{}{
+				"authorizer": map[string]any{
 					"authorizerType":          "AzureStorageConnectionString",
 					"storageConnectionString": "storageConnectionString",
-					"httpConfig": map[string]interface{}{
+					"httpConfig": map[string]any{
 						"insecureSkipVerify": true,
 					},
 				},

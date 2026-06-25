@@ -1,5 +1,7 @@
 package log
 
+import "maps"
+
 import "time"
 
 type Profiler struct {
@@ -47,9 +49,7 @@ func (p *Profiler) LogAll() {
 
 	// Print profiles, largest to smallest. (Inefficient, but shouldn't matter.)
 	print := map[string]time.Duration{}
-	for name, value := range p.profiles {
-		print[name] = value
-	}
+	maps.Copy(print, p.profiles)
 	for len(print) > 0 {
 		largest := ""
 		for name := range print {

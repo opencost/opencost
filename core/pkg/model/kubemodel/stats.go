@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // @bingen:generate:StatType
@@ -98,11 +99,12 @@ func (s Stats) Sanitize() error {
 	}
 
 	if len(errs) > 0 {
-		errStr := fmt.Sprintf("%d errors:", len(errs))
+		var errStr strings.Builder
+		fmt.Fprintf(&errStr, "%d errors:", len(errs))
 		for _, e := range errs {
-			errStr += fmt.Sprintf(" [%s]", e)
+			fmt.Fprintf(&errStr, " [%s]", e)
 		}
-		return errors.New(errStr)
+		return errors.New(errStr.String())
 	}
 
 	return nil

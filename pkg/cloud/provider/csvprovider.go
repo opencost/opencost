@@ -88,8 +88,8 @@ func (c *CSVProvider) DownloadPricingData() error {
 		bucketAndKey := strings.Split(strings.TrimPrefix(c.CSVLocation, "s3://"), "/")
 		if len(bucketAndKey) == 2 {
 			out, err := s3Client.GetObject(&s3.GetObjectInput{
-				Bucket: aws.String(bucketAndKey[0]),
-				Key:    aws.String(bucketAndKey[1]),
+				Bucket: new(bucketAndKey[0]),
+				Key:    new(bucketAndKey[1]),
 			})
 			csverr = err
 			csvr = out.Body
@@ -323,8 +323,8 @@ func NodeValueFromMapField(m string, n *clustercache.Node, useRegion bool) strin
 				return toReturn + group
 			}
 		}
-		if strings.HasPrefix(n.SpecProviderID, "azure://") {
-			vmOrScaleSet := strings.ToLower(strings.TrimPrefix(n.SpecProviderID, "azure://"))
+		if after, ok := strings.CutPrefix(n.SpecProviderID, "azure://"); ok {
+			vmOrScaleSet := strings.ToLower(after)
 			return toReturn + vmOrScaleSet
 		}
 		return toReturn + n.SpecProviderID
@@ -462,6 +462,6 @@ func (c *CSVProvider) Regions() []string {
 	return []string{}
 }
 
-func (c *CSVProvider) PricingSourceSummary() interface{} {
+func (c *CSVProvider) PricingSourceSummary() any {
 	return c.Pricing
 }

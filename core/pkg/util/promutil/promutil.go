@@ -15,7 +15,7 @@ var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 // AnyToLabels will create prometheus labels based on the fields of the interface
 // passed. Note that this method is quite expensive and should only be used when absolutely
 // necessary.
-func AnyToLabels(a interface{}) (map[string]string, error) {
+func AnyToLabels(a any) (map[string]string, error) {
 	val := reflect.ValueOf(a)
 	if val.Kind() == reflect.Map {
 		return MapToLabels(a), nil
@@ -26,7 +26,7 @@ func AnyToLabels(a interface{}) (map[string]string, error) {
 		return nil, e
 	}
 
-	var m map[string]interface{}
+	var m map[string]any
 	e = json.Unmarshal(b, &m)
 	if e != nil {
 		return nil, e
@@ -37,7 +37,7 @@ func AnyToLabels(a interface{}) (map[string]string, error) {
 
 // MapToLabels accepts a map type, and will return a new map containing all the nested
 // fields separated by _ with string versions of the values.
-func MapToLabels(m interface{}) map[string]string {
+func MapToLabels(m any) map[string]string {
 	val := reflect.ValueOf(m)
 	if val.Kind() != reflect.Map {
 		return map[string]string{}

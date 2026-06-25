@@ -5,7 +5,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -200,9 +199,9 @@ func GetControllerOf(pod *Pod) *metav1.OwnerReference {
 		return nil
 	}
 	cp := *ref
-	cp.Controller = ptr.To(*ref.Controller)
+	cp.Controller = new(*ref.Controller)
 	if ref.BlockOwnerDeletion != nil {
-		cp.BlockOwnerDeletion = ptr.To(*ref.BlockOwnerDeletion)
+		cp.BlockOwnerDeletion = new(*ref.BlockOwnerDeletion)
 	}
 	return &cp
 }

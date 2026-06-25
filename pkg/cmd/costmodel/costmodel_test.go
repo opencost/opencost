@@ -25,7 +25,7 @@ func TestMCPServerGracefulShutdown(t *testing.T) {
 
 	// Wait for server to be ready
 	serverUp := false
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		time.Sleep(100 * time.Millisecond)
 		client := &http.Client{Timeout: 1 * time.Second}
 		resp, err := client.Get(fmt.Sprintf("http://localhost:%d/", port))

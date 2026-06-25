@@ -14,7 +14,7 @@ type bufferPool struct {
 func newBufferPool() *bufferPool {
 	bp := new(bufferPool)
 
-	for i := 0; i < 17; i++ {
+	for i := range 17 {
 		length := 1 << i
 		bp.pools[i].New = func() any {
 			return make([]byte, length)

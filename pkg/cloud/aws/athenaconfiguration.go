@@ -128,13 +128,13 @@ func (ac *AthenaConfiguration) Provider() string {
 }
 
 func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
-	var f interface{}
+	var f any
 	err := json.Unmarshal(b, &f)
 	if err != nil {
 		return err
 	}
 
-	fmap := f.(map[string]interface{})
+	fmap := f.(map[string]any)
 
 	bucket, err := cloud.GetInterfaceValue[string](fmap, "bucket")
 	if err != nil {

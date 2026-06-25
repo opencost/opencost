@@ -13,7 +13,7 @@ func checkSlice(s1, s2 []string) error {
 		return fmt.Errorf("len(s1) [%d] != len(s2) [%d]", len(s1), len(s2))
 	}
 
-	for i := 0; i < len(s1); i++ {
+	for i := range s1 {
 		if s1[i] != s2[i] {
 			return fmt.Errorf("At Index: %d. Different Values %s (s1) != %s (s2)", i, s1[i], s2[i])
 		}

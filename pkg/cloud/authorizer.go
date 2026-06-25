@@ -25,7 +25,7 @@ func AuthorizerFromInterface[T Authorizer](f any, authSelectFn AuthorizerSelecto
 	if f == nil {
 		return emptyAuth, nil
 	}
-	fmap, ok := f.(map[string]interface{})
+	fmap, ok := f.(map[string]any)
 	if !ok {
 		return emptyAuth, fmt.Errorf("AuthorizerFromInterface: could not cast interface as map")
 	}

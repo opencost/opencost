@@ -42,7 +42,7 @@ func NewEventExportController[T any](source ExportSource[T], exporter EventExpor
 	return &EventExportController[T]{
 		source:   source,
 		exporter: exporter,
-		typeName: reflect.TypeOf((*T)(nil)).Elem().String(),
+		typeName: reflect.TypeFor[T]().String(),
 	}
 }
 

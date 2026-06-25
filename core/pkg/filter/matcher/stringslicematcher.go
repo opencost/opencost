@@ -2,6 +2,7 @@ package matcher
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/filter/ast"
@@ -59,10 +60,8 @@ func (ssp *StringSliceMatcher[T]) Matches(that T) bool {
 			return ssp.Value == ""
 		}
 
-		for _, s := range thatSlice {
-			if s == ssp.Value {
-				return true
-			}
+		if slices.Contains(thatSlice, ssp.Value) {
+			return true
 		}
 
 	case ast.FilterOpContainsPrefix:

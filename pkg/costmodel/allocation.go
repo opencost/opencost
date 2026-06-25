@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -52,10 +53,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*opencost.Allocati
 		// By default, query for the full remaining duration. But do not let
 		// any individual query duration exceed the configured max Prometheus
 		// query duration.
-		duration := end.Sub(e)
-		if duration > cm.BatchDuration {
-			duration = cm.BatchDuration
-		}
+		duration := min(end.Sub(e), cm.BatchDuration)
 
 		// Set start and end parameters (s, e) for next individual computation.
 		e = s.Add(duration)
@@ -91,18 +89,14 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*opencost.Allocati
 				if _, ok := allocationAnnotations[k]; !ok {
 					allocationAnnotations[k] = map[string]string{}
 				}
-				for name, val := range a.Properties.Annotations {
-					allocationAnnotations[k][name] = val
-				}
+				maps.Copy(allocationAnnotations[k], a.Properties.Annotations)
 			}
 
 			if len(a.Properties.Labels) > 0 {
 				if _, ok := allocationLabels[k]; !ok {
 					allocationLabels[k] = map[string]string{}
 				}
-				for name, val := range a.Properties.Labels {
-					allocationLabels[k][name] = val
-				}
+				maps.Copy(allocationLabels[k], a.Properties.Labels)
 			}
 
 			if len(a.Properties.Services) > 0 {

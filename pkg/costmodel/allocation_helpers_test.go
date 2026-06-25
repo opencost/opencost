@@ -222,7 +222,7 @@ func TestBuildPVMap(t *testing.T) {
 			resolution: time.Hour * 6,
 			resultsPVCostPerGiBHour: []*source.QueryResult{
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id": "cluster1",
 						"volumename": "pv1",
 					},
@@ -234,7 +234,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id": "cluster1",
 						"volumename": "pv2",
 					},
@@ -246,7 +246,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id": "cluster2",
 						"volumename": "pv3",
 					},
@@ -258,7 +258,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id": "cluster2",
 						"volumename": "pv4",
 					},
@@ -272,7 +272,7 @@ func TestBuildPVMap(t *testing.T) {
 			},
 			resultsActiveMinutes: []*source.QueryResult{
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":       "cluster1",
 						"persistentvolume": "pv1",
 					},
@@ -293,7 +293,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":       "cluster1",
 						"persistentvolume": "pv2",
 					},
@@ -317,7 +317,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":       "cluster2",
 						"persistentvolume": "pv3",
 					},
@@ -335,7 +335,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":       "cluster2",
 						"persistentvolume": "pv4",
 					},
