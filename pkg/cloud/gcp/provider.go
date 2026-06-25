@@ -17,6 +17,7 @@ import (
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 
@@ -979,7 +980,9 @@ func (gcp *GCP) getBillingAPIClientAndURL(apiKey, currencyCode string) (*http.Cl
 	url := gcp.buildBillingAPIURL(apiKey, currencyCode)
 
 	if apiKey != "" {
-		return http.DefaultClient, url.String(), nil
+		// Shared client carries a request timeout so a hung billing endpoint
+		// can't block the pricing refresh.
+		return httputil.BoundedClient(), url.String(), nil
 	}
 
 	googleHttpClient, err := google.DefaultClient(context.TODO(), GCPCloudOAuthScope)
@@ -987,6 +990,8 @@ func (gcp *GCP) getBillingAPIClientAndURL(apiKey, currencyCode string) (*http.Cl
 		log.Errorf("GCP Billing API: Workload Identity detected but failed to create authenticated client: %v", err)
 		return nil, "", err
 	}
+	// google.DefaultClient has no timeout by default; bound it to match the keyed path.
+	googleHttpClient.Timeout = httputil.PricingTimeout
 
 	return googleHttpClient, url.String(), nil
 }
