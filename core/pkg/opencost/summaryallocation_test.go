@@ -1154,3 +1154,58 @@ func TestSummaryAllocationSetRange_InsertExternalAllocations(t *testing.T) {
 		t.Fatalf("expected error from InsertExternalAllocations, got nil")
 	}
 }
+
+// TestSummaryAllocationSetRange_InsertExternalAllocations_ErrorOverwrite
+// verifies that when the first sas.Insert() call fails and a subsequent call
+// succeeds, the error from the first failure is preserved and returned — not
+// silently overwritten by the later success.
+//
+// Background: a naive loop of the form
+//
+//	var err error
+//	for _, alloc := range allocations {
+//	    err = sas.Insert(...)   // second iteration overwrites err with nil
+//	}
+//	return err
+//
+// would drop the first error if any later iteration succeeds. The fix is to
+// return immediately on the first error.
+func TestSummaryAllocationSetRange_InsertExternalAllocations_ErrorOverwrite(t *testing.T) {
+	start := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2021, time.January, 2, 0, 0, 0, 0, time.UTC)
+	day := 24 * time.Hour
+
+	sas1 := NewMockUnitSummaryAllocationSet(start, day)
+	sasr := NewSummaryAllocationSetRange(sas1)
+
+	// Passing a nil *Allocation to NewSummaryAllocation returns a nil
+	// *SummaryAllocation, and sas.Insert(nil) returns an error — this is the
+	// "first failure" in the inner loop.
+	//
+	// The second entry is a valid Allocation whose Insert() succeeds. In the
+	// buggy implementation (accumulating err in a variable and returning only
+	// at the end of the loop) the second success overwrites err to nil, so the
+	// caller would see no error. The fixed implementation returns on the first
+	// error, so the caller still receives a non-nil error.
+	validAlloc := &Allocation{
+		Name:  "container2",
+		Start: start,
+		End:   end,
+	}
+
+	as1 := NewAllocationSet(start, end)
+	// "aaa-nil" sorts before "zzz-valid" alphabetically. Go map iteration is
+	// random, but regardless of order the nil entry always causes Insert to
+	// fail, so the test must see a non-nil error.
+	as1.Allocations["aaa-nil"] = nil
+	as1.Allocations["zzz-valid"] = validAlloc
+
+	asr := NewAllocationSetRange(as1)
+
+	err := sasr.InsertExternalAllocations(asr)
+	if err == nil {
+		t.Fatalf("InsertExternalAllocations: expected error when a nil allocation " +
+			"is present in the inner loop, but got nil — the Insert error may " +
+			"have been overwritten by a later successful Insert")
+	}
+}
