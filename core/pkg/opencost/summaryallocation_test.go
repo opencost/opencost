@@ -1194,9 +1194,9 @@ func TestSummaryAllocationSetRange_InsertExternalAllocations_ErrorOverwrite(t *t
 	}
 
 	as1 := NewAllocationSet(start, end)
-	// "aaa-nil" sorts before "zzz-valid" alphabetically. Go map iteration is
-	// random, but regardless of order the nil entry always causes Insert to
-	// fail, so the test must see a non-nil error.
+	// Go map iteration order is random and not influenced by key names.
+	// Regardless of which entry is visited first, the nil entry always causes
+	// sas.Insert to fail, so the function must return a non-nil error.
 	as1.Allocations["aaa-nil"] = nil
 	as1.Allocations["zzz-valid"] = validAlloc
 

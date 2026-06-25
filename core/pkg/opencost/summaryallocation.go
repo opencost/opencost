@@ -1636,6 +1636,11 @@ func (sasr *SummaryAllocationSetRange) InsertExternalAllocations(that *Allocatio
 		return fmt.Errorf("cannot insert range into nil AllocationSetRange")
 	}
 
+	// Providing an empty or nil set range is a no-op
+	if that == nil {
+		return nil
+	}
+
 	// keys maps window to index in range
 	keys := map[string]int{}
 	for i, as := range sasr.SummaryAllocationSets {
@@ -1666,7 +1671,7 @@ func (sasr *SummaryAllocationSetRange) InsertExternalAllocations(that *Allocatio
 		for _, alloc := range thatAS.Allocations {
 			externalSA := NewSummaryAllocation(alloc, true, true)
 			if err := sas.Insert(externalSA); err != nil {
-				return err
+				return fmt.Errorf("InsertExternalAllocations: failed inserting into window %s: %w", thatAS.Window.String(), err)
 			}
 		}
 	}
