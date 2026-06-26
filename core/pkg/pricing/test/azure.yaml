@@ -156,3 +156,25 @@ persistentVolumePricing:
       storage:
         unit: GiB-hr
         price: 0.0000767
+networkPricing:
+  - properties:
+      provider: Azure
+    prices:
+      local-egress:
+        unit: GiB
+        price: 0.0
+      x-zone-egress:
+        unit: GiB
+        price: 0.01
+      x-region-egress:
+        unit: GiB
+        price: 0.02
+      internet-egress:
+        unit: GiB
+        price: 0.087
+      nat-egress:
+        unit: GiB
+        price: 0.045
+      nat-ingress:
+        unit: GiB
+        price: 0.045

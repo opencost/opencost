@@ -8,15 +8,20 @@ import (
 type Resource string
 
 const (
-	ResourceNil            Resource = ""
-	ResourceNode           Resource = "node"
-	ResourceCPU            Resource = "cpu"
-	ResourceRAM            Resource = "ram"
-	ResourceGPU            Resource = "gpu"
-	ResourceStorage        Resource = "storage"
-	ResourceCluster        Resource = "cluster"
-	ResourceService        Resource = "service"
-	ResourceNetworkTraffic Resource = "networktraffic"
+	ResourceNil               Resource = ""
+	ResourceNode              Resource = "node"
+	ResourceCPU               Resource = "cpu"
+	ResourceRAM               Resource = "ram"
+	ResourceGPU               Resource = "gpu"
+	ResourceStorage           Resource = "storage"
+	ResourceCluster           Resource = "cluster"
+	ResourceService           Resource = "service"
+	ResourceLocalEgress       Resource = "local-egress"
+	ResourceCrossZoneEgress   Resource = "x-zone-egress"
+	ResourceCrossRegionEgress Resource = "x-region-egress"
+	ResourceInternetEgress    Resource = "internet-egress"
+	ResourceNATGatewayEgress  Resource = "nat-egress"
+	ResourceNATGatewayIngress Resource = "nat-ingress"
 )
 
 func ParseResource(str string) (Resource, error) {
@@ -35,8 +40,18 @@ func ParseResource(str string) (Resource, error) {
 		return ResourceCluster, nil
 	case string(ResourceService):
 		return ResourceService, nil
-	case string(ResourceNetworkTraffic):
-		return ResourceNetworkTraffic, nil
+	case string(ResourceLocalEgress):
+		return ResourceLocalEgress, nil
+	case string(ResourceCrossZoneEgress):
+		return ResourceCrossZoneEgress, nil
+	case string(ResourceCrossRegionEgress):
+		return ResourceCrossRegionEgress, nil
+	case string(ResourceInternetEgress):
+		return ResourceInternetEgress, nil
+	case string(ResourceNATGatewayEgress):
+		return ResourceNATGatewayEgress, nil
+	case string(ResourceNATGatewayIngress):
+		return ResourceNATGatewayIngress, nil
 	default:
 		return ResourceNil, fmt.Errorf("unknown resource %q", str)
 	}

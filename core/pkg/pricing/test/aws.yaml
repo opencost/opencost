@@ -166,28 +166,24 @@ clusterPricing:
 networkPricing:
   - properties:
       provider: AWS
-      trafficDirection: Egress
-      trafficType: Internet
     prices:
-      networktraffic:
-        unit: GB
-        price: 0.09
-  - properties:
-      provider: AWS
-      trafficDirection: Egress
-      trafficType: CrossRegion
-    prices:
-      networktraffic:
-        unit: GB
+      local-egress:
+        unit: GiB
+        price: 0.0
+      x-zone-egress:
+        unit: GiB
+        price: 0.01
+      x-region-egress:
+        unit: GiB
         price: 0.02
-  - properties:
-      provider: AWS
-      trafficDirection: Egress
-      trafficType: Internet
-      isNatGateway: true
-    prices:
-      networktraffic:
-        unit: GB
+      internet-egress:
+        unit: GiB
+        price: 0.09
+      nat-egress:
+        unit: GiB
+        price: 0.045
+      nat-ingress:
+        unit: GiB
         price: 0.045
 servicePricing:
   - properties:
