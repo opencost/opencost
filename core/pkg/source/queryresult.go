@@ -37,6 +37,10 @@ func (qrc QueryResultsChan) Await() ([]*QueryResult, error) {
 //	GetPod()
 //	GetProviderID()
 //	GetDevice()
+//	GetPVC()
+//	GetPV()
+//	GetStorageClass()
+//	GetVolumeName()
 type ResultKeys struct {
 	ClusterKey      string
 	NamespaceKey    string
@@ -47,6 +51,10 @@ type ResultKeys struct {
 	PodKey          string
 	ProviderIDKey   string
 	DeviceKey       string
+	PVCKey          string
+	PVKey           string
+	StorageClassKey string
+	VolumeNameKey   string
 }
 
 // DefaultResultKeys returns a new ResultKeys instance with typical default values.
@@ -61,6 +69,10 @@ func DefaultResultKeys() *ResultKeys {
 		PodKey:          PodLabel,
 		ProviderIDKey:   ProviderIDLabel,
 		DeviceKey:       DeviceLabel,
+		PVCKey:          PVCLabel,
+		PVKey:           PVLabel,
+		StorageClassKey: StorageClassLabel,
+		VolumeNameKey:   VolumeNameLabel,
 	}
 }
 
@@ -70,6 +82,26 @@ func ClusterKeyWithDefaults(clusterKey string) *ResultKeys {
 	keys := DefaultResultKeys()
 	keys.ClusterKey = clusterKey
 	return keys
+}
+
+// OTelResultKeys returns a new ResultKeys instance configured for OpenTelemetry Collector
+// metric labels (k8s_namespace_name, k8s_node_name, k8s_container_name, k8s_pod_name).
+func OTelResultKeys(clusterKey string) *ResultKeys {
+	return &ResultKeys{
+		ClusterKey:      clusterKey,
+		NamespaceKey:    OTelNamespaceLabel,
+		NodeKey:         OTelNodeLabel,
+		InstanceKey:     OTelNodeLabel,
+		InstanceTypeKey: InstanceTypeLabel,
+		ContainerKey:    OTelContainerLabel,
+		PodKey:          OTelPodLabel,
+		ProviderIDKey:   ProviderIDLabel,
+		DeviceKey:       DeviceLabel,
+		PVCKey:          OTelPVCLabel,
+		PVKey:           OTelPVLabel,
+		StorageClassKey: OTelStorageClassLabel,
+		VolumeNameKey:   OTelVolumeNameLabel,
+	}
 }
 
 // QueryResults contains all of the query results and the source query string.
@@ -156,6 +188,22 @@ func (qr *QueryResult) GetProviderID() (string, error) {
 
 func (qr *QueryResult) GetDevice() (string, error) {
 	return qr.GetString(qr.keys.DeviceKey)
+}
+
+func (qr *QueryResult) GetPVC() (string, error) {
+	return qr.GetString(qr.keys.PVCKey)
+}
+
+func (qr *QueryResult) GetPV() (string, error) {
+	return qr.GetString(qr.keys.PVKey)
+}
+
+func (qr *QueryResult) GetStorageClass() (string, error) {
+	return qr.GetString(qr.keys.StorageClassKey)
+}
+
+func (qr *QueryResult) GetVolumeName() (string, error) {
+	return qr.GetString(qr.keys.VolumeNameKey)
 }
 
 // GetString returns the requested field, or an error if it does not exist

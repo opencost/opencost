@@ -108,8 +108,8 @@ func newKubePVCapacityBytesMetric(fqname, pv, uid string, value float64) KubePVC
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubePVCapacityBytesMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"persistentvolume": kpcrr.pv,
-		"uid":              kpcrr.uid,
+		GetPersistentVolumeLabel(): kpcrr.pv,
+		"uid":                      kpcrr.uid,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -123,7 +123,7 @@ func (kpcrr KubePVCapacityBytesMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("persistentvolume"),
+			Name:  toStringPtr(GetPersistentVolumeLabel()),
 			Value: &kpcrr.pv,
 		},
 		{
@@ -164,9 +164,9 @@ func newKubePVStatusPhaseMetric(fqname, pv, uid, phase string, value float64) Ku
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubePVStatusPhaseMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"persistentvolume": kpcrr.pv,
-		"phase":            kpcrr.phase,
-		"uid":              kpcrr.uid,
+		GetPersistentVolumeLabel(): kpcrr.pv,
+		"phase":                    kpcrr.phase,
+		"uid":                      kpcrr.uid,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -180,7 +180,7 @@ func (kpcrr KubePVStatusPhaseMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("persistentvolume"),
+			Name:  toStringPtr(GetPersistentVolumeLabel()),
 			Value: &kpcrr.pv,
 		},
 		{
@@ -228,10 +228,10 @@ func newKubecostPVInfoMetric(fqname, pv, uid, storageClass, providerID string, v
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpvim KubecostPVInfoMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"persistentvolume": kpvim.pv,
-		"storageclass":     kpvim.storageClass,
-		"provider_id":      kpvim.providerId,
-		"uid":              kpvim.uid,
+		GetPersistentVolumeLabel(): kpvim.pv,
+		"storageclass":             kpvim.storageClass,
+		"provider_id":              kpvim.providerId,
+		"uid":                      kpvim.uid,
 	}
 	return prometheus.NewDesc(kpvim.fqName, kpvim.help, []string{}, l)
 }
@@ -245,7 +245,7 @@ func (kpvim KubecostPVInfoMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("persistentvolume"),
+			Name:  toStringPtr(GetPersistentVolumeLabel()),
 			Value: &kpvim.pv,
 		},
 		{
