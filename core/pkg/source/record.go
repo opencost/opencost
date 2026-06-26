@@ -4,6 +4,8 @@ import (
 	"time"
 )
 
+var _ MetricsQuerier = (*RecordMetricsQuerier)(nil)
+
 // RecordMetricsQuerier is a wrapper implementation of MetricsQuerier which counts the number of times each function is
 // called
 type RecordMetricsQuerier struct {
