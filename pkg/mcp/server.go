@@ -1190,9 +1190,11 @@ func computeEfficiencyMetric(alloc *opencost.Allocation, bufferMultiplier float6
 		return nil
 	}
 
-	// Get current usage (average over the period)
-	cpuCoresUsed := alloc.CPUCoreHours / hours
-	ramBytesUsed := alloc.RAMByteHours / hours
+	// Get current usage — use raw cAdvisor averages, not CPUCoreHours/RAMByteHours
+	// which are max(usage, request) and would floor efficiency at 1.0, hiding
+	// over-provisioned workloads from right-sizing recommendations.
+	cpuCoresUsed := alloc.CPUCoreUsageAverage
+	ramBytesUsed := alloc.RAMBytesUsageAverage
 
 	// Get requested amounts
 	cpuCoresRequested := alloc.CPUCoreRequestAverage
