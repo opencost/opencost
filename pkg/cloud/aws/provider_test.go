@@ -1345,7 +1345,14 @@ func TestAWS_findCostForDisk(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	expectedCost2 := 0.12 * 730.0 * 100.0
-	if cost2 == nil || *cost2 != expectedCost2 {
+	if cost2 == nil {
+		t.Fatalf("expected cost %v, got %v", expectedCost2, cost2)
+	}
+	diff2 := *cost2 - expectedCost2
+	if diff2 < 0 {
+		diff2 = -diff2
+	}
+	if diff2 > 1e-9 {
 		t.Fatalf("expected cost %v, got %v", expectedCost2, cost2)
 	}
 }
