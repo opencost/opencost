@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
@@ -1294,4 +1295,57 @@ func TestAWS_PricingSourceStatus_spotPriceHistory(t *testing.T) {
 			t.Error("Expected Available=true when cache initialized")
 		}
 	})
+}
+
+func TestAWS_findCostForDisk(t *testing.T) {
+	aws := &AWS{
+		ClusterRegion: "us-east-1",
+		Pricing: map[string]*AWSProductTerms{
+			"us-east-1,EBS:VolumeUsage.gp2": {
+				PV: &models.PV{
+					Cost: "0.10",
+				},
+			},
+			"us-west-2,EBS:VolumeUsage.gp2": {
+				PV: &models.PV{
+					Cost: "0.12",
+				},
+			},
+		},
+	}
+
+	// Case 1: Disk has AvailabilityZone matching ClusterRegion (e.g. us-east-1a)
+	zone1 := "us-east-1a"
+	size1 := int32(100)
+	disk1 := &ec2Types.Volume{
+		AvailabilityZone: &zone1,
+		VolumeType:       ec2Types.VolumeTypeGp2,
+		Size:             &size1,
+	}
+
+	cost1, err := aws.findCostForDisk(disk1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expectedCost1 := 0.10 * 730.0 * 100.0
+	if cost1 == nil || *cost1 != expectedCost1 {
+		t.Fatalf("expected cost %v, got %v", expectedCost1, cost1)
+	}
+
+	// Case 2: Disk has AvailabilityZone from a different region (e.g. us-west-2b)
+	zone2 := "us-west-2b"
+	disk2 := &ec2Types.Volume{
+		AvailabilityZone: &zone2,
+		VolumeType:       ec2Types.VolumeTypeGp2,
+		Size:             &size1,
+	}
+
+	cost2, err := aws.findCostForDisk(disk2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expectedCost2 := 0.12 * 730.0 * 100.0
+	if cost2 == nil || *cost2 != expectedCost2 {
+		t.Fatalf("expected cost %v, got %v", expectedCost2, cost2)
+	}
 }

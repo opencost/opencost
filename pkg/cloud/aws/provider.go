@@ -2177,9 +2177,8 @@ func (aws *AWS) GetOrphanedResources() ([]models.OrphanedResource, error) {
 }
 
 func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
-	// todo: use AWS pricing from all regions
 	if disk.AvailabilityZone == nil {
-		return nil, fmt.Errorf("nil region")
+		return nil, fmt.Errorf("nil AvailabilityZone")
 	}
 	if disk.Size == nil {
 		return nil, fmt.Errorf("nil disk size")
@@ -2187,7 +2186,12 @@ func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
 
 	class := volTypes[string(disk.VolumeType)]
 
-	key := aws.ClusterRegion + "," + class
+	region := regionRx.FindString(*disk.AvailabilityZone)
+	if region == "" {
+		region = aws.ClusterRegion
+	}
+
+	key := region + "," + class
 
 	pricing, ok := aws.Pricing[key]
 	if !ok {
