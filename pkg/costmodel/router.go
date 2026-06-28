@@ -155,6 +155,31 @@ func adminAuthMiddleware(next httprouter.Handle) httprouter.Handle {
 	}
 }
 
+// requiredAdminAuthMiddleware wraps scoped-view management handlers that expose
+// persisted RBAC configuration. Unlike legacy adminAuthMiddleware, these routes
+// must not fall through unauthenticated when ADMIN_TOKEN is missing.
+func requiredAdminAuthMiddleware(next httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		adminToken := env.GetAdminToken()
+		if adminToken == "" {
+			http.Error(w, "Admin token (ADMIN_TOKEN) is required", http.StatusUnauthorized)
+			return
+		}
+		authHeader := r.Header.Get("Authorization")
+		const prefix = "Bearer "
+		if !strings.HasPrefix(authHeader, prefix) {
+			http.Error(w, "Missing or invalid authorization", http.StatusUnauthorized)
+			return
+		}
+		bearerToken := strings.TrimPrefix(authHeader, prefix)
+		if subtle.ConstantTimeCompare([]byte(bearerToken), []byte(adminToken)) != 1 {
+			http.Error(w, "Missing or invalid authorization", http.StatusForbidden)
+			return
+		}
+		next(w, r, ps)
+	}
+}
+
 func WriteData(w http.ResponseWriter, data interface{}, err error) {
 	if err != nil {
 		proto.WriteError(w, proto.InternalServerError(err.Error()))
@@ -638,7 +663,7 @@ func InitializeCloudCost(router *httprouter.Router) *cloudcost.PipelineService {
 
 // InitializeConfigRBAC registers scoped view configuration endpoints backed by SQLite.
 func InitializeConfigRBAC(router *httprouter.Router) {
-	configrbac.RegisterRoutes(router, adminAuthMiddleware)
+	configrbac.RegisterRoutes(router, requiredAdminAuthMiddleware)
 }
 
 func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService {

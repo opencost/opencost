@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/julienschmidt/httprouter"
@@ -102,5 +103,42 @@ func TestAdminAuthMiddleware(t *testing.T) {
 				t.Errorf("nextCalled = %v, want %v", nextCalled, tt.wantNextCalled)
 			}
 		})
+	}
+}
+
+func TestInitializeConfigRBACRequiresAdminTokenForManagementReads(t *testing.T) {
+	prev := os.Getenv(env.AdminTokenEnvVar)
+	defer func() {
+		if prev == "" {
+			os.Unsetenv(env.AdminTokenEnvVar)
+		} else {
+			os.Setenv(env.AdminTokenEnvVar, prev)
+		}
+	}()
+	os.Unsetenv(env.AdminTokenEnvVar)
+
+	router := httprouter.New()
+	InitializeConfigRBAC(router)
+
+	handle, ps, _ := router.Lookup(http.MethodGet, "/config/rbac/scopedViews")
+	if handle == nil {
+		t.Fatal("scoped views list route not registered")
+	}
+	req := httptest.NewRequest(http.MethodGet, "/config/rbac/scopedViews", nil)
+	rec := httptest.NewRecorder()
+	handle(rec, req, ps)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("management read status = %d, want 401", rec.Code)
+	}
+
+	handle, ps, _ = router.Lookup(http.MethodGet, "/config/rbac/policy/users/user_abc")
+	if handle == nil {
+		t.Fatal("policy route not registered")
+	}
+	req = httptest.NewRequest(http.MethodGet, "/config/rbac/policy/users/user_abc", nil)
+	rec = httptest.NewRecorder()
+	handle(rec, req, ps)
+	if strings.Contains(rec.Body.String(), "Admin token") {
+		t.Fatalf("policy endpoint should not require admin token: %s", rec.Body.String())
 	}
 }

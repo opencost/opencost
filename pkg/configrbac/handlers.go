@@ -15,12 +15,18 @@ var proto = protocol.HTTP()
 
 // Handler serves /config/rbac/* endpoints.
 type Handler struct {
-	svc *Service
+	svc          *Service
+	userVerifier UserSubjectVerifier
 }
 
 // NewHandler creates HTTP handlers for RBAC APIs.
 func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+	return NewHandlerWithUserVerifier(svc, NewClerkJWTVerifier())
+}
+
+// NewHandlerWithUserVerifier creates HTTP handlers with an injectable verifier for tests.
+func NewHandlerWithUserVerifier(svc *Service, verifier UserSubjectVerifier) *Handler {
+	return &Handler{svc: svc, userVerifier: verifier}
 }
 
 func (h *Handler) writeDisabled(w http.ResponseWriter) {
@@ -45,6 +51,34 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
 		return
 	}
 	proto.WriteError(w, proto.BadRequest(err.Error()))
+}
+
+func (h *Handler) authenticatedUser(w http.ResponseWriter, r *http.Request, userID string) (UserAuthInfo, bool) {
+	if h.userVerifier == nil {
+		proto.WriteError(w, proto.InternalServerError("user authentication is not configured"))
+		return UserAuthInfo{}, false
+	}
+	info, err := authInfoFromRequest(h.userVerifier, r)
+	if err != nil {
+		proto.WriteError(w, protocol.HTTPError{StatusCode: http.StatusUnauthorized, Body: err.Error()})
+		return UserAuthInfo{}, false
+	}
+	if strings.TrimSpace(info.Subject) == "" || info.Subject != userID {
+		proto.WriteError(w, protocol.HTTPError{StatusCode: http.StatusForbidden, Body: "authenticated user does not match requested user"})
+		return UserAuthInfo{}, false
+	}
+	return info, true
+}
+
+func authInfoFromRequest(verifier UserSubjectVerifier, r *http.Request) (UserAuthInfo, error) {
+	if v, ok := verifier.(userAuthInfoVerifier); ok {
+		return v.AuthInfoFromRequest(r)
+	}
+	subject, err := verifier.SubjectFromRequest(r)
+	if err != nil {
+		return UserAuthInfo{}, err
+	}
+	return UserAuthInfo{Subject: subject}, nil
 }
 
 func setCORS(w http.ResponseWriter) {
@@ -146,11 +180,50 @@ func (h *Handler) DeleteScopedView(w http.ResponseWriter, r *http.Request, ps ht
 	proto.WriteRawNoContent(w)
 }
 
+// PostUserScopedView handles POST /config/rbac/users/:userId/scopedViews.
+func (h *Handler) PostUserScopedView(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	setCORS(w)
+
+	userID := strings.TrimSpace(ps.ByName("userId"))
+	authInfo, ok := h.authenticatedUser(w, r, userID)
+	if !ok {
+		return
+	}
+
+	var view ScopedView
+	if err := decodeJSONBody(r, &view); err != nil {
+		proto.WriteError(w, proto.BadRequest(err.Error()))
+		return
+	}
+	view.ApplyToNewUsers = ScopedViewApplyNewUsers{}
+	if !authInfo.IsOrgAdmin() {
+		if scopedViewHasUsersOtherThan(view, authInfo.Subject) {
+			proto.WriteError(w, protocol.HTTPError{StatusCode: http.StatusForbidden, Body: "only organization admins can assign scoped views to other users"})
+			return
+		}
+		view.Users = ScopedViewUserBuckets{AvailableFor: []string{authInfo.Subject}}
+	}
+
+	created, err := h.svc.Create(view)
+	if h.writeDisabledIf(err, w) {
+		return
+	}
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+	proto.WriteData(w, created)
+}
+
 // GetUserPolicy handles GET /config/rbac/policy/users/:userId.
 func (h *Handler) GetUserPolicy(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	setCORS(w)
 
 	userID := strings.TrimSpace(ps.ByName("userId"))
+	if _, ok := h.authenticatedUser(w, r, userID); !ok {
+		return
+	}
+
 	policy, err := h.svc.ResolvePolicy(userID)
 	if h.writeDisabledIf(err, w) {
 		return
@@ -160,6 +233,30 @@ func (h *Handler) GetUserPolicy(w http.ResponseWriter, r *http.Request, ps httpr
 		return
 	}
 	proto.WriteData(w, policy)
+}
+
+func scopedViewHasUsersOtherThan(view ScopedView, userID string) bool {
+	for _, id := range view.Users.AvailableFor {
+		if id != userID {
+			return true
+		}
+	}
+	for _, id := range view.Users.EnforcedFor {
+		if id != userID {
+			return true
+		}
+	}
+	for _, id := range view.Users.EnabledByDefaultFor {
+		if id != userID {
+			return true
+		}
+	}
+	for _, id := range view.Users.StrictlyEnabledFor {
+		if id != userID {
+			return true
+		}
+	}
+	return false
 }
 
 func decodeJSONBody(r *http.Request, dest interface{}) error {

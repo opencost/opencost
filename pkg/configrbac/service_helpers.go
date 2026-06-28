@@ -16,6 +16,9 @@ func normalizeScopedView(view *ScopedView) {
 	view.ID = trimID(view.ID)
 	view.Name = trimID(view.Name)
 	normalizeUserBuckets(&view.Users)
+	if scopedViewHasExplicitUsers(*view) {
+		view.ApplyToNewUsers = ScopedViewApplyNewUsers{}
+	}
 }
 
 func normalizeUserBuckets(b *ScopedViewUserBuckets) {
@@ -41,4 +44,11 @@ func validateScopedView(view ScopedView) error {
 		return fmt.Errorf("name is required")
 	}
 	return nil
+}
+
+func scopedViewHasExplicitUsers(view ScopedView) bool {
+	return len(view.Users.AvailableFor) > 0 ||
+		len(view.Users.EnforcedFor) > 0 ||
+		len(view.Users.EnabledByDefaultFor) > 0 ||
+		len(view.Users.StrictlyEnabledFor) > 0
 }

@@ -58,7 +58,7 @@ func resolveViewMode(view ScopedView, userID string, isNewUser bool) PolicyViewM
 	if contains(view.Users.AvailableFor, userID) {
 		return PolicyModeAvailable
 	}
-	if isNewUser {
+	if isNewUser && !scopedViewHasExplicitUsers(view) {
 		if view.ApplyToNewUsers.StrictlyEnabledFor {
 			return PolicyModeStrictlyEnabled
 		}
