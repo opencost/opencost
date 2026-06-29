@@ -40,10 +40,10 @@ const (
 	QueryLBPricePerHr    = "QueryLBPricePerHr"
 
 	// Cluster Management
-	QueryClusterInfo                   = "QueryClusterInfo"
-	QueryClusterUptime                 = "QueryClusterUptime"
-	QueryClusterManagementDuration     = "QueryClusterManagementDuration"
-	QueryClusterManagementPricePerHr   = "QueryClusterManagementPricePerHr"
+	QueryClusterInfo                 = "QueryClusterInfo"
+	QueryClusterUptime               = "QueryClusterUptime"
+	QueryClusterManagementDuration   = "QueryClusterManagementDuration"
+	QueryClusterManagementPricePerHr = "QueryClusterManagementPricePerHr"
 
 	// Pods
 	QueryPods                   = "QueryPods"
@@ -56,16 +56,16 @@ const (
 	QueryPodNetworkIngressBytes = "QueryPodNetworkIngressBytes"
 
 	// Container
-	QueryContainerUptime            = "QueryContainerUptime"
-	QueryContainerResourceRequests  = "QueryContainerResourceRequests"
-	QueryContainerResourceLimits    = "QueryContainerResourceLimits"
+	QueryContainerUptime           = "QueryContainerUptime"
+	QueryContainerResourceRequests = "QueryContainerResourceRequests"
+	QueryContainerResourceLimits   = "QueryContainerResourceLimits"
 
 	// RAM
-	QueryRAMBytesAllocated   = "QueryRAMBytesAllocated"
-	QueryRAMRequests         = "QueryRAMRequests"
-	QueryRAMLimits           = "QueryRAMLimits"
-	QueryRAMUsageAvg         = "QueryRAMUsageAvg"
-	QueryRAMUsageMax         = "QueryRAMUsageMax"
+	QueryRAMBytesAllocated    = "QueryRAMBytesAllocated"
+	QueryRAMRequests          = "QueryRAMRequests"
+	QueryRAMLimits            = "QueryRAMLimits"
+	QueryRAMUsageAvg          = "QueryRAMUsageAvg"
+	QueryRAMUsageMax          = "QueryRAMUsageMax"
 	QueryNodeRAMPricePerGiBHr = "QueryNodeRAMPricePerGiBHr"
 
 	// CPU
@@ -77,13 +77,13 @@ const (
 	QueryNodeCPUPricePerHr = "QueryNodeCPUPricePerHr"
 
 	// GPU
-	QueryGPUsAllocated    = "QueryGPUsAllocated"
-	QueryGPUsRequested    = "QueryGPUsRequested"
-	QueryGPUsUsageAvg     = "QueryGPUsUsageAvg"
-	QueryGPUsUsageMax     = "QueryGPUsUsageMax"
+	QueryGPUsAllocated     = "QueryGPUsAllocated"
+	QueryGPUsRequested     = "QueryGPUsRequested"
+	QueryGPUsUsageAvg      = "QueryGPUsUsageAvg"
+	QueryGPUsUsageMax      = "QueryGPUsUsageMax"
 	QueryNodeGPUPricePerHr = "QueryNodeGPUPricePerHr"
-	QueryGPUInfo          = "QueryGPUInfo"
-	QueryIsGPUShared      = "QueryIsGPUShared"
+	QueryGPUInfo           = "QueryGPUInfo"
+	QueryIsGPUShared       = "QueryIsGPUShared"
 
 	// Device
 	QueryDCGMDeviceInfo        = "QueryDCGMDeviceInfo"
@@ -92,23 +92,23 @@ const (
 	QueryDCGMContainerUsageMax = "QueryDCGMContainerUsageMax"
 
 	// PVC
-	QueryPodPVCAllocation   = "QueryPodPVCAllocation"
-	QueryPVCBytesRequested  = "QueryPVCBytesRequested"
-	QueryPVCInfo            = "QueryPVCInfo"
-	QueryKMPVCInfo          = "QueryKMPVCInfo"
-	QueryPVCUptime          = "QueryPVCUptime"
+	QueryPodPVCAllocation    = "QueryPodPVCAllocation"
+	QueryPVCBytesRequested   = "QueryPVCBytesRequested"
+	QueryPVCInfo             = "QueryPVCInfo"
+	QueryKMPVCInfo           = "QueryKMPVCInfo"
+	QueryPVCUptime           = "QueryPVCUptime"
 	QueryPVCBytesUsedAverage = "QueryPVCBytesUsedAverage"
-	QueryPVCBytesUsedMax    = "QueryPVCBytesUsedMax"
+	QueryPVCBytesUsedMax     = "QueryPVCBytesUsedMax"
 
 	// PV
-	QueryPVBytes        = "QueryPVBytes"
+	QueryPVBytes           = "QueryPVBytes"
 	QueryPVPricePerGiBHour = "QueryPVPricePerGiBHour"
-	QueryPVInfo         = "QueryPVInfo"
-	QueryPVActiveMinutes = "QueryPVActiveMinutes"
-	QueryPVUsedAverage  = "QueryPVUsedAverage"
-	QueryPVUsedMax      = "QueryPVUsedMax"
-	QueryKMPVInfo       = "QueryKMPVInfo"
-	QueryPVUptime       = "QueryPVUptime"
+	QueryPVInfo            = "QueryPVInfo"
+	QueryPVActiveMinutes   = "QueryPVActiveMinutes"
+	QueryPVUsedAverage     = "QueryPVUsedAverage"
+	QueryPVUsedMax         = "QueryPVUsedMax"
+	QueryKMPVInfo          = "QueryKMPVInfo"
+	QueryPVUptime          = "QueryPVUptime"
 
 	// Deployment
 	QueryDeploymentInfo        = "QueryDeploymentInfo"
@@ -143,14 +143,14 @@ const (
 	QueryCronJobAnnotations = "QueryCronJobAnnotations"
 
 	// ReplicaSet
-	QueryReplicaSetInfo             = "QueryReplicaSetInfo"
-	QueryReplicaSetUptime           = "QueryReplicaSetUptime"
-	QueryReplicaSetLabels           = "QueryReplicaSetLabels"
-	QueryReplicaSetAnnotations      = "QueryReplicaSetAnnotations"
-	QueryReplicaSetOwners           = "QueryReplicaSetOwners"
-	QueryPodsWithReplicaSetOwner    = "QueryPodsWithReplicaSetOwner"
-	QueryReplicaSetsWithoutOwners   = "QueryReplicaSetsWithoutOwners"
-	QueryReplicaSetsWithRollout     = "QueryReplicaSetsWithRollout"
+	QueryReplicaSetInfo           = "QueryReplicaSetInfo"
+	QueryReplicaSetUptime         = "QueryReplicaSetUptime"
+	QueryReplicaSetLabels         = "QueryReplicaSetLabels"
+	QueryReplicaSetAnnotations    = "QueryReplicaSetAnnotations"
+	QueryReplicaSetOwners         = "QueryReplicaSetOwners"
+	QueryPodsWithReplicaSetOwner  = "QueryPodsWithReplicaSetOwner"
+	QueryReplicaSetsWithoutOwners = "QueryReplicaSetsWithoutOwners"
+	QueryReplicaSetsWithRollout   = "QueryReplicaSetsWithRollout"
 
 	// Namespace
 	QueryNamespaceInfo        = "QueryNamespaceInfo"
@@ -164,25 +164,25 @@ const (
 	QueryServiceSelectorLabels = "QueryServiceSelectorLabels"
 
 	// Network Egress
-	QueryNetZoneGiB              = "QueryNetZoneGiB"
-	QueryNetZonePricePerGiB      = "QueryNetZonePricePerGiB"
-	QueryNetRegionGiB            = "QueryNetRegionGiB"
-	QueryNetRegionPricePerGiB    = "QueryNetRegionPricePerGiB"
-	QueryNetInternetGiB          = "QueryNetInternetGiB"
-	QueryNetInternetPricePerGiB  = "QueryNetInternetPricePerGiB"
-	QueryNetInternetServiceGiB   = "QueryNetInternetServiceGiB"
+	QueryNetZoneGiB               = "QueryNetZoneGiB"
+	QueryNetZonePricePerGiB       = "QueryNetZonePricePerGiB"
+	QueryNetRegionGiB             = "QueryNetRegionGiB"
+	QueryNetRegionPricePerGiB     = "QueryNetRegionPricePerGiB"
+	QueryNetInternetGiB           = "QueryNetInternetGiB"
+	QueryNetInternetPricePerGiB   = "QueryNetInternetPricePerGiB"
+	QueryNetInternetServiceGiB    = "QueryNetInternetServiceGiB"
 	QueryNetNatGatewayPricePerGiB = "QueryNetNatGatewayPricePerGiB"
-	QueryNetNatGatewayGiB        = "QueryNetNatGatewayGiB"
-	QueryNetTransferBytes        = "QueryNetTransferBytes"
+	QueryNetNatGatewayGiB         = "QueryNetNatGatewayGiB"
+	QueryNetTransferBytes         = "QueryNetTransferBytes"
 
 	// Network Ingress
-	QueryNetZoneIngressGiB              = "QueryNetZoneIngressGiB"
-	QueryNetRegionIngressGiB            = "QueryNetRegionIngressGiB"
-	QueryNetInternetIngressGiB          = "QueryNetInternetIngressGiB"
-	QueryNetInternetServiceIngressGiB   = "QueryNetInternetServiceIngressGiB"
+	QueryNetZoneIngressGiB               = "QueryNetZoneIngressGiB"
+	QueryNetRegionIngressGiB             = "QueryNetRegionIngressGiB"
+	QueryNetInternetIngressGiB           = "QueryNetInternetIngressGiB"
+	QueryNetInternetServiceIngressGiB    = "QueryNetInternetServiceIngressGiB"
 	QueryNetNatGatewayIngressPricePerGiB = "QueryNetNatGatewayIngressPricePerGiB"
-	QueryNetNatGatewayIngressGiB        = "QueryNetNatGatewayIngressGiB"
-	QueryNetReceiveBytes                = "QueryNetReceiveBytes"
+	QueryNetNatGatewayIngressGiB         = "QueryNetNatGatewayIngressGiB"
+	QueryNetReceiveBytes                 = "QueryNetReceiveBytes"
 
 	// Labels
 	QueryNodeLabels = "QueryNodeLabels"
@@ -194,24 +194,24 @@ const (
 	QueryPodsWithJobOwner       = "QueryPodsWithJobOwner"
 
 	// ResourceQuotas
-	QueryResourceQuotaInfo                          = "QueryResourceQuotaInfo"
-	QueryResourceQuotaUptime                        = "QueryResourceQuotaUptime"
-	QueryResourceQuotaSpecCPURequestAverage         = "QueryResourceQuotaSpecCPURequestAverage"
-	QueryResourceQuotaSpecCPURequestMax             = "QueryResourceQuotaSpecCPURequestMax"
-	QueryResourceQuotaSpecRAMRequestAverage         = "QueryResourceQuotaSpecRAMRequestAverage"
-	QueryResourceQuotaSpecRAMRequestMax             = "QueryResourceQuotaSpecRAMRequestMax"
-	QueryResourceQuotaSpecCPULimitAverage           = "QueryResourceQuotaSpecCPULimitAverage"
-	QueryResourceQuotaSpecCPULimitMax               = "QueryResourceQuotaSpecCPULimitMax"
-	QueryResourceQuotaSpecRAMLimitAverage           = "QueryResourceQuotaSpecRAMLimitAverage"
-	QueryResourceQuotaSpecRAMLimitMax               = "QueryResourceQuotaSpecRAMLimitMax"
-	QueryResourceQuotaStatusUsedCPURequestAverage   = "QueryResourceQuotaStatusUsedCPURequestAverage"
-	QueryResourceQuotaStatusUsedCPURequestMax       = "QueryResourceQuotaStatusUsedCPURequestMax"
-	QueryResourceQuotaStatusUsedRAMRequestAverage   = "QueryResourceQuotaStatusUsedRAMRequestAverage"
-	QueryResourceQuotaStatusUsedRAMRequestMax       = "QueryResourceQuotaStatusUsedRAMRequestMax"
-	QueryResourceQuotaStatusUsedCPULimitAverage     = "QueryResourceQuotaStatusUsedCPULimitAverage"
-	QueryResourceQuotaStatusUsedCPULimitMax         = "QueryResourceQuotaStatusUsedCPULimitMax"
-	QueryResourceQuotaStatusUsedRAMLimitAverage     = "QueryResourceQuotaStatusUsedRAMLimitAverage"
-	QueryResourceQuotaStatusUsedRAMLimitMax         = "QueryResourceQuotaStatusUsedRAMLimitMax"
+	QueryResourceQuotaInfo                        = "QueryResourceQuotaInfo"
+	QueryResourceQuotaUptime                      = "QueryResourceQuotaUptime"
+	QueryResourceQuotaSpecCPURequestAverage       = "QueryResourceQuotaSpecCPURequestAverage"
+	QueryResourceQuotaSpecCPURequestMax           = "QueryResourceQuotaSpecCPURequestMax"
+	QueryResourceQuotaSpecRAMRequestAverage       = "QueryResourceQuotaSpecRAMRequestAverage"
+	QueryResourceQuotaSpecRAMRequestMax           = "QueryResourceQuotaSpecRAMRequestMax"
+	QueryResourceQuotaSpecCPULimitAverage         = "QueryResourceQuotaSpecCPULimitAverage"
+	QueryResourceQuotaSpecCPULimitMax             = "QueryResourceQuotaSpecCPULimitMax"
+	QueryResourceQuotaSpecRAMLimitAverage         = "QueryResourceQuotaSpecRAMLimitAverage"
+	QueryResourceQuotaSpecRAMLimitMax             = "QueryResourceQuotaSpecRAMLimitMax"
+	QueryResourceQuotaStatusUsedCPURequestAverage = "QueryResourceQuotaStatusUsedCPURequestAverage"
+	QueryResourceQuotaStatusUsedCPURequestMax     = "QueryResourceQuotaStatusUsedCPURequestMax"
+	QueryResourceQuotaStatusUsedRAMRequestAverage = "QueryResourceQuotaStatusUsedRAMRequestAverage"
+	QueryResourceQuotaStatusUsedRAMRequestMax     = "QueryResourceQuotaStatusUsedRAMRequestMax"
+	QueryResourceQuotaStatusUsedCPULimitAverage   = "QueryResourceQuotaStatusUsedCPULimitAverage"
+	QueryResourceQuotaStatusUsedCPULimitMax       = "QueryResourceQuotaStatusUsedCPULimitMax"
+	QueryResourceQuotaStatusUsedRAMLimitAverage   = "QueryResourceQuotaStatusUsedRAMLimitAverage"
+	QueryResourceQuotaStatusUsedRAMLimitMax       = "QueryResourceQuotaStatusUsedRAMLimitMax"
 
 	// Data Coverage
 	QueryDataCoverage = "QueryDataCoverage"
@@ -226,6 +226,7 @@ type MetricsQuerier interface {
 	QueryLocalStorageUsedMax(start, end time.Time) *Future[LocalStorageUsedMaxResult]
 	QueryLocalStorageBytes(start, end time.Time) *Future[LocalStorageBytesResult]
 
+	// Local Storage Metrics aggregated exclusively on NodeUID
 	QueryKMLocalStorageUsedAvg(start, end time.Time) *Future[NodeUIDValueResult]
 	QueryKMLocalStorageUsedMax(start, end time.Time) *Future[NodeUIDValueResult]
 	QueryKMLocalStorageBytes(start, end time.Time) *Future[UIDValueResult]
@@ -306,6 +307,7 @@ type MetricsQuerier interface {
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
 	QueryPVCBytesRequested(start, end time.Time) *Future[PVCBytesRequestedResult]
 	QueryPVCInfo(start, end time.Time) *Future[PVCInfoResult]
+	// UID aggregated version of PVCInfo query
 	QueryKMPVCInfo(start, end time.Time) *Future[PVCInfoResult]
 	QueryPVCUptime(start, end time.Time) *Future[UptimeResult]
 	QueryPVCBytesUsedAverage(start, end time.Time) *Future[PVCUIDValueResult]

@@ -10,8 +10,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/source"
 )
 
-const logTimeFmt string = "2006-01-02T15:04:05"
-
 type KubeModel struct {
 	ds         source.OpenCostDataSource
 	clusterUID string
@@ -48,7 +46,7 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 	err = km.computeCluster(kms, start, end)
 	if err != nil {
 		kms.Error(err)
-		return kms, fmt.Errorf("error computing kubemodel.Cluster for (%s, %s): %w", start.Format(logTimeFmt), end.Format(logTimeFmt), err)
+		return kms, fmt.Errorf("error computing kubemodel.Cluster for (%s, %s): %w", start.Format(time.DateTime), end.Format(time.DateTime), err)
 	}
 
 	// 2.2 Compute Nodes
