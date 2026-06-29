@@ -16,7 +16,8 @@ var (
 	currency string
 )
 
-const outputFmt = "modules/pricing/public/%s/pricing-data.json"
+// Assumes execution from the /cmd directory
+const outputFmt = "../%s/pricing-data.json"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
