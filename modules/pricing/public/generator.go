@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/unit"
 	"github.com/opencost/opencost/modules/pricing/public/aws"
@@ -51,10 +50,10 @@ func GenerateAzurePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 	return pricingSet, nil
 }
 
-// GenerateAllProvidersPricing fetches pricing data for all supported providers
+// GeneratePricing fetches pricing data for all supported providers
 // and combines them into a single PricingSet
-func GenerateAllProvidersPricing(currency unit.Currency) (*pricing.PricingSet, error) {
-	log.Infof("Generating pricing for all providers in currency: %s", currency)
+func GeneratePricing(currency unit.Currency) (*pricing.PricingSet, error) {
+	log.Infof("Generating pricing for providers in currency: %s", currency)
 
 	// Create a combined pricing set
 	combinedSet := &pricing.PricingSet{
@@ -89,22 +88,4 @@ func GenerateAllProvidersPricing(currency unit.Currency) (*pricing.PricingSet, e
 		len(combinedSet.NodePricing), len(combinedSet.PersistentVolumePricing))
 
 	return combinedSet, nil
-}
-
-// GeneratePricingForProvider fetches pricing data for a specific provider
-// in the specified currency
-func GeneratePricingForProvider(provider shared.Provider, currency unit.Currency) (*pricing.PricingSet, error) {
-	switch provider {
-	case shared.ProviderEmpty:
-		return GenerateAllProvidersPricing(currency)
-	case shared.ProviderAWS:
-		return GenerateAWSPricing(currency)
-	case shared.ProviderAzure:
-		return GenerateAzurePricing(currency)
-	case shared.ProviderGCP:
-		return nil, fmt.Errorf("not implemented")
-		// return GenerateGCPPricing(currency)
-	default:
-		return nil, fmt.Errorf("unsupported provider: %s", provider)
-	}
 }

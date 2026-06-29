@@ -4,19 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/unit"
 	"github.com/opencost/opencost/modules/pricing/public"
 	"github.com/spf13/cobra"
 )
 
 var (
-	provider string
 	currency string
-	output   string
 )
+
+const outputFmt = "modules/pricing/public/%s/pricing-data.json"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -33,9 +33,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&provider, "provider", "p", "aws", "Cloud provider (aws, azure, gcp, all). Default: aws")
-	rootCmd.Flags().StringVarP(&currency, "currency", "c", "USD", "Currency code (e.g. USD, EUR, CNY). Default: USD")
-	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path. Default: /pricing-data/{provider}-{currency}.json. Use 'stdout' to print to console")
+	rootCmd.Flags().StringVarP(&currency, "currency", "c", "USD", "Currency code (e.g. USD, CNY). Default: USD")
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -44,22 +42,8 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid currency '%s': %w", currency, err)
 	}
 
-	var prov shared.Provider
-	switch provider {
-	case "all":
-		prov = shared.ProviderEmpty
-	case "aws":
-		prov = shared.ProviderAWS
-	case "azure":
-		prov = shared.ProviderAzure
-	case "gcp":
-		prov = shared.ProviderGCP
-	default:
-		return fmt.Errorf("unsupported provider: %s", provider)
-	}
-
-	log.Infof("Generating pricing for %s in %s", prov, curr)
-	pricingSet, err := public.GeneratePricingForProvider(prov, curr)
+	log.Infof("Generating pricing for %s", curr)
+	pricingSet, err := public.GeneratePricing(curr)
 	if err != nil {
 		return fmt.Errorf("failed to generate pricing: %w", err)
 	}
@@ -72,16 +56,8 @@ func run(cmd *cobra.Command, args []string) error {
 	log.Infof("Generated %d node pricing entries and %d volume pricing entries",
 		len(pricingSet.NodePricing), len(pricingSet.PersistentVolumePricing))
 
-	// Set default output path if not specified
-	if output == "" {
-		output = fmt.Sprintf("pricing-data/%s/%s-%s.json", provider, provider, currency)
-	}
 
-	// Check if user wants stdout
-	if output == "stdout" {
-		fmt.Println(string(data))
-		return nil
-	}
+	output := fmt.Sprintf(outputFmt, strings.ToLower(currency))
 
 	// Write to file
 	if err := os.WriteFile(output, data, 0644); err != nil {
