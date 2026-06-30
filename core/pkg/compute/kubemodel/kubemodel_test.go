@@ -31,7 +31,7 @@ func seedCluster(ds *source.MockOpenCostDataSource, start, end time.Time) {
 // ---- NewKubeModel ----
 
 func TestNewKubeModel_NilDataSource(t *testing.T) {
-	_, err := NewKubeModel(testClusterUID, nil)
+	_, err := NewKubeModel(testClusterUID, false, nil)
 	require.Error(t, err)
 }
 
@@ -196,7 +196,7 @@ func TestComputeKubeModelSet(t *testing.T) {
 			ds.ResolutionValue = 5 * time.Minute
 			tt.setup(ds)
 
-			km, err := NewKubeModel(testClusterUID, ds)
+			km, err := NewKubeModel(testClusterUID, false, ds)
 			require.NoError(t, err)
 
 			kms, err := km.ComputeKubeModelSet(start, end)

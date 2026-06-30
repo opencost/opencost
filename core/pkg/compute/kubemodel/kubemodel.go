@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -13,16 +12,18 @@ import (
 
 type KubeModel struct {
 	ds         source.OpenCostDataSource
+	forceV1    bool
 	clusterUID string
 }
 
-func NewKubeModel(clusterUID string, dataSource source.OpenCostDataSource) (*KubeModel, error) {
+func NewKubeModel(clusterUID string, forceV1 bool, dataSource source.OpenCostDataSource) (*KubeModel, error) {
 	if dataSource == nil {
 		return nil, errors.New("OpenCostDataSource cannot be nil")
 	}
 
 	km := &KubeModel{
 		ds:         dataSource,
+		forceV1:    forceV1,
 		clusterUID: clusterUID,
 	}
 
@@ -69,7 +70,7 @@ func (km *KubeModel) computeFuncs(start, end time.Time) []computeFunc {
 		km.computeResourceQuotas,
 	}
 
-	if env.IsKubeModelV1Forced() {
+	if km.forceV1 {
 		return KubeModelV1ComputeFucs
 	}
 

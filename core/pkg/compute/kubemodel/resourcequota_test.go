@@ -350,7 +350,7 @@ func TestComputeResourceQuotas(t *testing.T) {
 				ds.Querier.SetOverride(method, result)
 			}
 
-			km, err := NewKubeModel(testClusterUID, ds)
+			km, err := NewKubeModel(testClusterUID, false, ds)
 			require.NoError(t, err)
 
 			kms, err := km.ComputeKubeModelSet(start, end)
