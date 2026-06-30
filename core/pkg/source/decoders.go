@@ -62,6 +62,7 @@ const (
 	SameZoneLabel        = "same_zone"
 	SameRegionLabel      = "same_region"
 	NatGatewayLabel      = "nat_gateway"
+	KubeModelVersion     = "kubemodel_version"
 )
 
 const (
@@ -668,6 +669,21 @@ func DecodeClusterInfoResult(result *QueryResult) *ClusterInfoResult {
 		AccountID:   accountID,
 		Provisioner: provisioner,
 		Region:      region,
+	}
+}
+
+type ClusterKubeModelVersionResult struct {
+	UID     string
+	Version string
+}
+
+func DecodeClusterKubeModelVersionResult(result *QueryResult) *ClusterKubeModelVersionResult {
+	uid, _ := result.GetString(UIDLabel)
+	version, _ := result.GetString(KubeModelVersion)
+
+	return &ClusterKubeModelVersionResult{
+		UID:     uid,
+		Version: version,
 	}
 }
 

@@ -223,6 +223,10 @@ func (c *collectorMetricsQuerier) QueryClusterInfo(start, end time.Time) *source
 	return queryCollector(c, start, end, metric.ClusterInfoID, source.DecodeClusterInfoResult)
 }
 
+func (c *collectorMetricsQuerier) QueryClusterKubeModelVersion(start, end time.Time) *source.Future[source.ClusterKubeModelVersionResult] {
+	return queryCollector(c, start, end, metric.ClusterCompleteKubeModelID, source.DecodeClusterKubeModelVersionResult)
+}
+
 func (c *collectorMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UptimeResult] {
 	return queryCollector(c, start, end, metric.ClusterUptimeID, source.DecodeUptimeResult)
 }

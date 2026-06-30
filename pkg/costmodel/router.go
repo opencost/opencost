@@ -531,15 +531,19 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	costModel := NewCostModel(clusterUID, dataSource, cloudProvider, k8sCache, clusterMap, dataSource.BatchDuration())
 	metricsEmitter := NewCostModelMetricsEmitter(k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
-	appName := sysenv.GetAppName()
 	var kubeModelPipeline *km.Pipeline
-	if p, err := km.NewPipeline(appName, clusterUID, store, costModel); err != nil {
-		log.Errorf("Failed to initialize KubeModel pipeline: %v", err)
-	} else {
-		p.Start()
-		kubeModelPipeline = p
+	var kubeModelQuerier km.Querier
+	if sysenv.IsKubeModelExported() {
+		appName := sysenv.GetAppName()
+
+		if p, err := km.NewPipeline(appName, clusterUID, store, costModel); err != nil {
+			log.Errorf("Failed to initialize KubeModel pipeline: %v", err)
+		} else {
+			p.Start()
+			kubeModelPipeline = p
+		}
+		kubeModelQuerier = km.NewQuerier(appName, clusterUID, store)
 	}
-	kubeModelQuerier := km.NewQuerier(appName, clusterUID, store)
 
 	a := &Accesses{
 		DataSource:          dataSource,
