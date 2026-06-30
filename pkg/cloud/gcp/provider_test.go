@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"reflect"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/google/martian/log"
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/stretchr/testify/assert"
@@ -758,7 +758,8 @@ func TestGCP_getBillingAPIClientAndURL(t *testing.T) {
 	client, rawURL, err := gcp.getBillingAPIClientAndURL("test-key", "USD")
 
 	assert.NoError(t, err)
-	assert.Equal(t, http.DefaultClient, client)
+	assert.NotNil(t, client)
+	assert.Equal(t, httputil.PricingTimeout, client.Timeout)
 
 	parsedURL, err := url.Parse(rawURL)
 	assert.NoError(t, err)
