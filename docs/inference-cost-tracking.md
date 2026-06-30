@@ -54,14 +54,17 @@ Use `allocation` for chargeback/showback and bill reconciliation. Use `usage` fo
 
 ## Prometheus Metrics
 
-When `INFERENCE_COST_ENABLED=true`, OpenCost registers and emits inference gauge metrics every collection interval. All metrics carry `model_name`, `model_version`, `namespace`, and `cost_basis` labels.
+When `INFERENCE_COST_ENABLED=true`, OpenCost registers and emits inference gauge metrics every collection interval. All metrics carry `model_name`, `model_version`, `namespace`, `cost_basis`, and `workload_type` labels.
 
-Note: `pod`, `controller`, `controller_kind`, `container` aggregation are available via [REST APIs](#rest-api-endpoints).
+The `workload_type` label is currently always set to `inference`. Future versions may support additional workload types such as `training` or `fine-tuning`.
 
+Note: `pod`, `controller`, `controller_kind`, `container`, `workload_type` aggregation are available via [REST APIs](#rest-api-endpoints), although the only workload_type currently support is "inference".
+
+### `llm_total_cost`
 
 **Hourly infrastructure cost** attributed to a model.
 
-**Labels:** `model_name`, `model_version`, `namespace`, `cost_basis`
+**Labels:** `model_name`, `model_version`, `namespace`, `cost_basis`, `workload_type`
 
 This is an instantaneous hourly rate ($/hour), not a cumulative counter.
 
@@ -84,7 +87,7 @@ avg_over_time(llm_total_cost{model_name="Qwen/Qwen3-32B", cost_basis="allocation
 - **`phase=prompt`:** Cost per 1M delivered input tokens (uses `promptTokens` as denominator; see `llm_cache_savings_fraction` for KV cache utilization)
 - **`phase=generation`:** Cost per 1M output tokens
 
-**Labels:** `model_name`, `model_version`, `namespace`, `cost_basis`, `phase`, `allocation_method`
+**Labels:** `model_name`, `model_version`, `namespace`, `cost_basis`, `phase`, `allocation_method`, `workload_type`
 
 The `phase` label distinguishes between:
 - *(empty)* — Blended cost across all tokens
@@ -136,7 +139,7 @@ sum by (model_name, namespace) (llm_cost_per_million_tokens{phase=~"prompt|gener
 
 **Fraction of prompt tokens served from the KV cache** (range 0–1). A value of `0.9` means 90% of prompt tokens were cache hits and required no prefill computation.
 
-**Labels:** `model_name`, `model_version`, `namespace`
+**Labels:** `model_name`, `model_version`, `namespace`, `workload_type`
 
 Zero when prefix caching is disabled (`allocation_method=prefix_caching_off` on `llm_cost_per_million_tokens`) or when no cache hits occurred in the window.
 
@@ -184,9 +187,9 @@ Returns a single aggregated `InferenceCostSet` covering the full requested windo
 |-----------|----------|-------------|
 | `window` | Yes | Time window: RFC3339 `start,end` or named range (e.g. `7d`, `24h`, `2025-01-01T00:00:00Z,2025-01-02T00:00:00Z`) |
 | `costBasis` | No | `allocation` (default) or `usage` |
-| `aggregate` | No | Comma-separated dimensions: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container` |
+| `aggregate` | No | Comma-separated dimensions: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type` |
 | `accumulate` | No | Step size within the window: `hour`, `day`, `week`, `month` (results are then accumulated into one total) |
-| `filter` | No | `prop:value` pairs joined with `+` for AND logic, e.g. `namespace:default+model_name:llama3` |
+| `filter` | No | `prop:value` pairs joined with `+` for AND logic, e.g. `namespace:default+model_name:llama3+workload_type:inference` |
 | `idle` | No | `shareWeighted/separate/shareEven` |
 
 **Example:**

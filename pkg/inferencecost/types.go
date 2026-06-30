@@ -44,6 +44,7 @@ type InferenceCostProperties struct {
 	Controller     string
 	ControllerKind string
 	Container      string
+	WorkloadType   string
 }
 
 // InferenceCost holds all cost data for a single model/namespace over a

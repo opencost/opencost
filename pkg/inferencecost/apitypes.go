@@ -71,6 +71,7 @@ type InferenceCostAPIProperties struct {
 	Controller     string `json:"controller,omitempty"`
 	ControllerKind string `json:"controllerKind,omitempty"`
 	Container      string `json:"container,omitempty"`
+	WorkloadType   string `json:"workloadType"` // currently always "inference"
 }
 
 // InferenceCostSet holds a collection of InferenceCostResponses for a single
@@ -113,6 +114,7 @@ func newInferenceCostResponse(ic *InferenceCost, basis CostBasis, win opencost.W
 			Controller:     ic.Properties.Controller,
 			ControllerKind: ic.Properties.ControllerKind,
 			Container:      ic.Properties.Container,
+			WorkloadType:   ic.Properties.WorkloadType,
 		},
 		Window:                     win,
 		CostBasis:                  basis,

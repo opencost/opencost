@@ -525,6 +525,11 @@
           "container": {
             "type": "string",
             "description": "Container name within the pod. Omitted when not available."
+          },
+          "workloadType": {
+            "type": "string",
+            "description": "Type of workload generating these costs. Currently always 'inference'. Future values may include 'training', 'fine-tuning', etc.",
+            "example": "inference"
           }
         }
       },

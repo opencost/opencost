@@ -18,6 +18,7 @@ var supportedAggregateProperties = map[string]bool{
 	"controller":      true,
 	"controller_kind": true,
 	"container":       true,
+	"workload_type":   true,
 }
 
 // aggKey derives the aggregation map key for an InferenceCostResponse given
@@ -38,7 +39,7 @@ func aggKey(props InferenceCostAPIProperties, aggregateBy []string) (string, err
 	parts := make([]string, 0, len(aggregateBy))
 	for _, dim := range aggregateBy {
 		if !supportedAggregateProperties[dim] {
-			return "", fmt.Errorf("unsupported aggregation dimension %q: supported dimensions are model_name, model_version, namespace, cluster, pod, controller, controller_kind, container", dim)
+			return "", fmt.Errorf("unsupported aggregation dimension %q: supported dimensions are model_name, model_version, namespace, cluster, pod, controller, controller_kind, container, workload_type", dim)
 		}
 		var val string
 		switch dim {
@@ -58,6 +59,8 @@ func aggKey(props InferenceCostAPIProperties, aggregateBy []string) (string, err
 			val = props.ControllerKind
 		case "container":
 			val = props.Container
+		case "workload_type":
+			val = props.WorkloadType
 		}
 		if val == "" {
 			val = opencost.UnallocatedSuffix
@@ -163,6 +166,9 @@ func (s *InferenceCostSet) aggregate(aggregateBy []string) error {
 			if !aggDims["container"] {
 				clone.Properties.Container = ""
 			}
+			if !aggDims["workload_type"] {
+				clone.Properties.WorkloadType = ""
+			}
 			aggMap[key] = &clone
 		}
 	}
@@ -246,7 +252,7 @@ func parseFilter(s string) ([]filterSpec, error) {
 		}
 		prop := strings.TrimSpace(term[:idx])
 		if !supportedAggregateProperties[prop] {
-			return nil, fmt.Errorf("unsupported filter property %q: supported properties are model_name, model_version, namespace, cluster, pod, controller, controller_kind, container", prop)
+			return nil, fmt.Errorf("unsupported filter property %q: supported properties are model_name, model_version, namespace, cluster, pod, controller, controller_kind, container, workload_type", prop)
 		}
 		val := strings.TrimSpace(term[idx+1:])
 		// Strip surrounding double-quotes.
@@ -280,6 +286,8 @@ func matchesFilter(ic *InferenceCostResponse, specs []filterSpec) bool {
 			actual = ic.Properties.ControllerKind
 		case "container":
 			actual = ic.Properties.Container
+		case "workload_type":
+			actual = ic.Properties.WorkloadType
 		}
 		if actual != spec.value {
 			return false

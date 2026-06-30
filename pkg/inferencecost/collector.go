@@ -643,8 +643,9 @@ func (c *Collector) combineMetrics(
 
 		ic := &InferenceCost{
 			Properties: InferenceCostProperties{
-				ModelName: modelName,
-				Namespace: namespace,
+				ModelName:    modelName,
+				Namespace:    namespace,
+				WorkloadType: "inference",
 			},
 			PromptTokens:         promptTokens[key],
 			GenerationTokens:     generationTokens[key],
