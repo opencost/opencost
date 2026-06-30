@@ -109,13 +109,17 @@ engineering spike**: evaluate scraping Network Flow Monitor's metrics as a new O
 data source for EKS clusters specifically.
 Source: [EKS Container Network Observability launch](https://aws.amazon.com/about-aws/whats-new/2025/11/amazon-eks-enhanced-container-network-observability/), [AWS blog: track inter-AZ/NAT traffic with EKS Container Network Observability](https://aws.amazon.com/blogs/containers/track-inter-az-and-nat-gateway-traffic-with-eks-container-network-observability/)
 
-### 7. CUR 2.0 native FOCUS export
-AWS CUR 2.0 can output **FOCUS 1.2**-formatted Parquet files directly to S3 — AWS was first of the big
-three to ship this, and publishes a conformance report (11 spec gaps closed, 8 still open as of this
-writing).
-**Implication:** See the cross-cutting FOCUS section below — this is the AWS half of a cross-cloud
-opportunity.
-Source: [FOCUS v1.2 spec](https://focus.finops.org/focus-specification/v1-2/)
+### 7. CUR 2.0 / Data Exports native FOCUS export — now FOCUS 1.2, GA
+AWS CUR 2.0 / **Data Exports for FOCUS 1.2 reached GA Nov 19, 2025** (up from FOCUS 1.0 GA in Nov
+2024), output as Parquet files directly to S3 — AWS was first of the big three to ship native FOCUS
+support, and publishes a conformance report (11 spec gaps closed, 8 still open as of this writing).
+FOCUS 1.2 adds 14 columns over 1.0, including an `InvoiceId` column (enables reconciling CUR data
+directly against AWS invoices) and capacity-reservation status tracking (flags unused reservations).
+**Implication:** See the cross-cutting FOCUS section below for the multi-cloud opportunity — but the
+`InvoiceId` and reservation-status columns specifically are worth an earlier look: they're exactly the
+kind of fields an invoice-reconciliation or "unused reservation" feature in OpenCost/Kubecost would
+want, without having to derive them from CUR's existing line-item data.
+Source: [FOCUS v1.2 spec](https://focus.finops.org/focus-specification/v1-2/), [AWS Data Exports for FOCUS 1.2 GA](https://aws.amazon.com/about-aws/whats-new/2025/11/aws-data-exports-focus-1-2-available/)
 
 ### 8. EKS Auto Mode: performance gains + new capacity-reservation awareness
 39% faster node boot, 43% faster scale-out, up to 69% faster consolidation with ~30% more usable
@@ -157,11 +161,25 @@ can legitimately be attributed to, and Database Savings Plans is a new coverage/
 to handle.
 Source: [Graviton5 M9g preview](https://aws.amazon.com/about-aws/whats-new/2025/12/ec2-m9g-instances-graviton5-processors-preview/), [Database Savings Plans](https://aws.amazon.com/about-aws/whats-new/2025/12/database-savings-plans-savings/), [RISP Group Sharing GA](https://aws.amazon.com/about-aws/whats-new/2025/11/savings-plans-reserved-instances-group-sharing-generally-available/)
 
+### 11. AWS Billing and Cost Management MCP Server — direct landscape parallel to OpenCost's MCP server
+**Launched Aug 22, 2025** (AWS Labs, open source). An official MCP server that bridges any MCP-compatible
+AI assistant (Claude Desktop, Amazon Q CLI, Kiro, VS Code) to AWS Cost Explorer, Cost Optimization Hub,
+Compute Optimizer, Savings Plans, Budgets, S3 Storage Lens, and Cost Anomaly Detection — plus a
+dedicated SQL-based calculation engine for reproducible cost-metric calculations over large datasets.
+**Implication:** OpenCost shipped its own MCP server in v1.118 with right-sizing recommendations (see
+docs/ROADMAP.md). AWS's server covers AWS-account-level billing/optimization data, not
+Kubernetes-construct-level allocation (namespace/Pod/label) — so today the two are complementary rather
+than overlapping. Worth tracking as a landscape signal (cloud providers are racing to put cost data in
+front of AI agents) and worth scoping whether OpenCost's MCP server should be able to compose with or
+delegate to AWS's server for account-level questions it doesn't itself answer (e.g., "what's driving
+this month's AWS bill outside Kubernetes spend").
+Source: [AWS Billing and Cost Management MCP server announcement](https://aws.amazon.com/about-aws/whats-new/2025/08/aws-billing-cost-management-mcp-server/), [AWS Labs MCP server docs](https://awslabs.github.io/mcp/servers/billing-cost-management-mcp-server)
+
 ---
 
 ## Azure
 
-### 11. AKS Cost Analysis add-on is built on OpenCost
+### 12. AKS Cost Analysis add-on is built on OpenCost
 Confirmed and worth stating plainly for the roadmap: Azure's native AKS cost view (in Azure Portal Cost
 Management, Standard/Premium tier only) **runs OpenCost under the hood**, reconciled against Azure
 invoice data.
@@ -172,7 +190,7 @@ what Azure ships in the add-on, are there AKS-specific quirks we should test aga
 direct conversation with the Azure AKS team via the OpenCost working group.
 Source: [Microsoft Learn: AKS cost analysis](https://learn.microsoft.com/en-us/azure/aks/cost-analysis)
 
-### 12. Azure Cost Management exports overhaul — FOCUS GA, Parquet, Fabric destination
+### 13. Azure Cost Management exports overhaul — FOCUS GA, Parquet, Fabric destination
 **Enhanced Cost Management exports went GA April 28, 2025**, bundling several changes at once:
 - **FOCUS-format export GA** (FOCUS 1.0/1.0r2; a **1.2-preview** schema with 105 columns exists but had
   not reached GA as of mid-2026), combining actual + amortized cost in one file.
@@ -189,13 +207,13 @@ The Fabric/OneLake destination is also worth tracking separately — if it reach
 answer for Fabric-centric shops.
 Source: [Azure FOCUS export schema](https://learn.microsoft.com/en-us/azure/cost-management-billing/dataset-schema/cost-usage-details-focus), [Cost Management exports tutorial](https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/tutorial-improved-exports)
 
-### 13. Legacy Azure Consumption/EA billing APIs being retired — check for any lingering dependency
+### 14. Legacy Azure Consumption/EA billing APIs being retired — check for any lingering dependency
 Microsoft has retired the old **EA Reporting APIs** (`consumption.azure.com`, API-key auth) outright,
 and has the **Consumption Usage Details, Marketplaces, and Forecasts APIs** marked deprecated (no firm
 shutoff date set, but explicitly "do not build new pipelines on these"). Separately, the standalone
 **"Connector for AWS"** multi-cloud view inside Azure Cost Management was retired March 31, 2025, with
 Microsoft's stated replacement path being FOCUS-format exports. Replacement throughout is the modern
-Cost Management Exports API / Cost Details API (Entra ID auth) described in #12.
+Cost Management Exports API / Cost Details API (Entra ID auth) described in #13.
 **Implication:** Lower urgency than other items — a `grep` of `pkg/cloud/azure/` found no current
 OpenCost dependency on these legacy `consumption.azure.com` endpoints, so this is a "stay off this
 path" note rather than an active migration. Worth keeping on the watchlist only because any
@@ -203,7 +221,7 @@ community-contributed Azure ingestion code or docs that reference these endpoint
 for removal before they bit-rot into broken instructions.
 Source: [Migrate from EA Reporting APIs](https://learn.microsoft.com/en-us/azure/cost-management-billing/automate/migrate-ea-usage-details-api), [Migrate from Consumption Usage Details API](https://learn.microsoft.com/en-us/azure/cost-management-billing/automate/migrate-consumption-usage-details-api), [Automation FAQ](https://learn.microsoft.com/en-us/azure/cost-management-billing/automate/automation-faq)
 
-### 14. AKS Node Auto-Provisioning (Karpenter-on-Azure)
+### 15. AKS Node Auto-Provisioning (Karpenter-on-Azure)
 Azure's adaptation of Karpenter for AKS. Exact GA timeline for the 2025–2026 window needs direct
 confirmation (Microsoft Learn docs), but directionally this brings the same bin-packing/idle-cost
 sampling consideration from #4 to AKS clusters.
@@ -214,7 +232,7 @@ Source: needs verification — check `learn.microsoft.com/azure/aks/node-autopro
 
 ## GCP
 
-### 15. GKE cost allocation export to BigQuery — `kube:system-overhead` / `kube:unallocated`
+### 16. GKE cost allocation export to BigQuery — `kube:system-overhead` / `kube:unallocated`
 GKE's built-in cost allocation feature adds cluster/namespace labels to the BigQuery billing export,
 plus two synthetic namespaces: `kube:system-overhead` (node resources unavailable to Pods) and
 `kube:unallocated` (resources neither requested by workloads nor reserved for overhead). Backfill is
@@ -222,10 +240,10 @@ not supported — data only starts from when the feature is enabled.
 **Implication:** Those two synthetic namespace concepts map closely to OpenCost's own idle/overhead
 accounting. Worth a direct comparison of GKE's idle/overhead methodology vs. OpenCost's to find
 discrepancies — those discrepancies are exactly what GCP customers will ask about when running both
-side-by-side (which AKS customers already implicitly do, per #11).
+side-by-side (which AKS customers already implicitly do, per #12).
 Source: [GKE cost allocation docs](https://cloud.google.com/kubernetes-engine/docs/how-to/cost-allocations)
 
-### 16. GCP FOCUS export now in Preview (separate from the older FOCUS view)
+### 17. GCP FOCUS export now in Preview (separate from the older FOCUS view)
 GCP shipped a native **FOCUS export table** (`gcp_billing_export_focus_<BILLING_ACCOUNT_ID>`) in
 **Preview** — an immutable, Google-hosted table (no storage cost, 2-year retention), distinct from the
 older FOCUS-format BigQuery *view* that reached GA back in mid-2024. Google is also overhauling the
@@ -238,7 +256,7 @@ schema overhaul is a more immediate item: any GCP billing ingestion code that as
 SKU needs to handle the new two-row-per-SKU shape after Jan 21, 2026.
 Source: GKE/BigQuery billing export schema docs (`cloud.google.com/billing/docs/how-to/export-data-bigquery-tables/focus-export`, `cloud.google.com/docs/cuds-multiprice-datamodel`) — direct fetch was blocked in this research session; re-verify against live docs before treating dates as final.
 
-### 17. GKE Custom Compute Classes
+### 18. GKE Custom Compute Classes
 Lets platform teams define a prioritized list of compute properties (machine family, Spot vs.
 on-demand, reservations) for GKE's autoscaler to pick from. Status (preview vs. GA) as of mid-2026
 needs direct confirmation against GKE release notes.
@@ -258,7 +276,7 @@ Conformance status as of mid-2026:
 - **AWS**: native FOCUS 1.2 export via CUR 2.0, conformance report published, 8 known gaps remain.
 - **Azure**: native FOCUS export (1.0/1.0r2 GA, 1.2-preview in flight) to Blob Storage, conformance
   report published.
-- **GCP**: a native export table is now in Preview (#16), not yet GA — closing the gap with AWS/Azure
+- **GCP**: a native export table is now in Preview (#17), not yet GA — closing the gap with AWS/Azure
   but not there yet.
 
 **Implication:** Once GCP's FOCUS export reaches GA, a shared FOCUS-format ingestion layer could
