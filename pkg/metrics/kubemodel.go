@@ -6,6 +6,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/source"
 	coreutil "github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
@@ -190,7 +191,7 @@ func (c KubeModelCollector) scrapeClusterInfo(disabled map[string]struct{}) []ku
 		"account_id":            info[clusters.ClusterInfoAccountKey],
 		"provisioner_name":      info[clusters.ClusterInfoProvisionerKey],
 		"region":                info[clusters.ClusterInfoRegionKey],
-		source.KubeModelV2Label: "true",
+		source.KubeModelVersion: fmt.Sprintf("%d", kubemodel.DefaultCodecVersion),
 	}
 	// GCP uses "project" instead of "account"
 	if labels["account_id"] == "" {

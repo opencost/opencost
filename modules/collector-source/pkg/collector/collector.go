@@ -853,7 +853,7 @@ func NewClusterCompleteKubeModelMetricCollector() *metric.MetricCollector {
 		metric.ClusterInfo,
 		[]string{
 			source.UIDLabel,
-			source.KubeModelV2Label,
+			source.KubeModelVersion,
 		},
 		aggregator.Info,
 		nil,

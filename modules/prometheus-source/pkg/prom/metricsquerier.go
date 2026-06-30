@@ -661,8 +661,8 @@ func (pds *PrometheusMetricsQuerier) QueryClusterInfo(start, end time.Time) *sou
 	return source.NewFuture(source.DecodeClusterInfoResult, ctx.QueryAtTime(queryClusterInfo, end))
 }
 
-func (pds *PrometheusMetricsQuerier) QueryClusterCompleteKubeModel(start, end time.Time) *source.Future[source.ClusterCompleteKubeModelResult] {
-	const queryName = "QueryClusterCompleteKubeModel"
+func (pds *PrometheusMetricsQuerier) QueryClusterKubeModelVersion(start, end time.Time) *source.Future[source.ClusterKubeModelVersionResult] {
+	const queryName = "QueryClusterKubeModelVersion"
 	const queryFmtClusterCompleteKubeModel = `avg(avg_over_time(cluster_info{%s}[%s])) by (%s, uid, complete_kubemodel)`
 
 	cfg := pds.promConfig
@@ -676,7 +676,7 @@ func (pds *PrometheusMetricsQuerier) QueryClusterCompleteKubeModel(start, end ti
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryClusterCompleteKubeModel)
 
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	return source.NewFuture(source.DecodeClusterCompleteKubeModelResult, ctx.QueryAtTime(queryClusterCompleteKubeModel, end))
+	return source.NewFuture(source.DecodeClusterKubeModelVersionResult, ctx.QueryAtTime(queryClusterCompleteKubeModel, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UptimeResult] {

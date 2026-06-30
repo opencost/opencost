@@ -73,14 +73,16 @@ func (km *KubeModel) computeFuncs(start, end time.Time) []computeFunc {
 		return KubeModelV1ComputeFucs
 	}
 
-	results, err := km.ds.Metrics().QueryClusterCompleteKubeModel(start, end).Await()
+	results, err := km.ds.Metrics().QueryClusterKubeModelVersion(start, end).Await()
 	if err != nil {
 		log.Errorf("computeFuncs: querying cluster complete kubemodel: %s", err)
 		return KubeModelV1ComputeFucs
 	}
 
+	// If the window contains a result which is missing the version number then the window will produce incomplete KubeModel data
+	// and should not export
 	for _, res := range results {
-		if !res.Complete {
+		if res.Version == "" {
 			return KubeModelV1ComputeFucs
 		}
 	}

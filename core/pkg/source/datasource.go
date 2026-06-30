@@ -41,7 +41,7 @@ const (
 
 	// Cluster Management
 	QueryClusterInfo                 = "QueryClusterInfo"
-	QueryClusterCompleteKubeModel    = "QueryClusterCompleteKubeModel"
+	QueryClusterKubeModelVersion     = "QueryClusterKubeModelVersion"
 	QueryClusterUptime               = "QueryClusterUptime"
 	QueryClusterManagementDuration   = "QueryClusterManagementDuration"
 	QueryClusterManagementPricePerHr = "QueryClusterManagementPricePerHr"
@@ -254,7 +254,7 @@ type MetricsQuerier interface {
 
 	// Cluster Management
 	QueryClusterInfo(start, end time.Time) *Future[ClusterInfoResult]
-	QueryClusterCompleteKubeModel(start, end time.Time) *Future[ClusterCompleteKubeModelResult]
+	QueryClusterKubeModelVersion(start, end time.Time) *Future[ClusterKubeModelVersionResult]
 	QueryClusterUptime(start, end time.Time) *Future[UptimeResult]
 	QueryClusterManagementDuration(start, end time.Time) *Future[ClusterManagementDurationResult]
 	QueryClusterManagementPricePerHr(start, end time.Time) *Future[ClusterManagementPricePerHrResult]

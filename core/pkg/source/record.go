@@ -154,9 +154,9 @@ func (m *RecordMetricsQuerier) QueryClusterInfo(start, end time.Time) *Future[Cl
 	return m.Querier.QueryClusterInfo(start, end)
 }
 
-func (m *RecordMetricsQuerier) QueryClusterCompleteKubeModel(start, end time.Time) *Future[ClusterCompleteKubeModelResult] {
-	m.recordCall(QueryClusterCompleteKubeModel)
-	return m.Querier.QueryClusterCompleteKubeModel(start, end)
+func (m *RecordMetricsQuerier) QueryClusterKubeModelVersion(start, end time.Time) *Future[ClusterKubeModelVersionResult] {
+	m.recordCall(QueryClusterKubeModelVersion)
+	return m.Querier.QueryClusterKubeModelVersion(start, end)
 }
 
 func (m *RecordMetricsQuerier) QueryClusterUptime(start, end time.Time) *Future[UptimeResult] {

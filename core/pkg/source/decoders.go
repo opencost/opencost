@@ -1,7 +1,6 @@
 package source
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -63,7 +62,7 @@ const (
 	SameZoneLabel        = "same_zone"
 	SameRegionLabel      = "same_region"
 	NatGatewayLabel      = "nat_gateway"
-	KubeModelV2Label     = "complete_kubemodel"
+	KubeModelVersion     = "kubemodel_version"
 )
 
 const (
@@ -673,19 +672,18 @@ func DecodeClusterInfoResult(result *QueryResult) *ClusterInfoResult {
 	}
 }
 
-type ClusterCompleteKubeModelResult struct {
-	UID      string
-	Complete bool
+type ClusterKubeModelVersionResult struct {
+	UID     string
+	Version string
 }
 
-func DecodeClusterCompleteKubeModelResult(result *QueryResult) *ClusterCompleteKubeModelResult {
+func DecodeClusterKubeModelVersionResult(result *QueryResult) *ClusterKubeModelVersionResult {
 	uid, _ := result.GetString(UIDLabel)
-	completeStr, _ := result.GetString(KubeModelV2Label)
-	complete, _ := strconv.ParseBool(completeStr)
+	version, _ := result.GetString(KubeModelVersion)
 
-	return &ClusterCompleteKubeModelResult{
-		UID:      uid,
-		Complete: complete,
+	return &ClusterKubeModelVersionResult{
+		UID:     uid,
+		Version: version,
 	}
 }
 
