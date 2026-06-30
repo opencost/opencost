@@ -85,15 +85,12 @@ func (mpm *MockPricingModule) GetNetworkPricing(ctx context.Context, props Netwo
 
 	// Search through the mock data for a matching network pricing entry
 	for _, np := range mpm.NetworkPricing {
-		if np.Properties.Provider == props.Provider &&
-			np.Properties.TrafficDirection == props.TrafficDirection &&
-			np.Properties.TrafficType == props.TrafficType &&
-			np.Properties.IsNatGateway == props.IsNatGateway {
+		if np.Properties.Provider == props.Provider {
 			return np, nil
 		}
 	}
-	return nil, fmt.Errorf("network pricing not found for provider=%s, trafficDirection=%s, trafficType=%s, isNatGateway=%t",
-		props.Provider, props.TrafficDirection, props.TrafficType, props.IsNatGateway)
+
+	return nil, fmt.Errorf("network pricing not found for provider=%s", props.Provider)
 }
 
 func (mpm *MockPricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*NetworkPricing], error) {

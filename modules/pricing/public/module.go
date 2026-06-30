@@ -261,16 +261,12 @@ func (pm *PricingModule) GetNetworkPricing(ctx context.Context, props pricing.Ne
 	}
 
 	for _, np := range pm.pricingSet.NetworkPricing {
-		if np.Properties.Provider == props.Provider &&
-			np.Properties.TrafficDirection == props.TrafficDirection &&
-			np.Properties.TrafficType == props.TrafficType &&
-			np.Properties.IsNatGateway == props.IsNatGateway {
+		if np.Properties.Provider == props.Provider {
 			return np, nil
 		}
 	}
 
-	return nil, fmt.Errorf("network pricing not found for provider=%s, trafficDirection=%s, trafficType=%s, isNatGateway=%t",
-		props.Provider, props.TrafficDirection, props.TrafficType, props.IsNatGateway)
+	return nil, fmt.Errorf("network pricing not found for provider=%s", props.Provider)
 }
 
 func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*pricing.NetworkPricing], error) {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/reader"
 )
@@ -180,46 +179,37 @@ func TestMockGetClusterPricing(t *testing.T) {
 	}
 }
 
-// TestMockGetNetworkPricing verifies network lookup, including that the NAT
-// gateway flag discriminates between otherwise-identical entries.
+// TestMockGetNetworkPricing verifies network lookup by provider and that the
+// per-egress-type resource prices load from YAML.
 func TestMockGetNetworkPricing(t *testing.T) {
 	mpm := newMock(t)
 
-	internet, err := mpm.GetNetworkPricing(t.Context(), NetworkPricingProperties{
-		Provider:         shared.ProviderAWS,
-		TrafficDirection: kubemodel.TrafficDirectionEgress,
-		TrafficType:      kubemodel.TrafficTypeInternet,
+	np, err := mpm.GetNetworkPricing(t.Context(), NetworkPricingProperties{
+		Provider: shared.ProviderAWS,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if internet.Prices[ResourceNetworkTraffic].Price != 0.09 {
-		t.Errorf("expected internet egress price 0.09, got %v", internet.Prices[ResourceNetworkTraffic].Price)
+
+	internet, ok := np.Prices[ResourceInternetEgress]
+	if !ok || internet.Price != 0.09 {
+		t.Errorf("expected internet egress price 0.09, got %v (ok=%t)", internet.Price, ok)
 	}
 
-	nat, err := mpm.GetNetworkPricing(t.Context(), NetworkPricingProperties{
-		Provider:         shared.ProviderAWS,
-		TrafficDirection: kubemodel.TrafficDirectionEgress,
-		TrafficType:      kubemodel.TrafficTypeInternet,
-		IsNatGateway:     true,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error (nat): %v", err)
-	}
-	if nat.Prices[ResourceNetworkTraffic].Price != 0.045 {
-		t.Errorf("expected NAT gateway price 0.045, got %v", nat.Prices[ResourceNetworkTraffic].Price)
+	nat, ok := np.Prices[ResourceNATGatewayEgress]
+	if !ok || nat.Price != 0.045 {
+		t.Errorf("expected NAT gateway egress price 0.045, got %v (ok=%t)", nat.Price, ok)
 	}
 
-	if internet.Prices[ResourceNetworkTraffic].Price == nat.Prices[ResourceNetworkTraffic].Price {
-		t.Errorf("expected NAT gateway flag to discriminate pricing")
+	if internet.Price == nat.Price {
+		t.Errorf("expected internet egress and NAT gateway egress prices to differ")
 	}
 
+	// Missing provider should error rather than return a zero value.
 	if _, err := mpm.GetNetworkPricing(t.Context(), NetworkPricingProperties{
-		Provider:         shared.ProviderAWS,
-		TrafficDirection: kubemodel.TrafficDirectionIngress,
-		TrafficType:      kubemodel.TrafficTypeInternet,
+		Provider: shared.ProviderOracle,
 	}); err == nil {
-		t.Errorf("expected error for unknown traffic direction, got nil")
+		t.Errorf("expected error for unknown provider, got nil")
 	}
 }
 
