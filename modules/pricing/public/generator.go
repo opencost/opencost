@@ -54,22 +54,22 @@ func GenerateAzurePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 
 // GenerateGCPPricing fetches GCP pricing data in the specified currency
 func GenerateGCPPricing(currency unit.Currency) (*pricing.PricingSet, error) {
-	log.Infof("Generating Azure pricing for currency: %s", currency)
+	log.Infof("Generating GCP pricing for currency: %s", currency)
 
 	source := gcp.NewGCPPricingSource(gcp.GCPPricingSourceConfig{
 		CurrencyCode: string(currency),
-		APIKey: os.Getenv("GCP_API_KEY"),
+		APIKey:       os.Getenv("GCP_API_KEY"),
 	})
 
 	pricingSet, err := source.GetPricing()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get Azure pricing: %w", err)
+		return nil, fmt.Errorf("failed to get GCP pricing: %w", err)
 	}
 
 	// Sort to ensure deterministic output for checksums
 	pricingSet.Sort()
 
-	log.Infof("Generated %d Azure node pricing entries", len(pricingSet.NodePricing))
+	log.Infof("Generated %d GCP node pricing entries", len(pricingSet.NodePricing))
 	return pricingSet, nil
 }
 

@@ -16,9 +16,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
-const (
-	BillingAPIURLFmt = "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=%s&currencyCode=%s"
-)
+var BillingAPIURLFmt = "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=%s&currencyCode=%s"
 
 var gcpHTTPClient = &http.Client{Timeout: 120 * time.Second}
 

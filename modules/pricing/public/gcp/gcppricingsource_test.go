@@ -36,11 +36,11 @@ func TestNewGCPPricingSource(t *testing.T) {
 
 func TestBuildURL(t *testing.T) {
 	tests := []struct {
-		name          string
-		apiKey        string
-		currencyCode  string
-		pageToken     string
-		wantContains  []string
+		name           string
+		apiKey         string
+		currencyCode   string
+		pageToken      string
+		wantContains   []string
 		wantNotContain string
 	}{
 		{
@@ -95,10 +95,10 @@ func TestBuildURL(t *testing.T) {
 
 func TestExtractHourlyPrice(t *testing.T) {
 	tests := []struct {
-		name        string
-		sku         *GCPPricing
-		wantPrice   float64
-		wantErr     bool
+		name      string
+		sku       *GCPPricing
+		wantPrice float64
+		wantErr   bool
 	}{
 		{
 			name: "Valid pricing with single tier",
@@ -413,9 +413,9 @@ func TestParsePage(t *testing.T) {
 
 func TestParseVolumeSKU(t *testing.T) {
 	tests := []struct {
-		name        string
-		sku         *GCPPricing
-		wantCosts   int // Expected number of volume cost entries
+		name      string
+		sku       *GCPPricing
+		wantCosts int // Expected number of volume cost entries
 	}{
 		{
 			name: "Valid PD-SSD",
@@ -510,11 +510,11 @@ func TestParseVolumeSKU(t *testing.T) {
 
 func TestParseComputeSKU(t *testing.T) {
 	tests := []struct {
-		name          string
-		sku           *GCPPricing
-		usageType     string
-		wantCPUCosts  int
-		wantRAMCosts  int
+		name         string
+		sku          *GCPPricing
+		usageType    string
+		wantCPUCosts int
+		wantRAMCosts int
 	}{
 		{
 			name: "CPU SKU",
@@ -775,7 +775,7 @@ func TestBuildVolumePricing(t *testing.T) {
 }
 
 func TestGetPricing_Integration(t *testing.T) {
-	// Create a test server that returns mock GCP pricing data
+	// Serve one page of pricing: one N2 CPU SKU, one N2 RAM SKU, one SSD volume SKU.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := GCPPricingResponse{
 			Skus: []*GCPPricing{
@@ -790,12 +790,7 @@ func TestGetPricing_Integration(t *testing.T) {
 						{
 							PricingExpression: &PricingExpression{
 								TieredRates: []*TieredRates{
-									{
-										UnitPrice: &UnitPriceInfo{
-											Units: "0",
-											Nanos: 31611000,
-										},
-									},
+									{UnitPrice: &UnitPriceInfo{Units: "0", Nanos: 31611000}},
 								},
 							},
 						},
@@ -812,12 +807,24 @@ func TestGetPricing_Integration(t *testing.T) {
 						{
 							PricingExpression: &PricingExpression{
 								TieredRates: []*TieredRates{
-									{
-										UnitPrice: &UnitPriceInfo{
-											Units: "0",
-											Nanos: 4237000,
-										},
-									},
+									{UnitPrice: &UnitPriceInfo{Units: "0", Nanos: 4237000}},
+								},
+							},
+						},
+					},
+				},
+				{
+					Description: "SSD backed PD Capacity in Americas",
+					Category: &GCPResourceInfo{
+						ResourceGroup: "SSD",
+						UsageType:     "OnDemand",
+					},
+					ServiceRegions: []string{"us-central1"},
+					PricingInfo: []*PricingInfo{
+						{
+							PricingExpression: &PricingExpression{
+								TieredRates: []*TieredRates{
+									{UnitPrice: &UnitPriceInfo{Units: "0", Nanos: 170000000}},
 								},
 							},
 						},
@@ -832,29 +839,40 @@ func TestGetPricing_Integration(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Override the HTTP client to use our test server
+	// Point the package-level URL format at the test server.
+	originalURL := BillingAPIURLFmt
+	BillingAPIURLFmt = server.URL + "?key=%s&currencyCode=%s"
+	defer func() { BillingAPIURLFmt = originalURL }()
+
+	// Use the test server's own client so TLS/redirect rules match.
 	originalClient := gcpHTTPClient
 	gcpHTTPClient = server.Client()
 	defer func() { gcpHTTPClient = originalClient }()
 
-	// Override the URL format to use our test server
-	originalURL := BillingAPIURLFmt
-	defer func() {
-		// Can't actually restore this as it's a const, but the test will end
-	}()
+	source := NewGCPPricingSource(GCPPricingSourceConfig{
+		APIKey:       "test-key",
+		CurrencyCode: "USD",
+	})
 
-	source := &GCPPricingSource{
-		config: GCPPricingSourceConfig{
-			APIKey:       "test-key",
-			CurrencyCode: "USD",
-		},
+	ps, err := source.GetPricing()
+	if err != nil {
+		t.Fatalf("GetPricing() unexpected error: %v", err)
 	}
 
-	// Note: This test would need the buildURL to be mockable or
-	// we'd need to use a different approach. For now, we'll skip
-	// the full integration test and rely on unit tests.
-	_ = source
-	_ = originalURL
+	if len(ps.NodePricing) != 1 {
+		t.Errorf("NodePricing len = %d, want 1", len(ps.NodePricing))
+	}
+	if len(ps.PersistentVolumePricing) != 1 {
+		t.Errorf("PersistentVolumePricing len = %d, want 1", len(ps.PersistentVolumePricing))
+	}
+
+	node := ps.NodePricing[0]
+	if node.Properties.Region != "us-central1" {
+		t.Errorf("NodePricing region = %q, want us-central1", node.Properties.Region)
+	}
+	if node.Properties.InstanceType != "n2-standard" {
+		t.Errorf("NodePricing instance type = %q, want n2-standard", node.Properties.InstanceType)
+	}
 }
 
 func TestMapGCPVolumeType(t *testing.T) {
