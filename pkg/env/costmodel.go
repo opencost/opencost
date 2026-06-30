@@ -62,13 +62,6 @@ const (
 	CollectorDataSourceEnabledEnvVar = "COLLECTOR_DATA_SOURCE_ENABLED"
 	LocalCollectorDirectoryEnvVar    = "LOCAL_COLLECTOR_DIRECTORY"
 
-	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
-	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
-	EmitDeprecatedMetrics                = "EMIT_DEPRECATED_METRICS"
-
-	EmitKsmV1MetricsEnvVar = "EMIT_KSM_V1_METRICS"
-	EmitKsmV1MetricsOnly   = "EMIT_KSM_V1_METRICS_ONLY"
-
 	LogCollectionEnabledEnvVar    = "LOG_COLLECTION_ENABLED"
 	ProductAnalyticsEnabledEnvVar = "PRODUCT_ANALYTICS_ENABLED"
 	ErrorReportingEnabledEnvVar   = "ERROR_REPORTING_ENABLED"
@@ -155,32 +148,6 @@ func GetPricingConfigmapName() string {
 
 func GetMetricsConfigmapName() string {
 	return env.Get(MetricsConfigmapName, "metrics-config")
-}
-
-// IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
-// containing the namespace annotations
-func IsEmitNamespaceAnnotationsMetric() bool {
-	return env.GetBool(EmitNamespaceAnnotationsMetricEnvVar, false)
-}
-
-// IsEmitPodAnnotationsMetric returns true if cost-model is configured to emit the kube_pod_annotations metric containing
-// pod annotations.
-func IsEmitPodAnnotationsMetric() bool {
-	return env.GetBool(EmitPodAnnotationsMetricEnvVar, false)
-}
-
-// IsEmitKsmV1Metrics returns true if cost-model is configured to emit all necessary KSM v1
-// metrics that were removed in KSM v2
-func IsEmitKsmV1Metrics() bool {
-	return env.GetBool(EmitKsmV1MetricsEnvVar, true)
-}
-
-func IsEmitKsmV1MetricsOnly() bool {
-	return env.GetBool(EmitKsmV1MetricsOnly, false)
-}
-
-func IsEmitDeprecatedMetrics() bool {
-	return env.GetBool(EmitDeprecatedMetrics, false)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
