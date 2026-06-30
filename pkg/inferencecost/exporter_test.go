@@ -72,7 +72,7 @@ func TestExporter_MetricNames(t *testing.T) {
 	}
 
 	required := []string{
-		"llm_total_cost",
+		"llm_total_hourly_cost",
 		"llm_cost_per_million_tokens",
 		"llm_cache_savings_fraction",
 	}
@@ -96,17 +96,17 @@ func TestExporter_MetricNames(t *testing.T) {
 	}
 }
 
-// TestExporter_TwoCostBasisSeriesPerModel verifies that llm_total_cost produces
+// TestExporter_TwoCostBasisSeriesPerModel verifies that llm_total_hourly_cost produces
 // two series (usage + allocation) and llm_cost_per_million_tokens produces
 // six series (2 cost bases × 3 phase values: blended/"", prompt, generation).
 func TestExporter_TwoCostBasisSeriesPerModel(t *testing.T) {
 	e, reg := newTestExporter(t)
 	e.Export([]*InferenceCost{sampleMetric(AllocationMethodComputeTime)})
 
-	// llm_total_cost should have 2 series (usage + allocation)
+	// llm_total_hourly_cost should have 2 series (usage + allocation)
 	count := testutil.CollectAndCount(e.totalCost)
 	if count != 2 {
-		t.Errorf("llm_total_cost: expected 2 series (usage+allocation), got %d", count)
+		t.Errorf("llm_total_hourly_cost: expected 2 series (usage+allocation), got %d", count)
 	}
 
 	// llm_cost_per_million_tokens should have 6 series:
@@ -116,10 +116,10 @@ func TestExporter_TwoCostBasisSeriesPerModel(t *testing.T) {
 		t.Errorf("llm_cost_per_million_tokens: expected 6 series (2 bases × 3 phases), got %d", count)
 	}
 
-	// Verify both cost_basis values are present for llm_total_cost.
+	// Verify both cost_basis values are present for llm_total_hourly_cost.
 	mfs, _ := reg.Gather()
 	for _, mf := range mfs {
-		if mf.GetName() != "llm_total_cost" {
+		if mf.GetName() != "llm_total_hourly_cost" {
 			continue
 		}
 		bases := make(map[string]bool)
@@ -131,10 +131,10 @@ func TestExporter_TwoCostBasisSeriesPerModel(t *testing.T) {
 			}
 		}
 		if !bases["usage"] {
-			t.Error("llm_total_cost missing cost_basis=usage series")
+			t.Error("llm_total_hourly_cost missing cost_basis=usage series")
 		}
 		if !bases["allocation"] {
-			t.Error("llm_total_cost missing cost_basis=allocation series")
+			t.Error("llm_total_hourly_cost missing cost_basis=allocation series")
 		}
 	}
 }
@@ -198,7 +198,7 @@ func TestExporter_HelpStringsContainReconciliationNote(t *testing.T) {
 
 	for _, mf := range mfs {
 		name := mf.GetName()
-		if name != "llm_total_cost" && name != "llm_cost_per_million_tokens" {
+		if name != "llm_total_hourly_cost" && name != "llm_cost_per_million_tokens" {
 			continue
 		}
 		help := mf.GetHelp()
@@ -240,7 +240,7 @@ func TestExporter_Values(t *testing.T) {
 
 	mfs, _ := reg.Gather()
 	for _, mf := range mfs {
-		if mf.GetName() != "llm_total_cost" {
+		if mf.GetName() != "llm_total_hourly_cost" {
 			continue
 		}
 		for _, m := range mf.GetMetric() {
@@ -254,11 +254,11 @@ func TestExporter_Values(t *testing.T) {
 			switch basis {
 			case "allocation":
 				if !floatEq(val, ic.AllocationTotalCost) {
-					t.Errorf("llm_total_cost allocation want %f got %f", ic.AllocationTotalCost, val)
+					t.Errorf("llm_total_hourly_cost allocation want %f got %f", ic.AllocationTotalCost, val)
 				}
 			case "usage":
 				if !floatEq(val, ic.UsageTotalCost) {
-					t.Errorf("llm_total_cost usage want %f got %f", ic.UsageTotalCost, val)
+					t.Errorf("llm_total_hourly_cost usage want %f got %f", ic.UsageTotalCost, val)
 				}
 			}
 		}

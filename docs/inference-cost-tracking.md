@@ -60,7 +60,7 @@ The `workload_type` label is currently always set to `inference`. Future version
 
 Note: `pod`, `controller`, `controller_kind`, `container`, `workload_type` aggregation are available via [REST APIs](#rest-api-endpoints), although the only workload_type currently support is "inference".
 
-### `llm_total_cost`
+### `llm_total_hourly_cost`
 
 **Hourly infrastructure cost** attributed to a model.
 
@@ -70,13 +70,13 @@ This is an instantaneous hourly rate ($/hour), not a cumulative counter.
 
 ```promql
 # Current hourly cost for a model
-llm_total_cost{model_name="Qwen/Qwen3-32B", cost_basis="allocation"}
+llm_total_hourly_cost{model_name="Qwen/Qwen3-32B", cost_basis="allocation"}
 
 # Estimated 24-hour cost if current rate continues (real-time projection)
-llm_total_cost{model_name="Qwen/Qwen3-32B", cost_basis="allocation"} * 24
+llm_total_hourly_cost{model_name="Qwen/Qwen3-32B", cost_basis="allocation"} * 24
 
 # Actual 24-hour cost based on historical average (more accurate for reporting)
-avg_over_time(llm_total_cost{model_name="Qwen/Qwen3-32B", cost_basis="allocation"}[24h]) * 24
+avg_over_time(llm_total_hourly_cost{model_name="Qwen/Qwen3-32B", cost_basis="allocation"}[24h]) * 24
 ```
 
 ### `llm_cost_per_million_tokens`

@@ -17,7 +17,7 @@ func NewExporter() *Exporter {
 	return &Exporter{
 		totalCost: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: "llm_total_cost",
+				Name: "llm_total_hourly_cost",
 				Help: "Hourly infrastructure cost attributed to an LLM model. " +
 					"cost_basis=allocation reconciles to the infrastructure bill (includes idle and shared infra costs). " +
 					"cost_basis=usage reflects active compute only; idle and shared infra costs are excluded and it does NOT reconcile to the bill.",
