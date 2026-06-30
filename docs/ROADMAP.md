@@ -2,6 +2,11 @@
 
 This roadmap reflects the current priorities for the OpenCost project. It is reviewed quarterly and discussed in the biweekly [Working Group meetings](https://zoom-lfx.platform.linuxfoundation.org/meetings/opencost?view=list).
 
+## Related
+
+- [Upstream Watchlist](upstream-watchlist.md): Kubernetes, AWS, Azure, and GCP changes relevant to
+  FinOps/cost-allocation use cases, tracked as candidate roadmap items.
+
 ## Current Focus Areas
 
 - **Cloud cost integration:** Connecting cloud billing data to the demo environment, cloud cost bug fixes, and multi-account support
