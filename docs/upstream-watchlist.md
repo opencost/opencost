@@ -273,7 +273,9 @@ Foundation's vendor-neutral billing schema. **v1.3 ratified December 2025**, add
 Commitment dataset, shared-cost-splitting columns, and data-recency/completeness flags.
 
 Conformance status as of mid-2026:
-- **AWS**: native FOCUS 1.2 export via CUR 2.0, conformance report published, 8 known gaps remain.
+- **AWS**: native FOCUS 1.2 export via CUR 2.0 / Data Exports (GA Nov 19, 2025; AWS skipped 1.1 entirely,
+  going straight from 1.0 to 1.2), conformance report published, 8 known gaps remain. No AWS FOCUS 1.3
+  support announced yet — worth checking back periodically, since 1.3 is now the ratified spec version.
 - **Azure**: native FOCUS export (1.0/1.0r2 GA, 1.2-preview in flight) to Blob Storage, conformance
   report published.
 - **GCP**: a native export table is now in Preview (#17), not yet GA — closing the gap with AWS/Azure
