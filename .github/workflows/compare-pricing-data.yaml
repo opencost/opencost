@@ -1,0 +1,57 @@
+name: Compare Pricing Data
+
+on:
+  schedule:
+    - cron: '0 10 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        currency: [USD, CNY]
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 'stable'
+
+      - name: Go Mod cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Compare ${{ matrix.currency }} pricing data
+        id: compare
+        working-directory: modules/pricing/public/cmd
+        env:
+          GCP_API_KEY: ${{ secrets.GCP_API_KEY }}
+        run: go run . --currency ${{ matrix.currency }} --compare
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: compare
+    if: failure()
+    steps:
+      - name: Notify Slack of pricing drift
+        uses: slackapi/slack-github-action@v2
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_PRICING_CHANNEL_ID }}
+            text: ":warning: Pricing data drift detected! :warning:"
+            blocks:
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: ":warning: Pricing data drift detected! :warning:\nThe live cloud provider pricing no longer matches the committed <https://github.com/${{ github.repository }}/tree/${{ github.ref_name }}/modules/pricing/public|pricing-data.json>.\n*Workflow:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
