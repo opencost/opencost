@@ -101,7 +101,7 @@ func comparePricing(curr unit.Currency, newSet *pricing.PricingSet) error {
 
 	if newChecksum != existingChecksum {
 		fmt.Fprintf(os.Stderr, "pricing drift detected for %s: existing=%s fresh=%s\n", curr, existingChecksum, newChecksum)
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	log.Infof("Pricing data is up to date for %s (checksum: %s)", curr, existingChecksum)
