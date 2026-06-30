@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -40,7 +41,51 @@ type computeFunc func(*kubemodel.KubeModelSet, time.Time, time.Time) error
 func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeModelSet, error) {
 	kms := kubemodel.NewKubeModelSet(start, end)
 
-	computeFuncs := []computeFunc{
+	computeFuncs := km.computeFuncs(start, end)
+
+	for _, f := range computeFuncs {
+		if err := f(kms, start, end); err != nil {
+			kms.Error(err)
+			return kms, fmt.Errorf("error computing kubemodel for (%s, %s): %w", start.Format(time.DateTime), end.Format(time.DateTime), err)
+		}
+	}
+
+	kms.Metadata.CompletedAt = time.Now().UTC()
+
+	return kms, nil
+}
+
+// computeFuncs returns the set of compute functions to run for the window,
+// in struct field order. If cluster_info is not yet reporting the
+// complete_kubemodel label for any cluster in the result, the source has not
+// been upgraded to emit a full kubemodel, so only the minimal set of
+// resources (cluster, namespaces, resource quotas) is computed. The
+// FORCE_KUBEMODEL_V1 env var skips the check entirely and always returns the
+// minimal set.
+func (km *KubeModel) computeFuncs(start, end time.Time) []computeFunc {
+	KubeModelV1ComputeFucs := []computeFunc{
+		km.computeCluster,
+		km.computeNamespaces,
+		km.computeResourceQuotas,
+	}
+
+	if env.IsKubeModelV1Forced() {
+		return KubeModelV1ComputeFucs
+	}
+
+	results, err := km.ds.Metrics().QueryClusterCompleteKubeModel(start, end).Await()
+	if err != nil {
+		log.Errorf("computeFuncs: querying cluster complete kubemodel: %s", err)
+		return KubeModelV1ComputeFucs
+	}
+
+	for _, res := range results {
+		if !res.Complete {
+			return KubeModelV1ComputeFucs
+		}
+	}
+
+	return []computeFunc{
 		km.computeCluster,
 		km.computeNamespaces,
 		km.computeResourceQuotas,
@@ -58,15 +103,4 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 		km.computeContainers,
 		km.computeDCGMDevices,
 	}
-
-	for _, f := range computeFuncs {
-		if err := f(kms, start, end); err != nil {
-			kms.Error(err)
-			return kms, fmt.Errorf("error computing kubemodel for (%s, %s): %w", start.Format(time.DateTime), end.Format(time.DateTime), err)
-		}
-	}
-
-	kms.Metadata.CompletedAt = time.Now().UTC()
-
-	return kms, nil
 }

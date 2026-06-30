@@ -23,7 +23,7 @@ const (
 
 	ExportLegacyDataModelEnvVar = "EXPORT_LEGACY_DATA_MODEL"
 	ExportKubeModelEnvVar       = "EXPORT_KUBEMODEL"
-	ExportKubeModelV2EnvVar
+	ForceKubeModelV1EnvVar      = "FORCE_KUBEMODEL_V1"
 )
 
 // GetAPIPort returns the environment variable value for APIPortEnvVar which
@@ -72,4 +72,11 @@ func IsLegacyDataModelExported() bool {
 
 func IsKubeModelExported() bool {
 	return GetBool(ExportKubeModelEnvVar, false)
+}
+
+// IsKubeModelV1Forced returns true if the kubemodel pipeline should always
+// export the legacy v1 (cluster, namespaces, resource quotas only) shape,
+// regardless of whether the source reports a complete kubemodel.
+func IsKubeModelV1Forced() bool {
+	return GetBool(ForceKubeModelV1EnvVar, true)
 }
