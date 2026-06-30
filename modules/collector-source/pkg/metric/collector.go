@@ -64,7 +64,7 @@ const (
 	RAMLimitsID                                MetricCollectorID = "RAMLimits"
 	RAMUsageAverageID                          MetricCollectorID = "RAMUsageAverage"
 	RAMUsageMaxID                              MetricCollectorID = "RAMBytesUsageMax"
-	CPUCoresAllocatedID                        MetricCollectorID = "CPUCoresAllocated"
+	CPUCoresAllocatedID                        MetricCollectorID = "CPUCoreAllocationAvg"
 	CPURequestsID                              MetricCollectorID = "CPURequestsID"
 	CPULimitsID                                MetricCollectorID = "CPULimitsID"
 	CPUUsageAverageID                          MetricCollectorID = "CPUUsageAverage"

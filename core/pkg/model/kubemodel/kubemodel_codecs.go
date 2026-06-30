@@ -1207,13 +1207,13 @@ func (target *Container) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 	}
 	// --- [end][write][alias](ResourceQuantities) ---
 
-	buff.WriteFloat64(target.CPUCoresAllocated) // write float64
+	buff.WriteFloat64(target.CPUCoreAllocationAvg) // write float64
 
 	buff.WriteFloat64(target.CPUCoreUsageAvg) // write float64
 
 	buff.WriteFloat64(target.CPUCoreUsageMax) // write float64
 
-	buff.WriteFloat64(target.RAMBytesAllocated) // write float64
+	buff.WriteFloat64(target.RAMBytesAllocationAvg) // write float64
 
 	buff.WriteFloat64(target.RAMBytesUsageAvg) // write float64
 
@@ -1400,7 +1400,7 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	// --- [end][read][alias](ResourceQuantities) ---
 
 	bb := buff.ReadFloat64() // read float64
-	target.CPUCoresAllocated = bb
+	target.CPUCoreAllocationAvg = bb
 
 	cc := buff.ReadFloat64() // read float64
 	target.CPUCoreUsageAvg = cc
@@ -1409,7 +1409,7 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	target.CPUCoreUsageMax = dd
 
 	ee := buff.ReadFloat64() // read float64
-	target.RAMBytesAllocated = ee
+	target.RAMBytesAllocationAvg = ee
 
 	ff := buff.ReadFloat64() // read float64
 	target.RAMBytesUsageAvg = ff

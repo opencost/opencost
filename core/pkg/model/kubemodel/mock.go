@@ -121,14 +121,14 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 			ResourceCPU:    {Resource: ResourceCPU, Unit: UnitMillicore, Values: Stats{StatAvg: 500, StatMax: 500}},
 			ResourceMemory: {Resource: ResourceMemory, Unit: UnitByte, Values: Stats{StatAvg: 1e9, StatMax: 1e9}},
 		},
-		CPUCoresAllocated: 0.25,
-		CPUCoreUsageAvg:   0.18,
-		CPUCoreUsageMax:   0.42,
-		RAMBytesAllocated: 512e6,
-		RAMBytesUsageAvg:  300e6,
-		RAMBytesUsageMax:  480e6,
-		Start:             start,
-		End:               end,
+		CPUCoreAllocationAvg:  0.25,
+		CPUCoreUsageAvg:       0.18,
+		CPUCoreUsageMax:       0.42,
+		RAMBytesAllocationAvg: 512e6,
+		RAMBytesUsageAvg:      300e6,
+		RAMBytesUsageMax:      480e6,
+		Start:                 start,
+		End:                   end,
 	})
 
 	// --- Deployment ---
