@@ -48,6 +48,7 @@ const (
 	LBPricePerHourID                           MetricCollectorID = "LBPricePerHour"
 	LBActiveMinutesID                          MetricCollectorID = "LBActiveMinutes"
 	ClusterInfoID                              MetricCollectorID = "ClusterInfo"
+	ClusterCompleteKubeModelID                 MetricCollectorID = "ClusterCompleteKubeModel"
 	ClusterUptimeID                            MetricCollectorID = "ClusterUptime"
 	ClusterManagementDurationID                MetricCollectorID = "ClusterManagementDuration"
 	ClusterManagementPricePerHourID            MetricCollectorID = "ClusterManagementPricePerHour"

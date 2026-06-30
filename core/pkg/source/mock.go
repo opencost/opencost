@@ -202,6 +202,12 @@ func (m *MockMetricsQuerier) QueryClusterInfo(start, end time.Time) *Future[Clus
 	})
 }
 
+func (m *MockMetricsQuerier) QueryClusterCompleteKubeModel(start, end time.Time) *Future[ClusterCompleteKubeModelResult] {
+	return getFutureFromOverride(m.overrides, QueryClusterCompleteKubeModel, func() *Future[ClusterCompleteKubeModelResult] {
+		return m.noop.QueryClusterCompleteKubeModel(start, end)
+	})
+}
+
 func (m *MockMetricsQuerier) QueryClusterUptime(start, end time.Time) *Future[UptimeResult] {
 	return getFutureFromOverride(m.overrides, QueryClusterUptime, func() *Future[UptimeResult] {
 		return m.noop.QueryClusterUptime(start, end)

@@ -6,6 +6,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/source"
 	coreutil "github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/prometheus/client_golang/prometheus"
@@ -184,11 +185,12 @@ func (c KubeModelCollector) scrapeClusterInfo(disabled map[string]struct{}) []ku
 	}
 	info := c.ClusterInfo.GetClusterInfo()
 	labels := map[string]string{
-		"uid":              info[clusters.ClusterInfoIdKey],
-		"provider":         info[clusters.ClusterInfoProviderKey],
-		"account_id":       info[clusters.ClusterInfoAccountKey],
-		"provisioner_name": info[clusters.ClusterInfoProvisionerKey],
-		"region":           info[clusters.ClusterInfoRegionKey],
+		"uid":                   info[clusters.ClusterInfoIdKey],
+		"provider":              info[clusters.ClusterInfoProviderKey],
+		"account_id":            info[clusters.ClusterInfoAccountKey],
+		"provisioner_name":      info[clusters.ClusterInfoProvisionerKey],
+		"region":                info[clusters.ClusterInfoRegionKey],
+		source.KubeModelV2Label: "true",
 	}
 	// GCP uses "project" instead of "account"
 	if labels["account_id"] == "" {

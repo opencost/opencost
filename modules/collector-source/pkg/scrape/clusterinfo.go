@@ -43,6 +43,7 @@ func (cis *ClusterInfoScrapper) Scrape() []metric.Update {
 		source.AccountIDLabel:       accountID,
 		source.ProvisionerNameLabel: provisioner,
 		source.RegionLabel:          region,
+		source.KubeModelV2Label:     "true",
 	}
 
 	scrapeResults = append(scrapeResults, metric.Update{

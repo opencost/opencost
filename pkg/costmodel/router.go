@@ -533,7 +533,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 
 	var kubeModelPipeline *km.Pipeline
 	var kubeModelQuerier km.Querier
-	if sysenv.GetExportKubeModel() {
+	if sysenv.IsKubeModelExported() {
 		appName := sysenv.GetAppName()
 
 		if p, err := km.NewPipeline(appName, clusterUID, store, costModel); err != nil {

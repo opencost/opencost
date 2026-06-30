@@ -30,7 +30,7 @@ func NewPipeline(appName, clusterUID string, store storage.Storage, cm ocexporte
 		return nil, fmt.Errorf("NewPipeline: clusterUID cannot be empty")
 	}
 
-	config := ocexporter.NewPipelinesExportConfig(appName, clusterUID, "", false, env.GetExportKubeModel())
+	config := ocexporter.NewPipelinesExportConfig(appName, clusterUID, "", false, env.IsKubeModelExported())
 
 	controllers := ocexporter.NewPipelineExportControllers(store, cm, config)
 

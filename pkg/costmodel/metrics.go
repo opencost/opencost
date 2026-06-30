@@ -9,6 +9,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -361,11 +362,11 @@ func NewCostModelMetricsEmitter(clusterCache clustercache.ClusterCache, provider
 
 	metrics.InitKubeMetrics(clusterInfo, clusterCache, metricsConfig, &metrics.KubeMetricsOpts{
 		EmitKubecostControllerMetrics: true,
-		EmitNamespaceAnnotations:      env.IsEmitNamespaceAnnotationsMetric(),
-		EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),
-		EmitKubeStateMetrics:          env.IsEmitKsmV1Metrics(),
-		EmitKubeStateMetricsV1Only:    env.IsEmitKsmV1MetricsOnly(),
-		EmitDeprecatedMetrics:         env.IsEmitDeprecatedMetrics(),
+		EmitNamespaceAnnotations:      coreenv.IsEmitNamespaceAnnotationsMetric(),
+		EmitPodAnnotations:            coreenv.IsEmitPodAnnotationsMetric(),
+		EmitKubeStateMetrics:          coreenv.IsEmitKsmV1Metrics(),
+		EmitKubeStateMetricsV1Only:    coreenv.IsEmitKsmV1MetricsOnly(),
+		EmitDeprecatedMetrics:         coreenv.IsEmitDeprecatedMetrics(),
 	})
 
 	metrics.InitOpencostTelemetry(metricsConfig)

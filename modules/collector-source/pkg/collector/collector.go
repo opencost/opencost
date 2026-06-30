@@ -50,6 +50,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewLBPricePerHourMetricCollector())
 	memStore.Register(NewLBActiveMinutesMetricCollector())
 	memStore.Register(NewClusterInfoMetricCollector())
+	memStore.Register(NewClusterCompleteKubeModelMetricCollector())
 	memStore.Register(NewClusterUptimeMetricCollector())
 	memStore.Register(NewClusterManagementDurationMetricCollector())
 	memStore.Register(NewClusterManagementPricePerHourMetricCollector())
@@ -834,6 +835,25 @@ func NewClusterInfoMetricCollector() *metric.MetricCollector {
 		metric.ClusterInfo,
 		[]string{
 			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+//	avg(
+//		cluster_info{
+//			<some_custom_filter>
+//		}
+//	) by (uid, complete_kubemodel)[%s:%dm]
+
+func NewClusterCompleteKubeModelMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.ClusterCompleteKubeModelID,
+		metric.ClusterInfo,
+		[]string{
+			source.UIDLabel,
+			source.KubeModelV2Label,
 		},
 		aggregator.Info,
 		nil,

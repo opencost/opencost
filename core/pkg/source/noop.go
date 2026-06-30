@@ -121,6 +121,10 @@ func (m *NoOpMetricsQuerier) QueryClusterInfo(start, end time.Time) *Future[Clus
 	return newEmptyResult(DecodeClusterInfoResult)
 }
 
+func (m *NoOpMetricsQuerier) QueryClusterCompleteKubeModel(start, end time.Time) *Future[ClusterCompleteKubeModelResult] {
+	return newEmptyResult(DecodeClusterCompleteKubeModelResult)
+}
+
 func (m *NoOpMetricsQuerier) QueryClusterUptime(start, end time.Time) *Future[UptimeResult] {
 	return newEmptyResult(DecodeUptimeResult)
 }

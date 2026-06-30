@@ -661,6 +661,24 @@ func (pds *PrometheusMetricsQuerier) QueryClusterInfo(start, end time.Time) *sou
 	return source.NewFuture(source.DecodeClusterInfoResult, ctx.QueryAtTime(queryClusterInfo, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryClusterCompleteKubeModel(start, end time.Time) *source.Future[source.ClusterCompleteKubeModelResult] {
+	const queryName = "QueryClusterCompleteKubeModel"
+	const queryFmtClusterCompleteKubeModel = `avg(avg_over_time(cluster_info{%s}[%s])) by (%s, uid, complete_kubemodel)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryClusterCompleteKubeModel := fmt.Sprintf(queryFmtClusterCompleteKubeModel, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryClusterCompleteKubeModel)
+
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+	return source.NewFuture(source.DecodeClusterCompleteKubeModelResult, ctx.QueryAtTime(queryClusterCompleteKubeModel, end))
+}
+
 func (pds *PrometheusMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UptimeResult] {
 	const queryName = "QueryClusterUptime"
 	const queryFmtClusterUptime = `avg(cluster_info{%s}) by (%s, uid)[%s:%dm]`

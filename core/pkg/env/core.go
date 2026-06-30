@@ -23,6 +23,7 @@ const (
 
 	ExportLegacyDataModelEnvVar = "EXPORT_LEGACY_DATA_MODEL"
 	ExportKubeModelEnvVar       = "EXPORT_KUBEMODEL"
+	ExportKubeModelV2EnvVar
 )
 
 // GetAPIPort returns the environment variable value for APIPortEnvVar which
@@ -65,10 +66,10 @@ func GetInstallNamespace(def string) string {
 	return Get(InstallNamespaceEnvVar, def)
 }
 
-func GetExportLegacyDataModel() bool {
+func IsLegacyDataModelExported() bool {
 	return GetBool(ExportLegacyDataModelEnvVar, true)
 }
 
-func GetExportKubeModel() bool {
-	return GetBool(ExportKubeModelEnvVar, true)
+func IsKubeModelExported() bool {
+	return GetBool(ExportKubeModelEnvVar, false)
 }
