@@ -29,6 +29,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/fileutil"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/env"
@@ -273,60 +274,92 @@ func buildAzureRetailPricesURL(region string, skuName string, currencyCode strin
 	return pricingURL
 }
 
-func extractAzureVMRetailAndSpotPrices(resp *http.Response) (retailPrice string, spotPrice string, err error) {
+func extractAzureVMRetailAndSpotPrices(resp *http.Response) (linuxRetailPrice string, windowsRetailPrice string, spotPrice string, windowsSpotPrice string, err error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", "", fmt.Errorf("Error getting response: %v", err)
+		return "", "", "", "", fmt.Errorf("error getting response: %w", err)
 	}
 
 	pricingPayload := AzureRetailPricing{}
 	jsonErr := json.Unmarshal(body, &pricingPayload)
 	if jsonErr != nil {
-		return "", "", fmt.Errorf("error unmarshalling data: %v", jsonErr)
+		return "", "", "", "", fmt.Errorf("error unmarshalling data: %w", jsonErr)
 	}
 	for _, item := range pricingPayload.Items {
-		// note: Windows OS ondemand price will be equal to Linux, Adoption of Windows based
-		// computes are increasing in Azure we might want to enhance this in future.
-		if !strings.Contains(item.ProductName, "Windows") {
-			if strings.Contains(strings.ToLower(item.SkuName), " spot") {
+		skuLower := strings.ToLower(item.SkuName)
+		productLower := strings.ToLower(item.ProductName)
+		isWindowsProduct := strings.Contains(productLower, "windows")
+		if strings.Contains(skuLower, " spot") {
+			if isWindowsProduct {
+				windowsSpotPrice = fmt.Sprintf("%f", item.RetailPrice)
+			} else {
 				spotPrice = fmt.Sprintf("%f", item.RetailPrice)
-			} else if !(strings.Contains(strings.ToLower(item.SkuName), "low priority") || strings.Contains(strings.ToLower(item.ProductName), "cloud services") || strings.Contains(strings.ToLower(item.ProductName), "cloudservices")) {
-				retailPrice = fmt.Sprintf("%f", item.RetailPrice)
+			}
+		} else if !(strings.Contains(skuLower, "low priority") || strings.Contains(productLower, "cloud services") || strings.Contains(productLower, "cloudservices")) {
+			if isWindowsProduct {
+				windowsRetailPrice = fmt.Sprintf("%f", item.RetailPrice)
+			} else {
+				linuxRetailPrice = fmt.Sprintf("%f", item.RetailPrice)
 			}
 		}
 	}
-	return retailPrice, spotPrice, nil
+	return linuxRetailPrice, windowsRetailPrice, spotPrice, windowsSpotPrice, nil
 }
 
-func getRetailPrice(region string, skuName string, currencyCode string, spot bool) (string, error) {
+func getRetailPrice(region string, skuName string, currencyCode string, spot bool, isWindows bool) (string, error) {
 	pricingURL := buildAzureRetailPricesURL(region, skuName, currencyCode)
 	log.Infof("starting download retail price payload from \"%s\"", pricingURL)
 
-	resp, err := http.Get(pricingURL)
+	// Single SKU lookup returns a small payload, so the shared bounded client
+	// keeps a hung endpoint from blocking pricing without risking truncation.
+	client := httputil.BoundedClient()
+	resp, err := client.Get(pricingURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch retail price with URL \"%s\": %v", pricingURL, err)
+		return "", fmt.Errorf("failed to fetch retail price with URL \"%s\": %w", pricingURL, err)
 	}
 
 	if resp.StatusCode < 200 && resp.StatusCode > 299 {
 		return "", fmt.Errorf("retail price responded with error status code %d", resp.StatusCode)
 	}
 
-	retailPrice, spotPrice, err := extractAzureVMRetailAndSpotPrices(resp)
+	linuxRetailPrice, windowsRetailPrice, spotPrice, windowsSpotPrice, err := extractAzureVMRetailAndSpotPrices(resp)
 	if err != nil {
-		return "", fmt.Errorf("failed to extract azure prices: %v", err)
+		return "", fmt.Errorf("failed to extract azure prices: %w", err)
 	}
 
 	log.DedupedInfof(5, "done parsing retail price payload from \"%s\"\n", pricingURL)
 
-	if spot && spotPrice != "" {
-		return spotPrice, nil
+	return selectRetailPrice(region, skuName, linuxRetailPrice, windowsRetailPrice, spotPrice, windowsSpotPrice, spot, isWindows)
+}
+
+// selectRetailPrice picks the price matching the node OS and pricing model.
+// Windows nodes prefer the Windows-specific price; when it is absent the Linux
+// price is used as a best-effort estimate and the fallback is logged so the
+// substitution is not silent.
+func selectRetailPrice(region, skuName, linuxRetailPrice, windowsRetailPrice, spotPrice, windowsSpotPrice string, spot, isWindows bool) (string, error) {
+	if spot {
+		if isWindows && windowsSpotPrice != "" {
+			return windowsSpotPrice, nil
+		}
+		if spotPrice != "" {
+			if isWindows {
+				log.Warnf("no Windows spot price for %q in %q region; falling back to Linux spot price", skuName, region)
+			}
+			return spotPrice, nil
+		}
 	}
 
-	if retailPrice == "" {
-		return retailPrice, fmt.Errorf("Couldn't find price for product \"%s\" in \"%s\" region", skuName, region)
+	selectedRetail := linuxRetailPrice
+	if isWindows && windowsRetailPrice != "" {
+		selectedRetail = windowsRetailPrice
+	} else if isWindows && linuxRetailPrice != "" {
+		log.Warnf("no Windows retail price for %q in %q region; falling back to Linux retail price", skuName, region)
+	}
+	if selectedRetail == "" {
+		return "", fmt.Errorf("couldn't find price for product %q in %q region", skuName, region)
 	}
 
-	return retailPrice, nil
+	return selectedRetail, nil
 }
 
 func toRegionID(meterRegion string, regions map[string]string) (string, error) {
@@ -440,6 +473,17 @@ func (az *Azure) PricingSourceSummary() interface{} {
 	return az.Pricing
 }
 
+// azureWindowsOS is the node OS label value that identifies a Windows node and
+// the suffix used to qualify Windows-specific pricing keys.
+const azureWindowsOS = "windows"
+
+// isWindowsNode reports whether the node labels identify a Windows node. It
+// centralizes the OS detection shared by azureKey.Features and NodePricing.
+func isWindowsNode(labels map[string]string) bool {
+	osLabel, ok := util.GetOperatingSystem(labels)
+	return ok && strings.ToLower(osLabel) == azureWindowsOS
+}
+
 type azureKey struct {
 	Labels        map[string]string
 	GPULabel      string
@@ -451,6 +495,9 @@ func (k *azureKey) Features() string {
 	region := strings.ToLower(r)
 	instance, _ := util.GetInstanceType(k.Labels)
 	usageType := "ondemand"
+	if isWindowsNode(k.Labels) {
+		return fmt.Sprintf("%s,%s,%s,%s", region, instance, usageType, azureWindowsOS)
+	}
 	return fmt.Sprintf("%s,%s,%s", region, instance, usageType)
 }
 
@@ -992,10 +1039,7 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 		return nil, nil
 	}
 
-	if strings.Contains(meterSubCategory, "Windows") {
-		// This meter doesn't correspond to any pricings.
-		return nil, nil
-	}
+	isWindowsMeter := strings.Contains(meterSubCategory, "Windows")
 
 	if strings.Contains(meterSubCategory, "Cloud Services") || strings.Contains(meterSubCategory, "CloudServices") {
 		// This meter doesn't correspond to any pricings.
@@ -1079,8 +1123,10 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 	priceStr := fmt.Sprintf("%f", priceInUsd)
 	results := make(map[string]*AzurePricing)
 	for _, instanceType := range instanceTypes {
-
 		key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
+		if isWindowsMeter {
+			key = fmt.Sprintf("%s,%s,%s,%s", region, instanceType, usageType, azureWindowsOS)
+		}
 		pricing := &AzurePricing{
 			Node: &models.Node{
 				Cost:         priceStr,
@@ -1182,12 +1228,18 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	slv, ok := azKey.Labels[config.SpotLabel]
 	isSpot := ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != ""
 
+	isWindows := isWindowsNode(azKey.Labels)
+
 	features := strings.Split(azKey.Features(), ",")
 	region := features[0]
 	instance := features[1]
 	var featureString string
 	if isSpot {
-		featureString = fmt.Sprintf("%s,%s,spot", region, instance)
+		if isWindows {
+			featureString = fmt.Sprintf("%s,%s,spot,%s", region, instance, azureWindowsOS)
+		} else {
+			featureString = fmt.Sprintf("%s,%s,spot", region, instance)
+		}
 	} else {
 		featureString = azKey.Features()
 	}
@@ -1204,7 +1256,7 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		}
 	}
 
-	cost, err := getRetailPrice(region, instance, config.CurrencyCode, isSpot)
+	cost, err := getRetailPrice(region, instance, config.CurrencyCode, isSpot, isWindows)
 
 	if err != nil {
 		log.DedupedWarningf(5, "failed to retrieve retail pricing: %s", err)

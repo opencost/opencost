@@ -70,7 +70,13 @@ func TestConvertMeterToPricings(t *testing.T) {
 		info := meterInfo("Virtual Machines", "D2 Series Windows", "D2s v3", "AU Southeast", 0.3)
 		results, err := convertMeterToPricings(info, regions, baseCPUPrice)
 		require.NoError(t, err)
-		require.Nil(t, results)
+		key := "australiasoutheast,Standard_D2s_v3,ondemand,windows"
+		pricing, ok := results[key]
+		require.Truef(t, ok, "expected a pricing entry under key %q", key)
+		require.NotNil(t, pricing.Node)
+		require.Equal(t, "ondemand", pricing.Node.UsageType)
+		require.Equal(t, "0.300000", pricing.Node.Cost)
+		require.Equal(t, baseCPUPrice, pricing.Node.BaseCPUPrice)
 	})
 
 	t.Run("storage", func(t *testing.T) {
@@ -101,6 +107,86 @@ func TestConvertMeterToPricings(t *testing.T) {
 		}
 		require.Equal(t, expected, results)
 	})
+}
+
+func TestSelectRetailPrice(t *testing.T) {
+	cases := []struct {
+		name               string
+		linuxRetailPrice   string
+		windowsRetailPrice string
+		spotPrice          string
+		windowsSpotPrice   string
+		spot               bool
+		isWindows          bool
+		expected           string
+		expectErr          bool
+	}{
+		{
+			name:               "windows retail prefers windows price",
+			linuxRetailPrice:   "1.000000",
+			windowsRetailPrice: "2.000000",
+			isWindows:          true,
+			expected:           "2.000000",
+		},
+		{
+			name:             "windows retail falls back to linux when windows missing",
+			linuxRetailPrice: "1.000000",
+			isWindows:        true,
+			expected:         "1.000000",
+		},
+		{
+			name:             "linux retail uses linux price",
+			linuxRetailPrice: "1.000000",
+			isWindows:        false,
+			expected:         "1.000000",
+		},
+		{
+			name:             "windows spot prefers windows spot price",
+			spotPrice:        "0.500000",
+			windowsSpotPrice: "0.900000",
+			spot:             true,
+			isWindows:        true,
+			expected:         "0.900000",
+		},
+		{
+			name:      "windows spot falls back to linux spot when windows missing",
+			spotPrice: "0.500000",
+			spot:      true,
+			isWindows: true,
+			expected:  "0.500000",
+		},
+		{
+			name:      "linux spot uses linux spot price",
+			spotPrice: "0.500000",
+			spot:      true,
+			isWindows: false,
+			expected:  "0.500000",
+		},
+		{
+			name:               "spot windows with no spot price falls back to retail",
+			windowsRetailPrice: "2.000000",
+			spot:               true,
+			isWindows:          true,
+			expected:           "2.000000",
+		},
+		{
+			name:      "no price available returns error",
+			isWindows: true,
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := selectRetailPrice("eastus", "Standard_D2s_v3", tc.linuxRetailPrice, tc.windowsRetailPrice, tc.spotPrice, tc.windowsSpotPrice, tc.spot, tc.isWindows)
+			if tc.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, got)
+		})
+	}
 }
 
 func TestAzure_findCostForDisk(t *testing.T) {
@@ -391,14 +477,76 @@ func Test_buildAzureRetailPricesURL(t *testing.T) {
 	}
 }
 
+func TestAzureKeyFeaturesOS(t *testing.T) {
+	tests := []struct {
+		name     string
+		labels   map[string]string
+		expected string
+	}{
+		{
+			name: "windows node via kubernetes.io/os",
+			labels: map[string]string{
+				"kubernetes.io/os":                 "windows",
+				"node.kubernetes.io/instance-type": "Standard_D4s_v3",
+				"topology.kubernetes.io/region":    "eastus",
+			},
+			expected: "eastus,Standard_D4s_v3,ondemand,windows",
+		},
+		{
+			name: "windows node via beta.kubernetes.io/os",
+			labels: map[string]string{
+				"beta.kubernetes.io/os":            "windows",
+				"node.kubernetes.io/instance-type": "Standard_D4s_v3",
+				"topology.kubernetes.io/region":    "eastus",
+			},
+			expected: "eastus,Standard_D4s_v3,ondemand,windows",
+		},
+		{
+			name: "linux node",
+			labels: map[string]string{
+				"kubernetes.io/os":                 "linux",
+				"node.kubernetes.io/instance-type": "Standard_D4s_v3",
+				"topology.kubernetes.io/region":    "eastus",
+			},
+			expected: "eastus,Standard_D4s_v3,ondemand",
+		},
+		{
+			name: "no OS label defaults to linux key",
+			labels: map[string]string{
+				"node.kubernetes.io/instance-type": "Standard_D4s_v3",
+				"topology.kubernetes.io/region":    "eastus",
+			},
+			expected: "eastus,Standard_D4s_v3,ondemand",
+		},
+		{
+			name: "windows case-insensitive",
+			labels: map[string]string{
+				"kubernetes.io/os":                 "Windows",
+				"node.kubernetes.io/instance-type": "Standard_D4s_v3",
+				"topology.kubernetes.io/region":    "eastus",
+			},
+			expected: "eastus,Standard_D4s_v3,ondemand,windows",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			key := &azureKey{Labels: tc.labels}
+			require.Equal(t, tc.expected, key.Features())
+		})
+	}
+}
+
 func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
 	testCases := []struct {
-		name             string
-		jsonResponse     string
-		expectedRetail   string
-		expectedSpot     string
-		expectedError    bool
-		expectedErrorMsg string
+		name                  string
+		jsonResponse          string
+		expectedRetail        string
+		expectedWindowsRetail string
+		expectedSpot          string
+		expectedWindowsSpot   string
+		expectedError         bool
+		expectedErrorMsg      string
 	}{
 		{
 			name: "valid response with retail and spot prices",
@@ -504,7 +652,7 @@ func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
 			expectedError:  false,
 		},
 		{
-			name: "filters out Windows instances",
+			name: "returns separate Windows and Linux prices",
 			jsonResponse: `{
 				"BillingCurrency": "USD",
 				"CustomerEntityId": "Default",
@@ -529,9 +677,35 @@ func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
 				],
 				"Count": 2
 			}`,
-			expectedRetail: "0.192000",
-			expectedSpot:   "",
-			expectedError:  false,
+			expectedRetail:        "0.192000",
+			expectedWindowsRetail: "0.500000",
+			expectedSpot:          "",
+			expectedWindowsSpot:   "",
+			expectedError:         false,
+		},
+		{
+			name: "windows spot price available",
+			jsonResponse: `{
+				"BillingCurrency": "USD",
+				"CustomerEntityId": "Default",
+				"CustomerEntityType": "Retail",
+				"Items": [
+					{
+						"currencyCode": "USD",
+						"retailPrice": 0.12,
+						"armRegionName": "eastus",
+						"productName": "Virtual Machines Dsv3 Series Windows",
+						"skuName": "D4s v3 Spot",
+						"armSkuName": "Standard_D4s_v3"
+					}
+				],
+				"Count": 1
+			}`,
+			expectedRetail:        "",
+			expectedWindowsRetail: "",
+			expectedSpot:          "",
+			expectedWindowsSpot:   "0.120000",
+			expectedError:         false,
 		},
 		{
 			name: "filters out low priority instances",
@@ -601,7 +775,7 @@ func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewBufferString(tc.jsonResponse)),
 			}
 
-			retailPrice, spotPrice, err := extractAzureVMRetailAndSpotPrices(resp)
+			linuxRetail, windowsRetail, spotPrice, windowsSpotPrice, err := extractAzureVMRetailAndSpotPrices(resp)
 
 			if tc.expectedError {
 				require.Error(t, err)
@@ -610,11 +784,33 @@ func Test_extractAzureVMRetailAndSpotPrices(t *testing.T) {
 				}
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tc.expectedRetail, retailPrice, "Retail price mismatch")
+				require.Equal(t, tc.expectedRetail, linuxRetail, "Linux retail price mismatch")
+				require.Equal(t, tc.expectedWindowsRetail, windowsRetail, "Windows retail price mismatch")
 				require.Equal(t, tc.expectedSpot, spotPrice, "Spot price mismatch")
+				require.Equal(t, tc.expectedWindowsSpot, windowsSpotPrice, "Windows spot price mismatch")
 			}
 		})
 	}
+}
+
+// failingReader is an io.Reader that always errors, used to exercise the
+// response body read-failure path in extractAzureVMRetailAndSpotPrices.
+type failingReader struct{}
+
+func (failingReader) Read(_ []byte) (int, error) {
+	return 0, fmt.Errorf("simulated read failure")
+}
+
+func Test_extractAzureVMRetailAndSpotPrices_bodyReadError(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(failingReader{}),
+	}
+
+	_, _, _, _, err := extractAzureVMRetailAndSpotPrices(resp)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "error getting response")
 }
 
 // azureMockConfig implements models.ProviderConfig for testing RefreshCustomPricing.
