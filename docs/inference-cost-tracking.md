@@ -190,7 +190,6 @@ Returns a single aggregated `InferenceCostSet` covering the full requested windo
 | `aggregate` | No | Comma-separated dimensions: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type` |
 | `accumulate` | No | Step size within the window: `hour`, `day`, `week`, `month` (results are then accumulated into one total) |
 | `filter` | No | `prop:value` pairs joined with `+` for AND logic, e.g. `namespace:default+model_name:llama3+workload_type:inference` |
-| `idle` | No | `shareWeighted/separate/shareEven` |
 
 **Example:**
 

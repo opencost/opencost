@@ -52,7 +52,9 @@ func (c *Calculator) calculateModelCosts(m *InferenceCost) {
 	// tokens can exceed prompt tokens within a short window because cache hits
 	// reflect prefixes established by earlier requests, including those outside
 	// the current window. Values >1 before clamping indicate extreme cache reuse.
-	if m.PromptTokens > 0 {
+	if m.CacheConfigKnown && !m.PrefixCachingEnabled {
+		m.CacheSavingsFraction = 0
+	} else if m.PromptTokens > 0 {
 		m.CacheSavingsFraction = min(m.CachedTokens/m.PromptTokens, 1.0)
 	}
 
@@ -72,7 +74,7 @@ func (c *Calculator) calculateModelCosts(m *InferenceCost) {
 }
 
 // calculateComputeTimeSplit allocates costs proportionally by vLLM processing time.
-// Uses EffectiveInputTokens (cache-corrected) as the input denominator.
+// Uses PromptTokens (delivered input tokens) as the input denominator.
 func (c *Calculator) calculateComputeTimeSplit(m *InferenceCost) {
 	totalTime := m.InputProcessingTime + m.OutputProcessingTime
 	if totalTime == 0 {

@@ -172,7 +172,8 @@ func TestCollector_CombineMetrics_DerivesCachedTokens(t *testing.T) {
 	cacheConfigs := map[string]*cacheConfig{"llama-3:llm-prod": {prefixCachingEnabled: true}}
 
 	c := &Collector{config: cfg}
-	results := c.combineMetrics(allocCosts, promptTokens, genTokens, inputTime, outputTime, cachedTokens, cacheConfigs, time.Now())
+	now := time.Now()
+	results := c.combineMetrics(allocCosts, promptTokens, genTokens, inputTime, outputTime, cachedTokens, cacheConfigs, now.Add(-1*time.Hour), now)
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -201,8 +202,9 @@ func TestCollector_CombineMetrics_NoCacheHits_FallsBackToPromptTokens(t *testing
 	cacheConfigs := map[string]*cacheConfig{"llama-3:llm-prod": {prefixCachingEnabled: true}}
 
 	c := &Collector{config: cfg}
+	now := time.Now()
 	results := c.combineMetrics(allocCosts, promptTokens, genTokens,
-		map[string]float64{}, map[string]float64{}, cacheHits, cacheConfigs, time.Now())
+		map[string]float64{}, map[string]float64{}, cacheHits, cacheConfigs, now.Add(-1*time.Hour), now)
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -380,7 +382,8 @@ func TestCollector_CombineMetrics_IncludesTimingOnlyKeysInUnion(t *testing.T) {
 	cacheHits := map[string]float64{"timing-only:ns1": 2}
 	cacheConfigs := map[string]*cacheConfig{}
 
-	results := c.combineMetrics(allocCosts, promptTokens, genTokens, inputTime, outputTime, cacheHits, cacheConfigs, time.Now())
+	now := time.Now()
+	results := c.combineMetrics(allocCosts, promptTokens, genTokens, inputTime, outputTime, cacheHits, cacheConfigs, now.Add(-1*time.Hour), now)
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))

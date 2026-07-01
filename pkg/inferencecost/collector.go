@@ -107,7 +107,7 @@ func (c *Collector) CollectMetrics(ctx context.Context, start, end time.Time) ([
 	}
 
 	return c.combineMetrics(allocationCosts, promptTokens, generationTokens,
-		inputProcessingTime, outputProcessingTime, cachedTokens, cacheConfigs, end), nil
+		inputProcessingTime, outputProcessingTime, cachedTokens, cacheConfigs, start, end), nil
 }
 
 // queryCounterDelta returns the net increase of a monotonic counter metric
@@ -161,12 +161,14 @@ func (c *Collector) queryCounterDelta(ctx context.Context, metric string, start,
 		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
 	}
 
-	// Delta = end - start, clamped to 0 to handle counter resets gracefully.
+	// Delta = end - start. If negative (counter reset), use endVal as a
+	// lower bound to capture post-reset activity rather than reporting 0.
 	out := make(map[string]float64, len(endVals))
 	for key, endVal := range endVals {
 		delta := endVal - startVals[key]
 		if delta < 0 {
-			delta = 0
+			// Counter reset detected: use endVal to capture post-reset activity
+			delta = endVal
 		}
 		out[key] = delta
 	}
@@ -562,7 +564,7 @@ func (c *Collector) combineMetrics(
 	inputProcessingTime, outputProcessingTime,
 	cachedTokens map[string]float64,
 	cacheConfigs map[string]*cacheConfig,
-	now time.Time,
+	start, end time.Time,
 ) []*InferenceCost {
 
 	// Reconcile token map keys against allocation keys to handle the case where
@@ -654,8 +656,10 @@ func (c *Collector) combineMetrics(
 			CachedTokens:         cachedTokens[key],
 			PrefixCachingEnabled: prefixCachingEnabled,
 			CacheConfigKnown:     cacheConfigKnown,
-			Timestamp:            now,
+			Timestamp:            end,
 		}
+		ic.Window.Start = start
+		ic.Window.End = end
 
 		if ar, ok := allocCosts[key]; ok {
 			ic.AllocationTotalCost = ar.allocationTotalCost

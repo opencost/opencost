@@ -84,12 +84,24 @@ func (e *Exporter) Export(metrics []*InferenceCost) {
 			workloadType = "unknown"
 		}
 
+		// Calculate window duration in hours for normalization to hourly rate
+		windowDuration := m.Window.End.Sub(m.Window.Start)
+		windowHours := windowDuration.Hours()
+		if windowHours <= 0 {
+			// Avoid division by zero; skip this metric if window is invalid
+			log.Warnf("InferenceCost: skipping export for model=%s ns=%s (invalid window duration: %v)",
+				m.Properties.ModelName, m.Properties.Namespace, windowDuration)
+			continue
+		}
+
 		for _, basis := range []CostBasis{CostBasisUsage, CostBasisAllocation} {
 			basisStr := string(basis)
 
+			// Normalize total cost to hourly rate: totalCost / windowHours
+			hourlyCost := totalCostForBasis(m, basis) / windowHours
 			e.totalCost.WithLabelValues(
 				m.Properties.ModelName, version, m.Properties.Namespace, basisStr, workloadType,
-			).Set(totalCostForBasis(m, basis))
+			).Set(hourlyCost)
 
 			// Blended cost (no phase label)
 			e.costPerMillionTokens.WithLabelValues(

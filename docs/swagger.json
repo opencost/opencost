@@ -176,7 +176,7 @@
           {
             "name": "aggregate",
             "in": "query",
-            "description": "Comma-separated dimensions to aggregate by. Supported values: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`.",
+            "description": "Comma-separated dimensions to aggregate by. Supported values: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
             "schema": {
               "type": "string"
             },
@@ -194,7 +194,7 @@
           {
             "name": "filter",
             "in": "query",
-            "description": "Filter results by property values. Format: `prop:value` for a single filter, `prop:value+prop:value` for AND logic. Supported properties: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`.",
+            "description": "Filter results by property values. Format: `prop:value` for a single filter, `prop:value+prop:value` for AND logic. Supported properties: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
             "schema": {
               "type": "string"
             },
@@ -267,7 +267,7 @@
           {
             "name": "aggregate",
             "in": "query",
-            "description": "Comma-separated dimensions to aggregate by: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`.",
+            "description": "Comma-separated dimensions to aggregate by: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
             "schema": {
               "type": "string"
             },
@@ -276,7 +276,7 @@
           {
             "name": "filter",
             "in": "query",
-            "description": "Filter by property values. Format: `prop:value+prop:value` (AND logic). Supported properties: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`.",
+            "description": "Filter by property values. Format: `prop:value+prop:value` (AND logic). Supported properties: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
             "schema": {
               "type": "string"
             }

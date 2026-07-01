@@ -28,7 +28,8 @@ func newTestExporter(t *testing.T) (*Exporter, *prometheus.Registry) {
 }
 
 func sampleMetric(method AllocationMethod) *InferenceCost {
-	return &InferenceCost{
+	now := time.Now()
+	ic := &InferenceCost{
 		Properties: InferenceCostProperties{
 			ModelName:    "meta-llama/Llama-3.1-8B",
 			ModelVersion: "v1",
@@ -52,8 +53,12 @@ func sampleMetric(method AllocationMethod) *InferenceCost {
 			CostBasisAllocation: 7.0,
 			CostBasisUsage:      1.75,
 		},
-		Timestamp: time.Now(),
+		Timestamp: now,
 	}
+	// Set a 1-hour window so costs are already normalized (4.0 for 1 hour = 4.0/hour)
+	ic.Window.Start = now.Add(-1 * time.Hour)
+	ic.Window.End = now
+	return ic
 }
 
 // TestExporter_MetricNames verifies that exported metric names are llm_* not opencost_inference_*.

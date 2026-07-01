@@ -52,6 +52,13 @@ type InferenceCostProperties struct {
 type InferenceCost struct {
 	Properties InferenceCostProperties
 
+	// Window is the time range over which these costs were collected.
+	// Used to normalize total costs to hourly rates for Prometheus metrics.
+	Window struct {
+		Start time.Time
+		End   time.Time
+	}
+
 	// Costs from OpenCost allocation layer.
 	// AllocationTotalCost = max(request,usage)×price + idle share + shared infra share.
 	AllocationTotalCost float64
