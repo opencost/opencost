@@ -161,7 +161,9 @@ func TestComputeDCGMDevices(t *testing.T) {
 			km, err := NewKubeModel(testClusterUID, false, ds)
 			require.NoError(t, err)
 
-			kms, err := km.ComputeKubeModelSet(start, end)
+			kms := kubemodel.NewKubeModelSet(start, end)
+
+			err = km.computeDCGMDevices(kms, start, end)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.want, kms.DCGMDevices)
