@@ -87,33 +87,30 @@ func GeneratePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 	// Fetch AWS pricing
 	awsSet, err := GenerateAWSPricing(currency)
 	if err != nil {
-		log.Warnf("Failed to get AWS pricing: %v", err)
-	} else {
-		combinedSet.NodePricing = append(combinedSet.NodePricing, awsSet.NodePricing...)
-		combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, awsSet.PersistentVolumePricing...)
-		log.Infof("Added %d AWS node pricing entries", len(awsSet.NodePricing))
+		return nil, fmt.Errorf("failed to get AWS pricing: %w", err)
 	}
+	combinedSet.NodePricing = append(combinedSet.NodePricing, awsSet.NodePricing...)
+	combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, awsSet.PersistentVolumePricing...)
+	log.Infof("Added %d AWS node pricing entries", len(awsSet.NodePricing))
 
 	// Fetch Azure pricing
 	azureSet, err := GenerateAzurePricing(currency)
 	if err != nil {
-		log.Warnf("Failed to get Azure pricing: %v", err)
-	} else {
-		combinedSet.NodePricing = append(combinedSet.NodePricing, azureSet.NodePricing...)
-		combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, azureSet.PersistentVolumePricing...)
-		log.Infof("Added %d Azure node pricing entries", len(azureSet.NodePricing))
+		return nil, fmt.Errorf("failed to get Azure pricing: %w", err)
 	}
+	combinedSet.NodePricing = append(combinedSet.NodePricing, azureSet.NodePricing...)
+	combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, azureSet.PersistentVolumePricing...)
+	log.Infof("Added %d Azure node pricing entries", len(azureSet.NodePricing))
 
 	// GCP does NOT support CNY
 	if currency != "CNY" {
 		gcpSet, err := GenerateGCPPricing(currency)
 		if err != nil {
-			log.Warnf("Failed to get GCP pricing: %v", err)
-		} else {
-			combinedSet.NodePricing = append(combinedSet.NodePricing, gcpSet.NodePricing...)
-			combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, gcpSet.PersistentVolumePricing...)
-			log.Infof("Added %d GCP node pricing entries", len(gcpSet.NodePricing))
+			return nil, fmt.Errorf("failed to get GCP pricing: %w", err)
 		}
+		combinedSet.NodePricing = append(combinedSet.NodePricing, gcpSet.NodePricing...)
+		combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, gcpSet.PersistentVolumePricing...)
+		log.Infof("Added %d GCP node pricing entries", len(gcpSet.NodePricing))
 	}
 
 	// Sort the combined set to ensure deterministic output
