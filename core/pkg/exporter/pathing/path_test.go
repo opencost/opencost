@@ -9,70 +9,84 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBingenPathFormatter(t *testing.T) {
+func TestDefaultPathFormatter(t *testing.T) {
 	type testCase struct {
-		name       string
-		clusterID  string
-		pipeline   string
-		resolution *time.Duration
-		prefix     string
-		expected   string
+		name        string
+		appName     string
+		clusterID   string
+		clusterName string
+		pipeline    string
+		resolution  *time.Duration
+		prefix      string
+		expected    string
 	}
 
 	testCases := []testCase{
 		{
-			name:       "no resolution",
-			clusterID:  "cluster-a",
-			pipeline:   "allocation",
-			resolution: nil,
-			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1704110400-1704114000", DefaultRootDir, BaseStorageDir),
+			name:        "no resolution",
+			appName:     "test-app",
+			clusterID:   "clusterID-a",
+			clusterName: "cluster-a",
+			pipeline:    "allocation",
+			resolution:  nil,
+			prefix:      "",
+			expected:    fmt.Sprintf("%s/cluster-a/%s/allocation/1704110400-1704114000", DefaultRootDir, BaseStorageDir),
 		},
 		{
-			name:       "with resolution",
-			clusterID:  "cluster-a",
-			pipeline:   "allocation",
-			resolution: &[]time.Duration{1 * time.Hour}[0],
-			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1h/1704110400-1704114000", DefaultRootDir, BaseStorageDir),
+			name:        "with resolution",
+			appName:     "test-app",
+			clusterID:   "clusterID-a",
+			clusterName: "cluster-a",
+			pipeline:    "allocation",
+			resolution:  &[]time.Duration{1 * time.Hour}[0],
+			prefix:      "",
+			expected:    fmt.Sprintf("%s/cluster-a/%s/allocation/1h/1704110400-1704114000", DefaultRootDir, BaseStorageDir),
 		},
 		{
-			name:       "no resolution with prefix",
-			clusterID:  "cluster-a",
-			pipeline:   "allocation",
-			resolution: nil,
-			prefix:     "test",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/test.1704110400-1704114000", DefaultRootDir, BaseStorageDir),
+			name:        "no resolution with prefix",
+			appName:     "test-app",
+			clusterID:   "clusterID-a",
+			clusterName: "cluster-a",
+			pipeline:    "allocation",
+			resolution:  nil,
+			prefix:      "test",
+			expected:    fmt.Sprintf("%s/cluster-a/%s/allocation/test.1704110400-1704114000", DefaultRootDir, BaseStorageDir),
 		},
 		{
-			name:       "with resolution with prefix",
-			clusterID:  "cluster-a",
-			pipeline:   "allocation",
-			resolution: &[]time.Duration{1 * time.Hour}[0],
-			prefix:     "test",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1h/test.1704110400-1704114000", DefaultRootDir, BaseStorageDir),
+			name:        "with resolution with prefix",
+			appName:     "test-app",
+			clusterID:   "clusterID-a",
+			clusterName: "cluster-a",
+			pipeline:    "allocation",
+			resolution:  &[]time.Duration{1 * time.Hour}[0],
+			prefix:      "test",
+			expected:    fmt.Sprintf("%s/cluster-a/%s/allocation/1h/test.1704110400-1704114000", DefaultRootDir, BaseStorageDir),
 		},
 		{
-			name:       "daily resolution",
-			clusterID:  "cluster-a",
-			pipeline:   "allocation",
-			resolution: &[]time.Duration{24 * time.Hour}[0],
-			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1d/1704110400-1704196800", DefaultRootDir, BaseStorageDir),
+			name:        "daily resolution",
+			appName:     "test-app",
+			clusterID:   "clusterID-a",
+			clusterName: "cluster-a",
+			pipeline:    "allocation",
+			resolution:  &[]time.Duration{24 * time.Hour}[0],
+			prefix:      "",
+			expected:    fmt.Sprintf("%s/cluster-a/%s/allocation/1d/1704110400-1704196800", DefaultRootDir, BaseStorageDir),
 		},
 		{
-			name:       "weekly resolution",
-			clusterID:  "cluster-a",
-			pipeline:   "allocation",
-			resolution: &[]time.Duration{7 * 24 * time.Hour}[0],
-			prefix:     "",
-			expected:   fmt.Sprintf("%s/cluster-a/%s/allocation/1w/1704110400-1704715200", DefaultRootDir, BaseStorageDir),
+			name:        "weekly resolution",
+			appName:     "test-app",
+			clusterID:   "clusterID-a",
+			clusterName: "cluster-a",
+			pipeline:    "allocation",
+			resolution:  &[]time.Duration{7 * 24 * time.Hour}[0],
+			prefix:      "",
+			expected:    fmt.Sprintf("%s/cluster-a/%s/allocation/1w/1704110400-1704715200", DefaultRootDir, BaseStorageDir),
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			pathing, err := NewDefaultStoragePathFormatter(tc.clusterID, tc.pipeline, tc.resolution)
+			pathing, err := NewDefaultStoragePathFormatter(tc.appName, tc.clusterID, tc.clusterName, tc.pipeline, tc.resolution)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
