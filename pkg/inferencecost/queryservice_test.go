@@ -84,13 +84,10 @@ func TestQueryService_NilCollector_Returns501(t *testing.T) {
 }
 
 func TestQueryService_MissingWindow_Returns400(t *testing.T) {
-	// Use a real but unavailable Prometheus so CollectMetrics never runs.
-	srv := newFakePromServer(t, nil)
-	defer srv.Close()
 	cfg := baseConfig()
-	cfg.PrometheusURL = srv.URL
 	querier := &mockQuerier{set: opencost.NewAllocationSet(time.Now().Add(-time.Hour), time.Now())}
-	collector, err := NewCollector(cfg, querier)
+	metricsQuerier := &mockMetricsQuerier{}
+	collector, err := NewCollector(cfg, querier, metricsQuerier)
 	if err != nil {
 		t.Fatalf("NewCollector: %v", err)
 	}
@@ -107,12 +104,10 @@ func TestQueryService_MissingWindow_Returns400(t *testing.T) {
 }
 
 func TestQueryService_InvalidCostBasis_Returns400(t *testing.T) {
-	srv := newFakePromServer(t, nil)
-	defer srv.Close()
 	cfg := baseConfig()
-	cfg.PrometheusURL = srv.URL
 	querier := &mockQuerier{set: opencost.NewAllocationSet(time.Now().Add(-time.Hour), time.Now())}
-	collector, _ := NewCollector(cfg, querier)
+	metricsQuerier := &mockMetricsQuerier{}
+	collector, _ := NewCollector(cfg, querier, metricsQuerier)
 	qs := NewQueryService(collector, NewCalculator(cfg))
 
 	handler := qs.GetInferenceCostTotalHandler()
@@ -131,7 +126,8 @@ func TestQueryService_TimeseriesMissingAccumulate_Returns400(t *testing.T) {
 	cfg := baseConfig()
 	cfg.PrometheusURL = srv.URL
 	querier := &mockQuerier{set: opencost.NewAllocationSet(time.Now().Add(-time.Hour), time.Now())}
-	collector, _ := NewCollector(cfg, querier)
+	metricsQuerier := &mockMetricsQuerier{}
+	collector, _ := NewCollector(cfg, querier, metricsQuerier)
 	qs := NewQueryService(collector, NewCalculator(cfg))
 
 	handler := qs.GetInferenceCostTimeseriesHandler()
@@ -324,7 +320,8 @@ func newQueryServiceWithDirectMetrics(t *testing.T, modelName, namespace string,
 		}(),
 	}
 
-	collector, err := NewCollector(cfg, querier)
+	metricsQuerier := &mockMetricsQuerier{}
+	collector, err := NewCollector(cfg, querier, metricsQuerier)
 	if err != nil {
 		t.Fatalf("NewCollector: %v", err)
 	}

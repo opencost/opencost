@@ -10,9 +10,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/filter/ops"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
-	"github.com/prometheus/client_golang/api"
-	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/prometheus/common/model"
+	"github.com/opencost/opencost/core/pkg/source"
 )
 
 // AllocationQuerier is the subset of the cost model needed to fetch per-model
@@ -23,28 +21,19 @@ type AllocationQuerier interface {
 }
 
 // Collector gathers per-model infrastructure costs from the OpenCost allocation
-// layer and token/timing/cache metrics from Prometheus.
+// layer and token/timing/cache metrics from the data source.
 type Collector struct {
 	allocationQuerier AllocationQuerier
-	promClient        v1.API
+	metricsQuerier    source.MetricsQuerier
 	config            *Config
 }
 
-// NewCollector creates a Collector. Returns an error if the Prometheus client
-// cannot be initialised (e.g. empty PrometheusURL).
-func NewCollector(config *Config, querier AllocationQuerier) (*Collector, error) {
-	if config.PrometheusURL == "" {
-		return nil, fmt.Errorf("PrometheusURL is required for inference cost collector")
-	}
-
-	client, err := api.NewClient(api.Config{Address: config.PrometheusURL})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Prometheus client: %w", err)
-	}
-
+// NewCollector creates a Collector that uses the provided MetricsQuerier for
+// inference metrics.
+func NewCollector(config *Config, querier AllocationQuerier, metricsQuerier source.MetricsQuerier) (*Collector, error) {
 	return &Collector{
 		allocationQuerier: querier,
-		promClient:        v1.NewAPI(client),
+		metricsQuerier:    metricsQuerier,
 		config:            config,
 	}, nil
 }
@@ -61,181 +50,66 @@ func (c *Collector) CollectMetrics(ctx context.Context, start, end time.Time) ([
 	}
 	log.Infof("InferenceCost: collected allocation costs for %d model/namespace combinations", len(allocationCosts))
 
-	// --- Token metrics from Prometheus ---
-	// Use a counter-delta approach: query the cumulative counter at both ends of
-	// the window and subtract. This avoids the extrapolation inflation that
-	// increase(metric[Xm]) produces when series have fewer samples than the
-	// window duration (e.g. recently-started pods, multi-replica sum-by queries).
-	// last_over_time(...[scrapeInterval]) pins each query to the nearest sample
-	// at that timestamp without extrapolating across the full window.
-	promptTokens, err := c.queryCounterDelta(ctx, "vllm:prompt_tokens_total", start, end)
+	// --- Token metrics from data source ---
+	// Query all metrics concurrently using Futures
+	promptTokensFuture := c.metricsQuerier.QueryInferencePromptTokens(start, end)
+	generationTokensFuture := c.metricsQuerier.QueryInferenceGenerationTokens(start, end)
+	inputTimeFuture := c.metricsQuerier.QueryInferenceInputProcessingTime(start, end)
+	outputTimeFuture := c.metricsQuerier.QueryInferenceOutputProcessingTime(start, end)
+	cachedTokensFuture := c.metricsQuerier.QueryInferenceCachedTokens(start, end)
+	cacheConfigFuture := c.metricsQuerier.QueryInferenceCacheConfig(end)
+
+	// Await required metrics (prompt and generation tokens)
+	promptTokensResults, err := promptTokensFuture.Await()
 	if err != nil {
 		return nil, fmt.Errorf("failed to query prompt tokens: %w", err)
 	}
+	promptTokens := mergeTokenResults(promptTokensResults)
 
-	generationTokens, err := c.queryCounterDelta(ctx, "vllm:generation_tokens_total", start, end)
+	generationTokensResults, err := generationTokensFuture.Await()
 	if err != nil {
 		return nil, fmt.Errorf("failed to query generation tokens: %w", err)
 	}
+	generationTokens := mergeTokenResults(generationTokensResults)
 
-	// --- Timing metrics (optional — degraded gracefully) ---
-	inputProcessingTime, err := c.queryCounterDelta(ctx, "vllm:request_prefill_time_seconds_sum", start, end)
-	if err != nil {
+	// --- Timing metrics (optional — degrade gracefully) ---
+	inputProcessingTime := make(map[string]float64)
+	if inputTimeResults, err := inputTimeFuture.Await(); err != nil {
 		log.Warnf("InferenceCost: failed to query input processing time (will use multiplier fallback): %v", err)
-		inputProcessingTime = make(map[string]float64)
+	} else {
+		inputProcessingTime = mergeProcessingTimeResults(inputTimeResults)
 	}
 
-	outputProcessingTime, err := c.queryCounterDelta(ctx, "vllm:request_time_per_output_token_seconds_sum", start, end)
-	if err != nil {
+	outputProcessingTime := make(map[string]float64)
+	if outputTimeResults, err := outputTimeFuture.Await(); err != nil {
 		log.Warnf("InferenceCost: failed to query output processing time (will use multiplier fallback): %v", err)
-		outputProcessingTime = make(map[string]float64)
+	} else {
+		outputProcessingTime = mergeProcessingTimeResults(outputTimeResults)
 	}
 
-	// --- KV cache hits (optional — degraded gracefully) ---
-	// vllm:prefix_cache_hits_total counts tokens served from the KV cache (token-level counter).
-	cachedTokens, err := c.queryCounterDelta(ctx, "vllm:prefix_cache_hits_total", start, end)
-	if err != nil {
+	// --- KV cache hits (optional — degrade gracefully) ---
+	cachedTokens := make(map[string]float64)
+	if cachedTokensResults, err := cachedTokensFuture.Await(); err != nil {
 		log.Warnf("InferenceCost: failed to query KV cache hits (cacheSavingsFraction will be zero): %v", err)
-		cachedTokens = make(map[string]float64)
+	} else {
+		cachedTokens = mergeTokenResults(cachedTokensResults)
 	}
 
 	// --- KV cache config (prefix caching enabled flag only) ---
-	cacheConfigs, err := c.queryCacheConfigs(ctx, end)
-	if err != nil {
+	cacheConfigs := make(map[string]*cacheConfig)
+	if cacheConfigResults, err := cacheConfigFuture.Await(); err != nil {
 		log.Warnf("InferenceCost: failed to query cache config (prefix_caching_off detection disabled): %v", err)
-		cacheConfigs = make(map[string]*cacheConfig)
+	} else {
+		cacheConfigs = mergeCacheConfigResults(cacheConfigResults)
 	}
 
 	return c.combineMetrics(allocationCosts, promptTokens, generationTokens,
 		inputProcessingTime, outputProcessingTime, cachedTokens, cacheConfigs, start, end), nil
 }
 
-// queryCounterDelta returns the net increase of a monotonic counter metric
-// over [start, end] per (model_name, namespace).
-//
-// It uses the @ modifier to pin two instant queries to start and end,
-// then subtracts. This avoids the extrapolation inflation produced by
-// increase(metric[Xm]) when a series has fewer samples than the window
-// (e.g. a pod that restarted mid-window, or a sum across many replicas
-// where Prometheus extrapolates each series independently before summing).
-//
-// last_over_time(metric[2m] @ t) fetches the most recent sample within 2
-// minutes of t. 2 minutes covers the default 30s scrape interval with margin.
-// Series with no sample near start get a start-value of 0 (treated as new),
-// which is the correct behaviour for pods that started mid-window.
-// Negative deltas (counter resets) are clamped to 0 per series before summing.
-func (c *Collector) queryCounterDelta(ctx context.Context, metric string, start, end time.Time) (map[string]float64, error) {
-	startUnix := start.Unix()
-	// Clamp end to now: last_over_time with a future @ timestamp returns no results.
-	effectiveEnd := end
-	if now := time.Now(); end.After(now) {
-		effectiveEnd = now
-	}
-	endUnix := effectiveEnd.Unix()
-
-	// The lookback for last_over_time must span the full window duration.
-	// A model that was active earlier in the window but idle at query time
-	// will have its last sample somewhere within the window — a narrow 2m
-	// lookback would miss it entirely. Using the window duration as the
-	// lookback guarantees we find the last sample that existed anywhere in
-	// the window, while the @ pin ensures we don't extrapolate past end.
-	windowDuration := effectiveEnd.Sub(start)
-	windowMinutes := int(windowDuration.Minutes())
-	if windowMinutes < 2 {
-		windowMinutes = 2
-	}
-
-	// Query counter value at the end of the window.
-	endQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[%dm] @ %d))`, metric, windowMinutes, endUnix)
-	endVals, err := c.queryMetric(ctx, endQuery, effectiveEnd)
-	if err != nil {
-		return nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
-	}
-
-	// Query counter value at the start of the window.
-	// Use a narrow 2m lookback here: we want the value just before the window
-	// opens, not a stale value from much earlier that would undercount the delta.
-	startQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[2m] @ %d))`, metric, startUnix)
-	startVals, err := c.queryMetric(ctx, startQuery, effectiveEnd)
-	if err != nil {
-		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
-	}
-
-	// Delta = end - start. If negative (counter reset), use endVal as a
-	// lower bound to capture post-reset activity rather than reporting 0.
-	out := make(map[string]float64, len(endVals))
-	for key, endVal := range endVals {
-		delta := endVal - startVals[key]
-		if delta < 0 {
-			// Counter reset detected: use endVal to capture post-reset activity
-			delta = endVal
-		}
-		out[key] = delta
-	}
-	return out, nil
-}
-
 // cacheConfig holds per-model KV cache configuration from vllm:cache_config_info.
 type cacheConfig struct {
 	prefixCachingEnabled bool
-}
-
-// queryCacheConfigs queries vllm:cache_config_info joined with token metrics
-// to get enable_prefix_caching per (model_name, namespace).
-// When the join produces no results for a model that has token data, a warning
-// is emitted to aid diagnosis of pod-label mismatches.
-func (c *Collector) queryCacheConfigs(ctx context.Context, t time.Time) (map[string]*cacheConfig, error) {
-	// Join cache_config_info (has enable_prefix_caching label) with
-	// prompt_tokens_total (has model_name) using namespace+pod as the join key.
-	query := `
-		max by (model_name, namespace, enable_prefix_caching) (
-			sum by (model_name, namespace, pod) (vllm:prompt_tokens_total)
-			* on (namespace, pod) group_left(enable_prefix_caching)
-			max by (namespace, pod, enable_prefix_caching) (vllm:cache_config_info)
-		)
-	`
-
-	result, _, err := c.promClient.Query(ctx, query, t)
-	if err != nil {
-		return nil, err
-	}
-
-	vec, ok := result.(model.Vector)
-	if !ok {
-		return make(map[string]*cacheConfig), nil
-	}
-
-	out := make(map[string]*cacheConfig, len(vec))
-	for _, sample := range vec {
-		modelName := string(sample.Metric["model_name"])
-		if modelName == "" {
-			continue
-		}
-		namespace := string(sample.Metric["namespace"])
-		if namespace == "" {
-			namespace = "unknown"
-		}
-		prefixCachingEnabled := strings.EqualFold(string(sample.Metric["enable_prefix_caching"]), "true")
-		key := modelNamespaceKey(modelName, namespace)
-		out[key] = &cacheConfig{prefixCachingEnabled: prefixCachingEnabled}
-	}
-
-	// Check for models that have token data but no cache config — likely a join
-	// failure due to pod-label mismatch between cache_config_info and prompt_tokens_total.
-	// Only run the diagnostic query when the join produced nothing; skip it on the happy path.
-	if len(out) == 0 {
-		rawResult, _, rawErr := c.promClient.Query(ctx, `max by (namespace) (vllm:cache_config_info)`, t)
-		if rawErr == nil {
-			if rawVec, ok := rawResult.(model.Vector); ok && len(rawVec) > 0 {
-				log.Warnf("InferenceCost: vllm:cache_config_info exists in Prometheus but the join with "+
-					"vllm:prompt_tokens_total produced no results — likely a pod-label mismatch between "+
-					"the two metrics (check that both carry matching 'namespace' and 'pod' labels). "+
-					"prefix_caching_off detection will be disabled; allocation method will be 'compute_time'.")
-			}
-		}
-	}
-
-	return out, nil
 }
 
 // allocationResult holds the two cost figures derived from one Allocation.
@@ -685,34 +559,6 @@ func (c *Collector) combineMetrics(
 	return results
 }
 
-// queryMetric runs a Prometheus instant query evaluated at t and returns a
-// map[model_name:namespace]value.
-func (c *Collector) queryMetric(ctx context.Context, query string, t time.Time) (map[string]float64, error) {
-	result, _, err := c.promClient.Query(ctx, query, t)
-	if err != nil {
-		return nil, err
-	}
-
-	vec, ok := result.(model.Vector)
-	if !ok {
-		return make(map[string]float64), nil
-	}
-
-	out := make(map[string]float64, len(vec))
-	for _, sample := range vec {
-		modelName := string(sample.Metric["model_name"])
-		if modelName == "" {
-			continue
-		}
-		namespace := string(sample.Metric["namespace"])
-		if namespace == "" {
-			namespace = "unknown"
-		}
-		out[modelNamespaceKey(modelName, namespace)] = float64(sample.Value)
-	}
-	return out, nil
-}
-
 func modelNamespaceKey(modelName, namespace string) string {
 	return modelName + ":" + namespace
 }
@@ -723,4 +569,38 @@ func parseKey(key string) (modelName, namespace string) {
 		return key, "unknown"
 	}
 	return key[:idx], key[idx+1:]
+}
+
+
+// mergeTokenResults merges multiple InferenceTokensResult into a single map
+func mergeTokenResults(results []*source.InferenceTokensResult) map[string]float64 {
+	merged := make(map[string]float64)
+	for _, result := range results {
+		for k, v := range result.Values {
+			merged[k] = v
+		}
+	}
+	return merged
+}
+
+// mergeProcessingTimeResults merges multiple InferenceProcessingTimeResult into a single map
+func mergeProcessingTimeResults(results []*source.InferenceProcessingTimeResult) map[string]float64 {
+	merged := make(map[string]float64)
+	for _, result := range results {
+		for k, v := range result.Values {
+			merged[k] = v
+		}
+	}
+	return merged
+}
+
+// mergeCacheConfigResults merges multiple InferenceCacheConfigResult into a single map
+func mergeCacheConfigResults(results []*source.InferenceCacheConfigResult) map[string]*cacheConfig {
+	merged := make(map[string]*cacheConfig)
+	for _, result := range results {
+		for k, v := range result.Configs {
+			merged[k] = &cacheConfig{prefixCachingEnabled: v.PrefixCachingEnabled}
+		}
+	}
+	return merged
 }

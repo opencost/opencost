@@ -163,7 +163,10 @@ func Execute(conf *Config) error {
 func StartInferenceCostCollector(ctx context.Context, a *costmodel.Accesses, qs **inferencecost.QueryService) error {
 	cfg := inferencecost.DefaultConfig()
 
-	collector, err := inferencecost.NewCollector(cfg, a.Model)
+	// Get the MetricsQuerier from the DataSource
+	metricsQuerier := a.DataSource.Metrics()
+
+	collector, err := inferencecost.NewCollector(cfg, a.Model, metricsQuerier)
 	if err != nil {
 		return err
 	}

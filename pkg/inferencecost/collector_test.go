@@ -2,10 +2,13 @@ package inferencecost
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/core/pkg/util"
 )
 
 // mockQuerier implements AllocationQuerier for testing.
@@ -36,6 +39,243 @@ func (m *mockQuerier) ComputeAllocation(start, end time.Time) (*opencost.Allocat
 	// Otherwise return the single set
 	return m.set, nil
 }
+
+// mockMetricsQuerier implements source.MetricsQuerier for testing inference metrics.
+type mockMetricsQuerier struct {
+	promptTokens      map[string]float64
+	generationTokens  map[string]float64
+	inputTime         map[string]float64
+	outputTime        map[string]float64
+	cachedTokens      map[string]float64
+	cacheConfigs      map[string]*source.InferenceCacheConfig
+	err               error
+}
+
+func (m *mockMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
+	resultsChan := make(source.QueryResultsChan, 1)
+	if m.err != nil {
+		resultsChan <- &source.QueryResults{Error: m.err}
+	} else {
+		results := []*source.QueryResult{
+			source.NewQueryResult(
+				map[string]any{"key": "mock"},
+				[]*util.Vector{{Value: 0}},
+				nil,
+			),
+		}
+		resultsChan <- &source.QueryResults{Results: results}
+	}
+	
+	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
+		return &source.InferenceTokensResult{Values: m.promptTokens}
+	}
+	return source.NewFuture(decoder, resultsChan)
+}
+
+func (m *mockMetricsQuerier) QueryInferenceGenerationTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
+	resultsChan := make(source.QueryResultsChan, 1)
+	if m.err != nil {
+		resultsChan <- &source.QueryResults{Error: m.err}
+	} else {
+		results := []*source.QueryResult{
+			source.NewQueryResult(
+				map[string]any{"key": "mock"},
+				[]*util.Vector{{Value: 0}},
+				nil,
+			),
+		}
+		resultsChan <- &source.QueryResults{Results: results}
+	}
+	
+	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
+		return &source.InferenceTokensResult{Values: m.generationTokens}
+	}
+	return source.NewFuture(decoder, resultsChan)
+}
+
+func (m *mockMetricsQuerier) QueryInferenceInputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
+	resultsChan := make(source.QueryResultsChan, 1)
+	if m.err != nil {
+		resultsChan <- &source.QueryResults{Error: m.err}
+	} else {
+		results := []*source.QueryResult{
+			source.NewQueryResult(
+				map[string]any{"key": "mock"},
+				[]*util.Vector{{Value: 0}},
+				nil,
+			),
+		}
+		resultsChan <- &source.QueryResults{Results: results}
+	}
+	
+	decoder := func(result *source.QueryResult) *source.InferenceProcessingTimeResult {
+		return &source.InferenceProcessingTimeResult{Values: m.inputTime}
+	}
+	return source.NewFuture(decoder, resultsChan)
+}
+
+func (m *mockMetricsQuerier) QueryInferenceOutputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
+	resultsChan := make(source.QueryResultsChan, 1)
+	if m.err != nil {
+		resultsChan <- &source.QueryResults{Error: m.err}
+	} else {
+		results := []*source.QueryResult{
+			source.NewQueryResult(
+				map[string]any{"key": "mock"},
+				[]*util.Vector{{Value: 0}},
+				nil,
+			),
+		}
+		resultsChan <- &source.QueryResults{Results: results}
+	}
+	
+	decoder := func(result *source.QueryResult) *source.InferenceProcessingTimeResult {
+		return &source.InferenceProcessingTimeResult{Values: m.outputTime}
+	}
+	return source.NewFuture(decoder, resultsChan)
+}
+
+func (m *mockMetricsQuerier) QueryInferenceCachedTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
+	resultsChan := make(source.QueryResultsChan, 1)
+	if m.err != nil {
+		resultsChan <- &source.QueryResults{Error: m.err}
+	} else {
+		results := []*source.QueryResult{
+			source.NewQueryResult(
+				map[string]any{"key": "mock"},
+				[]*util.Vector{{Value: 0}},
+				nil,
+			),
+		}
+		resultsChan <- &source.QueryResults{Results: results}
+	}
+	
+	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
+		return &source.InferenceTokensResult{Values: m.cachedTokens}
+	}
+	return source.NewFuture(decoder, resultsChan)
+}
+
+func (m *mockMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *source.Future[source.InferenceCacheConfigResult] {
+	resultsChan := make(source.QueryResultsChan, 1)
+	if m.err != nil {
+		resultsChan <- &source.QueryResults{Error: m.err}
+	} else {
+		results := []*source.QueryResult{
+			source.NewQueryResult(
+				map[string]any{"key": "mock"},
+				[]*util.Vector{{Value: 0}},
+				nil,
+			),
+		}
+		resultsChan <- &source.QueryResults{Results: results}
+	}
+	
+	decoder := func(result *source.QueryResult) *source.InferenceCacheConfigResult {
+		return &source.InferenceCacheConfigResult{Configs: m.cacheConfigs}
+	}
+	return source.NewFuture(decoder, resultsChan)
+}
+
+// Stub implementations for all other MetricsQuerier methods (not used in inference tests)
+func (m *mockMetricsQuerier) QueryPVActiveMinutes(start, end time.Time) *source.Future[source.PVActiveMinutesResult] { return nil }
+func (m *mockMetricsQuerier) QueryPVUsedAverage(start, end time.Time) *source.Future[source.PVUsedAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryPVUsedMax(start, end time.Time) *source.Future[source.PVUsedMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryLocalStorageActiveMinutes(start, end time.Time) *source.Future[source.LocalStorageActiveMinutesResult] { return nil }
+func (m *mockMetricsQuerier) QueryLocalStorageUsedAvg(start, end time.Time) *source.Future[source.LocalStorageUsedAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryLocalStorageUsedMax(start, end time.Time) *source.Future[source.LocalStorageUsedMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryLocalStorageBytes(start, end time.Time) *source.Future[source.LocalStorageBytesResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeActiveMinutes(start, end time.Time) *source.Future[source.NodeActiveMinutesResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeCPUCoresCapacity(start, end time.Time) *source.Future[source.NodeCPUCoresCapacityResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeCPUCoresAllocatable(start, end time.Time) *source.Future[source.NodeCPUCoresAllocatableResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeRAMBytesCapacity(start, end time.Time) *source.Future[source.NodeRAMBytesCapacityResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeRAMBytesAllocatable(start, end time.Time) *source.Future[source.NodeRAMBytesAllocatableResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeGPUCount(start, end time.Time) *source.Future[source.NodeGPUCountResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeCPUModeTotal(start, end time.Time) *source.Future[source.NodeCPUModeTotalResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeIsSpot(start, end time.Time) *source.Future[source.NodeIsSpotResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeRAMSystemPercent(start, end time.Time) *source.Future[source.NodeRAMSystemPercentResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeRAMUserPercent(start, end time.Time) *source.Future[source.NodeRAMUserPercentResult] { return nil }
+func (m *mockMetricsQuerier) QueryLBActiveMinutes(start, end time.Time) *source.Future[source.LBActiveMinutesResult] { return nil }
+func (m *mockMetricsQuerier) QueryLBPricePerHr(start, end time.Time) *source.Future[source.LBPricePerHrResult] { return nil }
+func (m *mockMetricsQuerier) QueryClusterUptime(start, end time.Time) *source.Future[source.UptimeResult] { return nil }
+func (m *mockMetricsQuerier) QueryClusterManagementDuration(start, end time.Time) *source.Future[source.ClusterManagementDurationResult] { return nil }
+func (m *mockMetricsQuerier) QueryClusterManagementPricePerHr(start, end time.Time) *source.Future[source.ClusterManagementPricePerHrResult] { return nil }
+func (m *mockMetricsQuerier) QueryPods(start, end time.Time) *source.Future[source.PodsResult] { return nil }
+func (m *mockMetricsQuerier) QueryPodsUID(start, end time.Time) *source.Future[source.PodsResult] { return nil }
+func (m *mockMetricsQuerier) QueryRAMBytesAllocated(start, end time.Time) *source.Future[source.RAMBytesAllocatedResult] { return nil }
+func (m *mockMetricsQuerier) QueryRAMRequests(start, end time.Time) *source.Future[source.RAMRequestsResult] { return nil }
+func (m *mockMetricsQuerier) QueryRAMLimits(start, end time.Time) *source.Future[source.RAMLimitsResult] { return nil }
+func (m *mockMetricsQuerier) QueryRAMUsageAvg(start, end time.Time) *source.Future[source.RAMUsageAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryRAMUsageMax(start, end time.Time) *source.Future[source.RAMUsageMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeRAMPricePerGiBHr(start, end time.Time) *source.Future[source.NodeRAMPricePerGiBHrResult] { return nil }
+func (m *mockMetricsQuerier) QueryCPUCoresAllocated(start, end time.Time) *source.Future[source.CPUCoresAllocatedResult] { return nil }
+func (m *mockMetricsQuerier) QueryCPURequests(start, end time.Time) *source.Future[source.CPURequestsResult] { return nil }
+func (m *mockMetricsQuerier) QueryCPULimits(start, end time.Time) *source.Future[source.CPULimitsResult] { return nil }
+func (m *mockMetricsQuerier) QueryCPUUsageAvg(start, end time.Time) *source.Future[source.CPUUsageAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *source.Future[source.CPUUsageMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeCPUPricePerHr(start, end time.Time) *source.Future[source.NodeCPUPricePerHrResult] { return nil }
+func (m *mockMetricsQuerier) QueryGPUsAllocated(start, end time.Time) *source.Future[source.GPUsAllocatedResult] { return nil }
+func (m *mockMetricsQuerier) QueryGPUsRequested(start, end time.Time) *source.Future[source.GPUsRequestedResult] { return nil }
+func (m *mockMetricsQuerier) QueryGPUsUsageAvg(start, end time.Time) *source.Future[source.GPUsUsageAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryGPUsUsageMax(start, end time.Time) *source.Future[source.GPUsUsageMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeGPUPricePerHr(start, end time.Time) *source.Future[source.NodeGPUPricePerHrResult] { return nil }
+func (m *mockMetricsQuerier) QueryGPUInfo(start, end time.Time) *source.Future[source.GPUInfoResult] { return nil }
+func (m *mockMetricsQuerier) QueryIsGPUShared(start, end time.Time) *source.Future[source.IsGPUSharedResult] { return nil }
+func (m *mockMetricsQuerier) QueryPodPVCAllocation(start, end time.Time) *source.Future[source.PodPVCAllocationResult] { return nil }
+func (m *mockMetricsQuerier) QueryPVCBytesRequested(start, end time.Time) *source.Future[source.PVCBytesRequestedResult] { return nil }
+func (m *mockMetricsQuerier) QueryPVCInfo(start, end time.Time) *source.Future[source.PVCInfoResult] { return nil }
+func (m *mockMetricsQuerier) QueryPVBytes(start, end time.Time) *source.Future[source.PVBytesResult] { return nil }
+func (m *mockMetricsQuerier) QueryPVPricePerGiBHour(start, end time.Time) *source.Future[source.PVPricePerGiBHourResult] { return nil }
+func (m *mockMetricsQuerier) QueryPVInfo(start, end time.Time) *source.Future[source.PVInfoResult] { return nil }
+func (m *mockMetricsQuerier) QueryNamespaceUptime(start, end time.Time) *source.Future[source.UptimeResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetZoneGiB(start, end time.Time) *source.Future[source.NetZoneGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetZonePricePerGiB(start, end time.Time) *source.Future[source.NetZonePricePerGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetRegionGiB(start, end time.Time) *source.Future[source.NetRegionGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetRegionPricePerGiB(start, end time.Time) *source.Future[source.NetRegionPricePerGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetInternetGiB(start, end time.Time) *source.Future[source.NetInternetGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetInternetPricePerGiB(start, end time.Time) *source.Future[source.NetInternetPricePerGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetInternetServiceGiB(start, end time.Time) *source.Future[source.NetInternetServiceGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetNatGatewayPricePerGiB(start, end time.Time) *source.Future[source.NetNatGatewayPricePerGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetNatGatewayGiB(start, end time.Time) *source.Future[source.NetNatGatewayGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetTransferBytes(start, end time.Time) *source.Future[source.NetTransferBytesResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetZoneIngressGiB(start, end time.Time) *source.Future[source.NetZoneIngressGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetRegionIngressGiB(start, end time.Time) *source.Future[source.NetRegionIngressGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetInternetIngressGiB(start, end time.Time) *source.Future[source.NetInternetIngressGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetInternetServiceIngressGiB(start, end time.Time) *source.Future[source.NetInternetServiceIngressGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetNatGatewayIngressPricePerGiB(start, end time.Time) *source.Future[source.NetNatGatewayPricePerGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetNatGatewayIngressGiB(start, end time.Time) *source.Future[source.NetNatGatewayIngressGiBResult] { return nil }
+func (m *mockMetricsQuerier) QueryNetReceiveBytes(start, end time.Time) *source.Future[source.NetReceiveBytesResult] { return nil }
+func (m *mockMetricsQuerier) QueryNamespaceAnnotations(start, end time.Time) *source.Future[source.NamespaceAnnotationsResult] { return nil }
+func (m *mockMetricsQuerier) QueryPodAnnotations(start, end time.Time) *source.Future[source.PodAnnotationsResult] { return nil }
+func (m *mockMetricsQuerier) QueryNodeLabels(start, end time.Time) *source.Future[source.NodeLabelsResult] { return nil }
+func (m *mockMetricsQuerier) QueryNamespaceLabels(start, end time.Time) *source.Future[source.NamespaceLabelsResult] { return nil }
+func (m *mockMetricsQuerier) QueryPodLabels(start, end time.Time) *source.Future[source.PodLabelsResult] { return nil }
+func (m *mockMetricsQuerier) QueryServiceLabels(start, end time.Time) *source.Future[source.ServiceLabelsResult] { return nil }
+func (m *mockMetricsQuerier) QueryDeploymentLabels(start, end time.Time) *source.Future[source.DeploymentLabelsResult] { return nil }
+func (m *mockMetricsQuerier) QueryStatefulSetLabels(start, end time.Time) *source.Future[source.StatefulSetLabelsResult] { return nil }
+func (m *mockMetricsQuerier) QueryDaemonSetLabels(start, end time.Time) *source.Future[source.DaemonSetLabelsResult] { return nil }
+func (m *mockMetricsQuerier) QueryJobLabels(start, end time.Time) *source.Future[source.JobLabelsResult] { return nil }
+func (m *mockMetricsQuerier) QueryPodsWithReplicaSetOwner(start, end time.Time) *source.Future[source.PodsWithReplicaSetOwnerResult] { return nil }
+func (m *mockMetricsQuerier) QueryReplicaSetsWithoutOwners(start, end time.Time) *source.Future[source.ReplicaSetsWithoutOwnersResult] { return nil }
+func (m *mockMetricsQuerier) QueryReplicaSetsWithRollout(start, end time.Time) *source.Future[source.ReplicaSetsWithRolloutResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaUptime(start, end time.Time) *source.Future[source.UptimeResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaSpecCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaSpecCPURequestMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPURequestMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaSpecRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaSpecRAMRequestMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMRequestMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaSpecCPULimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaSpecCPULimitMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecCPULimitMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaSpecRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaSpecRAMLimitMax(start, end time.Time) *source.Future[source.ResourceQuotaSpecRAMLimitMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaStatusUsedCPURequestMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPURequestMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaStatusUsedRAMRequestMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMRequestMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaStatusUsedCPULimitMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedCPULimitMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitAverage(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitAvgResult] { return nil }
+func (m *mockMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitMax(start, end time.Time) *source.Future[source.ResourceQuotaStatusUsedRAMLimitMaxResult] { return nil }
+func (m *mockMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) { return time.Time{}, time.Time{}, nil }
 
 func makeAllocation(name string, gpuCost, cpuCost, ramCost, gpuCostIdle, cpuCostIdle, ramCostIdle float64, labels map[string]string, namespace string) *opencost.Allocation {
 	a := &opencost.Allocation{
@@ -343,16 +583,19 @@ func TestReconcileTokenKeys_NoMismatch(t *testing.T) {
 }
 
 // TestCollector_CollectMetrics_PrometheusUnavailable ensures that CollectMetrics
-// returns an error (not a panic) when Prometheus is unreachable.
+// returns an error (not a panic) when metrics are unavailable.
 func TestCollector_CollectMetrics_PrometheusUnavailable(t *testing.T) {
 	cfg := baseConfig()
-	// Use a non-routable address to ensure the HTTP call fails fast.
-	cfg.PrometheusURL = "http://192.0.2.1:9090"
 
 	now := time.Now()
 	querier := &mockQuerier{set: opencost.NewAllocationSet(now.Add(-5*time.Minute), now)}
+	
+	// Create a mock metrics querier that returns an error
+	metricsQuerier := &mockMetricsQuerier{
+		err: fmt.Errorf("metrics unavailable"),
+	}
 
-	collector, err := NewCollector(cfg, querier)
+	collector, err := NewCollector(cfg, querier, metricsQuerier)
 	if err != nil {
 		t.Fatalf("NewCollector returned unexpected error: %v", err)
 	}
@@ -363,10 +606,10 @@ func TestCollector_CollectMetrics_PrometheusUnavailable(t *testing.T) {
 	end := time.Now()
 	start := end.Add(-5 * time.Minute)
 	_, err = collector.CollectMetrics(ctx, start, end)
-	// The allocation query succeeds (mock), but the Prometheus query will fail.
+	// The allocation query succeeds (mock), but the metrics query will fail.
 	// CollectMetrics should return an error from the prompt token query.
 	if err == nil {
-		t.Error("expected error when Prometheus is unreachable, got nil")
+		t.Error("expected error when metrics are unavailable, got nil")
 	}
 }
 

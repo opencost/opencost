@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/source"
@@ -518,4 +519,78 @@ func (c *collectorMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitMax(start,
 
 func (c *collectorMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
 	return c.collectorProvider.GetDailyDataCoverage(limitDays)
+}
+
+
+// Inference cost methods - not supported by collector source (only available via Prometheus)
+func (c *collectorMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
+	ch := make(source.QueryResultsChan, 1)
+	ch <- &source.QueryResults{
+		Query: "QueryInferencePromptTokens",
+		Error: fmt.Errorf("inference metrics not supported by collector source"),
+	}
+	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
+		return &source.InferenceTokensResult{Values: make(map[string]float64)}
+	}
+	return source.NewFuture(decoder, ch)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceGenerationTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
+	ch := make(source.QueryResultsChan, 1)
+	ch <- &source.QueryResults{
+		Query: "QueryInferenceGenerationTokens",
+		Error: fmt.Errorf("inference metrics not supported by collector source"),
+	}
+	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
+		return &source.InferenceTokensResult{Values: make(map[string]float64)}
+	}
+	return source.NewFuture(decoder, ch)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceInputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
+	ch := make(source.QueryResultsChan, 1)
+	ch <- &source.QueryResults{
+		Query: "QueryInferenceInputProcessingTime",
+		Error: fmt.Errorf("inference metrics not supported by collector source"),
+	}
+	decoder := func(result *source.QueryResult) *source.InferenceProcessingTimeResult {
+		return &source.InferenceProcessingTimeResult{Values: make(map[string]float64)}
+	}
+	return source.NewFuture(decoder, ch)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceOutputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
+	ch := make(source.QueryResultsChan, 1)
+	ch <- &source.QueryResults{
+		Query: "QueryInferenceOutputProcessingTime",
+		Error: fmt.Errorf("inference metrics not supported by collector source"),
+	}
+	decoder := func(result *source.QueryResult) *source.InferenceProcessingTimeResult {
+		return &source.InferenceProcessingTimeResult{Values: make(map[string]float64)}
+	}
+	return source.NewFuture(decoder, ch)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceCachedTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
+	ch := make(source.QueryResultsChan, 1)
+	ch <- &source.QueryResults{
+		Query: "QueryInferenceCachedTokens",
+		Error: fmt.Errorf("inference metrics not supported by collector source"),
+	}
+	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
+		return &source.InferenceTokensResult{Values: make(map[string]float64)}
+	}
+	return source.NewFuture(decoder, ch)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *source.Future[source.InferenceCacheConfigResult] {
+	ch := make(source.QueryResultsChan, 1)
+	ch <- &source.QueryResults{
+		Query: "QueryInferenceCacheConfig",
+		Error: fmt.Errorf("inference metrics not supported by collector source"),
+	}
+	decoder := func(result *source.QueryResult) *source.InferenceCacheConfigResult {
+		return &source.InferenceCacheConfigResult{Configs: make(map[string]*source.InferenceCacheConfig)}
+	}
+	return source.NewFuture(decoder, ch)
 }
