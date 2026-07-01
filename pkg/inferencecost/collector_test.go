@@ -534,7 +534,7 @@ func TestReconcileTokenKeys_PrefersShortAllocationKeyWhenBothFormsExist(t *testi
 // TestCollector_BuildQueryWindow verifies that buildQueryWindow generates
 // correct Prometheus time range selectors based on CollectionInterval.
 // TestQueryCounterDelta_Formula verifies the delta = end - start subtraction
-// and that negative deltas (counter resets) are clamped to zero.
+// and that negative deltas (counter resets) use endVal to capture post-reset activity.
 func TestQueryCounterDelta_Formula(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -544,14 +544,14 @@ func TestQueryCounterDelta_Formula(t *testing.T) {
 	}{
 		{name: "normal increase", endVal: 1000, startVal: 200, want: 800},
 		{name: "no activity", endVal: 500, startVal: 500, want: 0},
-		{name: "counter reset clamped to zero", endVal: 100, startVal: 900, want: 0},
+		{name: "counter reset uses endVal", endVal: 100, startVal: 900, want: 100},
 		{name: "new pod (no start sample)", endVal: 400, startVal: 0, want: 400},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			delta := tt.endVal - tt.startVal
 			if delta < 0 {
-				delta = 0
+				delta = tt.endVal
 			}
 			if delta != tt.want {
 				t.Errorf("delta = %v, want %v", delta, tt.want)

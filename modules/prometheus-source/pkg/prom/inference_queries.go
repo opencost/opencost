@@ -12,8 +12,6 @@ import (
 
 // QueryInferencePromptTokens implements MetricsQuerier.QueryInferencePromptTokens
 func (pds *PrometheusMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
-	const queryName = "QueryInferencePromptTokens"
-	
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	
 	// Create a channel for the async result
@@ -37,8 +35,6 @@ func (pds *PrometheusMetricsQuerier) QueryInferencePromptTokens(start, end time.
 
 // QueryInferenceGenerationTokens implements MetricsQuerier.QueryInferenceGenerationTokens
 func (pds *PrometheusMetricsQuerier) QueryInferenceGenerationTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
-	const queryName = "QueryInferenceGenerationTokens"
-	
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	
 	resultsChan := make(source.QueryResultsChan, 1)
@@ -59,8 +55,6 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceGenerationTokens(start, end t
 
 // QueryInferenceInputProcessingTime implements MetricsQuerier.QueryInferenceInputProcessingTime
 func (pds *PrometheusMetricsQuerier) QueryInferenceInputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
-	const queryName = "QueryInferenceInputProcessingTime"
-	
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	
 	resultsChan := make(source.QueryResultsChan, 1)
@@ -81,8 +75,6 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceInputProcessingTime(start, en
 
 // QueryInferenceOutputProcessingTime implements MetricsQuerier.QueryInferenceOutputProcessingTime
 func (pds *PrometheusMetricsQuerier) QueryInferenceOutputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
-	const queryName = "QueryInferenceOutputProcessingTime"
-	
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	
 	resultsChan := make(source.QueryResultsChan, 1)
@@ -103,8 +95,6 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceOutputProcessingTime(start, e
 
 // QueryInferenceCachedTokens implements MetricsQuerier.QueryInferenceCachedTokens
 func (pds *PrometheusMetricsQuerier) QueryInferenceCachedTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
-	const queryName = "QueryInferenceCachedTokens"
-	
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	
 	resultsChan := make(source.QueryResultsChan, 1)
@@ -125,8 +115,6 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceCachedTokens(start, end time.
 
 // QueryInferenceCacheConfig implements MetricsQuerier.QueryInferenceCacheConfig
 func (pds *PrometheusMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *source.Future[source.InferenceCacheConfigResult] {
-	const queryName = "QueryInferenceCacheConfig"
-	
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 	
 	resultsChan := make(source.QueryResultsChan, 1)
@@ -223,7 +211,7 @@ func cacheConfigMapToQueryResults(configs map[string]*source.InferenceCacheConfi
 // minutes of t. 2 minutes covers the default 30s scrape interval with margin.
 // Series with no sample near start get a start-value of 0 (treated as new),
 // which is the correct behaviour for pods that started mid-window.
-// Negative deltas (counter resets) are clamped to 0 per series before summing.
+// Negative deltas (counter resets) are treated as resets and the delta is set to the end value (post-reset activity).
 func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[string]float64, error) {
 	startUnix := start.Unix()
 	// Clamp end to now: last_over_time with a future @ timestamp returns no results.

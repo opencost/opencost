@@ -145,7 +145,7 @@ type MetricsQuerier interface {
 	// Data Coverage Query
 	QueryDataCoverage(limitDays int) (time.Time, time.Time, error)
 
-	// Inference Metrics (vLLM) - relevant when INFERENCE_METRICS_ENABLE is set to true
+	// Inference Metrics (vLLM) - relevant when INFERENCE_COST_ENABLED is set to true
 	// QueryInferencePromptTokens returns prompt token counts by model_name and namespace
 	QueryInferencePromptTokens(start, end time.Time) *Future[InferenceTokensResult]
 
