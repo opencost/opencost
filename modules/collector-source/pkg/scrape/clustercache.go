@@ -1,6 +1,7 @@
 package scrape
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/kubecost/events"
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/externallabels"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
 	coreutil "github.com/opencost/opencost/core/pkg/util"
@@ -25,12 +27,14 @@ import (
 const unmountedPVsContainer = "unmounted-pvs"
 
 type ClusterCacheScraper struct {
-	clusterCache clustercache.ClusterCache
+	clusterCache           clustercache.ClusterCache
+	externalLabelsProvider externallabels.Provider
 }
 
-func newClusterCacheScraper(clusterCache clustercache.ClusterCache) Scraper {
+func newClusterCacheScraper(clusterCache clustercache.ClusterCache, externallabelsprovider externallabels.Provider) Scraper {
 	return &ClusterCacheScraper{
-		clusterCache: clusterCache,
+		clusterCache:           clusterCache,
+		externalLabelsProvider: externallabelsprovider,
 	}
 }
 
@@ -161,6 +165,14 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		labelNames, labelValues := promutil.KubeLabelsToLabels(node.Labels)
 		nodeLabels := util.ToMap(labelNames, labelValues)
 
+		// Add external labels to existing node labels
+		if ccs.externalLabelsProvider != nil {
+			externalLabels, err := ccs.externalLabelsProvider.Labels(context.Background())
+			if err != nil {
+				log.DedupedErrorf(10, "failed to apply external labels to nodes: %s", err)
+			}
+			nodeLabels = applyExternalLabelsToNodeLabels(nodeLabels, externalLabels)
+		}
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.KubeNodeLabels,
 			Labels:         nodeInfo,
@@ -1473,4 +1485,20 @@ func getAllocatableVGPUs(daemonsets []*clustercache.DaemonSet) (float64, error) 
 		}
 	}
 	return vgpuCount, nil
+}
+
+// applyExternalLabelsToNodeLabels applies external labels to node labels
+// External labels are applied to the node so long as the labels key are not the same.
+// when the same label is present on node and in ConfigMap is ConfigMap => Node (Node wins).
+func applyExternalLabelsToNodeLabels(nodeLabels map[string]string, externalLabels map[string]string) map[string]string {
+	if externalLabels == nil || len(externalLabels) == 0 {
+		return nodeLabels
+	}
+	newNodeLabels := nodeLabels
+	for elKey, elValue := range externalLabels {
+		if _, ok := nodeLabels[elKey]; !ok {
+			newNodeLabels[elKey] = elValue
+		}
+	}
+	return newNodeLabels
 }
