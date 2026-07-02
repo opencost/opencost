@@ -10,19 +10,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-type mockJobCache struct {
-	clustercache.ClusterCache
-	jobs []*clustercache.Job
-}
-
-func (m mockJobCache) GetAllJobs() []*clustercache.Job {
-	return m.jobs
-}
-
 func TestKubeJobCollector_Collect(t *testing.T) {
 	// Test with job that has no failures
-	cache := mockJobCache{
-		jobs: []*clustercache.Job{
+	cache := &clustercache.MockClusterCache{
+		Jobs: []*clustercache.Job{
 			{
 				Name:      "test-job",
 				Namespace: "default",

@@ -8,6 +8,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kubecost/events v0.0.8
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
@@ -86,6 +87,7 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/rs/xid v1.6.0 // indirect
@@ -126,6 +128,7 @@ require (
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/client-go v0.36.0 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect

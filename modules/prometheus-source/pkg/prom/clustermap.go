@@ -47,6 +47,7 @@ func newPrometheusClusterMap(contextFactory *ContextFactory, cip clusters.Cluste
 
 		// Tick on interval and refresh clusters
 		ticker := time.NewTicker(refresh)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:

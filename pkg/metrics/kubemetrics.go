@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -45,7 +46,12 @@ func DefaultKubeMetricsOpts() *KubeMetricsOpts {
 }
 
 // InitKubeMetrics initializes kubernetes metric emission using the provided options.
-func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *MetricsConfig, opts *KubeMetricsOpts) {
+func InitKubeMetrics(
+	clusterInfo clusters.ClusterInfoProvider,
+	clusterCache clustercache.ClusterCache,
+	metricsConfig *MetricsConfig,
+	opts *KubeMetricsOpts,
+) {
 	if opts == nil {
 		opts = DefaultKubeMetricsOpts()
 	}
@@ -64,6 +70,12 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *Metr
 				"kube_pod_status_phase",
 			)
 		}
+
+		prometheus.MustRegister(KubeModelCollector{
+			KubeClusterCache: clusterCache,
+			ClusterInfo:      clusterInfo,
+			metricsConfig:    *metricsConfig,
+		})
 
 		if opts.EmitKubecostControllerMetrics {
 			prometheus.MustRegister(KubecostServiceCollector{
