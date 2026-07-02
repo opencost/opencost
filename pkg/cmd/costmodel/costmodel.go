@@ -71,6 +71,7 @@ func Execute(conf *Config) error {
 		if conf.CarbonEstimatesEnabled {
 			router.GET("/assets/carbon", a.ComputeAssetsCarbonHandler)
 		}
+		router.GET("/kubemodel", a.KubeModelHandler)
 
 	}
 
@@ -136,6 +137,10 @@ func Execute(conf *Config) error {
 		return nil
 	case <-ctx.Done():
 		log.Infof("Shutdown signal received, starting graceful shutdown...")
+
+		if a.KubeModelPipeline != nil {
+			a.KubeModelPipeline.Stop()
+		}
 
 		if customCostPipelineService != nil {
 			customCostPipelineService.Stop()
