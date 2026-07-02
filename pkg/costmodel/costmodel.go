@@ -987,6 +987,11 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 			cnode.RAMCost = cost
 		}
 
+		if cost, found := n.Annotations[annotationNodeGPUCost]; found && cm.costIsValid(cost) {
+			log.Infof("Found custom GPU cost from annotation for Node %s: %s", n.Name, cost)
+			cnode.GPUCost = cost
+		}
+
 		pmd.PricingTypeCounts[cnode.PricingType]++
 
 		// newCnode builds upon cnode but populates/overrides certain fields.
@@ -1343,11 +1348,6 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
 			log.Tracef("Computed \"%s\" RAM Cost := %v", name, newCnode.RAMCost)
-		}
-	// Make GPU annotation (if present) override any other special-case assignments
-		if cost, found := n.Annotations[annotationNodeGPUCost]; found && cm.costIsValid(cost) {
-			log.Infof("Found custom GPU cost from annotation for Node %s: %s", n.Name, cost)
-			newCnode.GPUCost = cost
 		}
 
 		nodes[name] = &newCnode
