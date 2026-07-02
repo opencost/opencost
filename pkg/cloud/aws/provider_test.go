@@ -1311,48 +1311,88 @@ func TestAWS_findCostForDisk(t *testing.T) {
 					Cost: "0.12",
 				},
 			},
+			"us-gov-west-1,EBS:VolumeUsage.gp2": {
+				PV: &models.PV{
+					Cost: "0.15",
+				},
+			},
 		},
 	}
 
-	// Case 1: Disk has AvailabilityZone matching ClusterRegion (e.g. us-east-1a)
-	zone1 := "us-east-1a"
 	size1 := int32(100)
-	disk1 := &ec2Types.Volume{
-		AvailabilityZone: &zone1,
-		VolumeType:       ec2Types.VolumeTypeGp2,
-		Size:             &size1,
+	expectedCost1 := 0.10 * 730.0 * 100.0
+	expectedCost2 := 0.12 * 730.0 * 100.0
+	expectedCostGov := 0.15 * 730.0 * 100.0
+
+	checkCost := func(t *testing.T, disk *ec2Types.Volume, expectedCost float64) {
+		cost, err := aws.findCostForDisk(disk)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cost == nil {
+			t.Fatalf("expected cost %v, got nil", expectedCost)
+		}
+		diff := *cost - expectedCost
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff > 1e-9 {
+			t.Fatalf("expected cost %f, got %f", expectedCost, *cost)
+		}
 	}
 
-	cost1, err := aws.findCostForDisk(disk1)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	expectedCost1 := 0.10 * 730.0 * 100.0
-	if cost1 == nil || *cost1 != expectedCost1 {
-		t.Fatalf("expected cost %v, got %v", expectedCost1, cost1)
-	}
+	// Case 1: Disk has AvailabilityZone matching ClusterRegion (e.g. us-east-1a)
+	t.Run("AZ matching ClusterRegion", func(t *testing.T) {
+		zone1 := "us-east-1a"
+		disk1 := &ec2Types.Volume{
+			AvailabilityZone: &zone1,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		checkCost(t, disk1, expectedCost1)
+	})
 
 	// Case 2: Disk has AvailabilityZone from a different region (e.g. us-west-2b)
-	zone2 := "us-west-2b"
-	disk2 := &ec2Types.Volume{
-		AvailabilityZone: &zone2,
-		VolumeType:       ec2Types.VolumeTypeGp2,
-		Size:             &size1,
-	}
+	t.Run("AZ from different region", func(t *testing.T) {
+		zone2 := "us-west-2b"
+		disk2 := &ec2Types.Volume{
+			AvailabilityZone: &zone2,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		checkCost(t, disk2, expectedCost2)
+	})
 
-	cost2, err := aws.findCostForDisk(disk2)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	expectedCost2 := 0.12 * 730.0 * 100.0
-	if cost2 == nil {
-		t.Fatalf("expected cost %v, got %v", expectedCost2, cost2)
-	}
-	diff2 := *cost2 - expectedCost2
-	if diff2 < 0 {
-		diff2 = -diff2
-	}
-	if diff2 > 1e-9 {
-		t.Fatalf("expected cost %v, got %v", expectedCost2, cost2)
-	}
+	// Case 3: GovCloud region prefix match (e.g. us-gov-west-1a)
+	t.Run("GovCloud region prefix match", func(t *testing.T) {
+		zoneGov := "us-gov-west-1a"
+		diskGov := &ec2Types.Volume{
+			AvailabilityZone: &zoneGov,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		checkCost(t, diskGov, expectedCostGov)
+	})
+
+	// Case 4: Invalid/unknown region format, should fall back to ClusterRegion
+	t.Run("Invalid AZ fallback", func(t *testing.T) {
+		zoneUnknown := "unknown-zone"
+		diskUnknown := &ec2Types.Volume{
+			AvailabilityZone: &zoneUnknown,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		checkCost(t, diskUnknown, expectedCost1)
+	})
+
+	// Case 5: Valid region but pricing not loaded, should fall back to ClusterRegion
+	t.Run("No pricing loaded fallback", func(t *testing.T) {
+		zoneNoPrice := "eu-west-1b"
+		diskNoPrice := &ec2Types.Volume{
+			AvailabilityZone: &zoneNoPrice,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		checkCost(t, diskNoPrice, expectedCost1)
+	})
 }

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go"
-	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 
@@ -859,10 +858,7 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 	}
 
 	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
-	// This file is large and can take a while to stream, so the streaming client
-	// bounds connect/TLS/response-header time but not the total body read - enough
-	// to bail on a hung endpoint without truncating a legitimate slow download.
-	resp, err := httputil.StreamingGet(context.Background(), pricingURL)
+	resp, err := http.Get(pricingURL)
 	if err != nil {
 		log.Errorf("Bogus fetch of \"%s\": %v", pricingURL, err)
 		return nil, pricingURL, err
@@ -1356,7 +1352,7 @@ func (aws *AWS) spotPricingFromHistory(k models.Key) (*SpotPriceHistoryEntry, bo
 
 	price, err := aws.SpotPriceHistoryCache.GetSpotPrice(region, instanceType, availabilityZone)
 	if err != nil {
-		log.Debugf("Failed to get spot price history for instance %s: %s", k.ID(), err.Error())
+		log.DedupedWarningf(10, "Failed to get spot price history for instance %s: %s", k.ID(), err.Error())
 		return nil, false
 	}
 	return price, true
@@ -1487,7 +1483,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 			UsageType:    PreemptibleType,
 		}, meta, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
-		log.Debugf("Node %s marked preemptible but no spot feed data available; falling back to other pricing sources", k.ID())
+		log.DedupedWarningf(5, "Node %s marked preemptible but no spot feed data available; falling back to other pricing sources", k.ID())
 
 		// Try to get spot pricing from DescribeSpotPriceHistory API
 		if historyEntry, ok := aws.spotPricingFromHistory(k); ok {
@@ -1509,7 +1505,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 
 		if publicPricingFound {
 			// return public price if found
-			log.Debugf("No spot price history available for %s, falling back to on-demand pricing", k.ID())
+			log.DedupedWarningf(5, "No spot price history available for %s, falling back to on-demand pricing", k.ID())
 			return &models.Node{
 				Cost:         cost,
 				VCPU:         terms.VCpu,
@@ -2119,7 +2115,7 @@ func (aws *AWS) GetOrphanedResources() ([]models.OrphanedResource, error) {
 				zone = *volume.AvailabilityZone
 			}
 			var region, url string
-			region = regionRx.FindString(zone)
+			region = parseRegionFromAZ(zone)
 			if region != "" {
 				url = "https://console.aws.amazon.com/ec2/home?region=" + region + "#Volumes:sort=desc:createTime"
 			} else {
@@ -2186,14 +2182,28 @@ func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
 
 	class := volTypes[string(disk.VolumeType)]
 
-	region := regionRx.FindString(*disk.AvailabilityZone)
-	if region == "" {
-		region = aws.ClusterRegion
+	region := parseRegionFromAZ(*disk.AvailabilityZone)
+
+	var pricing *AWSProductTerms
+	var ok bool
+	var key string
+
+	if region != "" {
+		key = region + "," + class
+		pricing, ok = aws.Pricing[key]
+		if ok && pricing != nil && pricing.PV != nil {
+			priceStr := pricing.PV.Cost
+			price, err := strconv.ParseFloat(priceStr, 64)
+			if err == nil {
+				cost := price * timeutil.HoursPerMonth * float64(*disk.Size)
+				return &cost, nil
+			}
+		}
 	}
 
-	key := region + "," + class
-
-	pricing, ok := aws.Pricing[key]
+	// Fallback to ClusterRegion
+	key = aws.ClusterRegion + "," + class
+	pricing, ok = aws.Pricing[key]
 	if !ok {
 		return nil, fmt.Errorf("no pricing data for key '%s'", key)
 	}
@@ -2724,4 +2734,17 @@ func (aws *AWS) Regions() []string {
 func (aws *AWS) PricingSourceSummary() interface{} {
 	// encode the pricing source summary as a JSON string
 	return aws.Pricing
+}
+
+func parseRegionFromAZ(zone string) string {
+	region := ""
+	for _, r := range awsRegions {
+		if strings.HasPrefix(zone, r) && len(r) > len(region) {
+			region = r
+		}
+	}
+	if region == "" {
+		region = regionRx.FindString(zone)
+	}
+	return region
 }
