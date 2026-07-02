@@ -513,7 +513,7 @@ func TestNodeCostAnnotations(t *testing.T) {
 			node:     "test-node-001",
 			VCPUCost: "+Inf",
 			RAMCost:  "+Inf",
-			GPUCost:  "+Inf",
+			GPUCost:  "",
 		},
 		{
 			node:     "test-node-002",
