@@ -985,10 +985,6 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 			log.Infof("Found custom RAM cost from annotation for Node %s: %s", n.Name, cost)
 			cnode.RAMCost = cost
 		}
-		if cost, found := n.Annotations[annotationNodeGPUCost]; found && cm.costIsValid(cost) {
-			log.Infof("Found custom GPU cost from annotation for Node %s: %s", n.Name, cost)
-			cnode.GPUCost = cost
-		}
 
 		pmd.PricingTypeCounts[cnode.PricingType]++
 
@@ -1346,6 +1342,11 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
 			log.Tracef("Computed \"%s\" RAM Cost := %v", name, newCnode.RAMCost)
+		}
+    // Make gpu annotation (if exists) override any other special-case assignements
+		if cost, found := n.Annotations[annotationNodeGPUCost]; found && cm.costIsValid(cost) {
+			log.Infof("Found custom GPU cost from annotation for Node %s: %s", n.Name, cost)
+			cnode.GPUCost = cost
 		}
 
 		nodes[name] = &newCnode
