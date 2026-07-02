@@ -43,7 +43,7 @@ type ViewQueryRequest struct {
 	Limit            int
 	SortDirection    SortDirection
 	SortColumn       SortField
-	SkipCount bool
+	SkipCount        bool
 }
 
 // SortDirection a string type that acts as an enumeration of possible request options
