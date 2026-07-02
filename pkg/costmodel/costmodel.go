@@ -1343,10 +1343,10 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 
 			log.Tracef("Computed \"%s\" RAM Cost := %v", name, newCnode.RAMCost)
 		}
-    // Make gpu annotation (if exists) override any other special-case assignements
+    // Make gpu annotation (if present) override any other special-case assignments
 		if cost, found := n.Annotations[annotationNodeGPUCost]; found && cm.costIsValid(cost) {
 			log.Infof("Found custom GPU cost from annotation for Node %s: %s", n.Name, cost)
-			cnode.GPUCost = cost
+			newCnode.GPUCost = cost
 		}
 
 		nodes[name] = &newCnode
