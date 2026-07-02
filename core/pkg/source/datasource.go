@@ -216,6 +216,14 @@ const (
 
 	// Data Coverage
 	QueryDataCoverage = "QueryDataCoverage"
+
+	// Inference Metrics
+	QueryInferencePromptTokens         = "QueryInferencePromptTokens"
+	QueryInferenceGenerationTokens     = "QueryInferenceGenerationTokens"
+	QueryInferenceInputProcessingTime  = "QueryInferenceInputProcessingTime"
+	QueryInferenceOutputProcessingTime = "QueryInferenceOutputProcessingTime"
+	QueryInferenceCachedTokens         = "QueryInferenceCachedTokens"
+	QueryInferenceCacheConfig          = "QueryInferenceCacheConfig"
 )
 
 type MetricsQuerier interface {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/source"
 )
 
 // --- Fake Prometheus server ---
@@ -86,7 +87,7 @@ func TestQueryService_NilCollector_Returns501(t *testing.T) {
 func TestQueryService_MissingWindow_Returns400(t *testing.T) {
 	cfg := baseConfig()
 	querier := &mockQuerier{set: opencost.NewAllocationSet(time.Now().Add(-time.Hour), time.Now())}
-	metricsQuerier := &mockMetricsQuerier{}
+	metricsQuerier := source.NewMockMetricsQuerier()
 	collector, err := NewCollector(cfg, querier, metricsQuerier)
 	if err != nil {
 		t.Fatalf("NewCollector: %v", err)
@@ -106,7 +107,7 @@ func TestQueryService_MissingWindow_Returns400(t *testing.T) {
 func TestQueryService_InvalidCostBasis_Returns400(t *testing.T) {
 	cfg := baseConfig()
 	querier := &mockQuerier{set: opencost.NewAllocationSet(time.Now().Add(-time.Hour), time.Now())}
-	metricsQuerier := &mockMetricsQuerier{}
+	metricsQuerier := source.NewMockMetricsQuerier()
 	collector, _ := NewCollector(cfg, querier, metricsQuerier)
 	qs := NewQueryService(collector, NewCalculator(cfg))
 
@@ -126,7 +127,7 @@ func TestQueryService_TimeseriesMissingAccumulate_Returns400(t *testing.T) {
 	cfg := baseConfig()
 	cfg.PrometheusURL = srv.URL
 	querier := &mockQuerier{set: opencost.NewAllocationSet(time.Now().Add(-time.Hour), time.Now())}
-	metricsQuerier := &mockMetricsQuerier{}
+	metricsQuerier := source.NewMockMetricsQuerier()
 	collector, _ := NewCollector(cfg, querier, metricsQuerier)
 	qs := NewQueryService(collector, NewCalculator(cfg))
 
@@ -320,7 +321,7 @@ func newQueryServiceWithDirectMetrics(t *testing.T, modelName, namespace string,
 		}(),
 	}
 
-	metricsQuerier := &mockMetricsQuerier{}
+	metricsQuerier := source.NewMockMetricsQuerier()
 	collector, err := NewCollector(cfg, querier, metricsQuerier)
 	if err != nil {
 		t.Fatalf("NewCollector: %v", err)
