@@ -16,6 +16,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
+	"github.com/opencost/opencost/pkg/carbon"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/metrics"
@@ -137,6 +138,7 @@ var (
 	networkNatGatewayIngressCostG prometheus.Gauge
 	clusterManagementCostGv       *prometheus.GaugeVec
 	lbCostGv                      *prometheus.GaugeVec
+	carbonCostGv                  *prometheus.GaugeVec
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
@@ -292,6 +294,14 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 			toRegisterGV = append(toRegisterGV, lbCostGv)
 		}
 
+		carbonCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "opencost_carbon_cost",
+			Help: "opencost_carbon_cost Estimated CO2e (metric tonnes) associated with a cluster infrastructure asset",
+		}, []string{"cluster", "provider", "asset_type", "name"})
+		if _, disabled := disabledMetrics["opencost_carbon_cost"]; !disabled {
+			toRegisterGV = append(toRegisterGV, carbonCostGv)
+		}
+
 		// Register cost-model metrics for emission
 		for _, gv := range toRegisterGV {
 			prometheus.MustRegister(gv)
@@ -334,6 +344,7 @@ type CostModelMetricsEmitter struct {
 	GPUAllocationRecorder            *prometheus.GaugeVec
 	ClusterManagementCostRecorder    *prometheus.GaugeVec
 	LBCostRecorder                   *prometheus.GaugeVec
+	CarbonCostRecorder               *prometheus.GaugeVec
 	NetworkZoneEgressRecorder        prometheus.Gauge
 	NetworkRegionEgressRecorder      prometheus.Gauge
 	NetworkInternetEgressRecorder    prometheus.Gauge
@@ -393,6 +404,7 @@ func NewCostModelMetricsEmitter(clusterCache clustercache.ClusterCache, provider
 		NetworkNatGatewayIngressRecorder: networkNatGatewayIngressCostG,
 		ClusterManagementCostRecorder:    clusterManagementCostGv,
 		LBCostRecorder:                   lbCostGv,
+		CarbonCostRecorder:               carbonCostGv,
 	}
 }
 
@@ -430,6 +442,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 		loadBalancerSeen := make(map[string]bool)
 		pvSeen := make(map[string]bool)
 		pvcSeen := make(map[string]bool)
+		carbonSeen := make(map[string]bool)
 		nodeCostAverages := make(map[string]NodeCostAverages)
 
 		getKeyFromLabelStrings := func(labels ...string) string {
@@ -519,6 +532,33 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 				// zero the for loop so the time.Sleep will still work
 				data = map[string]*CostData{}
+			}
+
+			if env.IsCarbonEstimatesEnabled() {
+				assetSet, err := cmme.Model.ComputeAssets(start, end)
+				if err != nil {
+					log.Errorf("Error computing assets for carbon cost: %s", err.Error())
+				} else {
+					carbonEstimates, err := carbon.RelateCarbonAssets(assetSet)
+					if err != nil {
+						log.Errorf("Error computing carbon estimates: %s", err.Error())
+					} else {
+						for assetKey, carbonRow := range carbonEstimates {
+							asset, ok := assetSet.Assets[assetKey]
+							if !ok {
+								continue
+							}
+							props := asset.GetProperties()
+							if props == nil {
+								continue
+							}
+							assetType := asset.Type().String()
+							cmme.EmitCarbonCost(props.Cluster, props.Provider, assetType, props.Name, carbonRow.Co2e)
+							labelKey := getKeyFromLabelStrings(props.Cluster, props.Provider, assetType, props.Name)
+							carbonSeen[labelKey] = true
+						}
+					}
+				}
 			}
 
 			nodes, err := cmme.Model.GetNodeCost()
@@ -856,6 +896,18 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					pvcSeen[labelString] = false
 				}
 			}
+			for labelString, seen := range carbonSeen {
+				if !seen {
+					labels := getLabelStringsFromKey(labelString)
+					ok := cmme.CarbonCostRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Warnf("Failed to remove label set %v from metric opencost_carbon_cost. Failure to remove stale metrics may result in inaccurate data.", labels)
+					}
+					delete(carbonSeen, labelString)
+				} else {
+					carbonSeen[labelString] = false
+				}
+			}
 
 			select {
 			case <-time.After(time.Minute):
@@ -873,4 +925,10 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 // or if the emission is paused.
 func (cmme *CostModelMetricsEmitter) Stop() {
 	cmme.runState.Stop()
+}
+
+// EmitCarbonCost records the estimated CO2e (metric tonnes) attributable to a
+// single cluster infrastructure asset (node, disk, or network).
+func (cmme *CostModelMetricsEmitter) EmitCarbonCost(cluster, provider, assetType, name string, co2e float64) {
+	cmme.CarbonCostRecorder.WithLabelValues(cluster, provider, assetType, name).Set(co2e)
 }
