@@ -848,6 +848,38 @@ func (m *RecordMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitMax(start, en
 	return m.Querier.QueryResourceQuotaStatusUsedRAMLimitMax(start, end)
 }
 
+// Inference Metrics
+
+func (m *RecordMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *Future[InferenceTokensResult] {
+	m.recordCall(QueryInferencePromptTokens)
+	return m.Querier.QueryInferencePromptTokens(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryInferenceGenerationTokens(start, end time.Time) *Future[InferenceTokensResult] {
+	m.recordCall(QueryInferenceGenerationTokens)
+	return m.Querier.QueryInferenceGenerationTokens(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryInferenceInputProcessingTime(start, end time.Time) *Future[InferenceProcessingTimeResult] {
+	m.recordCall(QueryInferenceInputProcessingTime)
+	return m.Querier.QueryInferenceInputProcessingTime(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryInferenceOutputProcessingTime(start, end time.Time) *Future[InferenceProcessingTimeResult] {
+	m.recordCall(QueryInferenceOutputProcessingTime)
+	return m.Querier.QueryInferenceOutputProcessingTime(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryInferenceCachedTokens(start, end time.Time) *Future[InferenceTokensResult] {
+	m.recordCall(QueryInferenceCachedTokens)
+	return m.Querier.QueryInferenceCachedTokens(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[InferenceCacheConfigResult] {
+	m.recordCall(QueryInferenceCacheConfig)
+	return m.Querier.QueryInferenceCacheConfig(t)
+}
+
 // Data Coverage Query
 
 func (m *RecordMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {

@@ -685,6 +685,32 @@ func (m *NoOpMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitMax(start, end 
 	return newEmptyResult(DecodeResourceResult)
 }
 
+// Inference Metrics
+
+func (m *NoOpMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *Future[InferenceTokensResult] {
+	return newEmptyResult(DecodeInferenceTokensResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryInferenceGenerationTokens(start, end time.Time) *Future[InferenceTokensResult] {
+	return newEmptyResult(DecodeInferenceTokensResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryInferenceInputProcessingTime(start, end time.Time) *Future[InferenceProcessingTimeResult] {
+	return newEmptyResult(DecodeInferenceProcessingTimeResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryInferenceOutputProcessingTime(start, end time.Time) *Future[InferenceProcessingTimeResult] {
+	return newEmptyResult(DecodeInferenceProcessingTimeResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryInferenceCachedTokens(start, end time.Time) *Future[InferenceTokensResult] {
+	return newEmptyResult(DecodeInferenceTokensResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[InferenceCacheConfigResult] {
+	return newEmptyResult(DecodeInferenceCacheConfigResult)
+}
+
 // Data Coverage Query
 
 func (m *NoOpMetricsQuerier) QueryDataCoverage(_ int) (time.Time, time.Time, error) {

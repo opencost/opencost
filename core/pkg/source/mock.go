@@ -1028,6 +1028,46 @@ func (m *MockMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitMax(start, end 
 
 // Data Coverage Query
 
+// Inference Metrics
+
+func (m *MockMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *Future[InferenceTokensResult] {
+	return getFutureFromOverride(m.overrides, QueryInferencePromptTokens, func() *Future[InferenceTokensResult] {
+		return m.noop.QueryInferencePromptTokens(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceGenerationTokens(start, end time.Time) *Future[InferenceTokensResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceGenerationTokens, func() *Future[InferenceTokensResult] {
+		return m.noop.QueryInferenceGenerationTokens(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceInputProcessingTime(start, end time.Time) *Future[InferenceProcessingTimeResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceInputProcessingTime, func() *Future[InferenceProcessingTimeResult] {
+		return m.noop.QueryInferenceInputProcessingTime(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceOutputProcessingTime(start, end time.Time) *Future[InferenceProcessingTimeResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceOutputProcessingTime, func() *Future[InferenceProcessingTimeResult] {
+		return m.noop.QueryInferenceOutputProcessingTime(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceCachedTokens(start, end time.Time) *Future[InferenceTokensResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceCachedTokens, func() *Future[InferenceTokensResult] {
+		return m.noop.QueryInferenceCachedTokens(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[InferenceCacheConfigResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceCacheConfig, func() *Future[InferenceCacheConfigResult] {
+		return m.noop.QueryInferenceCacheConfig(t)
+	})
+}
+
+// Data Coverage Query
+
 func (m *MockMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
 	if v, ok := m.overrides[QueryDataCoverage]; ok {
 		if f, ok := v.(func(int) (time.Time, time.Time, error)); ok {

@@ -124,6 +124,74 @@
 				}
 			},
 			"response": []
+		},
+		{
+			"name": "inference costs total by model (requires INFERENCE_COST_ENABLED=true)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}/inferenceCost/total?window=7d&aggregate=model_name&costBasis=allocation",
+					"host": [
+						"{{host}}"
+					],
+					"path": [
+						"inferenceCost",
+						"total"
+					],
+					"query": [
+						{
+							"key": "window",
+							"value": "7d"
+						},
+						{
+							"key": "aggregate",
+							"value": "model_name"
+						},
+						{
+							"key": "costBasis",
+							"value": "allocation"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "inference costs daily timeseries by model (requires INFERENCE_COST_ENABLED=true)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}/inferenceCost/timeseries?window=7d&accumulate=day&aggregate=model_name&costBasis=allocation",
+					"host": [
+						"{{host}}"
+					],
+					"path": [
+						"inferenceCost",
+						"timeseries"
+					],
+					"query": [
+						{
+							"key": "window",
+							"value": "7d"
+						},
+						{
+							"key": "accumulate",
+							"value": "day"
+						},
+						{
+							"key": "aggregate",
+							"value": "model_name"
+						},
+						{
+							"key": "costBasis",
+							"value": "allocation"
+						}
+					]
+				}
+			},
+			"response": []
 		}
 	],
 	"event": [
