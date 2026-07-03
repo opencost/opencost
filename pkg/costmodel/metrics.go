@@ -12,6 +12,7 @@ import (
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
@@ -296,7 +297,7 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 
 		carbonCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "opencost_carbon_cost",
-			Help: "opencost_carbon_cost Estimated CO2e (metric tonnes) associated with a cluster infrastructure asset",
+			Help: "opencost_carbon_cost Estimated CO2e (metric tonnes) attributable to a cluster infrastructure asset over the most recent metrics emitter query window (see METRICS_EMITTER_QUERY_WINDOW, default 2m), not an hourly rate or cumulative total",
 		}, []string{"cluster", "provider", "asset_type", "name"})
 		if _, disabled := disabledMetrics["opencost_carbon_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, carbonCostGv)
@@ -546,6 +547,15 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 						for assetKey, carbonRow := range carbonEstimates {
 							asset, ok := assetSet.Assets[assetKey]
 							if !ok {
+								continue
+							}
+							switch asset.Type() {
+							case opencost.NodeAssetType, opencost.DiskAssetType, opencost.NetworkAssetType:
+							default:
+								// carbon.RelateCarbonAssets only has coefficients for
+								// Node/Disk/Network; skip other asset types (e.g.
+								// LoadBalancer, ClusterManagement) to avoid emitting
+								// noisy always-zero series.
 								continue
 							}
 							props := asset.GetProperties()
