@@ -216,6 +216,14 @@ const (
 
 	// Data Coverage
 	QueryDataCoverage = "QueryDataCoverage"
+
+	// Inference Metrics
+	QueryInferencePromptTokens         = "QueryInferencePromptTokens"
+	QueryInferenceGenerationTokens     = "QueryInferenceGenerationTokens"
+	QueryInferenceInputProcessingTime  = "QueryInferenceInputProcessingTime"
+	QueryInferenceOutputProcessingTime = "QueryInferenceOutputProcessingTime"
+	QueryInferenceCachedTokens         = "QueryInferenceCachedTokens"
+	QueryInferenceCacheConfig          = "QueryInferenceCacheConfig"
 )
 
 type MetricsQuerier interface {
@@ -433,6 +441,25 @@ type MetricsQuerier interface {
 
 	// Data Coverage Query
 	QueryDataCoverage(limitDays int) (time.Time, time.Time, error)
+
+	// Inference Metrics (vLLM) - relevant when INFERENCE_COST_ENABLED is set to true
+	// QueryInferencePromptTokens returns prompt token counts by model_name and namespace
+	QueryInferencePromptTokens(start, end time.Time) *Future[InferenceTokensResult]
+
+	// QueryInferenceGenerationTokens returns generation token counts by model_name and namespace
+	QueryInferenceGenerationTokens(start, end time.Time) *Future[InferenceTokensResult]
+
+	// QueryInferenceInputProcessingTime returns input processing time in seconds by model_name and namespace
+	QueryInferenceInputProcessingTime(start, end time.Time) *Future[InferenceProcessingTimeResult]
+
+	// QueryInferenceOutputProcessingTime returns output processing time in seconds by model_name and namespace
+	QueryInferenceOutputProcessingTime(start, end time.Time) *Future[InferenceProcessingTimeResult]
+
+	// QueryInferenceCachedTokens returns KV cache hit counts by model_name and namespace
+	QueryInferenceCachedTokens(start, end time.Time) *Future[InferenceTokensResult]
+
+	// QueryInferenceCacheConfig returns cache configuration (prefix caching enabled) by model_name and namespace
+	QueryInferenceCacheConfig(t time.Time) *Future[InferenceCacheConfigResult]
 }
 
 type OpenCostDataSource interface {
