@@ -517,7 +517,42 @@ func (gcp *GCP) GetOrphanedResources() ([]models.OrphanedResource, error) {
 }
 
 func (gcp *GCP) findCostForDisk(disk *compute.Disk) (*float64, error) {
-	//todo: use GCP pricing struct
+	var region string
+	if disk.Region != "" {
+		region = path.Base(disk.Region)
+	} else if disk.Zone != "" {
+		zone := path.Base(disk.Zone)
+		if idx := strings.LastIndex(zone, "-"); idx != -1 {
+			region = zone[:idx]
+		} else {
+			region = zone
+		}
+	}
+	if region == "" || region == "." {
+		region = gcp.ClusterRegion
+	}
+
+	diskType := "pdstandard"
+	if strings.Contains(disk.Type, "ssd") {
+		diskType = "ssd"
+	}
+
+	key := region + "," + diskType
+
+	gcp.DownloadPricingDataLock.RLock()
+	pricing, ok := gcp.Pricing[key]
+	gcp.DownloadPricingDataLock.RUnlock()
+
+	if ok && pricing != nil && pricing.PV != nil {
+		priceStr := pricing.PV.Cost
+		price, err := strconv.ParseFloat(priceStr, 64)
+		if err == nil {
+			cost := price * timeutil.HoursPerMonth * float64(disk.SizeGb)
+			return &cost, nil
+		}
+	}
+
+	// Fallback to static constants
 	price := GCPMonthlyBasicDiskCost
 	if strings.Contains(disk.Type, "ssd") {
 		price = GCPMonthlySSDDiskCost
@@ -526,20 +561,6 @@ func (gcp *GCP) findCostForDisk(disk *compute.Disk) (*float64, error) {
 		price = GCPMonthlyGP2DiskCost
 	}
 	cost := price * float64(disk.SizeGb)
-
-	// This isn't much use but I (Nick) think its could be going down the
-	// right path. Disk region isnt returning anything (and if it did its
-	// a url, same with type). Currently the only region stored in the
-	// Pricing struct is uscentral-1, so that would need to be fixed
-	// key := disk.Region + "," + disk.Type
-
-	// priceStr := gcp.Pricing[key].PV.Cost
-	// price, err := strconv.ParseFloat(priceStr, 64)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// cost := price * timeutil.HoursPerMonth * float64(disk.SizeGb)
 	return &cost, nil
 }
 
