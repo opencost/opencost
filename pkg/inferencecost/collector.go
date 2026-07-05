@@ -293,8 +293,20 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 			// For allocation cost: use TotalCost() which includes idle and shared
 			existing.allocationTotalCost += alloc.TotalCost()
 		} else {
-			// For usage cost: use TotalCost() from the ShareNone query (no idle)
-			existing.usageTotalCost += alloc.TotalCost()
+			// For usage cost: use TotalCost() from the ShareNone query (no idle),
+			// but scale the GPU portion by actual utilization when available.
+			// GPUHours (and therefore GPUCost) always reflects the full reservation;
+			// GPUUsageAverage is the fraction of that GPU that was actively used.
+			cost := alloc.TotalCost()
+			if alloc.GPUAllocation != nil &&
+				alloc.GPUAllocation.GPUUsageAverage != nil &&
+				*alloc.GPUAllocation.GPUUsageAverage > 0 &&
+				*alloc.GPUAllocation.GPUUsageAverage < 1 {
+				// Replace the full GPU cost with the utilization-scaled GPU cost.
+				scaledGPUCost := alloc.GPUTotalCost() * (*alloc.GPUAllocation.GPUUsageAverage)
+				cost = cost - alloc.GPUTotalCost() + scaledGPUCost
+			}
+			existing.usageTotalCost += cost
 		}
 		
 		// When aggregating multiple allocations, preserve the first non-empty values
