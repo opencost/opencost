@@ -66,7 +66,7 @@ opencost/
 
 ### Prerequisites
 
-- Go 1.25+ (see go.mod for exact version)
+- Go (see go.mod for the required version)
 - Docker with `buildx` support
 - [just](https://github.com/casey/just) - command runner
 - [Tilt](https://tilt.dev/) - for local Kubernetes development
