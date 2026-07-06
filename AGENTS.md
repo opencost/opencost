@@ -1,4 +1,4 @@
-# CLAUDE.md - OpenCost AI Assistant Guide
+# AGENTS.md - OpenCost AI Agent Guide
 
 This document provides guidance for AI assistants working with the OpenCost codebase.
 
