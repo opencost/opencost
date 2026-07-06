@@ -1310,6 +1310,10 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 							costFloat, err := strconv.ParseFloat(cost, 64)
 							if err != nil {
 								log.Debugf("Error parsing EBS volume cost for %s: %v", key, err)
+								// Preserve prior behavior: always leave a valid numeric
+								// string so downstream ParseFloat (e.g. findCostForDisk)
+								// doesn't fail on an empty value.
+								aws.Pricing[key].PV.Cost = "0"
 							} else {
 								hourlyPrice := costFloat / timeutil.HoursPerMonth
 								aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
