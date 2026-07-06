@@ -145,7 +145,6 @@ type Config struct {
 	// OutputTokenCostMultiplier is the output/input cost ratio used when
 	// AllocationMode is "multiplier".
 	OutputTokenCostMultiplier float64
-
 }
 
 const (
