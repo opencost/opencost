@@ -4,7 +4,7 @@ This document provides guidance for AI assistants working with the OpenCost code
 
 ## AI Assistant Behaviour
 
-- Never include claude.ai session links or URLs in commit messages or pull request bodies.
+- Never include AI assistant session links or URLs (e.g. claude.ai) in commit messages or pull request bodies.
 
 ## Project Overview
 
