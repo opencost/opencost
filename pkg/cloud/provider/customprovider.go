@@ -140,6 +140,8 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	if conf.ClusterName != "" {
 		m["name"] = conf.ClusterName
+	} else {
+		m["name"] = coreenv.GetClusterID()
 	}
 	m["provider"] = opencost.CustomProvider
 	m["region"] = cp.ClusterRegion
