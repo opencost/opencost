@@ -1241,7 +1241,6 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					err = dec.Decode(&offerTerm)
 					if err != nil {
 						log.Errorf("Error decoding AWS Offer Term for SKU %s: %v", skuStr, err)
-						return err
 					}
 
 					key, ok := skuToPricingKeyMap[skuStr]
@@ -1319,10 +1318,9 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 							// Load balancers: hourly cost
 							costFloat, err := strconv.ParseFloat(cost, 64)
 							if err != nil {
-								log.Debugf("Error parsing LoadBalancer cost for %s: %v", key, err)
-							} else {
-								aws.Pricing[key].LoadBalancer.Cost = costFloat
+								return err
 							}
+							aws.Pricing[key].LoadBalancer.Cost = costFloat
 						}
 					}
 
@@ -2607,15 +2605,15 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 	cli := s3.NewFromConfig(cfg)
 	downloader := manager.NewDownloader(cli)
 
-	now := time.Now()
-	oneDayAgo := now.Add(-24 * time.Hour) // Also get files from one day ago to avoid boundary conditions
+	tNow := time.Now()
+	tOneDayAgo := tNow.Add(time.Duration(-24) * time.Hour) // Also get files from one day ago to avoid boundary conditions
 	ls := &s3.ListObjectsInput{
 		Bucket: awsSDK.String(bucket),
-		Prefix: awsSDK.String(s3Prefix + "." + oneDayAgo.Format("2006-01-02")),
+		Prefix: awsSDK.String(s3Prefix + "." + tOneDayAgo.Format("2006-01-02")),
 	}
 	ls2 := &s3.ListObjectsInput{
 		Bucket: awsSDK.String(bucket),
-		Prefix: awsSDK.String(s3Prefix + "." + now.Format("2006-01-02")),
+		Prefix: awsSDK.String(s3Prefix + "." + tNow.Format("2006-01-02")),
 	}
 	lso, err := cli.ListObjects(context.TODO(), ls)
 	if err != nil {
