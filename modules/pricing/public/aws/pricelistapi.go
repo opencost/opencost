@@ -8,7 +8,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
-	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/modules/pricing/public/env"
 )
 
 const (
