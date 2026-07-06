@@ -33,7 +33,7 @@ func NewDefaultCollectorDataSource(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
-	isExternalLabelsEnabled bool,
+	externalLabelProvider externallabels.Provider,
 ) source.OpenCostDataSource {
 	config := NewOpenCostCollectorConfigFromEnv(clusterUID)
 	return NewCollectorDataSource(
@@ -42,7 +42,7 @@ func NewDefaultCollectorDataSource(
 		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
-		isExternalLabelsEnabled,
+		externalLabelProvider,
 	)
 }
 
@@ -52,7 +52,7 @@ func NewCollectorDataSource(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
-	isExternalLabelsEnabled bool,
+	externalLabelProvider externallabels.Provider,
 ) source.OpenCostDataSource {
 	var resolutions []*util.Resolution
 	for _, resconf := range config.Resolutions {
@@ -95,15 +95,6 @@ func NewCollectorDataSource(
 	)
 	updater = metricSynthesizer
 
-	var externallabelsprovider externallabels.Provider
-	var err error
-	if isExternalLabelsEnabled {
-		externallabelsprovider, err = externallabels.NewConfigMapProvider()
-		if err != nil {
-			log.Errorf("external labels is enabled but failed to initialize the default configmap provider %s", err.Error())
-		}
-	}
-
 	diagnosticsModule := metric.NewDiagnosticsModule()
 	scrapeController := scrape.NewScrapeController(
 		config.ClusterUID,
@@ -113,7 +104,7 @@ func NewCollectorDataSource(
 		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
-		externallabelsprovider,
+		externalLabelProvider,
 	)
 	scrapeController.Start()
 

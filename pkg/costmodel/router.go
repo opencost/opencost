@@ -500,7 +500,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 				clusterInfoProvider,
 				k8sCache,
 				nodeStatClient,
-				false,
+				nil,
 			)
 			return ds, nil
 		}
