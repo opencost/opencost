@@ -2153,6 +2153,63 @@ func DecodeDCGMDeviceContainerUsageResult(result *QueryResult) *DCGMDeviceContai
 	}
 }
 
+// Inference Metrics Decoders
+func DecodeInferenceTokensResult(result *QueryResult) *InferenceTokensResult {
+	modelName, _ := result.GetString("model_name")
+	namespace, _ := result.GetString("namespace")
+	key := modelName + ":" + namespace
+
+	// Get the value from the last vector point if available
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[len(result.Values)-1].Value
+	}
+
+	return &InferenceTokensResult{
+		Values: map[string]float64{
+			key: value,
+		},
+	}
+}
+
+func DecodeInferenceProcessingTimeResult(result *QueryResult) *InferenceProcessingTimeResult {
+	modelName, _ := result.GetString("model_name")
+	namespace, _ := result.GetString("namespace")
+	key := modelName + ":" + namespace
+
+	// Get the value from the last vector point if available
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[len(result.Values)-1].Value
+	}
+
+	return &InferenceProcessingTimeResult{
+		Values: map[string]float64{
+			key: value,
+		},
+	}
+}
+
+func DecodeInferenceCacheConfigResult(result *QueryResult) *InferenceCacheConfigResult {
+	modelName, _ := result.GetString("model_name")
+	namespace, _ := result.GetString("namespace")
+	key := modelName + ":" + namespace
+
+	// Get the value from the last vector point if available
+	var prefixCachingEnabled float64
+	if len(result.Values) > 0 {
+		prefixCachingEnabled = result.Values[len(result.Values)-1].Value
+	}
+
+	return &InferenceCacheConfigResult{
+		Configs: map[string]*InferenceCacheConfig{
+			key: {
+				PrefixCachingEnabled: prefixCachingEnabled > 0,
+			},
+		},
+	}
+}
+
 func DecodeAll[T any](results []*QueryResult, decode ResultDecoder[T]) []*T {
 	decoded := make([]*T, 0, len(results))
 	for _, result := range results {
