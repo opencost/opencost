@@ -24,7 +24,7 @@ type KubeModelSet struct {
 	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs"`              // @bingen:field[version=2]
 	Pods                   map[string]*Pod                   `json:"pods"`              // @bingen:field[version=2]
 	Containers             map[string]*Container             `json:"containers"`        // @bingen:field[version=2]
-	DCGMDevices            map[string]*DCGMDevice            `json:"dcgmDevices"`       // @bingen:field[version=2]
+	DCGMDevices            map[string]*DCGMDevice            `json:"dcgmDevices"`       // @bingen:field[ignore]
 }
 
 func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {

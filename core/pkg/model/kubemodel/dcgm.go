@@ -8,7 +8,7 @@ import (
 // DCGMDevice holds recording from the DCGM exporter which provides identification and usage metrics for
 // Nvidia gpu. These Nvidia devices can be incorporated into the cluster via k8s Device Plugin API or DRAs.
 // While the DCGM exporter does provide unique identifiers for the containers that it is reporting metrics on,
-// It is split out here to provide some isolate from the rest of the KubeModel which represent universal structures
+// It is split out here to provide some isolation from the rest of the KubeModel which represent universal structures
 // from the k8s API. It is left to the end user to interpret the relationships to the rest of the cluster based on
 // container unique identifiers
 // @bingen:generate:DCGMDevice
