@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"reflect"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/google/martian/log"
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/stretchr/testify/assert"
@@ -412,8 +412,10 @@ func TestGCP_GetConfig(t *testing.T) {
 		gcp := &GCP{Config: &mockConfigError{}}
 		c, err := gcp.GetConfig()
 		assert.Error(t, err)
-		// Must not be nil — callers depend on this to avoid nil dereference panics.
 		assert.NotNil(t, c)
+		assert.Equal(t, "30%", c.Discount)
+		assert.Equal(t, "0%", c.NegotiatedDiscount)
+		assert.Equal(t, "USD", c.CurrencyCode)
 	})
 }
 
@@ -463,7 +465,7 @@ func TestGCP_GetManagementPlatform(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gcp := &GCP{
-				Clientset: &mockClusterCache{nodes: tt.nodes},
+				Clientset: &clustercache.MockClusterCache{Nodes: tt.nodes},
 			}
 
 			result, err := gcp.GetManagementPlatform()
@@ -524,10 +526,26 @@ func TestGCP_UpdateConfig(t *testing.T) {
 }
 
 func TestGCP_ClusterInfo(t *testing.T) {
-	// MetadataClient is *metadata.Client (concrete GCP type, not an interface) so it
-	// cannot be mocked in unit tests. Leave it nil; ClusterInfo panics on the metadata
-	// call and we recover, then verify the config-error path does not itself panic.
-	t.Run("does not panic on config error (nil guard)", func(t *testing.T) {
+	// MetadataClient is *metadata.Client (concrete type, not an interface).
+	// With the nil guard in place, passing nil is safe and ClusterInfo falls
+	// back to config / default cluster name without panicking.
+	t.Run("nil MetadataClient falls back to default cluster name", func(t *testing.T) {
+		gcp := &GCP{
+			Config:             &mockConfig{},
+			ClusterRegion:      "us-central1",
+			ClusterAccountID:   "test-account",
+			ClusterProjectID:   "test-project",
+			clusterProvisioner: "gke",
+			// MetadataClient intentionally nil - exercises the nil guard
+		}
+		info, err := gcp.ClusterInfo()
+		assert.NoError(t, err)
+		assert.NotNil(t, info)
+		assert.Equal(t, "GKE Cluster #1", info["name"])
+		assert.Equal(t, "us-central1", info["region"])
+	})
+
+	t.Run("config error falls back to default cluster name without panicking", func(t *testing.T) {
 		gcp := &GCP{
 			Config:             &mockConfigError{},
 			ClusterRegion:      "us-central1",
@@ -535,28 +553,10 @@ func TestGCP_ClusterInfo(t *testing.T) {
 			ClusterProjectID:   "test-project",
 			clusterProvisioner: "gke",
 		}
-
-		// The nil MetadataClient panics before we reach the config path; that is a
-		// pre-existing limitation. What we verify is that the panic comes from the
-		// metadata call, NOT from a nil *CustomPricing dereference.
-		var recovered interface{}
-		func() {
-			defer func() { recovered = recover() }()
-			gcp.ClusterInfo()
-		}()
-		if recovered != nil {
-			msg := fmt.Sprintf("%v", recovered)
-			assert.Contains(t, msg, "invalid memory address",
-				"panic should come from nil MetadataClient, not nil *CustomPricing")
-		}
-	})
-
-	t.Run("GetConfig error returns non-nil config (no nil dereference)", func(t *testing.T) {
-		gcp := &GCP{Config: &mockConfigError{}}
-		c, err := gcp.GetConfig()
-		assert.Error(t, err)
-		// Core invariant: even on error, GetConfig must not return nil.
-		assert.NotNil(t, c, "nil *CustomPricing from GetConfig would panic in ClusterInfo")
+		info, err := gcp.ClusterInfo()
+		assert.NoError(t, err)
+		assert.NotNil(t, info)
+		assert.Equal(t, "GKE Cluster #1", info["name"])
 	})
 }
 
@@ -779,7 +779,8 @@ func TestGCP_getBillingAPIClientAndURL(t *testing.T) {
 	client, rawURL, err := gcp.getBillingAPIClientAndURL("test-key", "USD")
 
 	assert.NoError(t, err)
-	assert.Equal(t, http.DefaultClient, client)
+	assert.NotNil(t, client)
+	assert.Equal(t, httputil.PricingTimeout, client.Timeout)
 
 	parsedURL, err := url.Parse(rawURL)
 	assert.NoError(t, err)
@@ -1119,10 +1120,10 @@ func TestGCP_parsePages(t *testing.T) {
 func TestGCP_DownloadPricingData(t *testing.T) {
 	gcp := &GCP{
 		Config: &mockConfig{},
-		Clientset: &mockClusterCache{
-			nodes: []*clustercache.Node{},
-			pvs:   []*clustercache.PersistentVolume{},
-			scs:   []*clustercache.StorageClass{},
+		Clientset: &clustercache.MockClusterCache{
+			Nodes:             []*clustercache.Node{},
+			PersistentVolumes: []*clustercache.PersistentVolume{},
+			StorageClasses:    []*clustercache.StorageClass{},
 		},
 	}
 
@@ -1174,8 +1175,8 @@ func TestGCP_ApplyReservedInstancePricing(t *testing.T) {
 				},
 			},
 		},
-		Clientset: &mockClusterCache{
-			nodes: []*clustercache.Node{
+		Clientset: &clustercache.MockClusterCache{
+			Nodes: []*clustercache.Node{
 				{
 					Name: "test-node",
 					Labels: map[string]string{
@@ -1355,12 +1356,15 @@ func (m *mockConfig) ConfigFileManager() *config.ConfigFileManager {
 }
 
 // mockConfigError simulates a config backend that fails (e.g. unwritable CONFIG_PATH).
-// It returns a non-nil default CustomPricing alongside the error, matching the behaviour
-// of ProviderConfig.loadConfig which always returns a usable default even on failure.
+// Returns populated defaults alongside the error, matching ProviderConfig.loadConfig behavior.
 type mockConfigError struct{}
 
 func (m *mockConfigError) GetCustomPricingData() (*models.CustomPricing, error) {
-	return &models.CustomPricing{}, fmt.Errorf("Failed to prepare path: mkdir /var/configs: permission denied")
+	return &models.CustomPricing{
+		Discount:           "30%",
+		NegotiatedDiscount: "0%",
+		CurrencyCode:       "USD",
+	}, fmt.Errorf("Failed to prepare path: mkdir /var/configs: permission denied")
 }
 
 func (m *mockConfigError) UpdateFromMap(a map[string]string) (*models.CustomPricing, error) {
@@ -1375,59 +1379,4 @@ func (m *mockConfigError) Update(updateFn func(*models.CustomPricing) error) (*m
 
 func (m *mockConfigError) ConfigFileManager() *config.ConfigFileManager {
 	return nil
-}
-
-type mockClusterCache struct {
-	nodes []*clustercache.Node
-	pvs   []*clustercache.PersistentVolume
-	scs   []*clustercache.StorageClass
-}
-
-func (m *mockClusterCache) GetAllNodes() []*clustercache.Node {
-	return m.nodes
-}
-
-func (m *mockClusterCache) GetAllDaemonSets() []*clustercache.DaemonSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllDeployments() []*clustercache.Deployment {
-	return nil
-}
-
-func (m *mockClusterCache) Run()                                                      {}
-func (m *mockClusterCache) Stop()                                                     {}
-func (m *mockClusterCache) GetAllNamespaces() []*clustercache.Namespace               { return nil }
-func (m *mockClusterCache) GetAllPods() []*clustercache.Pod                           { return nil }
-func (m *mockClusterCache) GetAllServices() []*clustercache.Service                   { return nil }
-func (m *mockClusterCache) GetAllStatefulSets() []*clustercache.StatefulSet           { return nil }
-func (m *mockClusterCache) GetAllReplicaSets() []*clustercache.ReplicaSet             { return nil }
-func (m *mockClusterCache) GetAllPersistentVolumes() []*clustercache.PersistentVolume { return m.pvs }
-func (m *mockClusterCache) GetAllPersistentVolumeClaims() []*clustercache.PersistentVolumeClaim {
-	return nil
-}
-func (m *mockClusterCache) GetAllStorageClasses() []*clustercache.StorageClass { return m.scs }
-func (m *mockClusterCache) GetAllJobs() []*clustercache.Job                    { return nil }
-func (m *mockClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
-	return nil
-}
-func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
-	return nil
-}
-
-type mockMetadataClient struct{}
-
-func (m *mockMetadataClient) InstanceAttributeValue(attr string) (string, error) {
-	if attr == "cluster-name" {
-		return "test-cluster", nil
-	}
-	return "", fmt.Errorf("attribute not found")
-}
-
-func (m *mockMetadataClient) ProjectID() (string, error) {
-	return "test-project", nil
 }

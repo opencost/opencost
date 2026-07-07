@@ -17,6 +17,7 @@ import (
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 
@@ -139,10 +140,8 @@ type multiKeyGCPAllocation struct {
 
 func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	c, err := gcp.Config.GetCustomPricingData()
-	if err != nil {
-		// loadConfig always returns a non-nil default alongside the error;
-		// propagate both so callers can use defaults instead of panicking.
-		return c, err
+	if c == nil {
+		c = &models.CustomPricing{}
 	}
 	if c.Discount == "" {
 		c.Discount = "30%"
@@ -153,7 +152,7 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	if c.CurrencyCode == "" {
 		c.CurrencyCode = "USD"
 	}
-	return c, nil
+	return c, err
 }
 
 // BigQueryConfig contain the required config and credentials to access OOC resources for GCP
@@ -294,9 +293,13 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	remoteEnabled := env.IsRemoteEnabled()
 
-	attribute, err := gcp.MetadataClient.InstanceAttributeValue("cluster-name")
-	if err != nil {
-		log.Infof("Error loading metadata cluster-name: %s", err.Error())
+	var attribute string
+	if gcp.MetadataClient != nil {
+		var metaErr error
+		attribute, metaErr = gcp.MetadataClient.InstanceAttributeValue("cluster-name")
+		if metaErr != nil {
+			log.Infof("Error loading metadata cluster-name: %s", metaErr.Error())
+		}
 	}
 
 	c, err := gcp.GetConfig()
@@ -981,7 +984,9 @@ func (gcp *GCP) getBillingAPIClientAndURL(apiKey, currencyCode string) (*http.Cl
 	url := gcp.buildBillingAPIURL(apiKey, currencyCode)
 
 	if apiKey != "" {
-		return http.DefaultClient, url.String(), nil
+		// Shared client carries a request timeout so a hung billing endpoint
+		// can't block the pricing refresh.
+		return httputil.BoundedClient(), url.String(), nil
 	}
 
 	googleHttpClient, err := google.DefaultClient(context.TODO(), GCPCloudOAuthScope)
@@ -989,6 +994,8 @@ func (gcp *GCP) getBillingAPIClientAndURL(apiKey, currencyCode string) (*http.Cl
 		log.Errorf("GCP Billing API: Workload Identity detected but failed to create authenticated client: %v", err)
 		return nil, "", err
 	}
+	// google.DefaultClient has no timeout by default; bound it to match the keyed path.
+	googleHttpClient.Timeout = httputil.PricingTimeout
 
 	return googleHttpClient, url.String(), nil
 }
