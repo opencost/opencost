@@ -591,7 +591,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/installNamespace", a.GetInstallNamespace)
 	router.GET("/installInfo", a.GetInstallInfo)
 	router.POST("/serviceKey", adminAuthMiddleware(a.AddServiceKey))
-	router.GET("/helmValues", a.GetHelmValues)
+	router.GET("/helmValues", adminAuthMiddleware(a.GetHelmValues))
 
 	return a
 }

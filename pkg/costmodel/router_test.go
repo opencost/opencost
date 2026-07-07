@@ -1,9 +1,11 @@
 package costmodel
 
 import (
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/julienschmidt/httprouter"
@@ -100,6 +102,82 @@ func TestAdminAuthMiddleware(t *testing.T) {
 			}
 			if nextCalled != tt.wantNextCalled {
 				t.Errorf("nextCalled = %v, want %v", nextCalled, tt.wantNextCalled)
+			}
+		})
+	}
+}
+
+// TestHelmValuesRequiresAdminAuth verifies that the /helmValues handler, wrapped in
+// adminAuthMiddleware exactly as registered in Initialize, rejects unauthenticated
+// requests without leaking the Helm values (issue #3893 / GHSA-vm98-22x4-xwvv).
+func TestHelmValuesRequiresAdminAuth(t *testing.T) {
+	const testToken = "test-admin-token-123"
+	const helmValues = "cloudSecret: super-secret-value"
+
+	tests := []struct {
+		name       string
+		authHeader string
+		wantStatus int
+		wantValues bool
+	}{
+		{
+			name:       "missing authorization header",
+			authHeader: "",
+			wantStatus: http.StatusUnauthorized,
+			wantValues: false,
+		},
+		{
+			name:       "bearer with wrong token",
+			authHeader: "Bearer wrong-token",
+			wantStatus: http.StatusForbidden,
+			wantValues: false,
+		},
+		{
+			name:       "bearer with correct token",
+			authHeader: "Bearer " + testToken,
+			wantStatus: http.StatusOK,
+			wantValues: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prevToken := os.Getenv(env.AdminTokenEnvVar)
+			defer func() {
+				if prevToken == "" {
+					os.Unsetenv(env.AdminTokenEnvVar)
+				} else {
+					os.Setenv(env.AdminTokenEnvVar, prevToken)
+				}
+			}()
+			os.Setenv(env.AdminTokenEnvVar, testToken)
+
+			prevHelmValues := os.Getenv("HELM_VALUES")
+			defer func() {
+				if prevHelmValues == "" {
+					os.Unsetenv("HELM_VALUES")
+				} else {
+					os.Setenv("HELM_VALUES", prevHelmValues)
+				}
+			}()
+			os.Setenv("HELM_VALUES", base64.StdEncoding.EncodeToString([]byte(helmValues)))
+
+			req := httptest.NewRequest(http.MethodGet, "/helmValues", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+			rec := httptest.NewRecorder()
+
+			// Wrap the handler exactly as the route registration does in Initialize.
+			a := &Accesses{}
+			handler := adminAuthMiddleware(a.GetHelmValues)
+			handler(rec, req, httprouter.Params{})
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+			gotValues := strings.Contains(rec.Body.String(), helmValues)
+			if gotValues != tt.wantValues {
+				t.Errorf("response contains helm values = %v, want %v (body: %q)", gotValues, tt.wantValues, rec.Body.String())
 			}
 		})
 	}
