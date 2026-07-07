@@ -2,7 +2,6 @@ package externallabels
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -55,7 +54,7 @@ func TestParseFunc_BlockScalar_SingleLevel(t *testing.T) {
 	p := newProvider(t)
 	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
-		Route: "(parse_yaml)prometheusK8s.externalLabels",
+		Route: "prometheusK8s.externalLabels",
 	}, p)
 
 	err := fn("prometheus-cm", map[string]string{"config.yaml": prometheusConfig})
@@ -70,7 +69,7 @@ func TestParseFunc_BlockScalar_TopLevelRoute(t *testing.T) {
 	p := newProvider(t)
 	fn := ParseFunc(&Config{
 		Key:   "data",
-		Route: "(parse_yaml)labels",
+		Route: "labels",
 	}, p)
 
 	yaml := `
@@ -88,7 +87,7 @@ func TestParseFunc_BlockScalar_MissingKey(t *testing.T) {
 	p := newProvider(t)
 	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
-		Route: "(parse_yaml)externalLabels",
+		Route: "externalLabels",
 	}, p)
 
 	err := fn("my-cm", map[string]string{"other-key": "value"})
@@ -96,23 +95,11 @@ func TestParseFunc_BlockScalar_MissingKey(t *testing.T) {
 	assert.Contains(t, err.Error(), `key "config.yaml" not found`)
 }
 
-func TestParseFunc_BlockScalar_RouteMissingPrefix(t *testing.T) {
-	p := newProvider(t)
-	fn := ParseFunc(&Config{
-		Key:   "config.yaml",
-		Route: "externalLabels", // missing (parse_yaml) prefix
-	}, p)
-
-	err := fn("my-cm", map[string]string{"config.yaml": "externalLabels:\n  a: b"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), fmt.Sprintf(`must start with %q`, parseYAMLPrefix))
-}
-
 func TestParseFunc_BlockScalar_InvalidYAML(t *testing.T) {
 	p := newProvider(t)
 	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
-		Route: "(parse_yaml)labels",
+		Route: "labels",
 	}, p)
 
 	err := fn("my-cm", map[string]string{"config.yaml": ":\tinvalid: yaml: {"})
@@ -124,7 +111,7 @@ func TestParseFunc_BlockScalar_RouteSegmentNotFound(t *testing.T) {
 	p := newProvider(t)
 	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
-		Route: "(parse_yaml)does.not.exist",
+		Route: "does.not.exist",
 	}, p)
 
 	err := fn("my-cm", map[string]string{"config.yaml": "foo: bar\n"})
@@ -136,7 +123,7 @@ func TestParseFunc_BlockScalar_RouteSegmentNotAMap(t *testing.T) {
 	p := newProvider(t)
 	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
-		Route: "(parse_yaml)labels.nested",
+		Route: "labels.nested",
 	}, p)
 
 	// labels is a string, not a map — traversing into it should fail
@@ -150,7 +137,7 @@ func TestParseFunc_BlockScalar_RoutePointsToScalar(t *testing.T) {
 	p := newProvider(t)
 	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
-		Route: "(parse_yaml)labels",
+		Route: "labels",
 	}, p)
 
 	// labels is a string, not a map — final conversion should fail
@@ -158,4 +145,40 @@ func TestParseFunc_BlockScalar_RoutePointsToScalar(t *testing.T) {
 	err := fn("my-cm", map[string]string{"config.yaml": yaml})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not point to a map")
+}
+
+func TestParseFunc_BlockScalar_BoolValuesConvertedToString(t *testing.T) {
+	p := newProvider(t)
+	fn := ParseFunc(&Config{
+		Key:   "config.yaml",
+		Route: "labels",
+	}, p)
+
+	yaml := `
+labels:
+  active: true
+  deprecated: false
+`
+	require.NoError(t, fn("my-cm", map[string]string{"config.yaml": yaml}))
+	labels := labelsOf(t, p)
+	assert.Equal(t, "true", labels["active"])
+	assert.Equal(t, "false", labels["deprecated"])
+}
+
+func TestParseFunc_BlockScalar_IntValuesConvertedToString(t *testing.T) {
+	p := newProvider(t)
+	fn := ParseFunc(&Config{
+		Key:   "config.yaml",
+		Route: "labels",
+	}, p)
+
+	yaml := `
+labels:
+  priority: 42
+  replicas: 3
+`
+	require.NoError(t, fn("my-cm", map[string]string{"config.yaml": yaml}))
+	labels := labelsOf(t, p)
+	assert.Equal(t, "42", labels["priority"])
+	assert.Equal(t, "3", labels["replicas"])
 }

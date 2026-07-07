@@ -7,8 +7,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const parseYAMLPrefix = "(parse_yaml)"
-
 // ParseFunc returns a function compatible with ConfigMapWatcher.WatchFunc that
 // parses a ConfigMap's data into a flat map[string]string of labels and forwards
 // them to provider.
@@ -19,9 +17,9 @@ const parseYAMLPrefix = "(parse_yaml)"
 // every key/value pair becomes a label.
 //
 // Block-scalar — Key names the data entry that holds an embedded YAML document.
-// Route is a dot-separated path to the labels map within that document, prefixed
-// with "(parse_yaml)", e.g. "(parse_yaml)prometheusK8s.externalLabels".
-// Non-string values (bool, int, …) are coerced to their string representation same way Kubernetes does it.
+// Route is a dot-separated path to the labels map within that document, e.g.
+// "metadata.externalLabels". Non-string values (bool, int, …) are coerced
+// to their string representation.
 func ParseFunc(cfg *Config, provider Provider) func(string, map[string]string) error {
 	return func(name string, data map[string]string) error {
 		// Traditional ConfigMap — labels live directly in data.
@@ -35,12 +33,6 @@ func ParseFunc(cfg *Config, provider Provider) func(string, map[string]string) e
 			return fmt.Errorf("ExternalLabels: key %q not found in ConfigMap %s", cfg.Key, name)
 		}
 
-		route := cfg.Route
-		if !strings.HasPrefix(route, parseYAMLPrefix) {
-			return fmt.Errorf("ExternalLabels: route %q must start with %q for block-scalar ConfigMaps", route, parseYAMLPrefix)
-		}
-		route = strings.TrimPrefix(route, parseYAMLPrefix)
-
 		// yaml.v3 always unmarshals maps as map[string]interface{}, no dual-type handling needed.
 		var doc map[string]interface{}
 		if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
@@ -49,7 +41,7 @@ func ParseFunc(cfg *Config, provider Provider) func(string, map[string]string) e
 
 		// Traverse the dot-separated route.
 		var current interface{} = doc
-		for _, segment := range strings.Split(route, ".") {
+		for _, segment := range strings.Split(cfg.Route, ".") {
 			m, ok := current.(map[string]interface{})
 			if !ok {
 				return fmt.Errorf("ExternalLabels: route segment %q: parent is not a map in ConfigMap %s", segment, name)

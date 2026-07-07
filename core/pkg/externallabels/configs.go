@@ -5,8 +5,7 @@ package externallabels
 //
 // For traditional ConfigMaps (labels directly in data), leave Key and Route empty.
 // For block-scalar ConfigMaps, set Key to the data entry holding the YAML document and
-// Route to the dot-separated path prefixed with "(parse_yaml)", e.g.
-// "(parse_yaml)metadata.externalLabels".
+// Route to the dot-separated path to the labels map, e.g. "metadata.externalLabels".
 type Config struct {
 	// ConfigMapName is the name of the ConfigMap to watch.
 	ConfigMapName string
@@ -14,7 +13,6 @@ type Config struct {
 	Namespace string
 	// Key is the ConfigMap data key that holds the YAML document (block-scalar ConfigMaps only).
 	Key string
-	// Route is the dot-separated path to the labels map within the parsed document,
-	// prefixed with "(parse_yaml)" when Key is set.
+	// Route is the dot-separated path to the labels map within the parsed YAML document.
 	Route string
 }
