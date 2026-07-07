@@ -9,14 +9,20 @@ import (
 
 const parseYAMLPrefix = "(parse_yaml)"
 
-// WatchFunc returns a ConfigMapWatcher WatchFunc that extracts labels
-// from a ConfigMap according to the given Config and feeds them to provider.
+// ParseFunc returns a function compatible with ConfigMapWatcher.WatchFunc that
+// parses a ConfigMap's data into a flat map[string]string of labels and forwards
+// them to provider.
 //
-// For traditional ConfigMaps (Key and Route both empty), ConfigMap.data is used directly.
-// For block-scalar ConfigMaps, set Key to the data entry holding the YAML document and
-// Route to a dot-separated path prefixed with "(parse_yaml)", e.g.
-// "(parse_yaml)prometheusK8s.externalLabels".
-func WatchFunc(cfg *Config, provider Provider) func(string, map[string]string) error {
+// Two modes are supported:
+//
+// Traditional — Key and Route are both empty. ConfigMap.data is used as-is;
+// every key/value pair becomes a label.
+//
+// Block-scalar — Key names the data entry that holds an embedded YAML document.
+// Route is a dot-separated path to the labels map within that document, prefixed
+// with "(parse_yaml)", e.g. "(parse_yaml)prometheusK8s.externalLabels".
+// Non-string values (bool, int, …) are coerced to their string representation same way Kubernetes does it.
+func ParseFunc(cfg *Config, provider Provider) func(string, map[string]string) error {
 	return func(name string, data map[string]string) error {
 		// Traditional ConfigMap — labels live directly in data.
 		if cfg.Key == "" && cfg.Route == "" {

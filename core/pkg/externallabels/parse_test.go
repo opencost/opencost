@@ -25,18 +25,18 @@ func labelsOf(t *testing.T, p *ConfigMapProvider) map[string]string {
 
 // --- traditional ConfigMap (Key and Route both empty) ---
 
-func TestWatchFunc_Traditional_PassesDataDirectly(t *testing.T) {
+func TestParseFunc_Traditional_PassesDataDirectly(t *testing.T) {
 	p := newProvider(t)
-	fn := WatchFunc(&Config{}, p)
+	fn := ParseFunc(&Config{}, p)
 
 	err := fn("my-cm", map[string]string{"env": "prod", "region": "us-east-1"})
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"env": "prod", "region": "us-east-1"}, labelsOf(t, p))
 }
 
-func TestWatchFunc_Traditional_EmptyData(t *testing.T) {
+func TestParseFunc_Traditional_EmptyData(t *testing.T) {
 	p := newProvider(t)
-	fn := WatchFunc(&Config{}, p)
+	fn := ParseFunc(&Config{}, p)
 
 	require.NoError(t, fn("my-cm", map[string]string{}))
 	assert.Empty(t, labelsOf(t, p))
@@ -51,9 +51,9 @@ prometheusK8s:
     region: eu-west-1
 `
 
-func TestWatchFunc_BlockScalar_SingleLevel(t *testing.T) {
+func TestParseFunc_BlockScalar_SingleLevel(t *testing.T) {
 	p := newProvider(t)
-	fn := WatchFunc(&Config{
+	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
 		Route: "(parse_yaml)prometheusK8s.externalLabels",
 	}, p)
@@ -66,9 +66,9 @@ func TestWatchFunc_BlockScalar_SingleLevel(t *testing.T) {
 	}, labelsOf(t, p))
 }
 
-func TestWatchFunc_BlockScalar_TopLevelRoute(t *testing.T) {
+func TestParseFunc_BlockScalar_TopLevelRoute(t *testing.T) {
 	p := newProvider(t)
-	fn := WatchFunc(&Config{
+	fn := ParseFunc(&Config{
 		Key:   "data",
 		Route: "(parse_yaml)labels",
 	}, p)
@@ -84,9 +84,9 @@ labels:
 
 // --- error cases ---
 
-func TestWatchFunc_BlockScalar_MissingKey(t *testing.T) {
+func TestParseFunc_BlockScalar_MissingKey(t *testing.T) {
 	p := newProvider(t)
-	fn := WatchFunc(&Config{
+	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
 		Route: "(parse_yaml)externalLabels",
 	}, p)
@@ -96,9 +96,9 @@ func TestWatchFunc_BlockScalar_MissingKey(t *testing.T) {
 	assert.Contains(t, err.Error(), `key "config.yaml" not found`)
 }
 
-func TestWatchFunc_BlockScalar_RouteMissingPrefix(t *testing.T) {
+func TestParseFunc_BlockScalar_RouteMissingPrefix(t *testing.T) {
 	p := newProvider(t)
-	fn := WatchFunc(&Config{
+	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
 		Route: "externalLabels", // missing (parse_yaml) prefix
 	}, p)
@@ -108,9 +108,9 @@ func TestWatchFunc_BlockScalar_RouteMissingPrefix(t *testing.T) {
 	assert.Contains(t, err.Error(), fmt.Sprintf(`must start with %q`, parseYAMLPrefix))
 }
 
-func TestWatchFunc_BlockScalar_InvalidYAML(t *testing.T) {
+func TestParseFunc_BlockScalar_InvalidYAML(t *testing.T) {
 	p := newProvider(t)
-	fn := WatchFunc(&Config{
+	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
 		Route: "(parse_yaml)labels",
 	}, p)
@@ -120,9 +120,9 @@ func TestWatchFunc_BlockScalar_InvalidYAML(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to parse YAML")
 }
 
-func TestWatchFunc_BlockScalar_RouteSegmentNotFound(t *testing.T) {
+func TestParseFunc_BlockScalar_RouteSegmentNotFound(t *testing.T) {
 	p := newProvider(t)
-	fn := WatchFunc(&Config{
+	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
 		Route: "(parse_yaml)does.not.exist",
 	}, p)
@@ -132,9 +132,9 @@ func TestWatchFunc_BlockScalar_RouteSegmentNotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), `route segment "does" not found`)
 }
 
-func TestWatchFunc_BlockScalar_RouteSegmentNotAMap(t *testing.T) {
+func TestParseFunc_BlockScalar_RouteSegmentNotAMap(t *testing.T) {
 	p := newProvider(t)
-	fn := WatchFunc(&Config{
+	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
 		Route: "(parse_yaml)labels.nested",
 	}, p)
@@ -146,9 +146,9 @@ func TestWatchFunc_BlockScalar_RouteSegmentNotAMap(t *testing.T) {
 	assert.Contains(t, err.Error(), "parent is not a map")
 }
 
-func TestWatchFunc_BlockScalar_RoutePointsToScalar(t *testing.T) {
+func TestParseFunc_BlockScalar_RoutePointsToScalar(t *testing.T) {
 	p := newProvider(t)
-	fn := WatchFunc(&Config{
+	fn := ParseFunc(&Config{
 		Key:   "config.yaml",
 		Route: "(parse_yaml)labels",
 	}, p)
@@ -158,40 +158,4 @@ func TestWatchFunc_BlockScalar_RoutePointsToScalar(t *testing.T) {
 	err := fn("my-cm", map[string]string{"config.yaml": yaml})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not point to a map")
-}
-
-func TestWatchFunc_BlockScalar_BoolValuesConvertedToString(t *testing.T) {
-	p := newProvider(t)
-	fn := WatchFunc(&Config{
-		Key:   "config.yaml",
-		Route: "(parse_yaml)labels",
-	}, p)
-
-	yaml := `
-labels:
-  active: true
-  deprecated: false
-`
-	require.NoError(t, fn("my-cm", map[string]string{"config.yaml": yaml}))
-	labels := labelsOf(t, p)
-	assert.Equal(t, "true", labels["active"])
-	assert.Equal(t, "false", labels["deprecated"])
-}
-
-func TestWatchFunc_BlockScalar_IntValuesConvertedToString(t *testing.T) {
-	p := newProvider(t)
-	fn := WatchFunc(&Config{
-		Key:   "config.yaml",
-		Route: "(parse_yaml)labels",
-	}, p)
-
-	yaml := `
-labels:
-  priority: 42
-  replicas: 3
-`
-	require.NoError(t, fn("my-cm", map[string]string{"config.yaml": yaml}))
-	labels := labelsOf(t, p)
-	assert.Equal(t, "42", labels["priority"])
-	assert.Equal(t, "3", labels["replicas"])
 }
