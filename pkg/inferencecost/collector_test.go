@@ -22,7 +22,7 @@ func (m *mockQuerier) ComputeAllocation(start, end time.Time) (*opencost.Allocat
 	if m.err != nil {
 		return nil, m.err
 	}
-	
+
 	// If multiple sets are provided, return them in sequence
 	if len(m.sets) > 0 {
 		if m.callCount < len(m.sets) {
@@ -33,7 +33,7 @@ func (m *mockQuerier) ComputeAllocation(start, end time.Time) (*opencost.Allocat
 		// Return last set for any additional calls
 		return m.sets[len(m.sets)-1], nil
 	}
-	
+
 	// Otherwise return the single set
 	return m.set, nil
 }
@@ -48,7 +48,7 @@ func newMockMetricsQuerierWithInferenceMetrics(
 	cacheConfigs map[string]*source.InferenceCacheConfig,
 ) *source.MockMetricsQuerier {
 	mock := source.NewMockMetricsQuerier()
-	
+
 	// Set up inference metric overrides
 	if promptTokens != nil {
 		mock.SetOverride(source.QueryInferencePromptTokens, []*source.InferenceTokensResult{
@@ -80,7 +80,7 @@ func newMockMetricsQuerierWithInferenceMetrics(
 			{Configs: cacheConfigs},
 		})
 	}
-	
+
 	return mock
 }
 
@@ -121,7 +121,7 @@ func TestCollector_ExtractAllocationResults(t *testing.T) {
 	now := time.Now()
 	cfg := baseConfig()
 	c := &Collector{config: cfg}
-	
+
 	// Test allocation cost extraction (with idle)
 	allocWithIdle := &opencost.Allocation{
 		Name:    "llama-3",
@@ -145,7 +145,7 @@ func TestCollector_ExtractAllocationResults(t *testing.T) {
 	if !ok {
 		t.Fatal("expected allocation result for llama-3/llm-prod")
 	}
-	
+
 	if !floatEq(r.allocationTotalCost, 4.0) {
 		t.Errorf("allocationTotalCost want 4.0 got %f", r.allocationTotalCost)
 	}
@@ -175,7 +175,7 @@ func TestCollector_ExtractAllocationResults(t *testing.T) {
 	if !ok {
 		t.Fatal("expected usage result for llama-3/llm-prod")
 	}
-	
+
 	if !floatEq(r2.usageTotalCost, 2.6) {
 		t.Errorf("usageTotalCost want 2.6 got %f", r2.usageTotalCost)
 	}
@@ -396,7 +396,7 @@ func TestCollector_CollectMetrics_EmptyMetrics(t *testing.T) {
 
 	now := time.Now()
 	querier := &mockQuerier{set: opencost.NewAllocationSet(now.Add(-5*time.Minute), now)}
-	
+
 	// Use the standard mock - it will return empty results by default
 	metricsQuerier := source.NewMockMetricsQuerier()
 

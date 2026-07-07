@@ -11,13 +11,13 @@ import (
 
 // QueryRequest holds the parsed parameters for an inference cost query.
 type QueryRequest struct {
-	Start      time.Time
-	End        time.Time
-	CostBasis  CostBasis
+	Start       time.Time
+	End         time.Time
+	CostBasis   CostBasis
 	AggregateBy []string
-	Accumulate opencost.AccumulateOption
-	Filter     []filterSpec
-	Step       time.Duration
+	Accumulate  opencost.AccumulateOption
+	Filter      []filterSpec
+	Step        time.Duration
 }
 
 // ParseInferenceCostRequest parses the common query parameters from an HTTP

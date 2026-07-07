@@ -2140,7 +2140,7 @@ func DecodeInferenceTokensResult(result *QueryResult) *InferenceTokensResult {
 	modelName, _ := result.GetString("model_name")
 	namespace, _ := result.GetString("namespace")
 	key := modelName + ":" + namespace
-	
+
 	// Get the value from the last vector point if available
 	var value float64
 	if len(result.Values) > 0 {
@@ -2158,7 +2158,7 @@ func DecodeInferenceProcessingTimeResult(result *QueryResult) *InferenceProcessi
 	modelName, _ := result.GetString("model_name")
 	namespace, _ := result.GetString("namespace")
 	key := modelName + ":" + namespace
-	
+
 	// Get the value from the last vector point if available
 	var value float64
 	if len(result.Values) > 0 {
@@ -2176,7 +2176,7 @@ func DecodeInferenceCacheConfigResult(result *QueryResult) *InferenceCacheConfig
 	modelName, _ := result.GetString("model_name")
 	namespace, _ := result.GetString("namespace")
 	key := modelName + ":" + namespace
-	
+
 	// Get the value from the last vector point if available
 	var prefixCachingEnabled float64
 	if len(result.Values) > 0 {

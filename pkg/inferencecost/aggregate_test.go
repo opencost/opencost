@@ -411,7 +411,6 @@ func TestMatchesFilter_NoMatch(t *testing.T) {
 	}
 }
 
-
 func TestMatchesFilter_Pod(t *testing.T) {
 	ic := &InferenceCostResponse{
 		Properties: InferenceCostAPIProperties{
@@ -504,13 +503,13 @@ func TestParseFilter_NewDimensions(t *testing.T) {
 	if len(specs) != 3 {
 		t.Fatalf("expected 3 specs, got %d", len(specs))
 	}
-	
+
 	expectedSpecs := []filterSpec{
 		{property: "pod", value: "llama-pod-123"},
 		{property: "controller", value: "llama-deployment"},
 		{property: "container", value: "vllm"},
 	}
-	
+
 	for i, expected := range expectedSpecs {
 		if specs[i].property != expected.property || specs[i].value != expected.value {
 			t.Errorf("spec[%d] = %+v, want %+v", i, specs[i], expected)
