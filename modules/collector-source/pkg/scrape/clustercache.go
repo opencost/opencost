@@ -88,6 +88,15 @@ func (ccs *ClusterCacheScraper) GetScrapeNodes(nodes []*clustercache.Node) Scrap
 func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric.Update {
 	var scrapeResults []metric.Update
 
+	// get external labels
+	var externalLabels map[string]string
+	var err error
+	if ccs.externalLabelsProvider != nil {
+		externalLabels, err = ccs.externalLabelsProvider.Labels(context.Background())
+		if err != nil {
+			log.Errorf("failed to apply external labels to nodes: %s", err)
+		}
+	}
 	for _, node := range nodes {
 		nodeInfo := map[string]string{
 			source.NodeLabel:       node.Name,
@@ -166,13 +175,8 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		nodeLabels := util.ToMap(labelNames, labelValues)
 
 		// Add external labels to existing node labels
-		if ccs.externalLabelsProvider != nil {
-			externalLabels, err := ccs.externalLabelsProvider.Labels(context.Background())
-			if err != nil {
-				log.DedupedErrorf(10, "failed to apply external labels to nodes: %s", err)
-			}
-			nodeLabels = applyExternalLabelsToNodeLabels(nodeLabels, externalLabels)
-		}
+		nodeLabels = applyExternalLabelsToNodeLabels(nodeLabels, externalLabels)
+
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.KubeNodeLabels,
 			Labels:         nodeInfo,

@@ -3,6 +3,6 @@ package externallabels
 import "context"
 
 type Provider interface {
-	Start(ctx context.Context) error
+	Update(name string, data map[string]string) error
 	Labels(ctx context.Context) (map[string]string, error)
 }
