@@ -104,11 +104,11 @@ const (
 	MetricsEmitterQueryWindowEnvVar = "METRICS_EMITTER_QUERY_WINDOW"
 
 	// Inference Cost
-	InferenceCostEnabledEnvVar               = "INFERENCE_COST_ENABLED"
-	InferenceModelLabelEnvVar                = "INFERENCE_MODEL_LABEL"
-	InferenceSharedInfraLabelEnvVar          = "INFERENCE_SHARED_INFRA_LABEL"
-	InferenceSharedInfraLabelValueEnvVar     = "INFERENCE_SHARED_INFRA_LABEL_VALUE"
-	InferenceCollectionIntervalEnvVar        = "INFERENCE_COLLECTION_INTERVAL"
+	InferenceCostEnabledEnvVar           = "INFERENCE_COST_ENABLED"
+	InferenceModelLabelEnvVar            = "INFERENCE_MODEL_LABEL"
+	InferenceSharedInfraLabelEnvVar      = "INFERENCE_SHARED_INFRA_LABEL"
+	InferenceSharedInfraLabelValueEnvVar = "INFERENCE_SHARED_INFRA_LABEL_VALUE"
+	InferenceCollectionIntervalEnvVar    = "INFERENCE_COLLECTION_INTERVAL"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -453,4 +453,3 @@ func GetInferenceSharedInfraLabelValue() string {
 func GetInferenceCollectionInterval() time.Duration {
 	return env.GetDuration(InferenceCollectionIntervalEnvVar, 2*time.Minute)
 }
-

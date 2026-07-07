@@ -749,7 +749,6 @@ func (c *collectorMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, t
 	return c.collectorProvider.GetDailyDataCoverage(limitDays)
 }
 
-
 // Inference cost methods - not supported by collector source (only available via Prometheus)
 func (c *collectorMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
 	ch := make(source.QueryResultsChan, 1)
