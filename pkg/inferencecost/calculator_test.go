@@ -22,11 +22,11 @@ func floatEq(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 func TestCalculator_BlendedCostPerMillionTokens(t *testing.T) {
 	cfg := defaultConfig()
 	m := &InferenceCost{
-		AllocationTotalCost: 4.0,
-		UsageTotalCost:      1.0,
-		PromptTokens:        800_000,
-		GenerationTokens:    200_000,
-		TotalTokens:         1_000_000,
+		AllocationTotalCost:  4.0,
+		UsageTotalCost:       1.0,
+		PromptTokens:         800_000,
+		GenerationTokens:     200_000,
+		TotalTokens:          1_000_000,
 		EffectiveInputTokens: 800_000,
 		// no timing data → multiplier fallback
 	}

@@ -13,10 +13,10 @@ import (
 // QueryInferencePromptTokens implements MetricsQuerier.QueryInferencePromptTokens
 func (pds *PrometheusMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	
+
 	// Create a channel for the async result
 	resultsChan := make(source.QueryResultsChan, 1)
-	
+
 	// Execute query asynchronously
 	go func() {
 		values, err := queryCounterDelta(ctx, "vllm:prompt_tokens_total", start, end)
@@ -24,112 +24,112 @@ func (pds *PrometheusMetricsQuerier) QueryInferencePromptTokens(start, end time.
 			resultsChan <- &source.QueryResults{Error: err}
 			return
 		}
-		
+
 		// Convert map to QueryResults format
 		results := mapToQueryResults(values)
 		resultsChan <- &source.QueryResults{Results: results}
 	}()
-	
+
 	return source.NewFuture(decodeInferenceTokensResult, resultsChan)
 }
 
 // QueryInferenceGenerationTokens implements MetricsQuerier.QueryInferenceGenerationTokens
 func (pds *PrometheusMetricsQuerier) QueryInferenceGenerationTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	
+
 	resultsChan := make(source.QueryResultsChan, 1)
-	
+
 	go func() {
 		values, err := queryCounterDelta(ctx, "vllm:generation_tokens_total", start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
 		}
-		
+
 		results := mapToQueryResults(values)
 		resultsChan <- &source.QueryResults{Results: results}
 	}()
-	
+
 	return source.NewFuture(decodeInferenceTokensResult, resultsChan)
 }
 
 // QueryInferenceInputProcessingTime implements MetricsQuerier.QueryInferenceInputProcessingTime
 func (pds *PrometheusMetricsQuerier) QueryInferenceInputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	
+
 	resultsChan := make(source.QueryResultsChan, 1)
-	
+
 	go func() {
 		values, err := queryCounterDelta(ctx, "vllm:request_prefill_time_seconds_sum", start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
 		}
-		
+
 		results := mapToQueryResults(values)
 		resultsChan <- &source.QueryResults{Results: results}
 	}()
-	
+
 	return source.NewFuture(decodeInferenceProcessingTimeResult, resultsChan)
 }
 
 // QueryInferenceOutputProcessingTime implements MetricsQuerier.QueryInferenceOutputProcessingTime
 func (pds *PrometheusMetricsQuerier) QueryInferenceOutputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	
+
 	resultsChan := make(source.QueryResultsChan, 1)
-	
+
 	go func() {
 		values, err := queryCounterDelta(ctx, "vllm:request_time_per_output_token_seconds_sum", start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
 		}
-		
+
 		results := mapToQueryResults(values)
 		resultsChan <- &source.QueryResults{Results: results}
 	}()
-	
+
 	return source.NewFuture(decodeInferenceProcessingTimeResult, resultsChan)
 }
 
 // QueryInferenceCachedTokens implements MetricsQuerier.QueryInferenceCachedTokens
 func (pds *PrometheusMetricsQuerier) QueryInferenceCachedTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	
+
 	resultsChan := make(source.QueryResultsChan, 1)
-	
+
 	go func() {
 		values, err := queryCounterDelta(ctx, "vllm:prefix_cache_hits_total", start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
 		}
-		
+
 		results := mapToQueryResults(values)
 		resultsChan <- &source.QueryResults{Results: results}
 	}()
-	
+
 	return source.NewFuture(decodeInferenceTokensResult, resultsChan)
 }
 
 // QueryInferenceCacheConfig implements MetricsQuerier.QueryInferenceCacheConfig
 func (pds *PrometheusMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *source.Future[source.InferenceCacheConfigResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
-	
+
 	resultsChan := make(source.QueryResultsChan, 1)
-	
+
 	go func() {
 		configs, err := queryCacheConfigs(ctx, t)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
 		}
-		
+
 		results := cacheConfigMapToQueryResults(configs)
 		resultsChan <- &source.QueryResults{Results: results}
 	}()
-	
+
 	return source.NewFuture(decodeInferenceCacheConfigResult, resultsChan)
 }
 
@@ -138,7 +138,7 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *sou
 func decodeInferenceTokensResult(result *source.QueryResult) *source.InferenceTokensResult {
 	key, _ := result.GetString("key")
 	value := result.Values[0].Value
-	
+
 	return &source.InferenceTokensResult{
 		Values: map[string]float64{key: value},
 	}
@@ -147,7 +147,7 @@ func decodeInferenceTokensResult(result *source.QueryResult) *source.InferenceTo
 func decodeInferenceProcessingTimeResult(result *source.QueryResult) *source.InferenceProcessingTimeResult {
 	key, _ := result.GetString("key")
 	value := result.Values[0].Value
-	
+
 	return &source.InferenceProcessingTimeResult{
 		Values: map[string]float64{key: value},
 	}
@@ -156,7 +156,7 @@ func decodeInferenceProcessingTimeResult(result *source.QueryResult) *source.Inf
 func decodeInferenceCacheConfigResult(result *source.QueryResult) *source.InferenceCacheConfigResult {
 	key, _ := result.GetString("key")
 	enabled := result.Values[0].Value > 0
-	
+
 	return &source.InferenceCacheConfigResult{
 		Configs: map[string]*source.InferenceCacheConfig{
 			key: {PrefixCachingEnabled: enabled},
@@ -316,9 +316,9 @@ func queryCacheConfigs(ctx *Context, t time.Time) (map[string]*source.InferenceC
 		if rawErr == nil {
 			diagResults := NewQueryResults(rawQuery, rawResult, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
 			if diagResults.Error == nil && len(diagResults.Results) > 0 {
-				log.Warnf("InferenceCost: vllm:cache_config_info exists in Prometheus but the join with "+
-					"vllm:prompt_tokens_total produced no results — likely a pod-label mismatch between "+
-					"the two metrics (check that both carry matching 'namespace' and 'pod' labels). "+
+				log.Warnf("InferenceCost: vllm:cache_config_info exists in Prometheus but the join with " +
+					"vllm:prompt_tokens_total produced no results — likely a pod-label mismatch between " +
+					"the two metrics (check that both carry matching 'namespace' and 'pod' labels). " +
 					"prefix_caching_off detection will be disabled; allocation method will be 'compute_time'.")
 			}
 		}

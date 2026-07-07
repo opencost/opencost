@@ -224,7 +224,9 @@ type filterSpec struct {
 }
 
 // parseFilter parses a Phase-1 filter string of the form
-//   prop:"value"[+prop:"value"]*
+//
+//	prop:"value"[+prop:"value"]*
+//
 // All terms are ANDed. Only dimensions in supportedAggregateProperties are
 // accepted. Values are unquoted if surrounded by double-quotes.
 //
