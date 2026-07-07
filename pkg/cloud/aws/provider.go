@@ -1108,7 +1108,9 @@ func (aws *AWS) DownloadPricingData() error {
 //
 // This function uses streaming JSON parsing to handle large pricing files efficiently:
 // 1. Parse "products" section: Extract SKUs and attributes for EC2 instances, EBS volumes, and load balancers
-// 2. Parse "terms" section: Extract on-demand pricing for each SKU
+// 2. Parse "terms" section: Extract on-demand pricing for each SKU. Note: only the
+//    first term-type key is read and processed if it equals "OnDemand", so this
+//    assumes "OnDemand" precedes any "Reserved" terms.
 // 3. Match SKUs to pricing keys and populate the pricing map
 func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) error {
 	aws.Pricing = make(map[string]*AWSProductTerms)
@@ -1122,9 +1124,9 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 			log.Debugf("Finished parsing pricing data from \"%s\"", resp.Request.URL.String())
 			break
 		} else if err != nil {
-			// Stop parsing on malformed JSON so we don't silently keep partial pricing data.
+			// Keep pricing parsed so far rather than discarding the whole region.
 			log.Errorf("Error parsing pricing JSON response from \"%s\": %v", resp.Request.URL.String(), err)
-			return err
+			break
 		}
 
 		// Parse "products" section: Extract product metadata (SKU, instance type, region, etc.)
@@ -1143,8 +1145,9 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 
 				err = dec.Decode(&product)
 				if err != nil {
+					// Fall through to terms so registered SKUs still get a non-nil OnDemand.
 					log.Errorf("Error decoding product from \"%s\": %v", resp.Request.URL.String(), err)
-					return err
+					break
 				}
 
 				// Filter for EC2 compute instances (on-demand, no pre-installed software)
@@ -1244,8 +1247,8 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					}
 
 					key, ok := skuToPricingKeyMap[skuStr]
-					spotKey := key + ",preemptible"
 					if ok {
+						spotKey := key + ",preemptible"
 						aws.Pricing[key].OnDemand = offerTerm
 						if _, ok := aws.Pricing[spotKey]; ok {
 							aws.Pricing[spotKey].OnDemand = offerTerm
@@ -1319,12 +1322,14 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 								aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 							}
 						} else if strings.Contains(key, "LoadBalancerUsage") {
-							// Load balancers: hourly cost
+							// On an unparseable cost, rely on the default rather than
+							// discarding all pricing (mirrors the EBS handling above).
 							costFloat, err := strconv.ParseFloat(cost, 64)
 							if err != nil {
-								return err
+								log.Debugf("Error parsing load balancer cost for %s: %v", key, err)
+							} else {
+								aws.Pricing[key].LoadBalancer.Cost = costFloat
 							}
-							aws.Pricing[key].LoadBalancer.Cost = costFloat
 						}
 					}
 
