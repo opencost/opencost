@@ -99,8 +99,8 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*clusters.ClusterInf
 
 		name, err := result.GetString("name")
 		if err != nil {
-			log.Warnf("Failed to load 'name' field for ClusterInfo")
-			continue
+			log.DedupedWarningf(10, "ClusterInfo metric is missing 'name' label; falling back to cluster id %s", id)
+			name = id
 		}
 
 		profile, err := result.GetString("clusterprofile")

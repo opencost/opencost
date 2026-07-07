@@ -137,10 +137,19 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := make(map[string]string)
-	if conf.ClusterName != "" {
-		m["name"] = conf.ClusterName
+	const defaultClusterName = "Custom Cluster"
+	clusterName := conf.ClusterName
+	if clusterName == "" {
+		if clusterName = coreenv.GetClusterID(); clusterName != "" {
+			log.DedupedInfof(5, "Setting cluster name to %s from %s", clusterName, coreenv.ClusterIDEnvVar)
+		} else {
+			clusterName = defaultClusterName
+			log.DedupedInfof(5, "Unable to detect cluster name - using default of %s; set clusterName in the pricing config or via the %s env var", defaultClusterName, coreenv.ClusterIDEnvVar)
+		}
 	}
+
+	m := make(map[string]string)
+	m["name"] = clusterName
 	m["provider"] = opencost.CustomProvider
 	m["region"] = cp.ClusterRegion
 	m["account"] = cp.ClusterAccountID
@@ -325,20 +334,40 @@ func (cp *CustomProvider) NetworkPricing() (*models.Network, error) {
 	}, nil
 }
 
+// parsePriceOrZero parses a string-encoded price from the custom pricing
+// config, treating an unset field as 0 so that configs which omit optional
+// prices do not produce errors.
+func parsePriceOrZero(field, value string) (float64, error) {
+	if value == "" {
+		return 0, nil
+	}
+	price, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid custom pricing value %q for %s: %w", value, field, err)
+	}
+	return price, nil
+}
+
 func (cp *CustomProvider) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	cpricing, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
-	fffrc, err := strconv.ParseFloat(cpricing.FirstFiveForwardingRulesCost, 64)
+	// Fall back to the generic defaultLBPrice when the granular forwarding
+	// rule price is not set.
+	fffrcStr := cpricing.FirstFiveForwardingRulesCost
+	if fffrcStr == "" {
+		fffrcStr = cpricing.DefaultLBPrice
+	}
+	fffrc, err := parsePriceOrZero("firstFiveForwardingRulesCost", fffrcStr)
 	if err != nil {
 		return nil, err
 	}
-	afrc, err := strconv.ParseFloat(cpricing.AdditionalForwardingRuleCost, 64)
+	afrc, err := parsePriceOrZero("additionalForwardingRuleCost", cpricing.AdditionalForwardingRuleCost)
 	if err != nil {
 		return nil, err
 	}
-	lbidc, err := strconv.ParseFloat(cpricing.LBIngressDataCost, 64)
+	lbidc, err := parsePriceOrZero("LBIngressDataCost", cpricing.LBIngressDataCost)
 	if err != nil {
 		return nil, err
 	}
