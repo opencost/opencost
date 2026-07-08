@@ -70,11 +70,13 @@ func (kpvcb KubePVCollector) Collect(ch chan<- prometheus.Metric) {
 		if _, disabled := disabledMetrics["kubecost_pv_info"]; !disabled {
 			storageClass := pv.Spec.StorageClassName
 			providerID := pv.Name
+			var csiVolumeHandle string
 			// if a more accurate provider ID is available, use that
 			if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
 				providerID = pv.Spec.CSI.VolumeHandle
+				csiVolumeHandle = pv.Spec.CSI.VolumeHandle
 			}
-			m := newKubecostPVInfoMetric("kubecost_pv_info", pv.Name, pvUID, storageClass, providerID, float64(1))
+			m := newKubecostPVInfoMetric("kubecost_pv_info", pv.Name, pvUID, storageClass, providerID, csiVolumeHandle, float64(1))
 			ch <- m
 		}
 	}
@@ -202,25 +204,27 @@ func (kpcrr KubePVStatusPhaseMetric) Write(m *dto.Metric) error {
 // --------------------------------------------------------------------------
 // KubecostPVInfoMetric is a prometheus.Metric
 type KubecostPVInfoMetric struct {
-	fqName       string
-	help         string
-	pv           string
-	storageClass string
-	value        float64
-	providerId   string
-	uid          string
+	fqName          string
+	help            string
+	pv              string
+	storageClass    string
+	value           float64
+	providerId      string
+	uid             string
+	csiVolumeHandle string
 }
 
 // Creates a new newKubecostPVInfoMetric, implementation of prometheus.Metric
-func newKubecostPVInfoMetric(fqname, pv, uid, storageClass, providerID string, value float64) KubecostPVInfoMetric {
+func newKubecostPVInfoMetric(fqname, pv, uid, storageClass, providerID, csiVolumeHandle string, value float64) KubecostPVInfoMetric {
 	return KubecostPVInfoMetric{
-		fqName:       fqname,
-		help:         "kubecost_pv_info pv info",
-		pv:           pv,
-		storageClass: storageClass,
-		value:        value,
-		providerId:   providerID,
-		uid:          uid,
+		fqName:          fqname,
+		help:            "kubecost_pv_info pv info",
+		pv:              pv,
+		storageClass:    storageClass,
+		value:           value,
+		providerId:      providerID,
+		uid:             uid,
+		csiVolumeHandle: csiVolumeHandle,
 	}
 }
 
@@ -228,10 +232,11 @@ func newKubecostPVInfoMetric(fqname, pv, uid, storageClass, providerID string, v
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpvim KubecostPVInfoMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"persistentvolume": kpvim.pv,
-		"storageclass":     kpvim.storageClass,
-		"provider_id":      kpvim.providerId,
-		"uid":              kpvim.uid,
+		"persistentvolume":  kpvim.pv,
+		"storageclass":      kpvim.storageClass,
+		"provider_id":       kpvim.providerId,
+		"uid":               kpvim.uid,
+		"csi_volume_handle": kpvim.csiVolumeHandle,
 	}
 	return prometheus.NewDesc(kpvim.fqName, kpvim.help, []string{}, l)
 }
@@ -259,6 +264,10 @@ func (kpvim KubecostPVInfoMetric) Write(m *dto.Metric) error {
 		{
 			Name:  toStringPtr("uid"),
 			Value: &kpvim.uid,
+		},
+		{
+			Name:  toStringPtr("csi_volume_handle"),
+			Value: &kpvim.csiVolumeHandle,
 		},
 	}
 	return nil

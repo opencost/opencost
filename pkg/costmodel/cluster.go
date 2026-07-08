@@ -764,7 +764,7 @@ func pvCosts(
 
 		// TODO niko/assets storage class
 
-		bytes := result.Data[0].Value
+		bytes := result.Value
 		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{

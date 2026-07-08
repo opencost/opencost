@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -496,6 +497,89 @@ func TestStorageReadToLocalFile(t *testing.T, store Storage) {
 
 			if content != tfc {
 				t.Fatalf("file content did not match written value")
+			}
+		})
+	}
+}
+
+func TestStorageWriteStream(t *testing.T, store Storage) {
+	testName := "write_stream"
+
+	testCases := map[string]struct {
+		path     string
+		chunks   [][]byte
+		prewrite bool
+	}{
+		"single chunk": {
+			path:   path.Join(testpath, testName, "single.bin"),
+			chunks: [][]byte{[]byte("single chunk data")},
+		},
+		"multi-chunk": {
+			path:   path.Join(testpath, testName, "multi.bin"),
+			chunks: [][]byte{[]byte("alpha"), []byte("beta"), []byte("gamma")},
+		},
+		"nested path": {
+			path:   path.Join(testpath, testName, "sub/dir/data.bin"),
+			chunks: [][]byte{[]byte("nested data")},
+		},
+		"empty content": {
+			path:   path.Join(testpath, testName, "empty.bin"),
+			chunks: [][]byte{},
+		},
+		"overwrite existing": {
+			path:     path.Join(testpath, testName, "overwrite.bin"),
+			chunks:   [][]byte{[]byte("replaced content")},
+			prewrite: true,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			defer store.Remove(tc.path)
+
+			if tc.prewrite {
+				b, err := json.Marshal(tfc)
+				if err != nil {
+					t.Fatalf("marshal fixture: %s", err)
+				}
+				if err = store.Write(tc.path, b); err != nil {
+					t.Fatalf("pre-write: %s", err)
+				}
+			}
+
+			var want []byte
+			for _, chunk := range tc.chunks {
+				want = append(want, chunk...)
+			}
+
+			w, err := store.WriteStream(tc.path)
+			if err != nil {
+				t.Fatalf("WriteStream: %s", err)
+			}
+
+			for _, chunk := range tc.chunks {
+				n, writeErr := w.Write(chunk)
+				if writeErr != nil {
+					_ = w.Close()
+					t.Fatalf("Write: %s", writeErr)
+				}
+				if n != len(chunk) {
+					_ = w.Close()
+					t.Fatalf("short write: wrote %d of %d bytes", n, len(chunk))
+				}
+			}
+
+			if err = w.Close(); err != nil {
+				t.Fatalf("Close: %s", err)
+			}
+
+			got, err := store.Read(tc.path)
+			if err != nil {
+				t.Fatalf("Read after WriteStream: %s", err)
+			}
+
+			if !bytes.Equal(got, want) {
+				t.Errorf("content mismatch: got %q, want %q", got, want)
 			}
 		})
 	}

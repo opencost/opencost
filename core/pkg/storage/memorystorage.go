@@ -132,6 +132,50 @@ func (ms *MemoryStorage) Write(path string, data []byte) error {
 	return nil
 }
 
+// WriteStream creates a new relative path and returns the io.WriteCloser that can be used to
+// write into the storage path. Close() blocks until all data has been committed to storage.
+func (ms *MemoryStorage) WriteStream(path string) (io.WriteCloser, error) {
+	r, w := io.Pipe()
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		data, err := io.ReadAll(r)
+		if err != nil {
+			r.CloseWithError(err)
+			return
+		}
+
+		ms.lock.Lock()
+		defer ms.lock.Unlock()
+
+		paths, pFile := memfile.Split(path)
+
+		f := memfile.NewMemoryFile(pFile, data)
+		currentDir := memfile.CreateSubdirectory(ms.fileTree, paths)
+
+		currentDir.AddFile(f)
+		ms.directPaths[path] = f
+	})
+
+	return &memWriteCloser{
+		PipeWriter: w,
+		wg:         &wg,
+	}, nil
+}
+
+// memWriteCloser wraps *io.PipeWriter so that Close() blocks until the drain goroutine
+// has finished committing data to the in-memory store.
+type memWriteCloser struct {
+	*io.PipeWriter
+	wg *sync.WaitGroup
+}
+
+func (m *memWriteCloser) Close() error {
+	err := m.PipeWriter.Close()
+	m.wg.Wait()
+	return err
+}
+
 // Remove uses the relative path of the storage combined with the provided path to
 // remove a file from storage permanently.
 func (ms *MemoryStorage) Remove(path string) error {

@@ -471,7 +471,7 @@ func TestNodeCostAnnotations(t *testing.T) {
 
 	costModel := &CostModel{
 		Provider: customProvider,
-		Cache: NewFakeNodeCache([]*clustercache.Node{
+		Cache: &clustercache.MockClusterCache{Nodes: []*clustercache.Node{
 			{
 				Name: "test-node-001",
 				Labels: map[string]string{
@@ -488,7 +488,7 @@ func TestNodeCostAnnotations(t *testing.T) {
 					"opencost.io/node-ram-hourly-cost": "222",
 				},
 			},
-		}),
+		}},
 	}
 	assert.NotNil(t, costModel)
 
@@ -548,21 +548,23 @@ func TestCustomProviderGPUNodeUsesDefaultHourlyPricing(t *testing.T) {
 
 	costModel := &CostModel{
 		Provider: customProvider,
-		Cache: NewFakeNodeCache([]*clustercache.Node{
-			{
-				Name: "on-prem-gpu-node",
-				Labels: map[string]string{
-					"kubernetes.io/arch": "amd64",
-				},
-				Status: v1.NodeStatus{
-					Capacity: v1.ResourceList{
-						v1.ResourceCPU:    resource.MustParse("16"),
-						v1.ResourceMemory: resource.MustParse("128Gi"),
-						"nvidia.com/gpu":  resource.MustParse("2"),
+		Cache: &clustercache.MockClusterCache{
+			Nodes: []*clustercache.Node{
+				{
+					Name: "on-prem-gpu-node",
+					Labels: map[string]string{
+						"kubernetes.io/arch": "amd64",
+					},
+					Status: v1.NodeStatus{
+						Capacity: v1.ResourceList{
+							v1.ResourceCPU:    resource.MustParse("16"),
+							v1.ResourceMemory: resource.MustParse("128Gi"),
+							"nvidia.com/gpu":  resource.MustParse("2"),
+						},
 					},
 				},
 			},
-		}),
+		},
 	}
 
 	nodeCost, err := costModel.GetNodeCost()
@@ -576,20 +578,4 @@ func TestCustomProviderGPUNodeUsesDefaultHourlyPricing(t *testing.T) {
 	assert.Equal(t, cfg.GPU, node.GPUCost)
 	assert.Equal(t, "2.000000", node.GPU)
 	assert.Empty(t, node.ProviderID)
-}
-
-// FakeNodeCache implements ClusterCache interface for testing
-type FakeNodeCache struct {
-	clustercache.ClusterCache
-	nodes []*clustercache.Node
-}
-
-func (f FakeNodeCache) GetAllNodes() []*clustercache.Node {
-	return f.nodes
-}
-
-func NewFakeNodeCache(nodes []*clustercache.Node) FakeNodeCache {
-	return FakeNodeCache{
-		nodes: nodes,
-	}
 }

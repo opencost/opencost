@@ -188,12 +188,18 @@ func (ing *ingestor) Stop() {
 
 // Status returns an IngestorStatus that describes the current state of the ingestor
 func (ing *ingestor) Status() IngestorStatus {
+	// Read coverage under the lock; the build loop reassigns it under
+	// coverageLock, so an unlocked read here is a data race.
+	ing.coverageLock.Lock()
+	coverage := ing.coverage
+	ing.coverageLock.Unlock()
+
 	return IngestorStatus{
 		Created:          ing.creationTime,
 		LastRun:          ing.lastRun,
 		NextRun:          ing.lastRun.Add(ing.config.RefreshRate).UTC(),
 		Runs:             ing.runs,
-		Coverage:         ing.coverage,
+		Coverage:         coverage,
 		ConnectionStatus: ing.integration.GetStatus(),
 	}
 }

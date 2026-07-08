@@ -1,6 +1,6 @@
 module github.com/opencost/opencost/core
 
-go 1.26.0
+go 1.26.4
 
 require (
 	cloud.google.com/go/storage v1.60.0
@@ -18,6 +18,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/minio/minio-go/v7 v7.0.98
+	github.com/opencost/bingen v0.2.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/common v0.67.5
@@ -27,7 +28,7 @@ require (
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 	golang.org/x/oauth2 v0.35.0
 	golang.org/x/sync v0.20.0
-	golang.org/x/text v0.35.0
+	golang.org/x/text v0.36.0
 	google.golang.org/api v0.269.0
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
