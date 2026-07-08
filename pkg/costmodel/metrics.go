@@ -535,7 +535,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				data = map[string]*CostData{}
 			}
 
-			if env.IsCarbonEstimatesEnabled() {
+			if env.IsCarbonEstimatesEnabled() && cmme.CarbonCostRecorder != nil {
 				assetSet, err := cmme.Model.ComputeAssets(start, end)
 				if err != nil {
 					log.Errorf("Error computing assets for carbon cost: %s", err.Error())
