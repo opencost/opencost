@@ -26,8 +26,10 @@ func TestEmitCarbonCost(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	if got := metric.GetGauge().GetValue(); got != 0.042 {
-		t.Errorf("carbon cost value mismatch: got %v, want 0.042", got)
+	const want = 0.042
+	const eps = 1e-12
+	if got := metric.GetGauge().GetValue(); got < want-eps || got > want+eps {
+		t.Errorf("carbon cost value mismatch: got %v, want %v", got, want)
 	}
 }
 
