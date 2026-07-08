@@ -566,21 +566,27 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 							}
 							assetType := asset.Type().String()
 
-provider := props.Provider
-if provider == "" {
-	id := strings.ToLower(strings.TrimSpace(props.ProviderID))
-	switch {
-	case strings.HasPrefix(id, "aws:"), strings.HasPrefix(id, "i-"):
-		provider = opencost.AWSProvider
-	case strings.HasPrefix(id, "gce:"), strings.HasPrefix(id, "gke"):
-		provider = opencost.GCPProvider
-	case strings.HasPrefix(id, "azure:"):
-		provider = opencost.AzureProvider
-	}
-}
-if provider == "" {
-	continue
-}
+							provider := props.Provider
+							switch provider {
+							case opencost.AWSProvider, opencost.GCPProvider, opencost.AzureProvider:
+								// supported by embedded carbon lookup data
+							default:
+								provider = ""
+							}
+							if provider == "" {
+								id := strings.ToLower(strings.TrimSpace(props.ProviderID))
+								switch {
+								case strings.HasPrefix(id, "aws:"), strings.HasPrefix(id, "i-"):
+									provider = opencost.AWSProvider
+								case strings.HasPrefix(id, "gce:"), strings.HasPrefix(id, "gke"):
+									provider = opencost.GCPProvider
+								case strings.HasPrefix(id, "azure:"):
+									provider = opencost.AzureProvider
+								}
+							}
+							if provider == "" {
+								continue
+							}
 
 cmme.EmitCarbonCost(props.Cluster, provider, assetType, props.Name, carbonRow.Co2e)
 labelKey := getKeyFromLabelStrings(props.Cluster, provider, assetType, props.Name)
