@@ -546,8 +546,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					if err != nil {
 						log.Errorf("Error computing carbon estimates: %s", err.Error())
 					} else {
-						for assetKey, carbonRow := range carbonEstimates {
-							asset, ok := assetSet.Assets[assetKey]
+						for assetKey, asset := range assetSet.Assets {
+							carbonRow, ok := carbonEstimates[assetKey]
 							if !ok {
 								continue
 							}
