@@ -185,8 +185,8 @@ func (c *Collector) queryAllocationCosts(ctx context.Context, start, end time.Ti
 	for key, result := range results {
 		modelName, namespace := parseKey(key)
 		if result.allocationTotalCost > 0 {
-			log.Debugf("InferenceCost: model=%s ns=%s alloc=$%.4f usage=$%.4f (%.1f%% of alloc)", 
-				modelName, namespace, result.allocationTotalCost, result.usageTotalCost, 
+			log.Debugf("InferenceCost: model=%s ns=%s alloc=$%.4f usage=$%.4f (%.1f%% of alloc)",
+				modelName, namespace, result.allocationTotalCost, result.usageTotalCost,
 				(result.usageTotalCost/result.allocationTotalCost)*100)
 		}
 	}
@@ -278,7 +278,7 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 		controller := ""
 		controllerKind := ""
 		container := ""
-		
+
 		if alloc.Properties != nil {
 			namespace = alloc.Properties.Namespace
 			cluster = alloc.Properties.Cluster
@@ -311,7 +311,7 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 			// For usage cost: use TotalCost() from the ShareNone query (no idle)
 			existing.usageTotalCost += alloc.TotalCost()
 		}
-		
+
 		// When aggregating multiple allocations, preserve the first non-empty values
 		// for pod, controller, and container. This provides representative values
 		// when costs are aggregated across multiple pods/containers.
@@ -359,11 +359,11 @@ func canonicalModelName(modelName string) string {
 // namespace.
 //
 // Two common mismatch examples:
-//   1. Fully-qualified vLLM model name vs short allocation label:
-//      "google/gemma-4-31B:llm-d-pic" -> "gemma-4-31B:llm-d-pic"
-//   2. Fully-qualified vLLM model name vs short allocation label with a
-//      different vendor/org prefix:
-//      "MiniMaxAI/MiniMax-M2.7:llm-d-pic" -> "MiniMax-M2.7:llm-d-pic"
+//  1. Fully-qualified vLLM model name vs short allocation label:
+//     "google/gemma-4-31B:llm-d-pic" -> "gemma-4-31B:llm-d-pic"
+//  2. Fully-qualified vLLM model name vs short allocation label with a
+//     different vendor/org prefix:
+//     "MiniMaxAI/MiniMax-M2.7:llm-d-pic" -> "MiniMax-M2.7:llm-d-pic"
 //
 // Exact matches are preserved. Keys with no matching allocation-backed target
 // are also preserved unchanged. A warning is logged for every remapped key so
@@ -589,7 +589,6 @@ func parseKey(key string) (modelName, namespace string) {
 	}
 	return key[:idx], key[idx+1:]
 }
-
 
 // mergeTokenResults merges multiple InferenceTokensResult into a single map
 func mergeTokenResults(results []*source.InferenceTokensResult) map[string]float64 {
