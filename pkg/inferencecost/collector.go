@@ -43,6 +43,9 @@ func NewCollector(config *Config, querier AllocationQuerier, metricsQuerier sour
 // the caller is responsible for choosing appropriate boundaries (e.g. the
 // runner uses now-interval..now; the API uses the request window).
 func (c *Collector) CollectMetrics(ctx context.Context, start, end time.Time) ([]*InferenceCost, error) {
+	// --- Namespace UID lookup (for metric labels) ---
+	nsUIDsFuture := c.metricsQuerier.QueryNamespaceInfo(start, end)
+
 	// --- Infrastructure costs from OpenCost allocation layer ---
 	allocationCosts, err := c.queryAllocationCosts(ctx, start, end)
 	if err != nil {
@@ -103,8 +106,20 @@ func (c *Collector) CollectMetrics(ctx context.Context, start, end time.Time) ([
 		cacheConfigs = mergeCacheConfigResults(cacheConfigResults)
 	}
 
+	// --- Namespace UIDs (optional — degrade gracefully) ---
+	nsUIDs := make(map[string]string)
+	if nsInfoResults, err := nsUIDsFuture.Await(); err != nil {
+		log.Warnf("InferenceCost: failed to query namespace UIDs (namespace_uid label will be empty): %v", err)
+	} else {
+		for _, r := range nsInfoResults {
+			if r.Namespace != "" && r.UID != "" {
+				nsUIDs[r.Namespace] = r.UID
+			}
+		}
+	}
+
 	return c.combineMetrics(allocationCosts, promptTokens, generationTokens,
-		inputProcessingTime, outputProcessingTime, cachedTokens, cacheConfigs, start, end), nil
+		inputProcessingTime, outputProcessingTime, cachedTokens, cacheConfigs, nsUIDs, start, end), nil
 }
 
 // cacheConfig holds per-model KV cache configuration from vllm:cache_config_info.
@@ -432,12 +447,14 @@ func reconcileCacheConfigKeys(configs map[string]*cacheConfig, allocCosts map[st
 }
 
 // combineMetrics joins all data sources into InferenceCost structs.
+// nsUIDs is a namespace-name→UID map used to populate NamespaceUID on each result.
 func (c *Collector) combineMetrics(
 	allocCosts map[string]*allocationResult,
 	promptTokens, generationTokens,
 	inputProcessingTime, outputProcessingTime,
 	cachedTokens map[string]float64,
 	cacheConfigs map[string]*cacheConfig,
+	nsUIDs map[string]string,
 	start, end time.Time,
 ) []*InferenceCost {
 
@@ -521,6 +538,7 @@ func (c *Collector) combineMetrics(
 			Properties: InferenceCostProperties{
 				ModelName:    modelName,
 				Namespace:    namespace,
+				NamespaceUID: nsUIDs[namespace],
 				WorkloadType: "inference",
 			},
 			PromptTokens:         promptTokens[key],
@@ -545,6 +563,7 @@ func (c *Collector) combineMetrics(
 			ic.Properties.Container = ar.container
 			if namespace == "" {
 				ic.Properties.Namespace = ar.namespace
+				ic.Properties.NamespaceUID = nsUIDs[ar.namespace]
 			}
 		}
 

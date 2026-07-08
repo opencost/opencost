@@ -22,7 +22,7 @@ func NewExporter() *Exporter {
 					"cost_basis=allocation reconciles to the infrastructure bill (includes idle and shared infra costs). " +
 					"cost_basis=usage reflects active compute only; idle and shared infra costs are excluded and it does NOT reconcile to the bill.",
 			},
-			[]string{"model_name", "model_version", "namespace", "cost_basis", "workload_type"},
+			[]string{"model_name", "model_version", "namespace", "namespace_uid", "cost_basis", "workload_type"},
 		),
 		costPerMillionTokens: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -37,7 +37,7 @@ func NewExporter() *Exporter {
 					"allocation_method=prefix_caching_off: same time-based split; prefix caching explicitly disabled on vLLM instance. " +
 					"allocation_method=multiplier: fixed output/input ratio used (timing metrics unavailable).",
 			},
-			[]string{"model_name", "model_version", "namespace", "cost_basis", "phase", "allocation_method", "workload_type"},
+			[]string{"model_name", "model_version", "namespace", "namespace_uid", "cost_basis", "phase", "allocation_method", "workload_type"},
 		),
 		cacheSavingsFraction: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -46,7 +46,7 @@ func NewExporter() *Exporter {
 					"A value of 0.9 means 90% of prompt tokens were cache hits. " +
 					"Zero when prefix caching is disabled (allocation_method=prefix_caching_off) or when no cache hits occurred in the window.",
 			},
-			[]string{"model_name", "model_version", "namespace", "workload_type"},
+			[]string{"model_name", "model_version", "namespace", "namespace_uid", "workload_type"},
 		),
 	}
 }
@@ -83,6 +83,7 @@ func (e *Exporter) Export(metrics []*InferenceCost) {
 		if workloadType == "" {
 			workloadType = "unknown"
 		}
+		nsUID := m.Properties.NamespaceUID
 
 		// Calculate window duration in hours for normalization to hourly rate
 		windowDuration := m.Window.End.Sub(m.Window.Start)
@@ -100,27 +101,27 @@ func (e *Exporter) Export(metrics []*InferenceCost) {
 			// Normalize total cost to hourly rate: totalCost / windowHours
 			hourlyCost := totalCostForBasis(m, basis) / windowHours
 			e.totalCost.WithLabelValues(
-				m.Properties.ModelName, version, m.Properties.Namespace, basisStr, workloadType,
+				m.Properties.ModelName, version, m.Properties.Namespace, nsUID, basisStr, workloadType,
 			).Set(hourlyCost)
 
 			// Blended cost (no phase label)
 			e.costPerMillionTokens.WithLabelValues(
-				m.Properties.ModelName, version, m.Properties.Namespace, basisStr, "", "", workloadType,
+				m.Properties.ModelName, version, m.Properties.Namespace, nsUID, basisStr, "", "", workloadType,
 			).Set(m.CostPerMillionTokens[basis])
 
 			// Input cost (phase=prompt)
 			e.costPerMillionTokens.WithLabelValues(
-				m.Properties.ModelName, version, m.Properties.Namespace, basisStr, "prompt", method, workloadType,
+				m.Properties.ModelName, version, m.Properties.Namespace, nsUID, basisStr, "prompt", method, workloadType,
 			).Set(m.InputCostPerMillionTokens[basis])
 
 			// Output cost (phase=generation)
 			e.costPerMillionTokens.WithLabelValues(
-				m.Properties.ModelName, version, m.Properties.Namespace, basisStr, "generation", method, workloadType,
+				m.Properties.ModelName, version, m.Properties.Namespace, nsUID, basisStr, "generation", method, workloadType,
 			).Set(m.OutputCostPerMillionTokens[basis])
 		}
 
 		e.cacheSavingsFraction.WithLabelValues(
-			m.Properties.ModelName, version, m.Properties.Namespace, workloadType,
+			m.Properties.ModelName, version, m.Properties.Namespace, nsUID, workloadType,
 		).Set(m.CacheSavingsFraction)
 
 		log.Debugf("InferenceCost: exported model=%s ns=%s alloc_total=$%.4f usage_total=$%.4f method=%s workload_type=%s",

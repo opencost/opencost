@@ -39,6 +39,7 @@ type InferenceCostProperties struct {
 	ModelName      string
 	ModelVersion   string
 	Namespace      string
+	NamespaceUID   string
 	Cluster        string
 	Pod            string
 	Controller     string

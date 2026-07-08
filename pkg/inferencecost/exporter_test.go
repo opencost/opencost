@@ -34,6 +34,7 @@ func sampleMetric(method AllocationMethod) *InferenceCost {
 			ModelName:    "meta-llama/Llama-3.1-8B",
 			ModelVersion: "v1",
 			Namespace:    "llm-prod",
+			NamespaceUID: "test-ns-uid-1234",
 		},
 		AllocationTotalCost: 4.0,
 		UsageTotalCost:      1.0,
