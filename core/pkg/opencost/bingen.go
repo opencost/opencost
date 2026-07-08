@@ -79,4 +79,4 @@ package opencost
 // @bingen:generate:NetworkDetailsSet
 // @bingen:end
 
-//go:generate bingen -package=opencost -version=18 -buffer=github.com/opencost/opencost/core/pkg/util
+//go:generate bingen -package=opencost -version=18

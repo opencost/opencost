@@ -12,30 +12,25 @@
 package kubemodel
 
 import (
-	"cmp"
 	"fmt"
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"io"
 	"iter"
 	"os"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
-	util "github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/model/shared"
+
+	bstream "github.com/opencost/bingen/pkg/stream"
+	stringtable "github.com/opencost/bingen/pkg/table"
+	util "github.com/opencost/bingen/pkg/util"
 )
 
 const (
 	// GeneratorPackageName is the package the generator is targetting
 	GeneratorPackageName string = "kubemodel"
-	StringHeaderSize            = int64(unsafe.Sizeof(""))
-
-	// BinaryTagStringTable is written and/or read prior to the existence of a string
-	// table (where each index is encoded as a string entry in the resource
-	BinaryTagStringTable string = "BGST"
 
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 2
@@ -216,7 +211,7 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 //--------------------------------------------------------------------------
 
 // StreamFactoryFunc is an alias for a func that creates a BingenStream implementation.
-type StreamFactoryFunc func(io.Reader) BingenStream
+type StreamFactoryFunc func(io.Reader) bstream.BingenStream
 
 // Generated streamable factory map for finding the specific new stream methods
 // by T type
@@ -227,7 +222,7 @@ var streamFactoryMap map[reflect.Type]StreamFactoryFunc = map[reflect.Type]Strea
 // NewStreamFor accepts an io.Reader, and returns a new BingenStream for the generic T
 // type provided _if_ it is a registered bingen type that is annotated as 'streamable'. See
 // the streamFactoryMap for generated type listings.
-func NewStreamFor[T any](reader io.Reader) (BingenStream, error) {
+func NewStreamFor[T any](reader io.Reader) (bstream.BingenStream, error) {
 	typeKey := reflect.TypeFor[T]()
 
 	factory, ok := streamFactoryMap[typeKey]
@@ -238,432 +233,6 @@ func NewStreamFor[T any](reader io.Reader) (BingenStream, error) {
 	return factory(reader), nil
 }
 
-// BingenStream is the stream interface for all streamable types
-type BingenStream interface {
-	// Stream returns the iterator which will stream each field of the target type and
-	// return the field info as well as the value.
-	Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
-
-	// Close will close any dynamic io.Reader used to stream in the fields
-	Close()
-
-	// Error returns an error if one occurred during the process of streaming the type's fields.
-	// This can be checked after iterating through the Stream().
-	Error() error
-}
-
-// BingenValue contains the value of a field as well as any index/key associated with that value.
-type BingenValue struct {
-	Value any
-	Index any
-}
-
-// IsNil is just a method accessor way to check to see if the value returned was nil
-func (bv *BingenValue) IsNil() bool {
-	return bv == nil
-}
-
-// creates a single BingenValue instance without a key or index
-func singleV(value any) *BingenValue {
-	return &BingenValue{
-		Value: value,
-	}
-}
-
-// creates a pair of key/index and value.
-func pairV(index any, value any) *BingenValue {
-	return &BingenValue{
-		Value: value,
-		Index: index,
-	}
-}
-
-// BingenFieldInfo contains the type of the field being streamed as well as the name of the field.
-type BingenFieldInfo struct {
-	Type reflect.Type
-	Name string
-}
-
-//--------------------------------------------------------------------------
-//  String Table Writer
-//--------------------------------------------------------------------------
-
-// StringTableWriter is the interface used to write the string table for encoding.
-type StringTableWriter interface {
-	// AddOrGet adds a string to the string table and returns the new index or
-	// an existing index.
-	AddOrGet(s string) int
-
-	// WriteTo will write the StringTable data (with the header) to the provided
-	// Buffer starting a the current write position
-	WriteTo(b *util.Buffer)
-}
-
-// IndexedStringTableWriter maps strings to specific indices for encoding
-type IndexedStringTableWriter struct {
-	indices map[string]int
-	next    int
-}
-
-// NewIndexedStringTableWriter Creates a new IndexedStringTableWriter instance.
-func NewIndexedStringTableWriter() *IndexedStringTableWriter {
-	return &IndexedStringTableWriter{
-		indices: make(map[string]int),
-		next:    0,
-	}
-}
-
-// AddOrGet retrieves a string entry's index if it exists. Otherwise, it adds the entry and returns the new index.
-func (st *IndexedStringTableWriter) AddOrGet(s string) int {
-	if ind, ok := st.indices[s]; ok {
-		return ind
-	}
-
-	current := st.next
-	st.next++
-
-	st.indices[s] = current
-	return current
-}
-
-// ToSlice Converts the contents to a string array for encoding.
-func (st *IndexedStringTableWriter) ToSlice() []string {
-	if st.next == 0 {
-		return []string{}
-	}
-
-	sl := make([]string, st.next)
-	for s, i := range st.indices {
-		sl[i] = s
-	}
-	return sl
-}
-
-// ToBytes Converts the contents to a binary encoded representation
-func (st *IndexedStringTableWriter) ToBytes() []byte {
-	buff := util.NewBuffer()
-	st.WriteTo(buff)
-	return buff.Bytes()
-}
-
-// WriteTo will write the StringTable data (with the header) to the provided
-// Buffer starting a the current write position
-func (st *IndexedStringTableWriter) WriteTo(buff *util.Buffer) {
-	// bingen string table header
-	buff.WriteBytes([]byte(BinaryTagStringTable))
-
-	// get an ordered string slice to encode
-	strs := st.ToSlice()
-
-	buff.WriteInt(len(strs)) // table length
-	for _, s := range strs {
-		buff.WriteString(s)
-	}
-}
-
-type indexed struct {
-	s     string
-	count uint64
-	index int
-}
-
-func newIndexed(s string, index int) *indexed {
-	return &indexed{
-		s:     s,
-		count: 1,
-		index: index,
-	}
-}
-
-// PrepassStringTableWriter maps strings to specific indices for encoding, sorted by the total
-// number of times they're accessed
-type PrepassStringTableWriter struct {
-	prepass map[string]*indexed
-	next    int
-}
-
-// NewPrepassStringTableWriter creates a new PrepassStringTableWriter instance.
-func NewPrepassStringTableWriter() *PrepassStringTableWriter {
-	return &PrepassStringTableWriter{
-		prepass: make(map[string]*indexed),
-	}
-}
-
-// AddOrGet retrieves a string entry's index if it exists. Otherwise, it adds the entry and returns the new index.
-func (st *PrepassStringTableWriter) AddOrGet(s string) int {
-	if ind, ok := st.prepass[s]; ok {
-		ind.count += 1
-		return ind.index
-	}
-
-	current := st.next
-	st.next++
-
-	st.prepass[s] = newIndexed(s, current)
-	return current
-}
-
-// WriteSortedTo sorts the string table by the number of accesses, writes the table in that
-// order, then returns a new StringTableWriter implementation that can be used for the new
-// sorted order index lookups.
-func (st *PrepassStringTableWriter) WriteSortedTo(buff *util.Buffer) StringTableWriter {
-	sl := make([]*indexed, st.next)
-	for _, ind := range st.prepass {
-		sl[ind.index] = ind
-	}
-
-	slices.SortFunc(sl, func(a *indexed, b *indexed) int {
-		return -cmp.Compare(a.count, b.count)
-	})
-
-	sti := NewIndexedStringTableWriter()
-	for _, ind := range sl {
-		sti.AddOrGet(ind.s)
-	}
-
-	sti.WriteTo(buff)
-	return sti
-}
-
-// WriteTo will write the StringTable data (with the header) to the provided
-// Buffer starting a the current write position
-func (st *PrepassStringTableWriter) WriteTo(buff *util.Buffer) {
-	panic("Prepass StringTableWriter cannot write directly")
-}
-
-//--------------------------------------------------------------------------
-//  String Table Reader
-//--------------------------------------------------------------------------
-
-// StringTableReader is the interface used to read the string table from the decoding.
-type StringTableReader interface {
-	// At returns the string entry at a specific index, or panics on out of bounds.
-	At(index int) string
-
-	// Len returns the total number of strings loaded in the string table.
-	Len() int
-
-	// Close will clear the loaded table, and drop any external resources used.
-	Close() error
-}
-
-// SliceStringTableReader is a basic pre-loaded []string that provides index-based access.
-// The cost of this implementation is holding all strings in memory, which provides faster
-// lookup performance at the expense of memory usage.
-type SliceStringTableReader struct {
-	table []string
-}
-
-// NewSliceStringTableReaderFrom creates a new SliceStringTableReader instance loading
-// data directly from the buffer. The buffer's position should start at the table length.
-func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
-	// table length
-	tl := buffer.ReadInt()
-
-	var table []string
-	if tl > 0 {
-		table = make([]string, tl)
-		for i := range tl {
-			table[i] = buffer.ReadString()
-		}
-	}
-
-	return &SliceStringTableReader{
-		table: table,
-	}
-}
-
-// At returns the string entry at a specific index, or panics on out of bounds.
-func (sstr *SliceStringTableReader) At(index int) string {
-	if index < 0 || index >= len(sstr.table) {
-		panic(fmt.Errorf("%s: string table index out of bounds: %d", GeneratorPackageName, index))
-	}
-
-	return sstr.table[index]
-}
-
-// Len returns the total number of strings loaded in the string table.
-func (sstr *SliceStringTableReader) Len() int {
-	if sstr == nil {
-		return 0
-	}
-
-	return len(sstr.table)
-}
-
-// Close for the slice tables just nils out the slice and returns
-func (sstr *SliceStringTableReader) Close() error {
-	sstr.table = nil
-	return nil
-}
-
-// fileStringRef maps a bingen string-table index to a payload stored in a temp file.
-type fileStringRef struct {
-	off    int64
-	length int
-}
-
-// FileStringTableReader leverages a local file to write string table data for lookup. On
-// memory focused systems, this allows a slower parse with a significant decrease in memory
-// usage. This implementation is often pair with streaming readers for high throughput with
-// reduced memory usage.
-type FileStringTableReader struct {
-	f    *os.File
-	refs []fileStringRef
-	memo []string
-}
-
-// NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
-// and appends each payload to a new temp file. It does not retain full strings in memory.
-func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string, memoMaxBytes int64) StringTableReader {
-	// helper func to cast a string in-place to a byte slice.
-	// NOTE: Return value is READ-ONLY. DO NOT MODIFY!
-	byteSliceFor := func(s string) []byte {
-		return unsafe.Slice(unsafe.StringData(s), len(s))
-	}
-
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		panic(fmt.Errorf("%s: failed to create string table directory: %w", GeneratorPackageName, err))
-	}
-
-	f, err := os.CreateTemp(dir, fmt.Sprintf("%s-bgst-*", GeneratorPackageName))
-	if err != nil {
-		panic(fmt.Errorf("%s: failed to create string table file: %w", GeneratorPackageName, err))
-	}
-
-	var writeErr error
-	defer func() {
-		if writeErr != nil {
-			_ = f.Close()
-		}
-	}()
-
-	// table length
-	tl := buffer.ReadInt()
-
-	var refs []fileStringRef
-	if tl > 0 {
-		refs = make([]fileStringRef, tl)
-
-		for i := range tl {
-			payload := byteSliceFor(buffer.ReadString())
-
-			var off int64
-			if len(payload) > 0 {
-				off, err = f.Seek(0, io.SeekEnd)
-				if err != nil {
-					writeErr = fmt.Errorf("%s: failed to seek string table file: %w", GeneratorPackageName, err)
-					panic(writeErr)
-				}
-				if _, err := f.Write(payload); err != nil {
-					writeErr = fmt.Errorf("%s: failed to write string table entry %d: %w", GeneratorPackageName, i, err)
-					panic(writeErr)
-				}
-			}
-
-			refs[i] = fileStringRef{
-				off:    off,
-				length: len(payload),
-			}
-		}
-	}
-
-	var memo []string
-
-	// Pre-load cache with strings up to memoMaxBytes, respecting string boundaries
-	if memoMaxBytes > 0 && len(refs) > 0 {
-		memo = make([]string, len(refs))
-		var cumulativeSize int64
-		for i, ref := range refs {
-			// Check if adding this string would exceed the limit
-			if cumulativeSize+int64(ref.length)+StringHeaderSize > memoMaxBytes {
-				// Would exceed limit, stop here
-				break
-			}
-
-			// Read string from file and cache it
-			if ref.length > 0 {
-				b := make([]byte, ref.length)
-				_, err := f.ReadAt(b, ref.off)
-				if err != nil {
-					// If we can't read, skip this entry but continue
-					continue
-				}
-
-				// Cast the allocated bytes to a string in-place
-				str := unsafe.String(unsafe.SliceData(b), len(b))
-				memo[i] = str
-				cumulativeSize += int64(ref.length) + StringHeaderSize
-			}
-		}
-	}
-
-	return &FileStringTableReader{
-		f:    f,
-		refs: refs,
-		memo: memo,
-	}
-}
-
-// At returns the string from the internal file using the reference's offset and length.
-func (fstr *FileStringTableReader) At(index int) string {
-	if fstr == nil || fstr.f == nil {
-		panic(fmt.Errorf("%s: failed to read file string table data", GeneratorPackageName))
-	}
-	if index < 0 || index >= len(fstr.refs) {
-		panic(fmt.Errorf("%s: string table index out of bounds: %d", GeneratorPackageName, index))
-	}
-
-	ref := fstr.refs[index]
-	if ref.length == 0 {
-		return ""
-	}
-
-	// Check cache first
-	if fstr.memo != nil && len(fstr.memo) > index && fstr.memo[index] != "" {
-		return fstr.memo[index]
-	}
-
-	// Cache miss - read from file
-	b := make([]byte, ref.length)
-	_, err := fstr.f.ReadAt(b, ref.off)
-	if err != nil {
-		return ""
-	}
-
-	// Cast the allocated bytes to a string in-place, as we were the ones that allocated the bytes
-	return unsafe.String(unsafe.SliceData(b), len(b))
-}
-
-// Len returns the total number of strings loaded in the string table.
-func (fstr *FileStringTableReader) Len() int {
-	if fstr == nil {
-		return 0
-	}
-
-	return len(fstr.refs)
-}
-
-// Close for the file string table reader closes the file and deletes it.
-func (fstr *FileStringTableReader) Close() error {
-	if fstr == nil || fstr.f == nil {
-		return nil
-	}
-
-	path := fstr.f.Name()
-	err := fstr.f.Close()
-	fstr.f = nil
-	fstr.refs = nil
-	fstr.memo = nil
-
-	if path != "" {
-		_ = os.Remove(path)
-	}
-
-	return err
-}
-
 //--------------------------------------------------------------------------
 //  Codec Context
 //--------------------------------------------------------------------------
@@ -672,12 +241,12 @@ func (fstr *FileStringTableReader) Close() error {
 // and table data
 type EncodingContext struct {
 	Buffer *util.Buffer
-	Table  StringTableWriter
+	Table  stringtable.StringTableWriter
 }
 
 // NewEncodingContext creates a new EncodingContext instance that will create a new []byte buffer
 // for writing, and return the context
-func NewEncodingContext(tableWriter StringTableWriter) *EncodingContext {
+func NewEncodingContext(tableWriter stringtable.StringTableWriter) *EncodingContext {
 	return &EncodingContext{
 		Buffer: util.NewBuffer(),
 		Table:  tableWriter,
@@ -686,7 +255,7 @@ func NewEncodingContext(tableWriter StringTableWriter) *EncodingContext {
 
 // NewEncodingContextFromWriter creates a new EncodingContext instance that will create a new Buffer
 // from the provided io.Writer and StringTableWriter.
-func NewEncodingContextFromWriter(writer io.Writer, tableWriter StringTableWriter) *EncodingContext {
+func NewEncodingContextFromWriter(writer io.Writer, tableWriter stringtable.StringTableWriter) *EncodingContext {
 	return &EncodingContext{
 		Buffer: util.NewBufferFromWriter(writer),
 		Table:  tableWriter,
@@ -695,7 +264,7 @@ func NewEncodingContextFromWriter(writer io.Writer, tableWriter StringTableWrite
 
 // NewEncodingContextFromBuffer creates a new EncodingContext instance that will leverage an existing
 // Buffer and StringTableWriter.
-func NewEncodingContextFromBuffer(buffer *util.Buffer, tableWriter StringTableWriter) *EncodingContext {
+func NewEncodingContextFromBuffer(buffer *util.Buffer, tableWriter stringtable.StringTableWriter) *EncodingContext {
 	return &EncodingContext{
 		Buffer: buffer,
 		Table:  tableWriter,
@@ -726,22 +295,22 @@ func (ec *EncodingContext) IsStringTable() bool {
 // reuse as much data as possible
 type DecodingContext struct {
 	Buffer *util.Buffer
-	Table  StringTableReader
+	Table  stringtable.StringTableReader
 }
 
 // NewDecodingContextFromBytes creates a new DecodingContext instance using an byte slice
 func NewDecodingContextFromBytes(data []byte) *DecodingContext {
-	var table StringTableReader
+	var table stringtable.StringTableReader
 
 	buff := util.NewBufferFromBytes(data)
 
 	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+	if isBinaryTag(data, stringtable.BinaryTagStringTable) {
+		buff.ReadBytes(len(stringtable.BinaryTagStringTable)) // strip tag length
 
 		// always use a slice string table with a byte array since the
 		// data is already in memory
-		table = NewSliceStringTableReaderFrom(buff)
+		table = stringtable.NewSliceStringTableReaderFrom(buff)
 	}
 
 	return &DecodingContext{
@@ -753,18 +322,18 @@ func NewDecodingContextFromBytes(data []byte) *DecodingContext {
 // NewDecodingContextFromReader creates a new DecodingContext instance using an io.Reader
 // implementation
 func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
-	var table StringTableReader
+	var table stringtable.StringTableReader
 
 	buff := util.NewBufferFromReader(reader)
 
-	if isReaderBinaryTag(buff, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+	if isReaderBinaryTag(buff, stringtable.BinaryTagStringTable) {
+		buff.ReadBytes(len(stringtable.BinaryTagStringTable)) // strip tag length
 
 		// create correct string table implementation
 		if IsBingenFileBackedStringTableEnabled() {
-			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir(), BingenFileBackedStringTableMemoMaxBytes())
+			table = stringtable.NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir(), GeneratorPackageName, BingenFileBackedStringTableMemoMaxBytes())
 		} else {
-			table = NewSliceStringTableReaderFrom(buff)
+			table = stringtable.NewSliceStringTableReaderFrom(buff)
 		}
 	}
 
@@ -3749,7 +3318,7 @@ func (target *Job) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 // MarshalBinary serializes the internal properties of this KubeModelSet instance
 // into a byte array
 func (target *KubeModelSet) MarshalBinary() (data []byte, err error) {
-	ctx := NewEncodingContext(NewIndexedStringTableWriter())
+	ctx := NewEncodingContext(stringtable.NewIndexedStringTableWriter())
 
 	e := target.MarshalBinaryWithContext(ctx)
 	if e != nil {
@@ -3768,7 +3337,7 @@ func (target *KubeModelSet) MarshalBinaryTo(writer io.Writer) error {
 	// run a pre-pass to collect all strings into the string table and discard all writes to the main
 	// buffer. Then, we write the string table, sorted by number of repeated uses (descending), to the
 	// main buffer, and use the resulting table as part of the context for the main pass.
-	prepass := NewPrepassStringTableWriter()
+	prepass := stringtable.NewPrepassStringTableWriter()
 	prepassCtx := NewEncodingContextFromWriter(io.Discard, prepass)
 
 	e := target.MarshalBinaryWithContext(prepassCtx)
@@ -4346,6 +3915,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		if buff.ReadUInt8() == uint8(0) {
 			target.Metadata = nil
 		} else {
+
 			// --- [begin][read][struct](Metadata) ---
 			a := new(Metadata)
 			buff.ReadInt() // [compatibility, unused]
@@ -4363,6 +3933,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	}
 	// field version check
 	if uint8(1) <= version {
+
 		// --- [begin][read][struct](Window) ---
 		b := new(Window)
 		buff.ReadInt() // [compatibility, unused]
@@ -4419,6 +3990,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					z = nil
 				} else {
+
 					// --- [begin][read][struct](Namespace) ---
 					l := new(Namespace)
 					buff.ReadInt() // [compatibility, unused]
@@ -4464,6 +4036,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zz = nil
 				} else {
+
 					// --- [begin][read][struct](ResourceQuota) ---
 					r := new(ResourceQuota)
 					buff.ReadInt() // [compatibility, unused]
@@ -4509,6 +4082,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzz = nil
 				} else {
+
 					// --- [begin][read][struct](Service) ---
 					y := new(Service)
 					buff.ReadInt() // [compatibility, unused]
@@ -4599,6 +4173,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](StatefulSet) ---
 					oo := new(StatefulSet)
 					buff.ReadInt() // [compatibility, unused]
@@ -4779,6 +4354,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](ReplicaSet) ---
 					rrr := new(ReplicaSet)
 					buff.ReadInt() // [compatibility, unused]
@@ -4824,6 +4400,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](Node) ---
 					yyy := new(Node)
 					buff.ReadInt() // [compatibility, unused]
@@ -4869,6 +4446,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](PersistentVolume) ---
 					ffff := new(PersistentVolume)
 					buff.ReadInt() // [compatibility, unused]
@@ -4914,6 +4492,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](PersistentVolumeClaim) ---
 					oooo := new(PersistentVolumeClaim)
 					buff.ReadInt() // [compatibility, unused]
@@ -4959,6 +4538,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](Pod) ---
 					uuuu := new(Pod)
 					buff.ReadInt() // [compatibility, unused]
@@ -5058,7 +4638,7 @@ func (stream *KubeModelSetStream) Error() error {
 }
 
 // NewKubeModelSetStream creates a new KubeModelSetStream, which uses the io.Reader data to stream all internal fields of an KubeModelSet instance
-func NewKubeModelSetStream(reader io.Reader) BingenStream {
+func NewKubeModelSetStream(reader io.Reader) bstream.BingenStream {
 	ctx := NewDecodingContextFromReader(reader)
 
 	return &KubeModelSetStream{
@@ -5068,9 +4648,9 @@ func NewKubeModelSetStream(reader io.Reader) BingenStream {
 }
 
 // Stream returns the iterator which will stream each field of the target type.
-func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
-	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
-		var fi BingenFieldInfo
+func (stream *KubeModelSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *bstream.BingenValue] {
+	return func(yield func(bstream.BingenFieldInfo, *bstream.BingenValue) bool) {
+		var fi bstream.BingenFieldInfo
 
 		ctx := stream.ctx
 		buff := ctx.Buffer
@@ -5081,7 +4661,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			return
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[*Metadata](),
 			Name: "Metadata",
 		}
@@ -5105,7 +4685,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 				}
 				a := b
 				// --- [end][read][struct](Metadata) ---
-				if !yield(fi, singleV(a)) {
+				if !yield(fi, bstream.SingleV(a)) {
 					return
 				}
 
@@ -5118,7 +4698,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[Window](),
 			Name: "Window",
 		}
@@ -5136,7 +4716,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 			c := *d
 			// --- [end][read][struct](Window) ---
-			if !yield(fi, singleV(c)) {
+			if !yield(fi, bstream.SingleV(c)) {
 				return
 			}
 
@@ -5144,7 +4724,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[*Cluster](),
 			Name: "Cluster",
 		}
@@ -5168,7 +4748,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 				}
 				e := f
 				// --- [end][read][struct](Cluster) ---
-				if !yield(fi, singleV(e)) {
+				if !yield(fi, bstream.SingleV(e)) {
 					return
 				}
 
@@ -5181,7 +4761,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*Namespace](),
 			Name: "Namespaces",
 		}
@@ -5211,6 +4791,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						z = nil
 					} else {
+
 						// --- [begin][read][struct](Namespace) ---
 						n := new(Namespace)
 						buff.ReadInt() // [compatibility, unused]
@@ -5225,7 +4806,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(v, z)) {
+					if !yield(fi, bstream.PairV(v, z)) {
 						return
 					}
 				}
@@ -5240,7 +4821,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*ResourceQuota](),
 			Name: "ResourceQuotas",
 		}
@@ -5270,6 +4851,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zz = nil
 					} else {
+
 						// --- [begin][read][struct](ResourceQuota) ---
 						s := new(ResourceQuota)
 						buff.ReadInt() // [compatibility, unused]
@@ -5284,7 +4866,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vv, zz)) {
+					if !yield(fi, bstream.PairV(vv, zz)) {
 						return
 					}
 				}
@@ -5299,7 +4881,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*Service](),
 			Name: "Services",
 		}
@@ -5329,6 +4911,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzz = nil
 					} else {
+
 						// --- [begin][read][struct](Service) ---
 						y := new(Service)
 						buff.ReadInt() // [compatibility, unused]
@@ -5343,7 +4926,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvv, zzz)) {
+					if !yield(fi, bstream.PairV(vvv, zzz)) {
 						return
 					}
 				}
@@ -5358,7 +4941,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*Deployment](),
 			Name: "Deployments",
 		}
@@ -5402,7 +4985,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvvv, zzzz)) {
+					if !yield(fi, bstream.PairV(vvvv, zzzz)) {
 						return
 					}
 				}
@@ -5417,7 +5000,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*StatefulSet](),
 			Name: "StatefulSets",
 		}
@@ -5447,6 +5030,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](StatefulSet) ---
 						mm := new(StatefulSet)
 						buff.ReadInt() // [compatibility, unused]
@@ -5461,7 +5045,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvvvv, zzzzz)) {
+					if !yield(fi, bstream.PairV(vvvvv, zzzzz)) {
 						return
 					}
 				}
@@ -5476,7 +5060,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*DaemonSet](),
 			Name: "DaemonSets",
 		}
@@ -5520,7 +5104,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvvvvv, zzzzzz)) {
+					if !yield(fi, bstream.PairV(vvvvvv, zzzzzz)) {
 						return
 					}
 				}
@@ -5535,7 +5119,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*Job](),
 			Name: "Jobs",
 		}
@@ -5579,7 +5163,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvvvvvv, zzzzzzz)) {
+					if !yield(fi, bstream.PairV(vvvvvvv, zzzzzzz)) {
 						return
 					}
 				}
@@ -5594,7 +5178,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*CronJob](),
 			Name: "CronJobs",
 		}
@@ -5638,7 +5222,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvvvvvvv, zzzzzzzz)) {
+					if !yield(fi, bstream.PairV(vvvvvvvv, zzzzzzzz)) {
 						return
 					}
 				}
@@ -5653,7 +5237,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*ReplicaSet](),
 			Name: "ReplicaSets",
 		}
@@ -5683,6 +5267,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](ReplicaSet) ---
 						lll := new(ReplicaSet)
 						buff.ReadInt() // [compatibility, unused]
@@ -5697,7 +5282,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvvvvvvvv, zzzzzzzzz)) {
+					if !yield(fi, bstream.PairV(vvvvvvvvv, zzzzzzzzz)) {
 						return
 					}
 				}
@@ -5712,7 +5297,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*Node](),
 			Name: "Nodes",
 		}
@@ -5742,6 +5327,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](Node) ---
 						qqq := new(Node)
 						buff.ReadInt() // [compatibility, unused]
@@ -5756,7 +5342,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvvvvvvvvv, zzzzzzzzzz)) {
+					if !yield(fi, bstream.PairV(vvvvvvvvvv, zzzzzzzzzz)) {
 						return
 					}
 				}
@@ -5771,7 +5357,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*PersistentVolume](),
 			Name: "PersistentVolumes",
 		}
@@ -5801,6 +5387,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](PersistentVolume) ---
 						www := new(PersistentVolume)
 						buff.ReadInt() // [compatibility, unused]
@@ -5815,7 +5402,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvvvvvvvvvv, zzzzzzzzzzz)) {
+					if !yield(fi, bstream.PairV(vvvvvvvvvvv, zzzzzzzzzzz)) {
 						return
 					}
 				}
@@ -5830,7 +5417,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*PersistentVolumeClaim](),
 			Name: "PersistentVolumeClaims",
 		}
@@ -5860,6 +5447,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](PersistentVolumeClaim) ---
 						cccc := new(PersistentVolumeClaim)
 						buff.ReadInt() // [compatibility, unused]
@@ -5874,7 +5462,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvvvvvvvvvvv, zzzzzzzzzzzz)) {
+					if !yield(fi, bstream.PairV(vvvvvvvvvvvv, zzzzzzzzzzzz)) {
 						return
 					}
 				}
@@ -5889,7 +5477,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*Pod](),
 			Name: "Pods",
 		}
@@ -5919,6 +5507,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](Pod) ---
 						hhhh := new(Pod)
 						buff.ReadInt() // [compatibility, unused]
@@ -5933,7 +5522,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvvvvvvvvvvvv, zzzzzzzzzzzzz)) {
+					if !yield(fi, bstream.PairV(vvvvvvvvvvvvv, zzzzzzzzzzzzz)) {
 						return
 					}
 				}
@@ -5948,7 +5537,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 			}
 		}
 
-		fi = BingenFieldInfo{
+		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]*Container](),
 			Name: "Containers",
 		}
@@ -5992,7 +5581,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 
 					}
 
-					if !yield(fi, pairV(vvvvvvvvvvvvvv, zzzzzzzzzzzzzz)) {
+					if !yield(fi, bstream.PairV(vvvvvvvvvvvvvv, zzzzzzzzzzzzzz)) {
 						return
 					}
 				}
@@ -8987,6 +8576,7 @@ func (target *ResourceQuantity) UnmarshalBinaryWithContext(ctx *DecodingContext)
 	}
 	// field version check
 	if uint8(1) <= version {
+
 		// --- [begin][read][alias](Unit) ---
 		var e string
 		var g string
@@ -9656,7 +9246,6 @@ func (target *ResourceQuotaSpecHard) UnmarshalBinaryWithContext(ctx *DecodingCon
 
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var a map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -9705,7 +9294,6 @@ func (target *ResourceQuotaSpecHard) UnmarshalBinaryWithContext(ctx *DecodingCon
 	}
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var l map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -10066,7 +9654,6 @@ func (target *ResourceQuotaStatusUsed) UnmarshalBinaryWithContext(ctx *DecodingC
 
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var a map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -10115,7 +9702,6 @@ func (target *ResourceQuotaStatusUsed) UnmarshalBinaryWithContext(ctx *DecodingC
 	}
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var l map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
