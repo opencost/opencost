@@ -122,11 +122,11 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 	// Query Athena
 	startQueryExecutionOutput, err := cli.StartQueryExecution(ctx, startQueryExecutionInput)
 	if err != nil {
-		return fmt.Errorf("QueryAthenaPaginated: start query error: %s", err.Error())
+		return formatAWSError("Athena", "StartQueryExecution", err)
 	}
 	err = waitForQueryToComplete(ctx, cli, startQueryExecutionOutput.QueryExecutionId)
 	if err != nil {
-		return fmt.Errorf("QueryAthenaPaginated: query execution error: %s", err.Error())
+		return err
 	}
 	queryResultsInput := &athena.GetQueryResultsInput{
 		QueryExecutionId: startQueryExecutionOutput.QueryExecutionId,
@@ -136,7 +136,7 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 	for getQueryResultsPaginator.HasMorePages() {
 		pg, err := getQueryResultsPaginator.NextPage(ctx)
 		if err != nil {
-			log.Errorf("queryAthenaPaginated: NextPage error: %s", err.Error())
+			log.Errorf("%s", formatAWSError("Athena", "GetQueryResults", err).Error())
 			continue
 		}
 		fn(pg)
@@ -152,13 +152,24 @@ func waitForQueryToComplete(ctx context.Context, client *athena.Client, queryExe
 	for isQueryStillRunning {
 		qe, err := client.GetQueryExecution(ctx, inp)
 		if err != nil {
-			return err
+			return formatAWSError("Athena", "GetQueryExecution", err)
 		}
-		if qe.QueryExecution.Status.State == "SUCCEEDED" {
+		state := qe.QueryExecution.Status.State
+		if state == "SUCCEEDED" {
 			isQueryStillRunning = false
 			continue
 		}
-		if qe.QueryExecution.Status.State != "RUNNING" && qe.QueryExecution.Status.State != "QUEUED" {
+		// FAILED/CANCELLED are not SDK-level errors: the API call itself succeeded, but the
+		// query failed to run, e.g. due to denied access to the S3 output bucket or a KMS key.
+		// StateChangeReason carries that detail and must not be reported as an AssumeRole failure.
+		if state == "FAILED" || state == "CANCELLED" {
+			reason := ""
+			if qe.QueryExecution.Status.StateChangeReason != nil {
+				reason = *qe.QueryExecution.Status.StateChangeReason
+			}
+			return fmt.Errorf("AWS Athena query execution %s ended in state %s: %s", *queryExecutionID, state, reason)
+		}
+		if state != "RUNNING" && state != "QUEUED" {
 			return fmt.Errorf("no query results available for query %s", *queryExecutionID)
 		}
 		time.Sleep(2 * time.Second)
