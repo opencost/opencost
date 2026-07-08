@@ -1386,6 +1386,10 @@ func (a *Allocation) add(that *Allocation) {
 		a.RAMBytesLimitAverage = ramLimByteMins / a.Minutes()
 		a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
 
+		if a.GPUAllocation == nil && that.GPUAllocation != nil {
+			a.GPUAllocation = that.GPUAllocation.Clone()
+		}
+
 		if a.GPUAllocation != nil {
 			if gpuReqMins != nil {
 				gpuReqMinsRes := *gpuReqMins / a.Minutes()
@@ -1408,6 +1412,10 @@ func (a *Allocation) add(that *Allocation) {
 		a.RAMBytesRequestAverage = 0.0
 		a.RAMBytesLimitAverage = 0.0
 		a.RAMBytesUsageAverage = 0.0
+
+		if a.GPUAllocation == nil && that.GPUAllocation != nil {
+			a.GPUAllocation = that.GPUAllocation.Clone()
+		}
 
 		if a.GPUAllocation != nil {
 			a.GPUAllocation.GPURequestAverage = nil
