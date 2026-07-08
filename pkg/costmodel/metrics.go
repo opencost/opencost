@@ -582,7 +582,6 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 							cmme.EmitCarbonCost(props.Cluster, provider, assetType, props.Name, carbonRow.Co2e)
 							labelKey := getKeyFromLabelStrings(props.Cluster, provider, assetType, props.Name)
 							carbonSeen[labelKey] = true
-							}
 						}
 					}
 				}
