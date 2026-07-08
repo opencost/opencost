@@ -1,0 +1,105 @@
+name: Snyk Security Scan
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+  merge_group:
+    types: [checks_requested]
+  schedule:
+    # Refresh monitored dependency snapshots weekly.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  snyk-test:
+    name: Snyk Open Source
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.2
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Go Mod cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Download Go module dependencies
+        run: |
+          go mod download
+          (cd core && go mod download)
+          (cd modules/collector-source && go mod download)
+          (cd modules/prometheus-source && go mod download)
+
+      - name: Run Snyk to check for vulnerabilities
+        id: snyk
+        uses: snyk/actions/golang@v1.0.0
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --all-projects --severity-threshold=high --sarif-file-output=snyk.sarif
+
+      - name: Upload Snyk results to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() && hashFiles('snyk.sarif') != ''
+        with:
+          sarif_file: snyk.sarif
+
+      - name: Fail on vulnerabilities
+        if: steps.snyk.outcome == 'failure'
+        run: exit 1
+
+  snyk-monitor:
+    name: Snyk Monitor
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.2
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Go Mod cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Download Go module dependencies
+        run: |
+          go mod download
+          (cd core && go mod download)
+          (cd modules/collector-source && go mod download)
+          (cd modules/prometheus-source && go mod download)
+
+      - name: Monitor dependencies with Snyk
+        uses: snyk/actions/golang@v1.0.0
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: monitor
+          args: --all-projects
