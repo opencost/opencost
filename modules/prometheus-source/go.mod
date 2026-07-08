@@ -1,6 +1,6 @@
 module github.com/opencost/opencost/modules/prometheus-source
 
-go 1.26.0
+go 1.26.4
 
 replace (
 	github.com/golang/lint => golang.org/x/lint v0.0.0-20180702182130-06c8688daad7
@@ -47,7 +47,7 @@ require (
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/term v0.41.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
