@@ -147,6 +147,12 @@ just validate-protobuf
 | `MCP_SERVER_ENABLED` | `false` | Enable MCP server |
 | `MCP_HTTP_PORT` | `8081` | MCP server HTTP port |
 
+### Admin Auth
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ADMIN_TOKEN` | (unset) | Bearer token for admin endpoints (`POST /serviceKey`, cloud config mutate/export, `/helmValues`). If unset, those endpoints return HTTP 501. |
+
 ### Cloud Providers
 
 | Variable | Description |
