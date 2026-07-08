@@ -1,18 +1,18 @@
 package basic
 
 import (
-	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
 const DefaultClusterPricePerHour float64 = 0.0
 
-const DefaultNetworkLocalPricePerGiB float64 = 0.0
-const DefaultNetworkCrossZonePricePerGiB float64 = 0.01
-const DefaultNetworkCrossRegionPricePerGiB float64 = 0.01
-const DefaultNetworkInternetPricePerGiB float64 = 0.143
-const DefaultNetworkNATPricePerGiB float64 = 0.045
+const DefaultNetworkLocalEgressPricePerGiB float64 = 0.0
+const DefaultNetworkCrossZoneEgressPricePerGiB float64 = 0.01
+const DefaultNetworkCrossRegionEgressPricePerGiB float64 = 0.01
+const DefaultNetworkInternetEgressPricePerGiB float64 = 0.143
+const DefaultNetworkNATGatewayEgressPricePerGiB float64 = 0.045
+const DefaultNetworkNATGatewayIngressPricePerGiB float64 = 0.045
 
 const DefaultNodePricePerVCPUHour float64 = 0.031611
 const DefaultNodePricePerRAMGiBHour float64 = 0.004237
@@ -50,67 +50,31 @@ func GetDefaultClusterPricing() []*pricing.ClusterPricing {
 func GetDefaultNetworkPricing() []*pricing.NetworkPricing {
 	return []*pricing.NetworkPricing{
 		{
-			Properties: pricing.NetworkPricingProperties{
-				TrafficDirection: kubemodel.TrafficDirectionEgress,
-				TrafficType:      kubemodel.TrafficTypeLocal,
-				IsNatGateway:     false,
-			},
+			Properties: pricing.NetworkPricingProperties{},
 			Prices: pricing.Prices{
-				pricing.ResourceNetworkTraffic: {
+				pricing.ResourceLocalEgress: {
 					Unit:  unit.GiB,
-					Price: DefaultNetworkLocalPricePerGiB,
+					Price: DefaultNetworkLocalEgressPricePerGiB,
 				},
-			},
-		},
-		{
-			Properties: pricing.NetworkPricingProperties{
-				TrafficDirection: kubemodel.TrafficDirectionEgress,
-				TrafficType:      kubemodel.TrafficTypeCrossZone,
-				IsNatGateway:     false,
-			},
-			Prices: pricing.Prices{
-				pricing.ResourceNetworkTraffic: {
+				pricing.ResourceCrossZoneEgress: {
 					Unit:  unit.GiB,
-					Price: DefaultNetworkCrossZonePricePerGiB,
+					Price: DefaultNetworkCrossZoneEgressPricePerGiB,
 				},
-			},
-		},
-		{
-			Properties: pricing.NetworkPricingProperties{
-				TrafficDirection: kubemodel.TrafficDirectionEgress,
-				TrafficType:      kubemodel.TrafficTypeCrossRegion,
-				IsNatGateway:     false,
-			},
-			Prices: pricing.Prices{
-				pricing.ResourceNetworkTraffic: {
+				pricing.ResourceCrossRegionEgress: {
 					Unit:  unit.GiB,
-					Price: DefaultNetworkCrossRegionPricePerGiB,
+					Price: DefaultNetworkCrossRegionEgressPricePerGiB,
 				},
-			},
-		},
-		{
-			Properties: pricing.NetworkPricingProperties{
-				TrafficDirection: kubemodel.TrafficDirectionEgress,
-				TrafficType:      kubemodel.TrafficTypeInternet,
-				IsNatGateway:     false,
-			},
-			Prices: pricing.Prices{
-				pricing.ResourceNetworkTraffic: {
+				pricing.ResourceInternetEgress: {
 					Unit:  unit.GiB,
-					Price: DefaultNetworkInternetPricePerGiB,
+					Price: DefaultNetworkInternetEgressPricePerGiB,
 				},
-			},
-		},
-		{
-			Properties: pricing.NetworkPricingProperties{
-				TrafficDirection: kubemodel.TrafficDirectionEgress,
-				TrafficType:      kubemodel.TrafficTypeInternet,
-				IsNatGateway:     true,
-			},
-			Prices: pricing.Prices{
-				pricing.ResourceNetworkTraffic: {
+				pricing.ResourceNATGatewayEgress: {
 					Unit:  unit.GiB,
-					Price: DefaultNetworkInternetPricePerGiB + DefaultNetworkNATPricePerGiB,
+					Price: DefaultNetworkNATGatewayEgressPricePerGiB,
+				},
+				pricing.ResourceNATGatewayIngress: {
+					Unit:  unit.GiB,
+					Price: DefaultNetworkNATGatewayIngressPricePerGiB,
 				},
 			},
 		},

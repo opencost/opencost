@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"sync"
 
 	"github.com/opencost/opencost/core/pkg/pricing"
@@ -14,6 +13,9 @@ import (
 
 // PricingModule must satisfy the pricing.PricingModule interface
 var _ pricing.PricingModule = (*PricingModule)(nil)
+
+const SourceKind = "basic"
+const SourceName = "basic"
 
 type PricingModule struct {
 	mu    sync.RWMutex
@@ -82,22 +84,16 @@ func (pm *PricingModule) GetNetworkPricing(ctx context.Context, props pricing.Ne
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
-	nps, err := pm.getNetworkPricing(ctx)
+	np, err := pm.getNetworkPricing(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Search through the mock data for a matching network pricing entry
-	for _, np := range nps {
-		if np.Properties.Provider == props.Provider &&
-			np.Properties.TrafficDirection == props.TrafficDirection &&
-			np.Properties.TrafficType == props.TrafficType &&
-			np.Properties.IsNatGateway == props.IsNatGateway {
-			return np, nil
-		}
+	if np != nil {
+		return np, nil
 	}
-	return nil, fmt.Errorf("network pricing not found for provider=%s, trafficDirection=%s, trafficType=%s, isNatGateway=%t",
-		props.Provider, props.TrafficDirection, props.TrafficType, props.IsNatGateway)
+
+	return nil, errors.New("no network pricing")
 }
 
 func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*pricing.NetworkPricing], error) {
@@ -109,7 +105,7 @@ func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Re
 		return nil, fmt.Errorf("getting node pricing: %w", err)
 	}
 
-	return reader.NewSliceReader(slices.Clone(np)), nil
+	return reader.NewSliceReader([]*pricing.NetworkPricing{np}), nil
 }
 
 func (pm *PricingModule) GetNodePricing(ctx context.Context, props pricing.NodePricingProperties) (*pricing.NodePricing, error) {
@@ -204,11 +200,11 @@ func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet
 }
 
 func (pm *PricingModule) SourceKind() string {
-	return "basic"
+	return SourceKind
 }
 
 func (pm *PricingModule) SourceName() string {
-	return "basic"
+	return SourceName
 }
 
 func (pm *PricingModule) Checksum(ctx context.Context) (string, error) {
@@ -226,6 +222,55 @@ func (pm *PricingModule) Checksum(ctx context.Context) (string, error) {
 }
 
 // Public CRUD functions
+
+func (pm *PricingModule) SetClusterPricePerHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setClusterPrice(ctx, pricing.ResourceCluster, unit.Hour, price)
+}
+
+func (pm *PricingModule) SetNetworkLocalEgressPricePerGiB(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setNetworkPrice(ctx, pricing.ResourceLocalEgress, unit.GiB, price)
+}
+
+func (pm *PricingModule) SetNetworkCrossZoneEgressPricePerGiB(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setNetworkPrice(ctx, pricing.ResourceCrossZoneEgress, unit.GiB, price)
+}
+
+func (pm *PricingModule) SetNetworkCrossRegionEgressPricePerGiB(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setNetworkPrice(ctx, pricing.ResourceCrossRegionEgress, unit.GiB, price)
+}
+
+func (pm *PricingModule) SetNetworkInternetEgressPricePerGiB(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setNetworkPrice(ctx, pricing.ResourceInternetEgress, unit.GiB, price)
+}
+
+func (pm *PricingModule) SetNetworkNATGatewayEgressPricePerGiB(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setNetworkPrice(ctx, pricing.ResourceNATGatewayEgress, unit.GiB, price)
+}
+
+func (pm *PricingModule) SetNetworkNATGatewayIngressPricePerGiB(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setNetworkPrice(ctx, pricing.ResourceNATGatewayIngress, unit.GiB, price)
+}
 
 func (pm *PricingModule) SetNodePricePerCPUCoreHour(ctx context.Context, price float64) error {
 	pm.mu.Lock()
@@ -255,14 +300,59 @@ func (pm *PricingModule) SetNodePricePerLocalDiskGiBHour(ctx context.Context, pr
 	return pm.setNodePrice(ctx, pricing.ResourceStorage, unit.GiBHour, price)
 }
 
-func (pm *PricingModule) SetVolumePricePerStorageGiBHour(ctx context.Context, price float64) error {
+func (pm *PricingModule) SetPersistentVolumePricePerStorageGiBHour(ctx context.Context, price float64) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
-	return pm.setVolumePrice(ctx, pricing.ResourceStorage, unit.GiBHour, price)
+	return pm.setPersistentVolumePrice(ctx, pricing.ResourceStorage, unit.GiBHour, price)
+}
+
+func (pm *PricingModule) SetServicePricePerHour(ctx context.Context, price float64) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	return pm.setServicePrice(ctx, pricing.ResourceService, unit.Hour, price)
 }
 
 // Private functions to set a price by resource and unit
+
+func (pm *PricingModule) setClusterPrice(ctx context.Context, resource pricing.Resource, unit unit.Unit, price float64) error {
+	cp, err := pm.getClusterPricing(ctx)
+	if err != nil {
+		return fmt.Errorf("getting cluster pricing: %w", err)
+	}
+
+	if cp.Prices == nil {
+		cp.Prices = pricing.Prices{}
+	}
+	cp.Prices[resource] = pricing.Price{Unit: unit, Price: price}
+
+	err = pm.setClusterPricing(ctx, cp)
+	if err != nil {
+		return fmt.Errorf("setting cluster pricing: %w", err)
+	}
+
+	return nil
+}
+
+func (pm *PricingModule) setNetworkPrice(ctx context.Context, resource pricing.Resource, unit unit.Unit, price float64) error {
+	np, err := pm.getNetworkPricing(ctx)
+	if err != nil {
+		return fmt.Errorf("getting network pricing: %w", err)
+	}
+
+	if np.Prices == nil {
+		np.Prices = pricing.Prices{}
+	}
+	np.Prices[resource] = pricing.Price{Unit: unit, Price: price}
+
+	err = pm.setNetworkPricing(ctx, np)
+	if err != nil {
+		return fmt.Errorf("setting network pricing: %w", err)
+	}
+
+	return nil
+}
 
 func (pm *PricingModule) setNodePrice(ctx context.Context, resource pricing.Resource, unit unit.Unit, price float64) error {
 	np, err := pm.getNodePricing(ctx)
@@ -283,7 +373,7 @@ func (pm *PricingModule) setNodePrice(ctx context.Context, resource pricing.Reso
 	return nil
 }
 
-func (pm *PricingModule) setVolumePrice(ctx context.Context, resource pricing.Resource, unit unit.Unit, price float64) error {
+func (pm *PricingModule) setPersistentVolumePrice(ctx context.Context, resource pricing.Resource, unit unit.Unit, price float64) error {
 	vp, err := pm.getPersistentVolumePricing(ctx)
 	if err != nil {
 		return fmt.Errorf("getting volume pricing: %w", err)
@@ -297,6 +387,25 @@ func (pm *PricingModule) setVolumePrice(ctx context.Context, resource pricing.Re
 	err = pm.setPersistentVolumePricing(ctx, vp)
 	if err != nil {
 		return fmt.Errorf("setting volume pricing: %w", err)
+	}
+
+	return nil
+}
+
+func (pm *PricingModule) setServicePrice(ctx context.Context, resource pricing.Resource, unit unit.Unit, price float64) error {
+	sp, err := pm.getServicePricing(ctx)
+	if err != nil {
+		return fmt.Errorf("getting service pricing: %w", err)
+	}
+
+	if sp.Prices == nil {
+		sp.Prices = pricing.Prices{}
+	}
+	sp.Prices[resource] = pricing.Price{Unit: unit, Price: price}
+
+	err = pm.setServicePricing(ctx, sp)
+	if err != nil {
+		return fmt.Errorf("setting service pricing: %w", err)
 	}
 
 	return nil
@@ -320,11 +429,29 @@ func (pm *PricingModule) getClusterPricing(ctx context.Context) (*pricing.Cluste
 }
 
 func (pm *PricingModule) setClusterPricing(ctx context.Context, cp *pricing.ClusterPricing) error {
-	// TODO
-	return errors.New("not implemented")
+	if cp == nil {
+		return errors.New("nil cluster pricing")
+	}
+
+	// Get the pricing set
+	ps, err := pm.store.GetPricingSet(ctx)
+	if err != nil {
+		return fmt.Errorf("getting pricing: %w", err)
+	}
+
+	// Only one default ClusterPricing is allowed in basic pricing.
+	ps.ClusterPricing = []*pricing.ClusterPricing{cp}
+
+	// Set the new pricing set
+	err = pm.store.SetPricingSet(ctx, ps)
+	if err != nil {
+		return fmt.Errorf("setting pricing: %w", err)
+	}
+
+	return nil
 }
 
-func (pm *PricingModule) getNetworkPricing(ctx context.Context) ([]*pricing.NetworkPricing, error) {
+func (pm *PricingModule) getNetworkPricing(ctx context.Context) (*pricing.NetworkPricing, error) {
 	ps, err := pm.store.GetPricingSet(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting pricing: %w", err)
@@ -334,12 +461,30 @@ func (pm *PricingModule) getNetworkPricing(ctx context.Context) ([]*pricing.Netw
 		return nil, errors.New("not found")
 	}
 
-	return ps.NetworkPricing, nil
+	return ps.NetworkPricing[0], nil
 }
 
 func (pm *PricingModule) setNetworkPricing(ctx context.Context, np *pricing.NetworkPricing) error {
-	// TODO
-	return errors.New("not implemented")
+	if np == nil {
+		return errors.New("nil network pricing")
+	}
+
+	// Get the pricing set
+	ps, err := pm.store.GetPricingSet(ctx)
+	if err != nil {
+		return fmt.Errorf("getting pricing: %w", err)
+	}
+
+	// Only one default NetworkPricing is allowed in basic pricing.
+	ps.NetworkPricing = []*pricing.NetworkPricing{np}
+
+	// Set the new pricing set
+	err = pm.store.SetPricingSet(ctx, ps)
+	if err != nil {
+		return fmt.Errorf("setting pricing: %w", err)
+	}
+
+	return nil
 }
 
 func (pm *PricingModule) getNodePricing(ctx context.Context) (*pricing.NodePricing, error) {
@@ -434,6 +579,24 @@ func (pm *PricingModule) getServicePricing(ctx context.Context) (*pricing.Servic
 }
 
 func (pm *PricingModule) setServicePricing(ctx context.Context, sp *pricing.ServicePricing) error {
-	// TODO
-	return errors.New("not implemented")
+	if sp == nil {
+		return errors.New("nil service pricing")
+	}
+
+	// Get the pricing set
+	ps, err := pm.store.GetPricingSet(ctx)
+	if err != nil {
+		return fmt.Errorf("getting pricing: %w", err)
+	}
+
+	// Only one default ServicePricing is allowed in basic pricing.
+	ps.ServicePricing = []*pricing.ServicePricing{sp}
+
+	// Set the new pricing set
+	err = pm.store.SetPricingSet(ctx, ps)
+	if err != nil {
+		return fmt.Errorf("setting pricing: %w", err)
+	}
+
+	return nil
 }

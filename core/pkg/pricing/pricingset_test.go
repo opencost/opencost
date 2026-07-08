@@ -2,6 +2,7 @@ package pricing
 
 import (
 	"testing"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/unit"
@@ -105,6 +106,122 @@ func TestIsEmptyAllKinds(t *testing.T) {
 		if ps.IsEmpty() {
 			t.Errorf("set with only %s pricing should not be empty", name)
 		}
+	}
+}
+
+// fullPricingSet returns a PricingSet that exercises every kind plus every
+// reference-typed field (Labels maps, Prices maps, and *time.Time pointers) so
+// that Clone independence can be verified end to end.
+func fullPricingSet() *PricingSet {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	node := nodePricing("m5.large", 0.096)
+	node.Properties.Labels = map[string]string{"team": "platform"}
+	node.Properties.Start = &start
+	node.Properties.End = &end
+
+	pv := pvPricing(VolumeTypeGP3, 0.0001)
+	pv.Properties.Labels = map[string]string{"env": "prod"}
+	pv.Properties.Start = &start
+
+	return &PricingSet{
+		ClusterPricing: []*ClusterPricing{{
+			Properties: ClusterPricingProperties{Provider: shared.Provider("AWS"), Start: &start},
+			Prices:     Prices{ResourceCluster: {Unit: unit.Hour, Price: 1.0}},
+		}},
+		NetworkPricing: []*NetworkPricing{{
+			Properties: NetworkPricingProperties{Provider: shared.Provider("AWS"), End: &end},
+			Prices:     Prices{ResourceInternetEgress: {Unit: unit.GiB, Price: 0.09}},
+		}},
+		NodePricing:             []*NodePricing{node},
+		PersistentVolumePricing: []*PersistentVolumePricing{pv},
+		ServicePricing: []*ServicePricing{{
+			Properties: ServicePricingProperties{Provider: shared.Provider("AWS"), Region: "us-east-1", Start: &start},
+			Prices:     Prices{ResourceService: {Unit: unit.Hour, Price: 0.025}},
+		}},
+	}
+}
+
+// TestCloneEquality verifies that a clone is equal to the original by checksum.
+func TestCloneEquality(t *testing.T) {
+	orig := fullPricingSet()
+	clone := orig.Clone()
+
+	csOrig, err := orig.Checksum()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	csClone, err := clone.Checksum()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if csOrig != csClone {
+		t.Errorf("expected clone checksum %q to equal original %q", csClone, csOrig)
+	}
+}
+
+// TestCloneIndependence verifies that mutating a clone's nested slices, maps,
+// and time pointers does not affect the original.
+func TestCloneIndependence(t *testing.T) {
+	orig := fullPricingSet()
+
+	csBefore, err := orig.Checksum()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	clone := orig.Clone()
+
+	// Mutate every reference-typed field reachable from the clone.
+	clone.NodePricing[0].Properties.Labels["team"] = "mutated"
+	clone.NodePricing[0].Prices[ResourceNode] = Price{Unit: unit.Hour, Price: 99}
+	*clone.NodePricing[0].Properties.Start = time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC)
+	clone.NodePricing[0].Properties.End = nil
+	clone.PersistentVolumePricing[0].Properties.Labels["env"] = "mutated"
+	clone.PersistentVolumePricing[0].Prices[ResourceStorage] = Price{Unit: unit.GiBHour, Price: 99}
+	clone.ClusterPricing[0].Prices[ResourceCluster] = Price{Unit: unit.Hour, Price: 99}
+	clone.NetworkPricing[0].Prices[ResourceInternetEgress] = Price{Unit: unit.GiB, Price: 99}
+	clone.ServicePricing[0].Prices[ResourceService] = Price{Unit: unit.Hour, Price: 99}
+
+	// Replace whole slices to confirm the slice headers are independent too.
+	clone.NodePricing = append(clone.NodePricing, nodePricing("m5.xlarge", 0.192))
+
+	csAfter, err := orig.Checksum()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if csBefore != csAfter {
+		t.Errorf("mutating clone changed original: checksum %q -> %q", csBefore, csAfter)
+	}
+}
+
+// TestCloneNilReceiver verifies that Clone handles a nil receiver by returning
+// an empty, non-nil set rather than panicking.
+func TestCloneNilReceiver(t *testing.T) {
+	var ps *PricingSet
+	clone := ps.Clone()
+
+	if clone == nil {
+		t.Fatal("expected non-nil clone from nil receiver")
+	}
+	if !clone.IsEmpty() {
+		t.Errorf("expected empty clone from nil receiver")
+	}
+}
+
+// TestClonePreservesNilSlices verifies that Clone does not turn nil pricing
+// slices into empty ones, keeping serialization semantics stable.
+func TestClonePreservesNilSlices(t *testing.T) {
+	clone := (&PricingSet{}).Clone()
+
+	if clone.NodePricing != nil {
+		t.Errorf("expected nil NodePricing slice, got %v", clone.NodePricing)
+	}
+	if clone.ClusterPricing != nil {
+		t.Errorf("expected nil ClusterPricing slice, got %v", clone.ClusterPricing)
 	}
 }
 

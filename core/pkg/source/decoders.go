@@ -62,6 +62,7 @@ const (
 	SameZoneLabel        = "same_zone"
 	SameRegionLabel      = "same_region"
 	NatGatewayLabel      = "nat_gateway"
+	KubeModelVersion     = "kubemodel_version"
 )
 
 const (
@@ -668,6 +669,21 @@ func DecodeClusterInfoResult(result *QueryResult) *ClusterInfoResult {
 		AccountID:   accountID,
 		Provisioner: provisioner,
 		Region:      region,
+	}
+}
+
+type ClusterKubeModelVersionResult struct {
+	UID     string
+	Version string
+}
+
+func DecodeClusterKubeModelVersionResult(result *QueryResult) *ClusterKubeModelVersionResult {
+	uid, _ := result.GetString(UIDLabel)
+	version, _ := result.GetString(KubeModelVersion)
+
+	return &ClusterKubeModelVersionResult{
+		UID:     uid,
+		Version: version,
 	}
 }
 
@@ -2134,6 +2150,63 @@ func DecodeDCGMDeviceContainerUsageResult(result *QueryResult) *DCGMDeviceContai
 		PodUID:    podUID,
 		Container: container,
 		Value:     value,
+	}
+}
+
+// Inference Metrics Decoders
+func DecodeInferenceTokensResult(result *QueryResult) *InferenceTokensResult {
+	modelName, _ := result.GetString("model_name")
+	namespace, _ := result.GetString("namespace")
+	key := modelName + ":" + namespace
+
+	// Get the value from the last vector point if available
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[len(result.Values)-1].Value
+	}
+
+	return &InferenceTokensResult{
+		Values: map[string]float64{
+			key: value,
+		},
+	}
+}
+
+func DecodeInferenceProcessingTimeResult(result *QueryResult) *InferenceProcessingTimeResult {
+	modelName, _ := result.GetString("model_name")
+	namespace, _ := result.GetString("namespace")
+	key := modelName + ":" + namespace
+
+	// Get the value from the last vector point if available
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[len(result.Values)-1].Value
+	}
+
+	return &InferenceProcessingTimeResult{
+		Values: map[string]float64{
+			key: value,
+		},
+	}
+}
+
+func DecodeInferenceCacheConfigResult(result *QueryResult) *InferenceCacheConfigResult {
+	modelName, _ := result.GetString("model_name")
+	namespace, _ := result.GetString("namespace")
+	key := modelName + ":" + namespace
+
+	// Get the value from the last vector point if available
+	var prefixCachingEnabled float64
+	if len(result.Values) > 0 {
+		prefixCachingEnabled = result.Values[len(result.Values)-1].Value
+	}
+
+	return &InferenceCacheConfigResult{
+		Configs: map[string]*InferenceCacheConfig{
+			key: {
+				PrefixCachingEnabled: prefixCachingEnabled > 0,
+			},
+		},
 	}
 }
 

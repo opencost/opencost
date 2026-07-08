@@ -13,7 +13,7 @@ type DaemonSet struct {
 	Name             string            `json:"name"`
 	Labels           map[string]string `json:"labels,omitempty"`
 	Annotations      map[string]string `json:"annotations,omitempty"`
-	DevicePluginInfo map[string]string `json:"devicePluginInfo"`
+	DevicePluginInfo map[string]string `json:"devicePluginInfo"` // bingen:field[ignore]
 	Start            time.Time         `json:"start,omitempty"`
 	End              time.Time         `json:"end,omitempty"`
 }

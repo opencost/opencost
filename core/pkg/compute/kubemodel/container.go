@@ -92,7 +92,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.CPUCoresAllocated = res.Data[0].Value
+			container.CPUCoreAllocationAvg = res.Data[0].Value
 		}
 	}
 
@@ -105,7 +105,7 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		if len(res.Data) > 0 {
-			container.RAMBytesAllocated = res.Data[0].Value
+			container.RAMBytesAllocationAvg = res.Data[0].Value
 		}
 	}
 

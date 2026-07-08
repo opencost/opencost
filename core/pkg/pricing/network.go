@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/model/shared"
 )
 
@@ -18,22 +17,13 @@ func (sp *NetworkPricing) String() string {
 }
 
 type NetworkPricingProperties struct {
-	Provider         shared.Provider            `json:"provider,omitempty" yaml:"provider,omitempty"`
-	TrafficDirection kubemodel.TrafficDirection `json:"trafficDirection,omitempty" yaml:"trafficDirection,omitempty"`
-	TrafficType      kubemodel.TrafficType      `json:"trafficType,omitempty" yaml:"trafficType,omitempty"`
-	IsNatGateway     bool                       `json:"isNatGateway,omitempty" yaml:"isNatGateway,omitempty"`
-	Start            *time.Time                 `json:"start,omitempty" yaml:"start,omitempty"`
-	End              *time.Time                 `json:"end,omitempty" yaml:"end,omitempty"`
+	Provider shared.Provider `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Start    *time.Time      `json:"start,omitempty" yaml:"start,omitempty"`
+	End      *time.Time      `json:"end,omitempty" yaml:"end,omitempty"`
 }
 
 func (sp *NetworkPricingProperties) String() string {
-	return fmt.Sprintf("%s:%s:%s:nat=%t:%s",
-		sp.Provider,
-		sp.TrafficDirection,
-		sp.TrafficType,
-		sp.IsNatGateway,
-		sp.timeKey(),
-	)
+	return fmt.Sprintf("%s:%s", sp.Provider, sp.timeKey())
 }
 
 func (sp *NetworkPricingProperties) timeKey() string {

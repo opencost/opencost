@@ -8,6 +8,224 @@ import (
 	"github.com/opencost/opencost/core/pkg/diagnostics"
 )
 
+// Query name constants for use with MockMetricsQuerier.SetOverride.
+const (
+	// Local Cluster Disks
+	QueryLocalStorageActiveMinutes = "QueryLocalStorageActiveMinutes"
+	QueryLocalStorageUsedAvg       = "QueryLocalStorageUsedAvg"
+	QueryLocalStorageUsedMax       = "QueryLocalStorageUsedMax"
+	QueryLocalStorageBytes         = "QueryLocalStorageBytes"
+	QueryKMLocalStorageUsedAvg     = "QueryKMLocalStorageUsedAvg"
+	QueryKMLocalStorageUsedMax     = "QueryKMLocalStorageUsedMax"
+	QueryKMLocalStorageBytes       = "QueryKMLocalStorageBytes"
+
+	// Nodes
+	QueryNodeInfo                 = "QueryNodeInfo"
+	QueryNodeUptime               = "QueryNodeUptime"
+	QueryNodeActiveMinutes        = "QueryNodeActiveMinutes"
+	QueryNodeCPUCoresCapacity     = "QueryNodeCPUCoresCapacity"
+	QueryNodeCPUCoresAllocatable  = "QueryNodeCPUCoresAllocatable"
+	QueryNodeRAMBytesCapacity     = "QueryNodeRAMBytesCapacity"
+	QueryNodeRAMBytesAllocatable  = "QueryNodeRAMBytesAllocatable"
+	QueryNodeGPUCount             = "QueryNodeGPUCount"
+	QueryNodeCPUModeTotal         = "QueryNodeCPUModeTotal"
+	QueryNodeIsSpot               = "QueryNodeIsSpot"
+	QueryNodeRAMSystemPercent     = "QueryNodeRAMSystemPercent"
+	QueryNodeRAMUserPercent       = "QueryNodeRAMUserPercent"
+	QueryNodeResourceCapacities   = "QueryNodeResourceCapacities"
+	QueryNodeResourcesAllocatable = "QueryNodeResourcesAllocatable"
+
+	// Load Balancers
+	QueryLBActiveMinutes = "QueryLBActiveMinutes"
+	QueryLBPricePerHr    = "QueryLBPricePerHr"
+
+	// Cluster Management
+	QueryClusterInfo                 = "QueryClusterInfo"
+	QueryClusterKubeModelVersion     = "QueryClusterKubeModelVersion"
+	QueryClusterUptime               = "QueryClusterUptime"
+	QueryClusterManagementDuration   = "QueryClusterManagementDuration"
+	QueryClusterManagementPricePerHr = "QueryClusterManagementPricePerHr"
+
+	// Pods
+	QueryPods                   = "QueryPods"
+	QueryPodsUID                = "QueryPodsUID"
+	QueryPodInfo                = "QueryPodInfo"
+	QueryPodUptime              = "QueryPodUptime"
+	QueryPodOwners              = "QueryPodOwners"
+	QueryPodPVCVolumes          = "QueryPodPVCVolumes"
+	QueryPodNetworkEgressBytes  = "QueryPodNetworkEgressBytes"
+	QueryPodNetworkIngressBytes = "QueryPodNetworkIngressBytes"
+
+	// Container
+	QueryContainerUptime           = "QueryContainerUptime"
+	QueryContainerResourceRequests = "QueryContainerResourceRequests"
+	QueryContainerResourceLimits   = "QueryContainerResourceLimits"
+
+	// RAM
+	QueryRAMBytesAllocated    = "QueryRAMBytesAllocated"
+	QueryRAMRequests          = "QueryRAMRequests"
+	QueryRAMLimits            = "QueryRAMLimits"
+	QueryRAMUsageAvg          = "QueryRAMUsageAvg"
+	QueryRAMUsageMax          = "QueryRAMUsageMax"
+	QueryNodeRAMPricePerGiBHr = "QueryNodeRAMPricePerGiBHr"
+
+	// CPU
+	QueryCPUCoresAllocated = "QueryCPUCoresAllocated"
+	QueryCPURequests       = "QueryCPURequests"
+	QueryCPULimits         = "QueryCPULimits"
+	QueryCPUUsageAvg       = "QueryCPUUsageAvg"
+	QueryCPUUsageMax       = "QueryCPUUsageMax"
+	QueryNodeCPUPricePerHr = "QueryNodeCPUPricePerHr"
+
+	// GPU
+	QueryGPUsAllocated     = "QueryGPUsAllocated"
+	QueryGPUsRequested     = "QueryGPUsRequested"
+	QueryGPUsUsageAvg      = "QueryGPUsUsageAvg"
+	QueryGPUsUsageMax      = "QueryGPUsUsageMax"
+	QueryNodeGPUPricePerHr = "QueryNodeGPUPricePerHr"
+	QueryGPUInfo           = "QueryGPUInfo"
+	QueryIsGPUShared       = "QueryIsGPUShared"
+
+	// Device
+	QueryDCGMDeviceInfo        = "QueryDCGMDeviceInfo"
+	QueryDCGMDeviceUptime      = "QueryDCGMDeviceUptime"
+	QueryDCGMContainerUsageAvg = "QueryDCGMContainerUsageAvg"
+	QueryDCGMContainerUsageMax = "QueryDCGMContainerUsageMax"
+
+	// PVC
+	QueryPodPVCAllocation    = "QueryPodPVCAllocation"
+	QueryPVCBytesRequested   = "QueryPVCBytesRequested"
+	QueryPVCInfo             = "QueryPVCInfo"
+	QueryKMPVCInfo           = "QueryKMPVCInfo"
+	QueryPVCUptime           = "QueryPVCUptime"
+	QueryPVCBytesUsedAverage = "QueryPVCBytesUsedAverage"
+	QueryPVCBytesUsedMax     = "QueryPVCBytesUsedMax"
+
+	// PV
+	QueryPVBytes           = "QueryPVBytes"
+	QueryPVPricePerGiBHour = "QueryPVPricePerGiBHour"
+	QueryPVInfo            = "QueryPVInfo"
+	QueryPVActiveMinutes   = "QueryPVActiveMinutes"
+	QueryPVUsedAverage     = "QueryPVUsedAverage"
+	QueryPVUsedMax         = "QueryPVUsedMax"
+	QueryKMPVInfo          = "QueryKMPVInfo"
+	QueryPVUptime          = "QueryPVUptime"
+
+	// Deployment
+	QueryDeploymentInfo        = "QueryDeploymentInfo"
+	QueryDeploymentUptime      = "QueryDeploymentUptime"
+	QueryDeploymentLabels      = "QueryDeploymentLabels"
+	QueryDeploymentAnnotations = "QueryDeploymentAnnotations"
+	QueryDeploymentMatchLabels = "QueryDeploymentMatchLabels"
+
+	// StatefulSet
+	QueryStatefulSetInfo        = "QueryStatefulSetInfo"
+	QueryStatefulSetUptime      = "QueryStatefulSetUptime"
+	QueryStatefulSetLabels      = "QueryStatefulSetLabels"
+	QueryStatefulSetAnnotations = "QueryStatefulSetAnnotations"
+	QueryStatefulSetMatchLabels = "QueryStatefulSetMatchLabels"
+
+	// DaemonSet
+	QueryDaemonSetInfo        = "QueryDaemonSetInfo"
+	QueryDaemonSetUptime      = "QueryDaemonSetUptime"
+	QueryDaemonSetLabels      = "QueryDaemonSetLabels"
+	QueryDaemonSetAnnotations = "QueryDaemonSetAnnotations"
+
+	// Job
+	QueryJobInfo        = "QueryJobInfo"
+	QueryJobUptime      = "QueryJobUptime"
+	QueryJobLabels      = "QueryJobLabels"
+	QueryJobAnnotations = "QueryJobAnnotations"
+
+	// CronJob
+	QueryCronJobInfo        = "QueryCronJobInfo"
+	QueryCronJobUptime      = "QueryCronJobUptime"
+	QueryCronJobLabels      = "QueryCronJobLabels"
+	QueryCronJobAnnotations = "QueryCronJobAnnotations"
+
+	// ReplicaSet
+	QueryReplicaSetInfo           = "QueryReplicaSetInfo"
+	QueryReplicaSetUptime         = "QueryReplicaSetUptime"
+	QueryReplicaSetLabels         = "QueryReplicaSetLabels"
+	QueryReplicaSetAnnotations    = "QueryReplicaSetAnnotations"
+	QueryReplicaSetOwners         = "QueryReplicaSetOwners"
+	QueryPodsWithReplicaSetOwner  = "QueryPodsWithReplicaSetOwner"
+	QueryReplicaSetsWithoutOwners = "QueryReplicaSetsWithoutOwners"
+	QueryReplicaSetsWithRollout   = "QueryReplicaSetsWithRollout"
+
+	// Namespace
+	QueryNamespaceInfo        = "QueryNamespaceInfo"
+	QueryNamespaceUptime      = "QueryNamespaceUptime"
+	QueryNamespaceAnnotations = "QueryNamespaceAnnotations"
+	QueryNamespaceLabels      = "QueryNamespaceLabels"
+
+	// Service
+	QueryServiceInfo           = "QueryServiceInfo"
+	QueryServiceUptime         = "QueryServiceUptime"
+	QueryServiceSelectorLabels = "QueryServiceSelectorLabels"
+
+	// Network Egress
+	QueryNetZoneGiB               = "QueryNetZoneGiB"
+	QueryNetZonePricePerGiB       = "QueryNetZonePricePerGiB"
+	QueryNetRegionGiB             = "QueryNetRegionGiB"
+	QueryNetRegionPricePerGiB     = "QueryNetRegionPricePerGiB"
+	QueryNetInternetGiB           = "QueryNetInternetGiB"
+	QueryNetInternetPricePerGiB   = "QueryNetInternetPricePerGiB"
+	QueryNetInternetServiceGiB    = "QueryNetInternetServiceGiB"
+	QueryNetNatGatewayPricePerGiB = "QueryNetNatGatewayPricePerGiB"
+	QueryNetNatGatewayGiB         = "QueryNetNatGatewayGiB"
+	QueryNetTransferBytes         = "QueryNetTransferBytes"
+
+	// Network Ingress
+	QueryNetZoneIngressGiB               = "QueryNetZoneIngressGiB"
+	QueryNetRegionIngressGiB             = "QueryNetRegionIngressGiB"
+	QueryNetInternetIngressGiB           = "QueryNetInternetIngressGiB"
+	QueryNetInternetServiceIngressGiB    = "QueryNetInternetServiceIngressGiB"
+	QueryNetNatGatewayIngressPricePerGiB = "QueryNetNatGatewayIngressPricePerGiB"
+	QueryNetNatGatewayIngressGiB         = "QueryNetNatGatewayIngressGiB"
+	QueryNetReceiveBytes                 = "QueryNetReceiveBytes"
+
+	// Labels
+	QueryNodeLabels = "QueryNodeLabels"
+	QueryPodLabels  = "QueryPodLabels"
+
+	// Pod ownership
+	QueryPodAnnotations         = "QueryPodAnnotations"
+	QueryPodsWithDaemonSetOwner = "QueryPodsWithDaemonSetOwner"
+	QueryPodsWithJobOwner       = "QueryPodsWithJobOwner"
+
+	// ResourceQuotas
+	QueryResourceQuotaInfo                        = "QueryResourceQuotaInfo"
+	QueryResourceQuotaUptime                      = "QueryResourceQuotaUptime"
+	QueryResourceQuotaSpecCPURequestAverage       = "QueryResourceQuotaSpecCPURequestAverage"
+	QueryResourceQuotaSpecCPURequestMax           = "QueryResourceQuotaSpecCPURequestMax"
+	QueryResourceQuotaSpecRAMRequestAverage       = "QueryResourceQuotaSpecRAMRequestAverage"
+	QueryResourceQuotaSpecRAMRequestMax           = "QueryResourceQuotaSpecRAMRequestMax"
+	QueryResourceQuotaSpecCPULimitAverage         = "QueryResourceQuotaSpecCPULimitAverage"
+	QueryResourceQuotaSpecCPULimitMax             = "QueryResourceQuotaSpecCPULimitMax"
+	QueryResourceQuotaSpecRAMLimitAverage         = "QueryResourceQuotaSpecRAMLimitAverage"
+	QueryResourceQuotaSpecRAMLimitMax             = "QueryResourceQuotaSpecRAMLimitMax"
+	QueryResourceQuotaStatusUsedCPURequestAverage = "QueryResourceQuotaStatusUsedCPURequestAverage"
+	QueryResourceQuotaStatusUsedCPURequestMax     = "QueryResourceQuotaStatusUsedCPURequestMax"
+	QueryResourceQuotaStatusUsedRAMRequestAverage = "QueryResourceQuotaStatusUsedRAMRequestAverage"
+	QueryResourceQuotaStatusUsedRAMRequestMax     = "QueryResourceQuotaStatusUsedRAMRequestMax"
+	QueryResourceQuotaStatusUsedCPULimitAverage   = "QueryResourceQuotaStatusUsedCPULimitAverage"
+	QueryResourceQuotaStatusUsedCPULimitMax       = "QueryResourceQuotaStatusUsedCPULimitMax"
+	QueryResourceQuotaStatusUsedRAMLimitAverage   = "QueryResourceQuotaStatusUsedRAMLimitAverage"
+	QueryResourceQuotaStatusUsedRAMLimitMax       = "QueryResourceQuotaStatusUsedRAMLimitMax"
+
+	// Data Coverage
+	QueryDataCoverage = "QueryDataCoverage"
+
+	// Inference Metrics
+	QueryInferencePromptTokens         = "QueryInferencePromptTokens"
+	QueryInferenceGenerationTokens     = "QueryInferenceGenerationTokens"
+	QueryInferenceInputProcessingTime  = "QueryInferenceInputProcessingTime"
+	QueryInferenceOutputProcessingTime = "QueryInferenceOutputProcessingTime"
+	QueryInferenceCachedTokens         = "QueryInferenceCachedTokens"
+	QueryInferenceCacheConfig          = "QueryInferenceCacheConfig"
+)
+
 type MetricsQuerier interface {
 	// Cluster Disks
 
@@ -17,6 +235,7 @@ type MetricsQuerier interface {
 	QueryLocalStorageUsedMax(start, end time.Time) *Future[LocalStorageUsedMaxResult]
 	QueryLocalStorageBytes(start, end time.Time) *Future[LocalStorageBytesResult]
 
+	// Local Storage Metrics aggregated exclusively on NodeUID
 	QueryKMLocalStorageUsedAvg(start, end time.Time) *Future[NodeUIDValueResult]
 	QueryKMLocalStorageUsedMax(start, end time.Time) *Future[NodeUIDValueResult]
 	QueryKMLocalStorageBytes(start, end time.Time) *Future[UIDValueResult]
@@ -43,6 +262,7 @@ type MetricsQuerier interface {
 
 	// Cluster Management
 	QueryClusterInfo(start, end time.Time) *Future[ClusterInfoResult]
+	QueryClusterKubeModelVersion(start, end time.Time) *Future[ClusterKubeModelVersionResult]
 	QueryClusterUptime(start, end time.Time) *Future[UptimeResult]
 	QueryClusterManagementDuration(start, end time.Time) *Future[ClusterManagementDurationResult]
 	QueryClusterManagementPricePerHr(start, end time.Time) *Future[ClusterManagementPricePerHrResult]
@@ -97,6 +317,7 @@ type MetricsQuerier interface {
 	QueryPodPVCAllocation(start, end time.Time) *Future[PodPVCAllocationResult]
 	QueryPVCBytesRequested(start, end time.Time) *Future[PVCBytesRequestedResult]
 	QueryPVCInfo(start, end time.Time) *Future[PVCInfoResult]
+	// UID aggregated version of PVCInfo query
 	QueryKMPVCInfo(start, end time.Time) *Future[PVCInfoResult]
 	QueryPVCUptime(start, end time.Time) *Future[UptimeResult]
 	QueryPVCBytesUsedAverage(start, end time.Time) *Future[PVCUIDValueResult]
@@ -220,6 +441,25 @@ type MetricsQuerier interface {
 
 	// Data Coverage Query
 	QueryDataCoverage(limitDays int) (time.Time, time.Time, error)
+
+	// Inference Metrics (vLLM) - relevant when INFERENCE_COST_ENABLED is set to true
+	// QueryInferencePromptTokens returns prompt token counts by model_name and namespace
+	QueryInferencePromptTokens(start, end time.Time) *Future[InferenceTokensResult]
+
+	// QueryInferenceGenerationTokens returns generation token counts by model_name and namespace
+	QueryInferenceGenerationTokens(start, end time.Time) *Future[InferenceTokensResult]
+
+	// QueryInferenceInputProcessingTime returns input processing time in seconds by model_name and namespace
+	QueryInferenceInputProcessingTime(start, end time.Time) *Future[InferenceProcessingTimeResult]
+
+	// QueryInferenceOutputProcessingTime returns output processing time in seconds by model_name and namespace
+	QueryInferenceOutputProcessingTime(start, end time.Time) *Future[InferenceProcessingTimeResult]
+
+	// QueryInferenceCachedTokens returns KV cache hit counts by model_name and namespace
+	QueryInferenceCachedTokens(start, end time.Time) *Future[InferenceTokensResult]
+
+	// QueryInferenceCacheConfig returns cache configuration (prefix caching enabled) by model_name and namespace
+	QueryInferenceCacheConfig(t time.Time) *Future[InferenceCacheConfigResult]
 }
 
 type OpenCostDataSource interface {

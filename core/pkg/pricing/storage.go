@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/opencost/opencost/core/pkg/storage"
 )
@@ -12,6 +13,7 @@ import (
 type StoragePricingStore struct {
 	store storage.Storage
 	path  string
+	mu    sync.RWMutex
 }
 
 func NewStoragePricingStore(ctx context.Context, store storage.Storage, path string) (*StoragePricingStore, error) {
@@ -43,6 +45,9 @@ func NewStoragePricingStore(ctx context.Context, store storage.Storage, path str
 }
 
 func (sps *StoragePricingStore) GetPricingSet(ctx context.Context) (*PricingSet, error) {
+	sps.mu.RLock()
+	defer sps.mu.RUnlock()
+
 	data, err := sps.store.Read(sps.path)
 	if err != nil {
 		return nil, fmt.Errorf("reading path '%s': %w", sps.path, err)
@@ -58,6 +63,9 @@ func (sps *StoragePricingStore) GetPricingSet(ctx context.Context) (*PricingSet,
 }
 
 func (sps *StoragePricingStore) SetPricingSet(ctx context.Context, pricing *PricingSet) error {
+	sps.mu.Lock()
+	defer sps.mu.Unlock()
+
 	if pricing == nil {
 		return errors.New("nil pricing")
 	}

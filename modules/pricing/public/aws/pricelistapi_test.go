@@ -3,12 +3,12 @@ package aws
 import (
 	"testing"
 
-	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/modules/pricing/public/env"
 )
 
 func TestGetListPriceURL(t *testing.T) {
 	t.Run("uses override when configured", func(t *testing.T) {
-		t.Setenv(env.AWSPricingURL, "https://example.com/custom.json")
+		t.Setenv(env.AWSPricingURLEnvVar, "https://example.com/custom.json")
 
 		got := getListPriceURL("AmazonEC2", "us-east-1")
 
@@ -18,7 +18,7 @@ func TestGetListPriceURL(t *testing.T) {
 	})
 
 	t.Run("builds standard regional URL", func(t *testing.T) {
-		t.Setenv(env.AWSPricingURL, "")
+		t.Setenv(env.AWSPricingURLEnvVar, "")
 
 		got := getListPriceURL("AmazonEC2", "us-west-2")
 		want := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-west-2/index.json"
@@ -29,7 +29,7 @@ func TestGetListPriceURL(t *testing.T) {
 	})
 
 	t.Run("builds standard global URL when region empty", func(t *testing.T) {
-		t.Setenv(env.AWSPricingURL, "")
+		t.Setenv(env.AWSPricingURLEnvVar, "")
 
 		got := getListPriceURL("AmazonEC2", "")
 		want := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json"
@@ -40,7 +40,7 @@ func TestGetListPriceURL(t *testing.T) {
 	})
 
 	t.Run("uses china endpoint for china regions", func(t *testing.T) {
-		t.Setenv(env.AWSPricingURL, "")
+		t.Setenv(env.AWSPricingURLEnvVar, "")
 
 		got := getListPriceURL("AmazonEC2", "cn-north-1")
 		want := "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonEC2/current/cn-north-1/index.json"
