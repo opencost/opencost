@@ -955,5 +955,8 @@ func (cmme *CostModelMetricsEmitter) Stop() {
 // EmitCarbonCost records the estimated CO2e (metric tonnes) attributable to a
 // single cluster infrastructure asset (node, disk, or network).
 func (cmme *CostModelMetricsEmitter) EmitCarbonCost(cluster, provider, assetType, name string, co2e float64) {
+	if cmme.CarbonCostRecorder == nil {
+		return
+	}
 	cmme.CarbonCostRecorder.WithLabelValues(cluster, provider, assetType, name).Set(co2e)
 }
