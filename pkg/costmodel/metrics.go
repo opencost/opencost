@@ -588,12 +588,13 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 								continue
 							}
 
-cmme.EmitCarbonCost(props.Cluster, provider, assetType, props.Name, carbonRow.Co2e)
-labelKey := getKeyFromLabelStrings(props.Cluster, provider, assetType, props.Name)
-carbonSeen[labelKey] = true
+							cmme.EmitCarbonCost(props.Cluster, provider, assetType, props.Name, carbonRow.Co2e)
+							labelKey := getKeyFromLabelStrings(props.Cluster, provider, assetType, props.Name)
+							carbonSeen[labelKey] = true
+						}
 					}
 				}
-
+			}
 			nodes, err := cmme.Model.GetNodeCost()
 			if err != nil {
 				log.Warnf("Error getting Node cost: %s", err)
