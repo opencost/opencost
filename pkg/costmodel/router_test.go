@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/julienschmidt/httprouter"
@@ -25,13 +26,23 @@ func TestAdminAuthMiddleware(t *testing.T) {
 		authHeader     string
 		wantStatus     int
 		wantNextCalled bool
+		wantBodySubstr string
 	}{
 		{
-			name:           "no admin token configured - request allowed with deduped warning",
+			name:           "no admin token configured - returns 501",
 			setToken:       "",
 			authHeader:     "",
-			wantStatus:     http.StatusOK,
-			wantNextCalled: true,
+			wantStatus:     http.StatusNotImplemented,
+			wantNextCalled: false,
+			wantBodySubstr: "Admin token is required to activate this endpoint",
+		},
+		{
+			name:           "no admin token configured - bearer ignored, still 501",
+			setToken:       "",
+			authHeader:     "Bearer anything",
+			wantStatus:     http.StatusNotImplemented,
+			wantNextCalled: false,
+			wantBodySubstr: "Admin token is required to activate this endpoint",
 		},
 		{
 			name:           "missing authorization header",
@@ -71,12 +82,12 @@ func TestAdminAuthMiddleware(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prev := os.Getenv(env.AdminTokenEnvVar)
+			prevToken := os.Getenv(env.AdminTokenEnvVar)
 			defer func() {
-				if prev == "" {
+				if prevToken == "" {
 					os.Unsetenv(env.AdminTokenEnvVar)
 				} else {
-					os.Setenv(env.AdminTokenEnvVar, prev)
+					os.Setenv(env.AdminTokenEnvVar, prevToken)
 				}
 			}()
 			if tt.setToken != "" {
@@ -100,6 +111,9 @@ func TestAdminAuthMiddleware(t *testing.T) {
 			}
 			if nextCalled != tt.wantNextCalled {
 				t.Errorf("nextCalled = %v, want %v", nextCalled, tt.wantNextCalled)
+			}
+			if tt.wantBodySubstr != "" && !strings.Contains(rec.Body.String(), tt.wantBodySubstr) {
+				t.Errorf("body = %q, want substring %q", rec.Body.String(), tt.wantBodySubstr)
 			}
 		})
 	}

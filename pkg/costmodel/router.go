@@ -128,15 +128,14 @@ func ParsePercentString(percentStr string) (float64, error) {
 	return discount, nil
 }
 
-// adminAuthMiddleware wraps a handler and requires a Bearer token matching ADMIN_TOKEN env var when set.
-// When ADMIN_TOKEN is not set, logs a deduped warning and allows the request through.
+// adminAuthMiddleware wraps a handler and requires a Bearer token matching ADMIN_TOKEN.
+// When ADMIN_TOKEN is not set, returns 501 — the endpoint is disabled until configured.
 // When ADMIN_TOKEN is set, returns 401 if the Bearer token is missing or 403 if it does not match.
 func adminAuthMiddleware(next httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		adminToken := env.GetAdminToken()
 		if adminToken == "" {
-			log.DedupedWarningf(5, "Admin token (ADMIN_TOKEN) not configured; write operations are unauthenticated")
-			next(w, r, ps)
+			http.Error(w, "Admin token is required to activate this endpoint; set the ADMIN_TOKEN environment variable", http.StatusNotImplemented)
 			return
 		}
 		authHeader := r.Header.Get("Authorization")
@@ -571,7 +570,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/installNamespace", a.GetInstallNamespace)
 	router.GET("/installInfo", a.GetInstallInfo)
 	router.POST("/serviceKey", adminAuthMiddleware(a.AddServiceKey))
-	router.GET("/helmValues", a.GetHelmValues)
+	router.GET("/helmValues", adminAuthMiddleware(a.GetHelmValues))
 
 	return a
 }
