@@ -294,18 +294,54 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 			existing.allocationTotalCost += alloc.TotalCost()
 		} else {
 			// For usage cost: use TotalCost() from the ShareNone query (no idle),
-			// but scale the GPU portion by actual utilization when available.
-			// GPUHours (and therefore GPUCost) always reflects the full reservation;
-			// GPUUsageAverage is the fraction of that GPU that was actively used.
+			// then scale GPU, CPU, and RAM by their actual utilisation when available.
+			// This ensures costBasis=usage reflects actual resource consumption rather
+			// than the full reservation cost.
+			//
+			// Resources intentionally left unscaled:
+			//   Network  — already billed by actual bytes transferred, no reservation to remove.
+			//   PV       — billed by provisioned capacity; no IO utilisation metric available.
+			//   LB       — billed per hour of existence; no per-request utilisation signal.
+			//   External — opaque cloud billing pass-through; no usage signal attached.
 			cost := alloc.TotalCost()
+
+			// GPU: scale by SM duty cycle (GPUUsageAverage ∈ (0,1)).
+			// GPUHours (and therefore GPUCost) always reflects the full reservation;
+			// GPUUsageAverage is the fraction of time the GPU cores were active.
 			if alloc.GPUAllocation != nil &&
 				alloc.GPUAllocation.GPUUsageAverage != nil &&
 				*alloc.GPUAllocation.GPUUsageAverage > 0 &&
 				*alloc.GPUAllocation.GPUUsageAverage < 1 {
-				// Replace the full GPU cost with the utilization-scaled GPU cost.
 				scaledGPUCost := alloc.GPUTotalCost() * (*alloc.GPUAllocation.GPUUsageAverage)
 				cost = cost - alloc.GPUTotalCost() + scaledGPUCost
+				log.Debugf("InferenceCost usage: GPU scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
+					modelName, namespace, alloc.GPUTotalCost(), scaledGPUCost, *alloc.GPUAllocation.GPUUsageAverage*100)
 			}
+
+			// CPU: scale by core utilisation ratio (usage / request).
+			// CPUCoreRequestAverage and CPUCoreUsageAverage are plain float64 (not pointers).
+			if alloc.CPUCoreRequestAverage > 0 &&
+				alloc.CPUCoreUsageAverage > 0 &&
+				alloc.CPUCoreUsageAverage < alloc.CPUCoreRequestAverage {
+				cpuUtil := alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage
+				scaledCPUCost := alloc.CPUTotalCost() * cpuUtil
+				cost = cost - alloc.CPUTotalCost() + scaledCPUCost
+				log.Debugf("InferenceCost usage: CPU scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
+					modelName, namespace, alloc.CPUTotalCost(), scaledCPUCost, cpuUtil*100)
+			}
+
+			// RAM: scale by byte utilisation ratio (usage / request).
+			// RAMBytesRequestAverage and RAMBytesUsageAverage are plain float64 (not pointers).
+			if alloc.RAMBytesRequestAverage > 0 &&
+				alloc.RAMBytesUsageAverage > 0 &&
+				alloc.RAMBytesUsageAverage < alloc.RAMBytesRequestAverage {
+				ramUtil := alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage
+				scaledRAMCost := alloc.RAMTotalCost() * ramUtil
+				cost = cost - alloc.RAMTotalCost() + scaledRAMCost
+				log.Debugf("InferenceCost usage: RAM scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
+					modelName, namespace, alloc.RAMTotalCost(), scaledRAMCost, ramUtil*100)
+			}
+
 			existing.usageTotalCost += cost
 		}
 		

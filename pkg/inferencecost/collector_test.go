@@ -185,7 +185,14 @@ func TestCollector_ExtractAllocationResults(t *testing.T) {
 }
 
 // TestCollector_UsageCost_ExcludesIdle verifies the mathematical relationship
-// between allocation and usage costs when idle is present.
+// between allocation and usage costs when idle is present, in the absence of
+// utilisation metrics.
+//
+// Note: when utilisation metrics (CPUCoreUsageAverage, RAMBytesUsageAverage,
+// GPUUsageAverage) are available, usage cost is further reduced below
+// allocationCost - idle by scaling each resource to its actual consumption.
+// This test covers only the idle-exclusion step; see
+// TestCollector_UsageCost_ScalesCPUAndRAMByUtilisation for utilisation scaling.
 func TestCollector_UsageCost_ExcludesIdle(t *testing.T) {
 	// With ShareWeighted: AllocationTotalCost = 4.0 (GPU 3.0 + CPU 0.5 + RAM 0.5)
 	// With ShareNone: UsageCost = 2.6 (excludes idle: 1.0 + 0.2 + 0.2 = 1.4)
@@ -199,6 +206,128 @@ func TestCollector_UsageCost_ExcludesIdle(t *testing.T) {
 	}
 	if expectedUsageCost >= allocTotal {
 		t.Error("usage cost should be less than allocation cost when idle is present")
+	}
+}
+
+// makeAllocationWithUtilisation creates an Allocation with both cost and
+// utilisation fields set, for testing the usage cost scaling path.
+func makeAllocationWithUtilisation(
+	name string,
+	gpuCost, cpuCost, ramCost float64,
+	gpuUsageAverage float64, // SM duty cycle fraction (0–1); set to 0 to omit GPU scaling
+	cpuCoreRequest, cpuCoreUsage float64,
+	ramBytesRequest, ramBytesUsage float64,
+	namespace string,
+) *opencost.Allocation {
+	a := &opencost.Allocation{
+		Name:                   name,
+		GPUCost:                gpuCost,
+		CPUCost:                cpuCost,
+		RAMCost:                ramCost,
+		CPUCoreRequestAverage:  cpuCoreRequest,
+		CPUCoreUsageAverage:    cpuCoreUsage,
+		RAMBytesRequestAverage: ramBytesRequest,
+		RAMBytesUsageAverage:   ramBytesUsage,
+		Properties: &opencost.AllocationProperties{
+			Namespace: namespace,
+			Labels:    opencost.AllocationLabels(map[string]string{"llm-d.ai/model": name}),
+		},
+	}
+	if gpuUsageAverage > 0 {
+		a.GPUAllocation = &opencost.GPUAllocation{
+			GPUUsageAverage: &gpuUsageAverage,
+		}
+	}
+	return a
+}
+
+// TestCollector_UsageCost_ScalesCPUAndRAMByUtilisation verifies that when
+// utilisation metrics are present, extractAllocationResults scales GPU, CPU,
+// and RAM costs proportionally to their actual consumption.
+//
+// Numbers:
+//
+//	GPU $6 at 50% → $3.00
+//	CPU $4 at 25% (1 core used / 4 requested) → $1.00
+//	RAM $2 at 10% (10 GB used / 100 GB requested) → $0.20
+//	Total = $4.20
+func TestCollector_UsageCost_ScalesCPUAndRAMByUtilisation(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+
+	now := time.Now()
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		6.0, // gpuCost
+		4.0, // cpuCost
+		2.0, // ramCost
+		0.5, // gpuUsageAverage: 50%
+		4.0, 1.0, // cpuCoreRequest=4, cpuCoreUsage=1 → 25%
+		100.0, 10.0, // ramBytesRequest=100, ramBytesUsage=10 → 10%
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// GPU: $6 × 0.50 = $3.00
+	// CPU: $4 × (1/4) = $1.00
+	// RAM: $2 × (10/100) = $0.20
+	// Total: $4.20
+	want := 4.20
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_NoScalingWhenUtilisationMetricsAbsent verifies that
+// when utilisation averages are zero (metrics not available), extractAllocationResults
+// leaves usageTotalCost at the full TotalCost() — the safe fallback.
+func TestCollector_UsageCost_NoScalingWhenUtilisationMetricsAbsent(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+
+	now := time.Now()
+	// No utilisation fields set — CPUCoreUsageAverage and RAMBytesUsageAverage
+	// default to 0, so gating conditions are not met and no scaling fires.
+	alloc := &opencost.Allocation{
+		Name:    "llama-3",
+		GPUCost: 6.0,
+		CPUCost: 4.0,
+		RAMCost: 2.0,
+		Properties: &opencost.AllocationProperties{
+			Namespace: "llm-prod",
+			Labels:    opencost.AllocationLabels(map[string]string{"llm-d.ai/model": "llama-3"}),
+		},
+	}
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// No utilisation metrics → full TotalCost() = $12.00 unchanged.
+	want := 12.0
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f (expected no scaling)", want, r.usageTotalCost)
 	}
 }
 
