@@ -132,13 +132,15 @@ func ParsePercentString(percentStr string) (float64, error) {
 }
 
 // adminAuthMiddleware wraps a handler and requires a Bearer token matching ADMIN_TOKEN.
-// When ADMIN_TOKEN is not set, returns 501 — the endpoint is disabled until configured.
-// When ADMIN_TOKEN is set, returns 401 if the Bearer token is missing or 403 if it does not match.
+// When ADMIN_TOKEN is not set, returns 503 with Cache-Control: no-store — the endpoint is
+// disabled until configured. When ADMIN_TOKEN is set, returns 401 if the Bearer token is
+// missing or 403 if it does not match.
 func adminAuthMiddleware(next httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		adminToken := env.GetAdminToken()
 		if adminToken == "" {
-			http.Error(w, "Admin token is required to activate this endpoint; set the ADMIN_TOKEN environment variable", http.StatusNotImplemented)
+			w.Header().Set("Cache-Control", "no-store")
+			http.Error(w, "Admin token is required to activate this endpoint; set the ADMIN_TOKEN environment variable", http.StatusServiceUnavailable)
 			return
 		}
 		authHeader := r.Header.Get("Authorization")

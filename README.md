@@ -1,6 +1,5 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/6219/badge)](https://www.bestpractices.dev/projects/6219)
-[![Known Vulnerabilities](https://snyk.io/test/github/opencost/opencost/badge.svg)](https://snyk.io/test/github/opencost/opencost)
 [![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20OpenCost%20Guru-006BFF)](https://gurubase.io/g/opencost)
 
 ![](./opencost-header.png)
@@ -12,8 +11,6 @@ These models provide cost transparency in Kubernetes environments that support m
 It also provides visibility into the cloud costs across multiple providers.
 
 OpenCost was originally developed and open sourced by [Kubecost](https://kubecost.com). This project combines a [specification](/spec/) as well as a Golang implementation of these detailed requirements. The web UI is available in the [opencost/opencost-ui](http://github.com/opencost/opencost-ui) repository.
-
-OpenCost participates in the [Snyk Secure Developer Program](https://snyk.io/?utm_source=open-source&utm_medium=pg-ptr&utm_campaign=ref-2501-osp&utm_content=pg-cta), which provides open source projects with access to Snyk's vulnerability scanning and monitoring tools to help keep our dependencies and supply chain secure.
 
 [![OpenCost UI Walkthrough](./ui/src/thumbnail.png)](https://youtu.be/lCP4Ci9Kcdg)
 *OpenCost UI Walkthrough*

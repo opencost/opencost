@@ -3,7 +3,6 @@ package costmodel
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -21,28 +20,31 @@ func TestAdminAuthMiddleware(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		setToken       string
-		authHeader     string
-		wantStatus     int
-		wantNextCalled bool
-		wantBodySubstr string
+		name              string
+		setToken          string
+		authHeader        string
+		wantStatus        int
+		wantNextCalled    bool
+		wantBodySubstr    string
+		wantCacheControl  string
 	}{
 		{
-			name:           "no admin token configured - returns 501",
-			setToken:       "",
-			authHeader:     "",
-			wantStatus:     http.StatusNotImplemented,
-			wantNextCalled: false,
-			wantBodySubstr: "Admin token is required to activate this endpoint",
+			name:             "no admin token configured - returns 503",
+			setToken:         "",
+			authHeader:       "",
+			wantStatus:       http.StatusServiceUnavailable,
+			wantNextCalled:   false,
+			wantBodySubstr:   "Admin token is required to activate this endpoint",
+			wantCacheControl: "no-store",
 		},
 		{
-			name:           "no admin token configured - bearer ignored, still 501",
-			setToken:       "",
-			authHeader:     "Bearer anything",
-			wantStatus:     http.StatusNotImplemented,
-			wantNextCalled: false,
-			wantBodySubstr: "Admin token is required to activate this endpoint",
+			name:             "no admin token configured - bearer ignored, still 503",
+			setToken:         "",
+			authHeader:       "Bearer anything",
+			wantStatus:       http.StatusServiceUnavailable,
+			wantNextCalled:   false,
+			wantBodySubstr:   "Admin token is required to activate this endpoint",
+			wantCacheControl: "no-store",
 		},
 		{
 			name:           "missing authorization header",
@@ -82,18 +84,10 @@ func TestAdminAuthMiddleware(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prevToken := os.Getenv(env.AdminTokenEnvVar)
-			defer func() {
-				if prevToken == "" {
-					os.Unsetenv(env.AdminTokenEnvVar)
-				} else {
-					os.Setenv(env.AdminTokenEnvVar, prevToken)
-				}
-			}()
 			if tt.setToken != "" {
-				os.Setenv(env.AdminTokenEnvVar, tt.setToken)
+				t.Setenv(env.AdminTokenEnvVar, tt.setToken)
 			} else {
-				os.Unsetenv(env.AdminTokenEnvVar)
+				t.Setenv(env.AdminTokenEnvVar, "")
 			}
 
 			nextCalled = false
@@ -114,6 +108,9 @@ func TestAdminAuthMiddleware(t *testing.T) {
 			}
 			if tt.wantBodySubstr != "" && !strings.Contains(rec.Body.String(), tt.wantBodySubstr) {
 				t.Errorf("body = %q, want substring %q", rec.Body.String(), tt.wantBodySubstr)
+			}
+			if tt.wantCacheControl != "" && rec.Header().Get("Cache-Control") != tt.wantCacheControl {
+				t.Errorf("Cache-Control = %q, want %q", rec.Header().Get("Cache-Control"), tt.wantCacheControl)
 			}
 		})
 	}

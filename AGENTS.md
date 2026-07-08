@@ -151,7 +151,16 @@ just validate-protobuf
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ADMIN_TOKEN` | (unset) | Bearer token for admin endpoints (`POST /serviceKey`, cloud config mutate/export, `/helmValues`). If unset, those endpoints return HTTP 501. |
+| `ADMIN_TOKEN` | (unset) | Bearer token for admin endpoints. If unset, those endpoints return HTTP 503. |
+
+Admin-protected endpoints:
+
+- `POST /serviceKey`
+- `GET /helmValues`
+- `GET /cloudCost/rebuild`, `GET /cloudCost/repair`
+- `GET /cloud/config/export`, `GET /cloud/config/enable`, `GET /cloud/config/disable`, `GET /cloud/config/delete`
+
+**Breaking change:** deployments without `ADMIN_TOKEN` can no longer call these endpoints. Set `ADMIN_TOKEN` (for example via [opencost-helm-chart](https://github.com/opencost/opencost-helm-chart) `opencost.exporter.adminToken`) before using admin APIs.
 
 ### Cloud Providers
 
