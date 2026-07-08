@@ -295,12 +295,14 @@ func initCostModelMetrics(clusterInfo clusters.ClusterInfoProvider, metricsConfi
 			toRegisterGV = append(toRegisterGV, lbCostGv)
 		}
 
-		carbonCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "opencost_carbon_cost",
-			Help: "opencost_carbon_cost Estimated CO2e (metric tonnes) attributable to a cluster infrastructure asset over the most recent metrics emitter query window (see METRICS_EMITTER_QUERY_WINDOW, default 2m), not an hourly rate or cumulative total",
-		}, []string{"cluster", "provider", "asset_type", "name"})
 		if _, disabled := disabledMetrics["opencost_carbon_cost"]; !disabled {
+			carbonCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "opencost_carbon_cost",
+				Help: "opencost_carbon_cost Estimated CO2e (metric tonnes) attributable to a cluster infrastructure asset over the most recent metrics emitter query window (see METRICS_EMITTER_QUERY_WINDOW, default 2m), not an hourly rate or cumulative total",
+			}, []string{"cluster", "provider", "asset_type", "name"})
 			toRegisterGV = append(toRegisterGV, carbonCostGv)
+		} else {
+			carbonCostGv = nil
 		}
 
 		// Register cost-model metrics for emission
