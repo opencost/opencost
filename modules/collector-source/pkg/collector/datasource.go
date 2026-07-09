@@ -33,7 +33,7 @@ func NewDefaultCollectorDataSource(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
-	externalLabelProvider external.LabelProvider,
+	externalLabelsProvider external.LabelProvider,
 ) source.OpenCostDataSource {
 	config := NewOpenCostCollectorConfigFromEnv(clusterUID)
 	return NewCollectorDataSource(
@@ -42,7 +42,7 @@ func NewDefaultCollectorDataSource(
 		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
-		externalLabelProvider,
+		externalLabelsProvider,
 	)
 }
 

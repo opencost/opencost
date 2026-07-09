@@ -30,10 +30,10 @@ type ClusterCacheScraper struct {
 	externalLabelsProvider external.LabelProvider
 }
 
-func newClusterCacheScraper(clusterCache clustercache.ClusterCache, externallabelsprovider external.LabelProvider) Scraper {
+func newClusterCacheScraper(clusterCache clustercache.ClusterCache, externalLabelsProvider external.LabelProvider) Scraper {
 	return &ClusterCacheScraper{
 		clusterCache:           clusterCache,
-		externalLabelsProvider: externallabelsprovider,
+		externalLabelsProvider: externalLabelsProvider,
 	}
 }
 
