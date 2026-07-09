@@ -84,12 +84,24 @@ func TestQuantileOverTimeAggregator_Value(t *testing.T) {
 func TestQuantileOverTimeAggregator_PhiOutOfRangeClamps(t *testing.T) {
 	time1 := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
 	time2 := time.Date(1, 1, 1, 0, 1, 0, 0, time.UTC)
+	time3 := time.Date(1, 1, 1, 0, 2, 0, 0, time.UTC)
 
 	above := QuantileOverTime(1.5)(nil)
 	above.Update(2, time1, nil)
 	above.Update(8, time2, nil)
 	if got := above.Value()[0].Value; got != 8 {
 		t.Errorf("phi above 1 should clamp to the maximum: got %v, want 8", got)
+	}
+
+	// With three or more samples, phi > 1 produces a rank whose floor
+	// exceeds the last index; regression test for the index-out-of-range
+	// panic that occurred before phi was clamped.
+	aboveThree := QuantileOverTime(1.5)(nil)
+	aboveThree.Update(2, time1, nil)
+	aboveThree.Update(8, time2, nil)
+	aboveThree.Update(5, time3, nil)
+	if got := aboveThree.Value()[0].Value; got != 8 {
+		t.Errorf("phi above 1 with 3 samples should clamp to the maximum: got %v, want 8", got)
 	}
 
 	below := QuantileOverTime(-0.5)(nil)

@@ -18,8 +18,16 @@ type quantileOverTimeAggregator struct {
 }
 
 // QuantileOverTime returns a MetricAggregatorFactory that computes the
-// phi-quantile (0 <= phi <= 1) of all values observed in the window.
+// phi-quantile (0 <= phi <= 1) of all values observed in the window. Out of
+// range phi values are clamped: phi > 1 yields the maximum and phi < 0 the
+// minimum.
 func QuantileOverTime(phi float64) MetricAggregatorFactory {
+	if phi > 1 {
+		phi = 1
+	}
+	if phi < 0 {
+		phi = 0
+	}
 	return func(labelValues []string) MetricAggregator {
 		return &quantileOverTimeAggregator{
 			labelValues: labelValues,
@@ -57,16 +65,11 @@ func (a *quantileOverTimeAggregator) Value() []MetricValue {
 	sort.Float64s(sorted)
 
 	// Linear interpolation at rank phi*(n-1), as Prometheus does for
-	// quantile_over_time.
+	// quantile_over_time. phi is clamped to [0, 1] at construction, so
+	// lower and upper are always valid indices.
 	rank := a.phi * float64(len(sorted)-1)
 	lower := int(math.Floor(rank))
 	upper := int(math.Ceil(rank))
-	if lower < 0 {
-		lower = 0
-	}
-	if upper > len(sorted)-1 {
-		upper = len(sorted) - 1
-	}
 	weight := rank - float64(lower)
 
 	return []MetricValue{
