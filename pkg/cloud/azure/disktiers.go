@@ -70,6 +70,7 @@ type diskTier struct {
 // managedDiskMeterRE matches Rate Card / Price Sheet managed disk capacity meters,
 // e.g. "P4 LRS Disk", "E10 ZRS Disk". Disk Mount meters are excluded.
 var managedDiskMeterRE = regexp.MustCompile(`^(P|E|S)(\d+)\s+(LRS|ZRS)\s+Disk$`)
+var managedDiskTierNameRE = regexp.MustCompile(`^(P|E|S)(\d+)$`)
 
 const (
 	azureDiskRedundancyLRS = "LRS"
@@ -252,18 +253,22 @@ func isManagedDiskTierKey(key string) bool {
 		return false
 	}
 
-	tiers := tiersForStorageClass(storageClass)
-	if len(tiers) == 0 {
+	tierParts := managedDiskTierNameRE.FindStringSubmatch(strings.TrimSpace(tierName))
+	if len(tierParts) != 3 {
 		return false
 	}
+	prefix := tierParts[1]
 
-	for _, tier := range tiers {
-		if tier.Name == tierName {
-			return true
-		}
+	switch storageClass {
+	case AzureDiskPremiumSSDStorageClass:
+		return prefix == "P"
+	case AzureDiskStandardSSDStorageClass:
+		return prefix == "E"
+	case AzureDiskStandardStorageClass:
+		return prefix == "S"
+	default:
+		return false
 	}
-
-	return false
 }
 
 // pvSizeGiB returns the PersistentVolume capacity in GiB, or 0 if unavailable.

@@ -80,7 +80,10 @@ func TestDiskRateConversions(t *testing.T) {
 func TestIsManagedDiskTierKey(t *testing.T) {
 	require.True(t, isManagedDiskTierKey("centralus,premium_ssd,LRS,P4"))
 	require.True(t, isManagedDiskTierKey("centralus,standard_ssd,ZRS,E20"))
+	require.True(t, isManagedDiskTierKey("centralus,premium_ssd,LRS,P123"))
 	require.False(t, isManagedDiskTierKey("centralus,Standard_D2s_v3,ondemand,windows"))
+	require.False(t, isManagedDiskTierKey("centralus,premium_ssd,LRS,E20"))
+	require.False(t, isManagedDiskTierKey("centralus,standard_hdd,LRS,Sx"))
 	require.False(t, isManagedDiskTierKey("centralus,premium_ssd,LRS,P4 Mount"))
 	require.False(t, isManagedDiskTierKey("centralus,premium_ssd,LRS"))
 }
