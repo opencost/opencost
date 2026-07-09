@@ -224,6 +224,13 @@ const (
 	QueryInferenceOutputProcessingTime = "QueryInferenceOutputProcessingTime"
 	QueryInferenceCachedTokens         = "QueryInferenceCachedTokens"
 	QueryInferenceCacheConfig          = "QueryInferenceCacheConfig"
+
+	// Inference Saturation Metrics (Gateway API Inference Extension Model Server Protocol)
+	QueryInferenceKVCacheUsageAvg    = "QueryInferenceKVCacheUsageAvg"
+	QueryInferenceKVCacheUsageMax    = "QueryInferenceKVCacheUsageMax"
+	QueryInferenceQueueDepthAvg      = "QueryInferenceQueueDepthAvg"
+	QueryInferenceQueueDepthMax      = "QueryInferenceQueueDepthMax"
+	QueryInferenceRunningRequestsAvg = "QueryInferenceRunningRequestsAvg"
 )
 
 type MetricsQuerier interface {
@@ -460,6 +467,33 @@ type MetricsQuerier interface {
 
 	// QueryInferenceCacheConfig returns cache configuration (prefix caching enabled) by model_name and namespace
 	QueryInferenceCacheConfig(t time.Time) *Future[InferenceCacheConfigResult]
+
+	// Inference Saturation Metrics. These are the model-server scheduler
+	// signals standardized by the Gateway API Inference Extension Model
+	// Server Protocol (queue depth, running requests, KV-cache utilization),
+	// reported per model_name, namespace, and pod. Unlike host-level GPU
+	// utilization, they measure how much of a model server's serving
+	// capacity the workload actually consumes.
+
+	// QueryInferenceKVCacheUsageAvg returns the window-averaged KV-cache
+	// utilization (0-1) by model_name, namespace, and pod
+	QueryInferenceKVCacheUsageAvg(start, end time.Time) *Future[InferenceServerMetricResult]
+
+	// QueryInferenceKVCacheUsageMax returns the window-max KV-cache
+	// utilization (0-1) by model_name, namespace, and pod
+	QueryInferenceKVCacheUsageMax(start, end time.Time) *Future[InferenceServerMetricResult]
+
+	// QueryInferenceQueueDepthAvg returns the window-averaged count of
+	// requests waiting for scheduler capacity by model_name, namespace, and pod
+	QueryInferenceQueueDepthAvg(start, end time.Time) *Future[InferenceServerMetricResult]
+
+	// QueryInferenceQueueDepthMax returns the window-max count of requests
+	// waiting for scheduler capacity by model_name, namespace, and pod
+	QueryInferenceQueueDepthMax(start, end time.Time) *Future[InferenceServerMetricResult]
+
+	// QueryInferenceRunningRequestsAvg returns the window-averaged count of
+	// requests in the running batch by model_name, namespace, and pod
+	QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceServerMetricResult]
 }
 
 type OpenCostDataSource interface {

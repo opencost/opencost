@@ -711,6 +711,26 @@ func (m *NoOpMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[Infe
 	return newEmptyResult(DecodeInferenceCacheConfigResult)
 }
 
+func (m *NoOpMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return newEmptyResult(DecodeInferenceServerMetricResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return newEmptyResult(DecodeInferenceServerMetricResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return newEmptyResult(DecodeInferenceServerMetricResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return newEmptyResult(DecodeInferenceServerMetricResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return newEmptyResult(DecodeInferenceServerMetricResult)
+}
+
 // Data Coverage Query
 
 func (m *NoOpMetricsQuerier) QueryDataCoverage(_ int) (time.Time, time.Time, error) {

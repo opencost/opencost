@@ -25,4 +25,16 @@ type InferenceCacheConfigResult struct {
 	Configs map[string]*InferenceCacheConfig
 }
 
+// InferenceServerMetricResult holds one window-aggregated scheduler metric
+// value for a single model-server replica. These are the saturation signals
+// standardized by the Gateway API Inference Extension Model Server Protocol
+// (queue depth, running requests, KV-cache utilization), reported per
+// (model_name, namespace, pod).
+type InferenceServerMetricResult struct {
+	ModelName string
+	Namespace string
+	Pod       string
+	Value     float64
+}
+
 // Made with Bob
