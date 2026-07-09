@@ -65,6 +65,12 @@ const (
 	KubeModelVersion     = "kubemodel_version"
 )
 
+// InferenceModelNameLabel is the label carrying the served model name on
+// model-server metrics (vLLM's model_name; see the Gateway API Inference
+// Extension Model Server Protocol). Distinct from ModelNameLabel, which is
+// the DCGM exporter's GPU hardware model name.
+const InferenceModelNameLabel = "model_name"
+
 const (
 	NoneLabelValue = "<none>"
 )
@@ -2189,6 +2195,28 @@ func DecodeInferenceCacheConfigResult(result *QueryResult) *InferenceCacheConfig
 				PrefixCachingEnabled: prefixCachingEnabled > 0,
 			},
 		},
+	}
+}
+
+// DecodeInferenceServerMetricResult decodes one window-aggregated model-server
+// scheduler metric sample (KV cache usage, queue depth, running requests) keyed
+// by model_name/namespace/pod.
+func DecodeInferenceServerMetricResult(result *QueryResult) *InferenceServerMetricResult {
+	modelName, _ := result.GetString(InferenceModelNameLabel)
+	namespace, _ := result.GetString(NamespaceLabel)
+	pod, _ := result.GetString(PodLabel)
+
+	// Get the value from the last vector point if available
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[len(result.Values)-1].Value
+	}
+
+	return &InferenceServerMetricResult{
+		ModelName: modelName,
+		Namespace: namespace,
+		Pod:       pod,
+		Value:     value,
 	}
 }
 

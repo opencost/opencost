@@ -880,6 +880,31 @@ func (m *RecordMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[In
 	return m.Querier.QueryInferenceCacheConfig(t)
 }
 
+func (m *RecordMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
+	m.recordCall(QueryInferenceKVCacheUsageAvg)
+	return m.Querier.QueryInferenceKVCacheUsageAvg(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *Future[InferenceServerMetricResult] {
+	m.recordCall(QueryInferenceKVCacheUsageMax)
+	return m.Querier.QueryInferenceKVCacheUsageMax(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
+	m.recordCall(QueryInferenceQueueDepthAvg)
+	return m.Querier.QueryInferenceQueueDepthAvg(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *Future[InferenceServerMetricResult] {
+	m.recordCall(QueryInferenceQueueDepthMax)
+	return m.Querier.QueryInferenceQueueDepthMax(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
+	m.recordCall(QueryInferenceRunningRequestsAvg)
+	return m.Querier.QueryInferenceRunningRequestsAvg(start, end)
+}
+
 // Data Coverage Query
 
 func (m *RecordMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {

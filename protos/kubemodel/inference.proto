@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+import "kubemodel/diagnostic.proto";
+
+package kubemodel;
+option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
+
+// InferenceServer represents window-aggregated model-server scheduler
+// telemetry for one served model in one namespace. The signals are those
+// standardized by the Gateway API Inference Extension Model Server Protocol
+// (queue depth, running requests, KV-cache utilization), as reported by
+// serving engines such as vLLM. Unlike host-level GPU utilization, these
+// measure how much of a model server's serving capacity the workload
+// actually consumes, and they remain valid per MIG instance because each
+// instance runs its own engine sized to its slice.
+message InferenceServer {
+  // Identification
+  string modelName = 1;  // Served model name (vLLM model_name metric label)
+  string namespace = 2;  // Namespace of the model-server pods
+
+  // Per-replica scheduler telemetry, keyed by pod name
+  map<string, InferenceServerReplica> replicas = 3;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
+}
+
+// InferenceServerReplica holds the window-aggregated scheduler gauges for a
+// single model-server pod.
+message InferenceServerReplica {
+  // KV-cache utilization as a fraction (0-1) of the engine's configured KV
+  // block budget. With continuous batching this is the honest capacity
+  // dimension of a model server.
+  float kvCacheUsageAvg = 1;
+  float kvCacheUsageMax = 2;
+
+  // Requests waiting for scheduler capacity. Sustained nonzero queue depth
+  // means the replica is at or past saturation.
+  float queueDepthAvg = 3;
+  float queueDepthMax = 4;
+
+  // Requests in the running batch (achieved batch size).
+  float runningRequestsAvg = 5;
+}

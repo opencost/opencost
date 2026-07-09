@@ -821,3 +821,29 @@ func (c *collectorMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *source
 	}
 	return source.NewFuture(decoder, ch)
 }
+
+// Inference Saturation Metrics
+//
+// Served from the inference model-server scraper (scrape/inference.go), which
+// collects the Gateway API Inference Extension Model Server Protocol gauges
+// directly from model-server pods.
+
+func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceKVCacheUsageAvgID, source.DecodeInferenceServerMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceKVCacheUsageMaxID, source.DecodeInferenceServerMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceQueueDepthAvgID, source.DecodeInferenceServerMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceQueueDepthMaxID, source.DecodeInferenceServerMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceRunningRequestsAvgID, source.DecodeInferenceServerMetricResult)
+}

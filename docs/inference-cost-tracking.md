@@ -390,6 +390,61 @@ All metrics must carry `model_name` and `namespace` labels. Verify availability:
 kubectl exec -n <namespace> <vllm-pod> -- curl -s localhost:8000/metrics | grep -E "prompt_tokens|generation_tokens|prefill_time|output_token"
 ```
 
+## Saturation Metrics (KV cache, queue depth, running requests)
+
+In addition to token and timing metrics, OpenCost collects the model-server
+**scheduler telemetry** standardized by the
+[Gateway API Inference Extension Model Server Protocol](https://github.com/kubernetes-sigs/gateway-api-inference-extension/tree/main/docs/proposals/003-model-server-protocol):
+
+| Signal | vLLM metric | Aggregations |
+|--------|-------------|--------------|
+| KV-cache utilization (0–1) | `vllm:kv_cache_usage_perc` | avg, max |
+| Queue depth (requests waiting) | `vllm:num_requests_waiting` | avg, max |
+| Running requests (achieved batch) | `vllm:num_requests_running` | avg |
+
+These measure how much of a model server's **serving capacity** the workload
+actually consumes. Host-level GPU metrics cannot: a serving engine
+preallocates its memory budget and keeps the device busy at any batch size,
+so SM utilization and VRAM occupancy read high for every healthy deployment
+regardless of load. KV-cache utilization together with queue depth is the
+honest capacity signal:
+
+- **KV-cache usage** under load approximates saturation when the queue is
+  empty (a replica at 90% KV usage is nearly full; a replica at 2% is nearly
+  idle no matter what `DCGM_FI_DEV_GPU_UTIL` says).
+- **Sustained queue depth above zero** means the replica is at or past
+  saturation and latency is growing.
+- The signals are engine-relative, so they remain valid per **MIG instance**:
+  each instance runs its own engine sized to its slice. (Under MIG,
+  `DCGM_FI_DEV_GPU_UTIL` is not supported at all, which makes engine-level
+  telemetry the only reliable capacity signal.)
+
+OpenCost ships these as raw materials, per model, namespace, and pod, and
+deliberately does not compute opinionated efficiency scores or consolidation
+recommendations from them.
+
+### Collection paths
+
+Both data sources collect the same signals:
+
+- **Prometheus source**: window aggregations over the vLLM gauges already
+  scraped by your Prometheus (same scrape configuration as the token metrics
+  above).
+- **Collector source** (Prometheus-free): a dedicated scraper discovers
+  model-server pods by the `INFERENCE_MODEL_LABEL` pod label (default
+  `llm-d.ai/model`) and scrapes their metrics endpoints directly. The port is
+  taken from the pod's `prometheus.io/port` annotation when present,
+  otherwise `INFERENCE_SCRAPE_PORT` (default `8000`, the vLLM server port).
+  Because serving engines do not self-report their Kubernetes identity, the
+  scraper attaches `namespace` and `pod` labels at scrape time.
+
+### KubeModel
+
+The aggregated signals land in the KubeModel as `InferenceServer` entries
+(keyed `model_name:namespace`, one replica entry per pod), alongside the
+DCGM device model. See `core/pkg/model/kubemodel/inference.go` and
+`protos/kubemodel/inference.proto`.
+
 ## Troubleshooting
 
 ### No metrics appearing

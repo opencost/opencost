@@ -113,6 +113,92 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceCachedTokens(start, end time.
 	return source.NewFuture(decodeInferenceTokensResult, resultsChan)
 }
 
+// Inference Saturation Queries
+//
+// These query the model-server scheduler gauges standardized by the Gateway
+// API Inference Extension Model Server Protocol: KV-cache utilization, queue
+// depth (requests waiting), and running requests. Unlike host GPU utilization
+// (which reads high for any healthy deployment), these measure how much of a
+// model server's serving capacity the workload actually consumes. Results are
+// per (model_name, namespace, pod) so per-replica saturation is preserved.
+
+// QueryInferenceKVCacheUsageAvg implements MetricsQuerier.QueryInferenceKVCacheUsageAvg
+func (pds *PrometheusMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return pds.queryInferenceGauge("vllm:kv_cache_usage_perc", "avg", start, end)
+}
+
+// QueryInferenceKVCacheUsageMax implements MetricsQuerier.QueryInferenceKVCacheUsageMax
+func (pds *PrometheusMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return pds.queryInferenceGauge("vllm:kv_cache_usage_perc", "max", start, end)
+}
+
+// QueryInferenceQueueDepthAvg implements MetricsQuerier.QueryInferenceQueueDepthAvg
+func (pds *PrometheusMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return pds.queryInferenceGauge("vllm:num_requests_waiting", "avg", start, end)
+}
+
+// QueryInferenceQueueDepthMax implements MetricsQuerier.QueryInferenceQueueDepthMax
+func (pds *PrometheusMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return pds.queryInferenceGauge("vllm:num_requests_waiting", "max", start, end)
+}
+
+// QueryInferenceRunningRequestsAvg implements MetricsQuerier.QueryInferenceRunningRequestsAvg
+func (pds *PrometheusMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return pds.queryInferenceGauge("vllm:num_requests_running", "avg", start, end)
+}
+
+// queryInferenceGauge runs a window aggregation (avg or max) of a model-server
+// scheduler gauge, grouped by (model_name, namespace, pod).
+func (pds *PrometheusMetricsQuerier) queryInferenceGauge(metric, agg string, start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+
+	resultsChan := make(source.QueryResultsChan, 1)
+
+	go func() {
+		results, err := queryGaugeOverTime(ctx, metric, agg, start, end)
+		if err != nil {
+			resultsChan <- &source.QueryResults{Error: err}
+			return
+		}
+
+		resultsChan <- &source.QueryResults{Results: results}
+	}()
+
+	return source.NewFuture(source.DecodeInferenceServerMetricResult, resultsChan)
+}
+
+// queryGaugeOverTime evaluates `agg by (model_name, namespace, pod)
+// (agg_over_time(metric[window] @ end))` as an instant query pinned to the end
+// of the window, mirroring the clamping behaviour of queryCounterDelta.
+func queryGaugeOverTime(ctx *Context, metric, agg string, start, end time.Time) ([]*source.QueryResult, error) {
+	// Clamp end to now: range selectors pinned to a future @ timestamp return no results.
+	effectiveEnd := end
+	if now := time.Now(); end.After(now) {
+		effectiveEnd = now
+	}
+
+	windowDuration := effectiveEnd.Sub(start)
+	windowMinutes := int(windowDuration.Minutes())
+	if windowMinutes < 2 {
+		windowMinutes = 2
+	}
+
+	query := fmt.Sprintf(`%s by (model_name, namespace, pod) (%s_over_time(%s[%dm] @ %d))`,
+		agg, agg, metric, windowMinutes, effectiveEnd.Unix())
+
+	raw, _, err := ctx.query(query, effectiveEnd)
+	if err != nil {
+		return nil, fmt.Errorf("gauge-over-time query for %s: %w", metric, err)
+	}
+
+	results := NewQueryResults(query, raw, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+	if results.Error != nil {
+		return nil, results.Error
+	}
+
+	return results.Results, nil
+}
+
 // QueryInferenceCacheConfig implements MetricsQuerier.QueryInferenceCacheConfig
 func (pds *PrometheusMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *source.Future[source.InferenceCacheConfigResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)

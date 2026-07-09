@@ -75,6 +75,11 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewDCGMUptimeMetricCollector())
 	memStore.Register(NewDCGMContainerUsageAvgMetricCollector())
 	memStore.Register(NewDCGMContainerUsageMaxMetricCollector())
+	memStore.Register(NewInferenceKVCacheUsageAvgMetricCollector())
+	memStore.Register(NewInferenceKVCacheUsageMaxMetricCollector())
+	memStore.Register(NewInferenceQueueDepthAvgMetricCollector())
+	memStore.Register(NewInferenceQueueDepthMaxMetricCollector())
+	memStore.Register(NewInferenceRunningRequestsAvgMetricCollector())
 	memStore.Register(NewNodeCPUPricePerHourMetricCollector())
 	memStore.Register(NewNodeRAMPricePerGiBHourMetricCollector())
 	memStore.Register(NewNodeGPUPricePerHourMetricCollector())
@@ -1597,6 +1602,124 @@ func NewDCGMContainerUsageMaxMetricCollector() *metric.MetricCollector {
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ContainerLabel] != ""
+		},
+	)
+}
+
+// Inference Model Server Metric Collectors
+//
+// These aggregate the scheduler gauges scraped from model-server pods (see
+// scrape/inference.go): KV-cache utilization, queue depth, and running
+// requests, per the Gateway API Inference Extension Model Server Protocol.
+// The namespace and pod labels are attached by the inference scraper at
+// scrape time; model_name is emitted by the serving engine itself.
+
+//	avg(
+//		avg_over_time(
+//			vllm:kv_cache_usage_perc[1h]
+//		)
+//	) by (model_name, namespace, pod, cluster_id)
+
+func NewInferenceKVCacheUsageAvgMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceKVCacheUsageAvgID,
+		metric.VLLMKVCacheUsagePerc,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	max(
+//		max_over_time(
+//			vllm:kv_cache_usage_perc[1h]
+//		)
+//	) by (model_name, namespace, pod, cluster_id)
+
+func NewInferenceKVCacheUsageMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceKVCacheUsageMaxID,
+		metric.VLLMKVCacheUsagePerc,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.MaxOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	avg(
+//		avg_over_time(
+//			vllm:num_requests_waiting[1h]
+//		)
+//	) by (model_name, namespace, pod, cluster_id)
+
+func NewInferenceQueueDepthAvgMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceQueueDepthAvgID,
+		metric.VLLMNumRequestsWaiting,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	max(
+//		max_over_time(
+//			vllm:num_requests_waiting[1h]
+//		)
+//	) by (model_name, namespace, pod, cluster_id)
+
+func NewInferenceQueueDepthMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceQueueDepthMaxID,
+		metric.VLLMNumRequestsWaiting,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.MaxOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	avg(
+//		avg_over_time(
+//			vllm:num_requests_running[1h]
+//		)
+//	) by (model_name, namespace, pod, cluster_id)
+
+func NewInferenceRunningRequestsAvgMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceRunningRequestsAvgID,
+		metric.VLLMNumRequestsRunning,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
 		},
 	)
 }

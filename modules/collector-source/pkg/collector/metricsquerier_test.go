@@ -149,6 +149,18 @@ func GetMockCollectorProvider() StoreProvider {
 	collector.Update(metric.DCGMFIPROFGRENGINEACTIVE, gpu1Info, 0, start, nil)
 	collector.Update(metric.DCGMFIPROFGRENGINEACTIVE, gpu1Info, 1, end, nil)
 
+	inference1Info := map[string]string{
+		source.InferenceModelNameLabel: "Qwen3-32B",
+		source.NamespaceLabel:          "namespace1",
+		source.PodLabel:                "pod1",
+	}
+	collector.Update(metric.VLLMKVCacheUsagePerc, inference1Info, 0.2, start, nil)
+	collector.Update(metric.VLLMKVCacheUsagePerc, inference1Info, 0.8, end, nil)
+	collector.Update(metric.VLLMNumRequestsWaiting, inference1Info, 0, start, nil)
+	collector.Update(metric.VLLMNumRequestsWaiting, inference1Info, 4, end, nil)
+	collector.Update(metric.VLLMNumRequestsRunning, inference1Info, 10, start, nil)
+	collector.Update(metric.VLLMNumRequestsRunning, inference1Info, 30, end, nil)
+
 	collector.Update(metric.KubecostNetworkZoneEgressCost, nil, 1, start, nil)
 	collector.Update(metric.KubecostNetworkRegionEgressCost, nil, 2, start, nil)
 	collector.Update(metric.KubecostNetworkInternetEgressCost, nil, 3, start, nil)
@@ -984,5 +996,59 @@ func Test_collectorMetricsQuerier_QueryNetReceiveBytes(t *testing.T) {
 		if !reflect.DeepEqual(got, expected[i]) {
 			t.Errorf("result at index %d did not match: got = %v, want %v", i, got, expected[i])
 		}
+	}
+}
+
+func TestCollectorMetricsQuerier_QueryInferenceSaturation(t *testing.T) {
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+	end1, _ := time.Parse(time.RFC3339, End1Str)
+
+	c := collectorMetricsQuerier{
+		collectorProvider: GetMockCollectorProvider(),
+	}
+
+	tests := map[string]struct {
+		query func(start, end time.Time) *source.Future[source.InferenceServerMetricResult]
+		want  float64
+	}{
+		"kv cache usage avg": {
+			query: c.QueryInferenceKVCacheUsageAvg,
+			want:  0.5,
+		},
+		"kv cache usage max": {
+			query: c.QueryInferenceKVCacheUsageMax,
+			want:  0.8,
+		},
+		"queue depth avg": {
+			query: c.QueryInferenceQueueDepthAvg,
+			want:  2,
+		},
+		"queue depth max": {
+			query: c.QueryInferenceQueueDepthMax,
+			want:  4,
+		},
+		"running requests avg": {
+			query: c.QueryInferenceRunningRequestsAvg,
+			want:  20,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			res, err := tt.query(start1, end1).Await()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err.Error())
+			}
+			if len(res) != 1 {
+				t.Fatalf("length of result was not as expected: got = %d, want 1", len(res))
+			}
+			got := res[0]
+			if got.ModelName != "Qwen3-32B" || got.Namespace != "namespace1" || got.Pod != "pod1" {
+				t.Errorf("result identity did not match: got = %+v", got)
+			}
+			if got.Value != tt.want {
+				t.Errorf("result value did not match: got = %v, want %v", got.Value, tt.want)
+			}
+		})
 	}
 }

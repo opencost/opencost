@@ -63,6 +63,12 @@ const (
 	DCGMFIPROFGRENGINEACTIVE = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"
 	DCGMFIDEVDECUTIL         = "DCGM_FI_DEV_DEC_UTIL"
 
+	// Inference Model Server Metrics (Gateway API Inference Extension Model
+	// Server Protocol; vLLM metric names)
+	VLLMKVCacheUsagePerc   = "vllm:kv_cache_usage_perc"
+	VLLMNumRequestsWaiting = "vllm:num_requests_waiting"
+	VLLMNumRequestsRunning = "vllm:num_requests_running"
+
 	// Network Metrics
 	KubecostPodNetworkEgressBytesTotal  = "kubecost_pod_network_egress_bytes_total"
 	KubecostPodNetworkIngressBytesTotal = "kubecost_pod_network_ingress_bytes_total"

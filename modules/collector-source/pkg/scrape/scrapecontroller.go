@@ -104,6 +104,9 @@ func NewScrapeController(
 	dcgmScraper := withFilter(newDCGMScrapper(clusterCache), filter)
 	scrapers = append(scrapers, dcgmScraper)
 
+	inferenceScraper := withFilter(newInferenceScraper(clusterCache), filter)
+	scrapers = append(scrapers, inferenceScraper)
+
 	si, err := util.NewInterval(scrapeInterval)
 	if err != nil {
 		panic(fmt.Errorf("scrapecontroller failed to create scrape interval: %w", err))
