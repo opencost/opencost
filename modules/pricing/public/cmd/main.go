@@ -75,7 +75,7 @@ func run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// comparePricing comparesa fresh pricing set against the existing pricing-data.json
+// comparePricing compares a fresh pricing set against the existing pricing-data.json
 // for a given currency
 func comparePricing(curr unit.Currency, newSet *pricing.PricingSet) error {
 	existingPath := fmt.Sprintf(outputFmt, strings.ToLower(string(curr)))

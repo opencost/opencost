@@ -5,10 +5,10 @@ import (
 	_ "embed"
 	"fmt"
 
+	"github.com/opencost/opencost/core/pkg/embeddedstorage"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/reader"
 	"github.com/opencost/opencost/core/pkg/unit"
-	"github.com/opencost/opencost/modules/pricing/public"
 )
 
 // PricingModule must satisfy the pricing.PricingModule interface
@@ -26,7 +26,7 @@ func NewPricingModule() (*PricingModule, error) {
 	ctx := context.Background()
 	
 	// Create an embedded storage that serves the embedded data directly without copying
-	embeddedStorage := public.NewEmbeddedStorage(embeddedPricingData, "pricing-data.json")
+	embeddedStorage := embeddedstorage.NewEmbeddedStorage(embeddedPricingData, "pricing-data.json")
 	
 	// Create a pricing store backed by the embedded storage
 	store, err := pricing.NewStoragePricingStore(ctx, embeddedStorage, "pricing-data.json")
@@ -135,11 +135,11 @@ func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet
 }
 
 func (pm *PricingModule) SourceKind() string {
-	return "public-usd"
+	return "public"
 }
 
 func (pm *PricingModule) SourceName() string {
-	return "usd"
+	return "public-usd"
 }
 
 func (pm *PricingModule) Checksum(ctx context.Context) (string, error) {

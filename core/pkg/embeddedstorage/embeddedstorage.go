@@ -1,4 +1,4 @@
-package public
+package embeddedstorage
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 )
 
 // EmbeddedStorage implements storage.Storage by reading directly from embedded bytes
-// without copying them to memory
+// without copying them to memory. This should be read-only!
 type EmbeddedStorage struct {
 	data []byte
 	path string
@@ -30,7 +30,7 @@ func (es *EmbeddedStorage) String() string {
 }
 
 func (es *EmbeddedStorage) StorageType() storage.StorageType {
-	return storage.StorageTypeMemory
+	return storage.StorageTypeEmbedded
 }
 
 func (es *EmbeddedStorage) FullPath(path string) string {
@@ -92,7 +92,6 @@ func (es *EmbeddedStorage) List(path string) ([]*storage.StorageInfo, error) {
 			{
 				Name:    es.path,
 				Size:    int64(len(es.data)),
-				ModTime: time.Now(),
 			},
 		}, nil
 	}
