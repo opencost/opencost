@@ -104,7 +104,7 @@ func (km *KubeModel) computeFuncs(start, end time.Time) []computeFunc {
 		km.computePersistentVolumeClaims,
 		km.computePods,
 		km.computeContainers,
-		//km.computeDCGMDevices,
-		//km.computeInferenceServers,
+		km.computeDCGMDevices,
+		km.computeInferenceServers,
 	}
 }

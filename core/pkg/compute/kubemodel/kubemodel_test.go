@@ -168,6 +168,9 @@ func TestComputeKubeModelSet(t *testing.T) {
 				ds.Querier.SetOverride(source.QueryDCGMDeviceUptime, []*source.DCGMDeviceUptimeResult{
 					{UUID: "GPU-abc123", First: start, Last: end},
 				})
+				ds.Querier.SetOverride(source.QueryInferenceKVCacheUsageAvg, []*source.InferenceServerMetricResult{
+					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.42},
+				})
 			},
 			check: func(t *testing.T, kms *kubemodel.KubeModelSet) {
 				assert.NotNil(t, kms.Cluster)
@@ -185,7 +188,8 @@ func TestComputeKubeModelSet(t *testing.T) {
 				assert.NotEmpty(t, kms.Services)
 				assert.NotEmpty(t, kms.PersistentVolumes)
 				assert.NotEmpty(t, kms.PersistentVolumeClaims)
-				//assert.NotEmpty(t, kms.DCGMDevices)
+				assert.NotEmpty(t, kms.DCGMDevices)
+				assert.NotEmpty(t, kms.InferenceServers)
 			},
 		},
 	}
