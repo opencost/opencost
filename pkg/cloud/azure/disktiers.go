@@ -243,6 +243,34 @@ func parsePrice(s string) (float64, error) {
 	return strconv.ParseFloat(s, 64)
 }
 
+func isManagedDiskTierKey(key string) bool {
+	parts := strings.Split(key, ",")
+	if len(parts) != 4 {
+		return false
+	}
+
+	storageClass := parts[1]
+	redundancy := parts[2]
+	tierName := parts[3]
+
+	if redundancy != azureDiskRedundancyLRS && redundancy != azureDiskRedundancyZRS {
+		return false
+	}
+
+	tiers := tiersForStorageClass(storageClass)
+	if len(tiers) == 0 {
+		return false
+	}
+
+	for _, tier := range tiers {
+		if tier.Name == tierName {
+			return true
+		}
+	}
+
+	return false
+}
+
 // pvSizeGiB returns the PersistentVolume capacity in GiB, or 0 if unavailable.
 func pvSizeGiB(pv *clustercache.PersistentVolume) float64 {
 	if pv == nil {

@@ -1268,11 +1268,7 @@ func ensureDiskClassFallbacks(prices map[string]*AzurePricing) {
 func collectManagedDiskTierHourly(prices map[string]*AzurePricing) map[string]float64 {
 	tierHourly := map[string]float64{}
 	for key, pricing := range prices {
-		if pricing == nil || pricing.PV == nil || pricing.PV.Cost == "" {
-			continue
-		}
-		parts := strings.Split(key, ",")
-		if len(parts) != 4 {
+		if !isManagedDiskTierKey(key) || pricing == nil || pricing.PV == nil || pricing.PV.Cost == "" {
 			continue
 		}
 		hourly, err := parsePrice(pricing.PV.Cost)
@@ -1286,7 +1282,7 @@ func collectManagedDiskTierHourly(prices map[string]*AzurePricing) map[string]fl
 
 func removeManagedDiskTierEntries(prices map[string]*AzurePricing) {
 	for key := range prices {
-		if strings.Count(key, ",") == 3 {
+		if isManagedDiskTierKey(key) {
 			delete(prices, key)
 		}
 	}

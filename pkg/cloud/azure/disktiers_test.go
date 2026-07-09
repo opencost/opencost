@@ -50,11 +50,6 @@ func TestResolveDiskSKU(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestEffectiveGiBHourRate(t *testing.T) {
-	require.InDelta(t, 5.2795/730.0/10.0, effectiveGiBHourRate(5.2795, 10), 1e-12)
-	require.Equal(t, 0.0, effectiveGiBHourRate(5.2795, 0))
-}
-
 func TestPickSizedOrLargerAvailableTier(t *testing.T) {
 	available := map[string]bool{"P4": true, "P15": true}
 	has := func(name string) bool { return available[name] }
@@ -75,6 +70,17 @@ func TestPickSizedOrLargerAvailableTier(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestTierHourlyFromMonthly(t *testing.T) {
-	require.InDelta(t, 5.2795/730.0, tierHourlyFromMonthly(5.2795), 1e-12)
+func TestDiskRateConversions(t *testing.T) {
+	monthly := 5.2795
+	require.InDelta(t, monthly/730.0, tierHourlyFromMonthly(monthly), 1e-12)
+	require.InDelta(t, monthly/730.0/10.0, effectiveGiBHourRate(monthly, 10), 1e-12)
+	require.Equal(t, 0.0, effectiveGiBHourRate(monthly, 0))
+}
+
+func TestIsManagedDiskTierKey(t *testing.T) {
+	require.True(t, isManagedDiskTierKey("centralus,premium_ssd,LRS,P4"))
+	require.True(t, isManagedDiskTierKey("centralus,standard_ssd,ZRS,E20"))
+	require.False(t, isManagedDiskTierKey("centralus,Standard_D2s_v3,ondemand,windows"))
+	require.False(t, isManagedDiskTierKey("centralus,premium_ssd,LRS,P4 Mount"))
+	require.False(t, isManagedDiskTierKey("centralus,premium_ssd,LRS"))
 }

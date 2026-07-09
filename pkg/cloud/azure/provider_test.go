@@ -95,13 +95,6 @@ func TestConvertMeterToPricings(t *testing.T) {
 		require.Equal(t, "0.085616", results["useast,premium_ssd"].PV.Cost)
 	})
 
-	t.Run("disk mount skipped", func(t *testing.T) {
-		info := meterInfo("Storage", "Premium SSD Managed Disks", "P4 LRS Disk Mount", "US East", 0.32)
-		results, err := convertMeterToPricings(info, regions, baseCPUPrice)
-		require.NoError(t, err)
-		require.Nil(t, results)
-	})
-
 	t.Run("virtual machines", func(t *testing.T) {
 		info := meterInfo("Virtual Machines", "Eav4/Easv4 Series", "E96a v4/E96as v4 Low Priority", "JA West", 10)
 		results, err := convertMeterToPricings(info, regions, baseCPUPrice)
@@ -241,6 +234,34 @@ func TestConvertMeterToPricings_PremiumSSDIgnoresDiskMount(t *testing.T) {
 	require.False(t, mountPresent)
 }
 
+func TestRemoveManagedDiskTierEntries_KeepWindowsNodeKey(t *testing.T) {
+	prices := map[string]*AzurePricing{
+		"centralus,premium_ssd,LRS,P4": {
+			PV: &models.PV{
+				Cost:   formatPrice(tierHourlyFromMonthly(5.2795)),
+				Class:  AzureDiskPremiumSSDStorageClass,
+				Region: "centralus",
+				Size:   "P4",
+			},
+		},
+		"centralus,Standard_D2s_v3,ondemand,windows": {
+			Node: &models.Node{
+				Cost:         "0.300000",
+				BaseCPUPrice: "0.30000",
+				UsageType:    "ondemand",
+			},
+		},
+	}
+
+	removeManagedDiskTierEntries(prices)
+
+	_, diskTierPresent := prices["centralus,premium_ssd,LRS,P4"]
+	require.False(t, diskTierPresent)
+
+	_, windowsPresent := prices["centralus,Standard_D2s_v3,ondemand,windows"]
+	require.True(t, windowsPresent)
+}
+
 func TestSelectDiskTier(t *testing.T) {
 	cases := []struct {
 		name         string
@@ -284,10 +305,10 @@ func TestAzurePVPricing_TierAware(t *testing.T) {
 			},
 		},
 		managedDiskTierHourly: map[string]float64{
-			"centralus,premium_ssd,LRS,P3": tierHourlyFromMonthly(2.64),
-			"centralus,premium_ssd,LRS,P4": tierHourlyFromMonthly(5.2795),
-			"centralus,premium_ssd,LRS,P10": tierHourlyFromMonthly(19.71),
-			"centralus,premium_ssd,ZRS,P3": tierHourlyFromMonthly(4.0),
+			"centralus,premium_ssd,LRS,P3":   tierHourlyFromMonthly(2.64),
+			"centralus,premium_ssd,LRS,P4":   tierHourlyFromMonthly(5.2795),
+			"centralus,premium_ssd,LRS,P10":  tierHourlyFromMonthly(19.71),
+			"centralus,premium_ssd,ZRS,P3":   tierHourlyFromMonthly(4.0),
 			"centralus,standard_ssd,LRS,E20": tierHourlyFromMonthly(38.4),
 		},
 	}
