@@ -109,11 +109,12 @@ func TestAdminAuthMiddleware(t *testing.T) {
 // newCostDataModelRequest builds a GET request to /costDataModel with the
 // given timeWindow query param.
 func newCostDataModelRequest(window string) *http.Request {
-	url := "/costDataModel"
+	r := httptest.NewRequest(http.MethodGet, "/costDataModel", nil)
 	if window != "" {
-		url += "?timeWindow=" + window
+		q := r.URL.Query()
+		q.Set("timeWindow", window)
+		r.URL.RawQuery = q.Encode()
 	}
-	r, _ := http.NewRequest(http.MethodGet, url, nil)
 	return r
 }
 
