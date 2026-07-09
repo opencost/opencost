@@ -1037,6 +1037,17 @@ func TestCollectorMetricsQuerier_QueryInferenceSaturation(t *testing.T) {
 			query: c.QueryInferencePreemptions,
 			want:  4,
 		},
+		"kv cache usage p95": {
+			query: c.QueryInferenceKVCacheUsageP95,
+			// Prometheus-style linear interpolation between the two
+			// samples (0.2 and 0.8) at rank 0.95.
+			want: 0.2 + (0.8-0.2)*0.95,
+		},
+		"queue depth p95": {
+			query: c.QueryInferenceQueueDepthP95,
+			// Interpolation between the two samples (0 and 4) at rank 0.95.
+			want: 0 + (4-0)*0.95,
+		},
 	}
 
 	for name, tt := range tests {

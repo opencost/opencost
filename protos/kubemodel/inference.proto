@@ -51,4 +51,9 @@ message InferenceServerReplica {
   // recomputed) during the window. Sustained preemptions mean the engine
   // is thrashing its KV budget.
   float preemptions = 6;
+
+  // 95th-percentile values over the window; together with avg and max
+  // these summarize the distribution without per-bucket collection.
+  float kvCacheUsageP95 = 7;
+  float queueDepthP95 = 8;
 }

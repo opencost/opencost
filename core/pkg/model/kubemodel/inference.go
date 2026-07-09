@@ -72,6 +72,12 @@ type InferenceServerReplica struct {
 	// and instability signal: sustained preemptions mean the engine is
 	// thrashing its KV budget.
 	Preemptions float64 `json:"preemptions"`
+	// P95 values summarize the window distribution alongside avg and max,
+	// computed identically from Prometheus (quantile_over_time) and from
+	// the collector's sample store. Together (avg, p95, max) give a
+	// distribution summary without per-bucket collection.
+	KVCacheUsageP95 float64 `json:"kvCacheUsageP95"`
+	QueueDepthP95   float64 `json:"queueDepthP95"`
 }
 
 // Key returns the identifier used to store this InferenceServer in the

@@ -735,6 +735,14 @@ func (m *NoOpMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *Fu
 	return newEmptyResult(DecodeInferenceServerMetricResult)
 }
 
+func (m *NoOpMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return newEmptyResult(DecodeInferenceServerMetricResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return newEmptyResult(DecodeInferenceServerMetricResult)
+}
+
 // Data Coverage Query
 
 func (m *NoOpMetricsQuerier) QueryDataCoverage(_ int) (time.Time, time.Time, error) {

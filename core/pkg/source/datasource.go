@@ -232,6 +232,8 @@ const (
 	QueryInferenceQueueDepthMax      = "QueryInferenceQueueDepthMax"
 	QueryInferenceRunningRequestsAvg = "QueryInferenceRunningRequestsAvg"
 	QueryInferencePreemptions        = "QueryInferencePreemptions"
+	QueryInferenceKVCacheUsageP95    = "QueryInferenceKVCacheUsageP95"
+	QueryInferenceQueueDepthP95      = "QueryInferenceQueueDepthP95"
 )
 
 type MetricsQuerier interface {
@@ -502,6 +504,17 @@ type MetricsQuerier interface {
 	// signal: sustained preemptions mean the engine is thrashing its KV
 	// budget.
 	QueryInferencePreemptions(start, end time.Time) *Future[InferenceServerMetricResult]
+
+	// QueryInferenceKVCacheUsageP95 returns the 95th-percentile KV-cache
+	// utilization (0-1) over the window by model_name, namespace, and pod.
+	// Together with avg and max this gives a distribution summary that is
+	// computable identically from Prometheus (quantile_over_time) and from
+	// the collector's sample store.
+	QueryInferenceKVCacheUsageP95(start, end time.Time) *Future[InferenceServerMetricResult]
+
+	// QueryInferenceQueueDepthP95 returns the 95th-percentile count of
+	// waiting requests over the window by model_name, namespace, and pod.
+	QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceServerMetricResult]
 }
 
 type OpenCostDataSource interface {

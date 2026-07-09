@@ -81,6 +81,8 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewInferenceQueueDepthMaxMetricCollector())
 	memStore.Register(NewInferenceRunningRequestsAvgMetricCollector())
 	memStore.Register(NewInferencePreemptionsMetricCollector())
+	memStore.Register(NewInferenceKVCacheUsageP95MetricCollector())
+	memStore.Register(NewInferenceQueueDepthP95MetricCollector())
 	memStore.Register(NewNodeCPUPricePerHourMetricCollector())
 	memStore.Register(NewNodeRAMPricePerGiBHourMetricCollector())
 	memStore.Register(NewNodeGPUPricePerHourMetricCollector())
@@ -1739,6 +1741,48 @@ func NewInferencePreemptionsMetricCollector() *metric.MetricCollector {
 			source.PodLabel,
 		},
 		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	quantile_over_time(
+//		0.95,
+//		vllm:kv_cache_usage_perc[1h]
+//	) by (model_name, namespace, pod, cluster_id)
+
+func NewInferenceKVCacheUsageP95MetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceKVCacheUsageP95ID,
+		metric.VLLMKVCacheUsagePerc,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.QuantileOverTime(0.95),
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	quantile_over_time(
+//		0.95,
+//		vllm:num_requests_waiting[1h]
+//	) by (model_name, namespace, pod, cluster_id)
+
+func NewInferenceQueueDepthP95MetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceQueueDepthP95ID,
+		metric.VLLMNumRequestsWaiting,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.QuantileOverTime(0.95),
 		func(labels map[string]string) bool {
 			return labels[source.InferenceModelNameLabel] != ""
 		},

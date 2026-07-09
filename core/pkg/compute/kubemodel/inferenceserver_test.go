@@ -46,6 +46,12 @@ func TestComputeInferenceServers(t *testing.T) {
 				source.QueryInferencePreemptions: []*source.InferenceServerMetricResult{
 					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 7},
 				},
+				source.QueryInferenceKVCacheUsageP95: []*source.InferenceServerMetricResult{
+					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.91},
+				},
+				source.QueryInferenceQueueDepthP95: []*source.InferenceServerMetricResult{
+					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 8},
+				},
 			},
 			want: map[string]*kubemodel.InferenceServer{
 				"Qwen3-32B:llm-d": {
@@ -62,6 +68,8 @@ func TestComputeInferenceServers(t *testing.T) {
 							QueueDepthMax:      12,
 							RunningRequestsAvg: 33,
 							Preemptions:        7,
+							KVCacheUsageP95:    0.91,
+							QueueDepthP95:      8,
 						},
 					},
 				},

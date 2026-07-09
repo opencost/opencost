@@ -147,6 +147,58 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end
 	return pds.queryInferenceGauge("vllm:num_requests_running", "avg", start, end)
 }
 
+// QueryInferenceKVCacheUsageP95 implements MetricsQuerier.QueryInferenceKVCacheUsageP95
+func (pds *PrometheusMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return pds.queryInferenceGaugeQuantile("vllm:kv_cache_usage_perc", 0.95, start, end)
+}
+
+// QueryInferenceQueueDepthP95 implements MetricsQuerier.QueryInferenceQueueDepthP95
+func (pds *PrometheusMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return pds.queryInferenceGaugeQuantile("vllm:num_requests_waiting", 0.95, start, end)
+}
+
+// queryInferenceGaugeQuantile runs quantile_over_time for a model-server
+// scheduler gauge, grouped by (model_name, namespace, pod), pinned to the
+// window end like the other inference queries.
+func (pds *PrometheusMetricsQuerier) queryInferenceGaugeQuantile(metric string, phi float64, start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+
+	resultsChan := make(source.QueryResultsChan, 1)
+
+	go func() {
+		// Clamp end to now: range selectors pinned to a future @ timestamp return no results.
+		effectiveEnd := end
+		if now := time.Now(); end.After(now) {
+			effectiveEnd = now
+		}
+
+		windowDuration := effectiveEnd.Sub(start)
+		windowMinutes := int(windowDuration.Minutes())
+		if windowMinutes < 2 {
+			windowMinutes = 2
+		}
+
+		query := fmt.Sprintf(`max by (model_name, namespace, pod) (quantile_over_time(%g, %s[%dm] @ %d))`,
+			phi, metric, windowMinutes, effectiveEnd.Unix())
+
+		raw, _, err := ctx.query(query, effectiveEnd)
+		if err != nil {
+			resultsChan <- &source.QueryResults{Error: fmt.Errorf("quantile-over-time query for %s: %w", metric, err)}
+			return
+		}
+
+		results := NewQueryResults(query, raw, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+		if results.Error != nil {
+			resultsChan <- &source.QueryResults{Error: results.Error}
+			return
+		}
+
+		resultsChan <- &source.QueryResults{Results: results.Results}
+	}()
+
+	return source.NewFuture(source.DecodeInferenceServerMetricResult, resultsChan)
+}
+
 // QueryInferencePreemptions implements MetricsQuerier.QueryInferencePreemptions
 func (pds *PrometheusMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)

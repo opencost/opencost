@@ -910,6 +910,16 @@ func (m *RecordMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *
 	return m.Querier.QueryInferencePreemptions(start, end)
 }
 
+func (m *RecordMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *Future[InferenceServerMetricResult] {
+	m.recordCall(QueryInferenceKVCacheUsageP95)
+	return m.Querier.QueryInferenceKVCacheUsageP95(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceServerMetricResult] {
+	m.recordCall(QueryInferenceQueueDepthP95)
+	return m.Querier.QueryInferenceQueueDepthP95(start, end)
+}
+
 // Data Coverage Query
 
 func (m *RecordMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
