@@ -22,7 +22,7 @@ func (m *mockQuerier) ComputeAllocation(start, end time.Time) (*opencost.Allocat
 	if m.err != nil {
 		return nil, m.err
 	}
-	
+
 	// If multiple sets are provided, return them in sequence
 	if len(m.sets) > 0 {
 		if m.callCount < len(m.sets) {
@@ -33,7 +33,7 @@ func (m *mockQuerier) ComputeAllocation(start, end time.Time) (*opencost.Allocat
 		// Return last set for any additional calls
 		return m.sets[len(m.sets)-1], nil
 	}
-	
+
 	// Otherwise return the single set
 	return m.set, nil
 }
@@ -48,7 +48,7 @@ func newMockMetricsQuerierWithInferenceMetrics(
 	cacheConfigs map[string]*source.InferenceCacheConfig,
 ) *source.MockMetricsQuerier {
 	mock := source.NewMockMetricsQuerier()
-	
+
 	// Set up inference metric overrides
 	if promptTokens != nil {
 		mock.SetOverride(source.QueryInferencePromptTokens, []*source.InferenceTokensResult{
@@ -80,7 +80,7 @@ func newMockMetricsQuerierWithInferenceMetrics(
 			{Configs: cacheConfigs},
 		})
 	}
-	
+
 	return mock
 }
 
@@ -121,7 +121,7 @@ func TestCollector_ExtractAllocationResults(t *testing.T) {
 	now := time.Now()
 	cfg := baseConfig()
 	c := &Collector{config: cfg}
-	
+
 	// Test allocation cost extraction (with idle)
 	allocWithIdle := &opencost.Allocation{
 		Name:    "llama-3",
@@ -145,7 +145,7 @@ func TestCollector_ExtractAllocationResults(t *testing.T) {
 	if !ok {
 		t.Fatal("expected allocation result for llama-3/llm-prod")
 	}
-	
+
 	if !floatEq(r.allocationTotalCost, 4.0) {
 		t.Errorf("allocationTotalCost want 4.0 got %f", r.allocationTotalCost)
 	}
@@ -175,7 +175,7 @@ func TestCollector_ExtractAllocationResults(t *testing.T) {
 	if !ok {
 		t.Fatal("expected usage result for llama-3/llm-prod")
 	}
-	
+
 	if !floatEq(r2.usageTotalCost, 2.6) {
 		t.Errorf("usageTotalCost want 2.6 got %f", r2.usageTotalCost)
 	}
@@ -192,7 +192,7 @@ func TestCollector_ExtractAllocationResults(t *testing.T) {
 // GPUUsageAverage) are available, usage cost is further reduced below
 // allocationCost - idle by scaling each resource to its actual consumption.
 // This test covers only the idle-exclusion step; see
-// TestCollector_UsageCost_ScalesCPUAndRAMByUtilisation for utilisation scaling.
+// TestCollector_UsageCost_ScalesResourcesByUtilisation for utilisation scaling.
 func TestCollector_UsageCost_ExcludesIdle(t *testing.T) {
 	// With ShareWeighted: AllocationTotalCost = 4.0 (GPU 3.0 + CPU 0.5 + RAM 0.5)
 	// With ShareNone: UsageCost = 2.6 (excludes idle: 1.0 + 0.2 + 0.2 = 1.4)
@@ -211,10 +211,11 @@ func TestCollector_UsageCost_ExcludesIdle(t *testing.T) {
 
 // makeAllocationWithUtilisation creates an Allocation with both cost and
 // utilisation fields set, for testing the usage cost scaling path.
+// Pass nil for gpuUsageAverage to omit the GPUAllocation entirely (no GPU metric available).
 func makeAllocationWithUtilisation(
 	name string,
 	gpuCost, cpuCost, ramCost float64,
-	gpuUsageAverage float64, // SM duty cycle fraction (0–1); set to 0 to omit GPU scaling
+	gpuUsageAverage *float64, // SM duty cycle fraction [0,1]; nil means no GPU metric
 	cpuCoreRequest, cpuCoreUsage float64,
 	ramBytesRequest, ramBytesUsage float64,
 	namespace string,
@@ -233,15 +234,19 @@ func makeAllocationWithUtilisation(
 			Labels:    opencost.AllocationLabels(map[string]string{"llm-d.ai/model": name}),
 		},
 	}
-	if gpuUsageAverage > 0 {
+	if gpuUsageAverage != nil {
 		a.GPUAllocation = &opencost.GPUAllocation{
-			GPUUsageAverage: &gpuUsageAverage,
+			GPUUsageAverage: gpuUsageAverage,
 		}
 	}
 	return a
 }
 
-// TestCollector_UsageCost_ScalesCPUAndRAMByUtilisation verifies that when
+// gpuUsage is a helper that returns a pointer to a float64, for use in
+// makeAllocationWithUtilisation calls.
+func gpuUsage(v float64) *float64 { return &v }
+
+// TestCollector_UsageCost_ScalesResourcesByUtilisation verifies that when
 // utilisation metrics are present, extractAllocationResults scales GPU, CPU,
 // and RAM costs proportionally to their actual consumption.
 //
@@ -251,18 +256,18 @@ func makeAllocationWithUtilisation(
 //	CPU $4 at 25% (1 core used / 4 requested) → $1.00
 //	RAM $2 at 10% (10 GB used / 100 GB requested) → $0.20
 //	Total = $4.20
-func TestCollector_UsageCost_ScalesCPUAndRAMByUtilisation(t *testing.T) {
+func TestCollector_UsageCost_ScalesResourcesByUtilisation(t *testing.T) {
 	cfg := baseConfig()
 	c := &Collector{config: cfg}
 
 	now := time.Now()
 	alloc := makeAllocationWithUtilisation(
 		"llama-3",
-		6.0, // gpuCost
-		4.0, // cpuCost
-		2.0, // ramCost
-		0.5, // gpuUsageAverage: 50%
-		4.0, 1.0, // cpuCoreRequest=4, cpuCoreUsage=1 → 25%
+		6.0,           // gpuCost
+		4.0,           // cpuCost
+		2.0,           // ramCost
+		gpuUsage(0.5), // gpuUsageAverage: 50%
+		4.0, 1.0,      // cpuCoreRequest=4, cpuCoreUsage=1 → 25%
 		100.0, 10.0, // ramBytesRequest=100, ramBytesUsage=10 → 10%
 		"llm-prod",
 	)
@@ -328,6 +333,473 @@ func TestCollector_UsageCost_NoScalingWhenUtilisationMetricsAbsent(t *testing.T)
 	want := 12.0
 	if !floatEq(r.usageTotalCost, want) {
 		t.Errorf("usageTotalCost want %.2f got %.4f (expected no scaling)", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_ZeroGPUUsage verifies that GPUUsageAverage==0 (GPU
+// completely idle) scales the GPU cost to $0, not left at full reservation.
+// This is the primary regression test for the original exclusive `> 0` guard.
+func TestCollector_UsageCost_ZeroGPUUsage(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+
+	now := time.Now()
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		6.0,           // gpuCost
+		4.0,           // cpuCost
+		2.0,           // ramCost
+		gpuUsage(0.0), // GPUUsageAverage = 0: completely idle GPU
+		0, 0,          // no CPU scaling
+		0, 0, // no RAM scaling
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// GPU $6 × 0.0 = $0; CPU $4 + RAM $2 = $6 total (no CPU/RAM scaling).
+	want := 6.0
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f (zero GPU usage should zero GPU cost)", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_OutOfRangeGPUUsageClamped verifies that
+// GPUUsageAverage values outside [0,1] are clamped before scaling, so they
+// never produce nonsensical (negative or inflated) costs.
+func TestCollector_UsageCost_OutOfRangeGPUUsageClamped(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	tests := []struct {
+		name          string
+		gpuUsageAvg   float64
+		wantUsageCost float64 // GPU $6 clamped + CPU $4 + RAM $2 (no CPU/RAM scaling)
+	}{
+		{"above_one", 1.5, 12.0}, // clamped to 1.0 → $6 GPU + $4 CPU + $2 RAM
+		{"negative", -0.5, 6.0},  // clamped to 0.0 → $0 GPU + $4 CPU + $2 RAM
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			alloc := makeAllocationWithUtilisation(
+				"llama-3",
+				6.0, 4.0, 2.0,
+				gpuUsage(tc.gpuUsageAvg),
+				0, 0,
+				0, 0,
+				"llm-prod",
+			)
+			as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+			as.Set(alloc)
+
+			results, err := c.extractAllocationResults(as, false)
+			if err != nil {
+				t.Fatalf("extractAllocationResults failed: %v", err)
+			}
+
+			key := modelNamespaceKey("llama-3", "llm-prod")
+			r, ok := results[key]
+			if !ok {
+				t.Fatal("expected result for llama-3/llm-prod")
+			}
+
+			if !floatEq(r.usageTotalCost, tc.wantUsageCost) {
+				t.Errorf("usageTotalCost want %.2f got %.4f (gpuUsageAvg=%.2f should be clamped)",
+					tc.wantUsageCost, r.usageTotalCost, tc.gpuUsageAvg)
+			}
+		})
+	}
+}
+
+// TestCollector_UsageCost_GPUOnlyScaling verifies that GPU cost is scaled by
+// GPUUsageAverage while CPU and RAM costs are left at their full reservation
+// when no CPU/RAM utilisation metrics are available.
+//
+// Numbers:
+//
+//	GPU $6 × 0.75 = $4.50
+//	CPU $4 (no scaling — CPUCoreUsageAverage == 0)
+//	RAM $2 (no scaling — RAMBytesUsageAverage == 0)
+//	Total = $10.50
+func TestCollector_UsageCost_GPUOnlyScaling(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		6.0, 4.0, 2.0,
+		gpuUsage(0.75), // GPU 75%
+		0, 0,           // no CPU utilisation metrics
+		0, 0, // no RAM utilisation metrics
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// GPU $6 × 0.75 = $4.50; CPU $4 + RAM $2 unchanged → $10.50
+	want := 10.50
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_CPUOnlyScaling verifies that CPU cost is scaled by
+// the core utilisation ratio while GPU and RAM costs are left at their full
+// reservation when those metrics are absent.
+//
+// Numbers:
+//
+//	GPU $6 (no GPUAllocation → no scaling)
+//	CPU $4 × (2/8) = $1.00
+//	RAM $2 (no scaling — RAMBytesUsageAverage == 0)
+//	Total = $9.00
+func TestCollector_UsageCost_CPUOnlyScaling(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		6.0, 4.0, 2.0,
+		nil,      // no GPUAllocation
+		8.0, 2.0, // cpuRequest=8, cpuUsage=2 → 25%
+		0, 0, // no RAM utilisation metrics
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// GPU $6 unchanged + CPU $4 × (2/8) = $1.00 + RAM $2 unchanged = $9.00
+	want := 9.00
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_RAMOnlyScaling verifies that RAM cost is scaled by
+// the byte utilisation ratio while GPU and CPU costs are left at their full
+// reservation when those metrics are absent.
+//
+// Numbers:
+//
+//	GPU $6 (no GPUAllocation → no scaling)
+//	CPU $4 (no scaling — CPUCoreUsageAverage == 0)
+//	RAM $2 × (20/200) = $0.20
+//	Total = $10.20
+func TestCollector_UsageCost_RAMOnlyScaling(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		6.0, 4.0, 2.0,
+		nil,  // no GPUAllocation
+		0, 0, // no CPU utilisation metrics
+		200.0, 20.0, // ramRequest=200, ramUsage=20 → 10%
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// GPU $6 + CPU $4 unchanged + RAM $2 × (20/200) = $0.20 → $10.20
+	want := 10.20
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_CPUUsageEqualsRequest verifies that when CPU usage
+// exactly equals the request (utilisation == 100%), the guard condition
+// (usage < request) prevents scaling and the full CPU cost is retained.
+// This also confirms no double-counting from the subtraction/addition path.
+func TestCollector_UsageCost_CPUUsageEqualsRequest(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		0, 4.0, 0,
+		nil,      // no GPU
+		4.0, 4.0, // usage == request → guard (usage < request) is false → no scaling
+		0, 0,
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// usage == request → no scaling → full $4.00 retained
+	want := 4.0
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f (CPU at 100%% should not be scaled)", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_RAMUsageEqualsRequest verifies the same guard for RAM:
+// when RAM usage exactly equals the request, no scaling fires and full cost is kept.
+func TestCollector_UsageCost_RAMUsageEqualsRequest(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		0, 0, 2.0,
+		nil,
+		0, 0,
+		100.0, 100.0, // usage == request → no scaling
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// usage == request → full $2.00 retained
+	want := 2.0
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f (RAM at 100%% should not be scaled)", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_CPUOvercommit verifies that when CPU usage exceeds
+// the request (overcommit), the guard (usage < request) prevents scaling and
+// the full CPU cost is retained — overcommit situations should not produce
+// sub-reservation costs.
+func TestCollector_UsageCost_CPUOvercommit(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		0, 4.0, 0,
+		nil,
+		2.0, 3.0, // usage (3.0) > request (2.0) → overcommit, no scaling
+		0, 0,
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// overcommit → no scaling → full $4.00 retained
+	want := 4.0
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f (CPU overcommit should not reduce cost)", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_RAMOvercommit verifies the same overcommit guard for RAM.
+func TestCollector_UsageCost_RAMOvercommit(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		0, 0, 2.0,
+		nil,
+		0, 0,
+		50.0, 80.0, // usage (80) > request (50) → overcommit, no scaling
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// overcommit → no scaling → full $2.00 retained
+	want := 2.0
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f (RAM overcommit should not reduce cost)", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_NilGPUAllocationStruct verifies that an allocation
+// with a nil GPUAllocation pointer (as opposed to a non-nil struct with a nil
+// GPUUsageAverage pointer) is handled safely — no GPU scaling, no panic.
+func TestCollector_UsageCost_NilGPUAllocationStruct(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	// makeAllocationWithUtilisation passes nil for gpuUsageAverage → GPUAllocation stays nil
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		6.0, 4.0, 2.0,
+		nil, // GPUAllocation == nil
+		0, 0,
+		0, 0,
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// No GPUAllocation → no GPU scaling; no CPU/RAM metrics → no CPU/RAM scaling.
+	// Full TotalCost() = $12.00 retained.
+	want := 12.0
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f (nil GPUAllocation should not panic or scale)", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_TwoModelsIndependent verifies that two different
+// models in the same namespace produce two independent result entries, each
+// scaled only by its own utilisation metrics with no cross-contamination.
+func TestCollector_UsageCost_TwoModelsIndependent(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	// Model A: GPU $6 × 0.5 = $3.00; CPU/RAM no metrics → $3 + $4 + $2 = $9.00
+	modelA := makeAllocationWithUtilisation(
+		"llama-3",
+		6.0, 4.0, 2.0,
+		gpuUsage(0.5),
+		0, 0,
+		0, 0,
+		"llm-prod",
+	)
+	// Model B: GPU $3 × 0.2 = $0.60; CPU/RAM no metrics → $0.60 + $2 + $1 = $3.60
+	modelB := makeAllocationWithUtilisation(
+		"mistral-7b",
+		3.0, 2.0, 1.0,
+		gpuUsage(0.2),
+		0, 0,
+		0, 0,
+		"llm-prod",
+	)
+
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(modelA)
+	as.Set(modelB)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 independent result entries, got %d", len(results))
+	}
+
+	// llama-3: GPU $6 × 0.5 = $3 + CPU $4 + RAM $2 = $9.00
+	keyA := modelNamespaceKey("llama-3", "llm-prod")
+	rA, ok := results[keyA]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+	if !floatEq(rA.usageTotalCost, 9.00) {
+		t.Errorf("llama-3 usageTotalCost want 9.00 got %.4f", rA.usageTotalCost)
+	}
+
+	// mistral-7b: GPU $3 × 0.2 = $0.60 + CPU $2 + RAM $1 = $3.60
+	keyB := modelNamespaceKey("mistral-7b", "llm-prod")
+	rB, ok := results[keyB]
+	if !ok {
+		t.Fatal("expected result for mistral-7b/llm-prod")
+	}
+	if !floatEq(rB.usageTotalCost, 3.60) {
+		t.Errorf("mistral-7b usageTotalCost want 3.60 got %.4f", rB.usageTotalCost)
 	}
 }
 
@@ -525,7 +997,7 @@ func TestCollector_CollectMetrics_EmptyMetrics(t *testing.T) {
 
 	now := time.Now()
 	querier := &mockQuerier{set: opencost.NewAllocationSet(now.Add(-5*time.Minute), now)}
-	
+
 	// Use the standard mock - it will return empty results by default
 	metricsQuerier := source.NewMockMetricsQuerier()
 

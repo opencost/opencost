@@ -170,8 +170,8 @@ func (c *Collector) queryAllocationCosts(ctx context.Context, start, end time.Ti
 	for key, result := range results {
 		modelName, namespace := parseKey(key)
 		if result.allocationTotalCost > 0 {
-			log.Debugf("InferenceCost: model=%s ns=%s alloc=$%.4f usage=$%.4f (%.1f%% of alloc)", 
-				modelName, namespace, result.allocationTotalCost, result.usageTotalCost, 
+			log.Debugf("InferenceCost: model=%s ns=%s alloc=$%.4f usage=$%.4f (%.1f%% of alloc)",
+				modelName, namespace, result.allocationTotalCost, result.usageTotalCost,
 				(result.usageTotalCost/result.allocationTotalCost)*100)
 		}
 	}
@@ -263,7 +263,7 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 		controller := ""
 		controllerKind := ""
 		container := ""
-		
+
 		if alloc.Properties != nil {
 			namespace = alloc.Properties.Namespace
 			cluster = alloc.Properties.Cluster
@@ -305,17 +305,23 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 			//   External — opaque cloud billing pass-through; no usage signal attached.
 			cost := alloc.TotalCost()
 
-			// GPU: scale by SM duty cycle (GPUUsageAverage ∈ (0,1)).
+			// GPU: scale by SM duty cycle (GPUUsageAverage ∈ [0,1]).
 			// GPUHours (and therefore GPUCost) always reflects the full reservation;
 			// GPUUsageAverage is the fraction of time the GPU cores were active.
-			if alloc.GPUAllocation != nil &&
-				alloc.GPUAllocation.GPUUsageAverage != nil &&
-				*alloc.GPUAllocation.GPUUsageAverage > 0 &&
-				*alloc.GPUAllocation.GPUUsageAverage < 1 {
-				scaledGPUCost := alloc.GPUTotalCost() * (*alloc.GPUAllocation.GPUUsageAverage)
+			// Any non-nil value is clamped to [0,1] so that zero utilisation
+			// correctly reduces cost to $0 and out-of-range values are handled
+			// deterministically rather than silently ignored.
+			if alloc.GPUAllocation != nil && alloc.GPUAllocation.GPUUsageAverage != nil {
+				util := *alloc.GPUAllocation.GPUUsageAverage
+				if util < 0 {
+					util = 0
+				} else if util > 1 {
+					util = 1
+				}
+				scaledGPUCost := alloc.GPUTotalCost() * util
 				cost = cost - alloc.GPUTotalCost() + scaledGPUCost
 				log.Debugf("InferenceCost usage: GPU scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
-					modelName, namespace, alloc.GPUTotalCost(), scaledGPUCost, *alloc.GPUAllocation.GPUUsageAverage*100)
+					modelName, namespace, alloc.GPUTotalCost(), scaledGPUCost, util*100)
 			}
 
 			// CPU: scale by core utilisation ratio (usage / request).
@@ -344,7 +350,7 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 
 			existing.usageTotalCost += cost
 		}
-		
+
 		// When aggregating multiple allocations, preserve the first non-empty values
 		// for pod, controller, and container. This provides representative values
 		// when costs are aggregated across multiple pods/containers.
@@ -392,11 +398,11 @@ func canonicalModelName(modelName string) string {
 // namespace.
 //
 // Two common mismatch examples:
-//   1. Fully-qualified vLLM model name vs short allocation label:
-//      "google/gemma-4-31B:llm-d-pic" -> "gemma-4-31B:llm-d-pic"
-//   2. Fully-qualified vLLM model name vs short allocation label with a
-//      different vendor/org prefix:
-//      "MiniMaxAI/MiniMax-M2.7:llm-d-pic" -> "MiniMax-M2.7:llm-d-pic"
+//  1. Fully-qualified vLLM model name vs short allocation label:
+//     "google/gemma-4-31B:llm-d-pic" -> "gemma-4-31B:llm-d-pic"
+//  2. Fully-qualified vLLM model name vs short allocation label with a
+//     different vendor/org prefix:
+//     "MiniMaxAI/MiniMax-M2.7:llm-d-pic" -> "MiniMax-M2.7:llm-d-pic"
 //
 // Exact matches are preserved. Keys with no matching allocation-backed target
 // are also preserved unchanged. A warning is logged for every remapped key so
@@ -618,7 +624,6 @@ func parseKey(key string) (modelName, namespace string) {
 	}
 	return key[:idx], key[idx+1:]
 }
-
 
 // mergeTokenResults merges multiple InferenceTokensResult into a single map
 func mergeTokenResults(results []*source.InferenceTokensResult) map[string]float64 {
