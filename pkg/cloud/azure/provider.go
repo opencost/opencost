@@ -1265,6 +1265,7 @@ func ensureDiskClassFallbacks(prices map[string]*AzurePricing) {
 	}
 }
 
+// collectManagedDiskTierHourly collects the hourly cost of managed disk tiers from the provided pricing data.
 func collectManagedDiskTierHourly(prices map[string]*AzurePricing) map[string]float64 {
 	tierHourly := map[string]float64{}
 	for key, pricing := range prices {
@@ -1280,6 +1281,7 @@ func collectManagedDiskTierHourly(prices map[string]*AzurePricing) map[string]fl
 	return tierHourly
 }
 
+// removeManagedDiskTierEntries removes managed disk tier entries from the provided pricing data.
 func removeManagedDiskTierEntries(prices map[string]*AzurePricing) {
 	for key := range prices {
 		if isManagedDiskTierKey(key) {

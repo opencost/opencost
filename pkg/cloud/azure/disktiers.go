@@ -12,12 +12,6 @@ import (
 
 // Azure managed disk size tiers (GiB), ordered ascending.
 // Source: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
-//
-// Follow-ups intentionally not modeled here:
-//   - Shared disk "Disk Mount" fees (meters are skipped with a warning)
-//   - Premium SSD performance-tier upgrades without resize
-//   - Premium SSD v2 / Ultra Disk (per-GiB + IOPS + throughput)
-//   - Azure Files Standard usage-based billing (still $0 class workaround)
 var (
 	premiumSSDTiers = []diskTier{
 		{Name: "P1", SizeGiB: 4},
@@ -74,7 +68,7 @@ type diskTier struct {
 }
 
 // managedDiskMeterRE matches Rate Card / Price Sheet managed disk capacity meters,
-// e.g. "P4 LRS Disk", "E10 ZRS Disk". Disk Mount meters are excluded by the caller.
+// e.g. "P4 LRS Disk", "E10 ZRS Disk". Disk Mount meters are excluded.
 var managedDiskMeterRE = regexp.MustCompile(`^(P|E|S)(\d+)\s+(LRS|ZRS)\s+Disk$`)
 
 const (
@@ -243,6 +237,7 @@ func parsePrice(s string) (float64, error) {
 	return strconv.ParseFloat(s, 64)
 }
 
+// isManagedDiskTierKey returns true if the key is a valid managed disk tier pricing key.
 func isManagedDiskTierKey(key string) bool {
 	parts := strings.Split(key, ",")
 	if len(parts) != 4 {
