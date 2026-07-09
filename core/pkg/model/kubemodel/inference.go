@@ -22,14 +22,39 @@ import (
 // Like DCGMDevice, this is split out from the universal k8s API structures;
 // the join keys back to the rest of the KubeModel are the namespace and pod
 // names carried on each replica entry.
+//
+// Design note (kubemodel device direction): this follows the same shape as
+// the planned per-source device types rather than introducing a generic
+// paradigm. A model server is not a device; it is the capacity manager that
+// sits between the workload and the device(s). The type is concrete and
+// source-scoped: field semantics are normalized to the Model Server Protocol
+// (an upstream contract that defines the per-engine metric mapping), and the
+// Engine field preserves which engine's metrics populated the entry, so no
+// per-engine meaning is erased by the normalization. The replica-to-device
+// linkage (the GetParent analog of a MIG instance pointing at its physical
+// device) is deliberately not collected here; it belongs to the DRA/device
+// plugin requests join, which also relates replicas to MIG instances.
+// Utilization distributions (histograms) are a planned follow-up; this
+// version carries window avg/max scalars.
 // @bingen:generate:InferenceServer
 type InferenceServer struct {
-	ModelName string                            `json:"modelName"`
-	Namespace string                            `json:"namespace"`
-	Start     time.Time                         `json:"start"`
-	End       time.Time                         `json:"end"`
-	Replicas  map[string]InferenceServerReplica `json:"replicas"`
+	ModelName string `json:"modelName"`
+	Namespace string `json:"namespace"`
+	// Engine identifies the serving engine whose metrics populated this
+	// entry (see the Engine* constants). Field values on replicas follow
+	// the Model Server Protocol semantics; Engine records which engine's
+	// mapping produced them.
+	Engine   string                            `json:"engine"`
+	Start    time.Time                         `json:"start"`
+	End      time.Time                         `json:"end"`
+	Replicas map[string]InferenceServerReplica `json:"replicas"`
 }
+
+// EngineVLLM identifies vLLM as the serving engine that produced an
+// InferenceServer entry. Additional engines (per the Model Server Protocol
+// mappings, e.g. SGLang, Triton TensorRT-LLM) get constants as their metric
+// mappings are implemented in the data sources.
+const EngineVLLM = "vllm"
 
 // InferenceServerReplica holds the window-aggregated scheduler gauges for a
 // single model-server pod. KV-cache usage values are fractions in [0, 1] of

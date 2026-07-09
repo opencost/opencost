@@ -18,6 +18,11 @@ message InferenceServer {
   string modelName = 1;  // Served model name (vLLM model_name metric label)
   string namespace = 2;  // Namespace of the model-server pods
 
+  // Serving engine whose metrics populated this entry ("vllm" today).
+  // Replica field semantics are normalized per the Model Server Protocol;
+  // engine preserves which per-engine mapping produced them.
+  string engine = 4;
+
   // Per-replica scheduler telemetry, keyed by pod name
   map<string, InferenceServerReplica> replicas = 3;
 

@@ -40,9 +40,14 @@ func (km *KubeModel) computeInferenceServers(kms *kubemodel.KubeModelSet, start,
 				server = &kubemodel.InferenceServer{
 					ModelName: res.ModelName,
 					Namespace: res.Namespace,
-					Start:     start,
-					End:       end,
-					Replicas:  make(map[string]kubemodel.InferenceServerReplica),
+					// The querier contract is currently implemented with the
+					// vLLM metric mapping in both data sources; when further
+					// Model Server Protocol mappings are added, engine
+					// provenance must ride the query results instead.
+					Engine:   kubemodel.EngineVLLM,
+					Start:    start,
+					End:      end,
+					Replicas: make(map[string]kubemodel.InferenceServerReplica),
 				}
 				serverMap[key] = server
 			}

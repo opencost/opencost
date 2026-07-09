@@ -48,6 +48,7 @@ func TestComputeInferenceServers(t *testing.T) {
 				"Qwen3-32B:llm-d": {
 					ModelName: "Qwen3-32B",
 					Namespace: "llm-d",
+					Engine:    kubemodel.EngineVLLM,
 					Start:     start,
 					End:       end,
 					Replicas: map[string]kubemodel.InferenceServerReplica{
@@ -74,6 +75,7 @@ func TestComputeInferenceServers(t *testing.T) {
 				"Qwen3-32B:llm-d": {
 					ModelName: "Qwen3-32B",
 					Namespace: "llm-d",
+					Engine:    kubemodel.EngineVLLM,
 					Start:     start,
 					End:       end,
 					Replicas: map[string]kubemodel.InferenceServerReplica{
@@ -95,6 +97,7 @@ func TestComputeInferenceServers(t *testing.T) {
 				"Qwen3-32B:team-a": {
 					ModelName: "Qwen3-32B",
 					Namespace: "team-a",
+					Engine:    kubemodel.EngineVLLM,
 					Start:     start,
 					End:       end,
 					Replicas: map[string]kubemodel.InferenceServerReplica{
@@ -104,6 +107,7 @@ func TestComputeInferenceServers(t *testing.T) {
 				"Qwen3-32B:team-b": {
 					ModelName: "Qwen3-32B",
 					Namespace: "team-b",
+					Engine:    kubemodel.EngineVLLM,
 					Start:     start,
 					End:       end,
 					Replicas: map[string]kubemodel.InferenceServerReplica{
