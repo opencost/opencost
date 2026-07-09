@@ -110,6 +110,16 @@ func TestQuantileOverTimeAggregator_PhiOutOfRangeClamps(t *testing.T) {
 	if got := below.Value()[0].Value; got != 2 {
 		t.Errorf("phi below 0 should clamp to the minimum: got %v, want 2", got)
 	}
+
+	// Mirror of the 3-sample case above: with 3+ samples, phi < 0 produced
+	// a negative ceil(rank) index before phi was clamped.
+	belowThree := QuantileOverTime(-0.5)(nil)
+	belowThree.Update(2, time1, nil)
+	belowThree.Update(8, time2, nil)
+	belowThree.Update(5, time3, nil)
+	if got := belowThree.Value()[0].Value; got != 2 {
+		t.Errorf("phi below 0 with 3 samples should clamp to the minimum: got %v, want 2", got)
+	}
 }
 
 func TestQuantileOverTimeAggregator_Metadata(t *testing.T) {
