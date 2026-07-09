@@ -33,7 +33,7 @@ const (
 	GeneratorPackageName string = "kubemodel"
 
 	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 2
+	DefaultCodecVersion uint8 = 3
 )
 
 //--------------------------------------------------------------------------
@@ -122,6 +122,8 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"Deployment":              reflect.TypeFor[Deployment](),
 	"Diagnostic":              reflect.TypeFor[Diagnostic](),
 	"FileSystem":              reflect.TypeFor[FileSystem](),
+	"InferenceServer":         reflect.TypeFor[InferenceServer](),
+	"InferenceServerReplica":  reflect.TypeFor[InferenceServerReplica](),
 	"Job":                     reflect.TypeFor[Job](),
 	"KubeModelSet":            reflect.TypeFor[KubeModelSet](),
 	"Metadata":                reflect.TypeFor[Metadata](),
@@ -2992,6 +2994,408 @@ func (target *FileSystem) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 }
 
 //--------------------------------------------------------------------------
+//  InferenceServer
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this InferenceServer instance
+// into a byte array
+func (target *InferenceServer) MarshalBinary() (data []byte, err error) {
+	ctx := NewEncodingContext(nil)
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	return ctx.ToBytes(), nil
+}
+
+// MarshalBinary serializes the internal properties of this InferenceServer instance
+// into an io.Writer.
+func (target *InferenceServer) MarshalBinaryTo(writer io.Writer) error {
+	buff := util.NewBufferFromWriter(writer)
+	defer buff.Flush()
+
+	ctx := NewEncodingContextFromBuffer(buff, nil)
+
+	return target.MarshalBinaryWithContext(ctx)
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this InferenceServer instance
+// into a byte array leveraging a predefined context.
+func (target *InferenceServer) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	if ctx.IsStringTable() {
+		a := ctx.Table.AddOrGet(target.ModelName)
+		buff.WriteInt(a) // write table index
+	} else {
+		buff.WriteString(target.ModelName) // write string
+	}
+
+	if ctx.IsStringTable() {
+		b := ctx.Table.AddOrGet(target.Namespace)
+		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.Namespace) // write string
+	}
+
+	if ctx.IsStringTable() {
+		c := ctx.Table.AddOrGet(target.Engine)
+		buff.WriteInt(c) // write table index
+	} else {
+		buff.WriteString(target.Engine) // write string
+	}
+
+	// --- [begin][write][reference](time.Time) ---
+	d, errA := target.Start.MarshalBinary()
+	if errA != nil {
+		return errA
+	}
+	buff.WriteInt(len(d))
+	buff.WriteBytes(d)
+	// --- [end][write][reference](time.Time) ---
+
+	// --- [begin][write][reference](time.Time) ---
+	e, errB := target.End.MarshalBinary()
+	if errB != nil {
+		return errB
+	}
+	buff.WriteInt(len(e))
+	buff.WriteBytes(e)
+	// --- [end][write][reference](time.Time) ---
+
+	if target.Replicas == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]InferenceServerReplica) ---
+		buff.WriteInt(len(target.Replicas)) // map length
+		for v, z := range target.Replicas {
+			if ctx.IsStringTable() {
+				f := ctx.Table.AddOrGet(v)
+				buff.WriteInt(f) // write table index
+			} else {
+				buff.WriteString(v) // write string
+			}
+
+			// --- [begin][write][struct](InferenceServerReplica) ---
+			buff.WriteInt(0) // [compatibility, unused]
+			errC := z.MarshalBinaryWithContext(ctx)
+			if errC != nil {
+				return errC
+			}
+			// --- [end][write][struct](InferenceServerReplica) ---
+
+		}
+		// --- [end][write][map](map[string]InferenceServerReplica) ---
+
+	}
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the InferenceServer type
+func (target *InferenceServer) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the InferenceServer type
+func (target *InferenceServer) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the InferenceServer type
+func (target *InferenceServer) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshalling InferenceServer. Expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	var b string
+	if ctx.IsStringTable() {
+		c := buff.ReadInt() // read string index
+		b = ctx.Table.At(c)
+	} else {
+		b = buff.ReadString() // read string
+	}
+	a := b
+	target.ModelName = a
+
+	var e string
+	if ctx.IsStringTable() {
+		f := buff.ReadInt() // read string index
+		e = ctx.Table.At(f)
+	} else {
+		e = buff.ReadString() // read string
+	}
+	d := e
+	target.Namespace = d
+
+	var h string
+	if ctx.IsStringTable() {
+		l := buff.ReadInt() // read string index
+		h = ctx.Table.At(l)
+	} else {
+		h = buff.ReadString() // read string
+	}
+	g := h
+	target.Engine = g
+
+	// --- [begin][read][reference](time.Time) ---
+	m := new(time.Time)
+	n := buff.ReadInt() // byte array length
+	o := buff.ReadBytes(n)
+	errA := m.UnmarshalBinary(o)
+	if errA != nil {
+		return errA
+	}
+	target.Start = *m
+	// --- [end][read][reference](time.Time) ---
+
+	// --- [begin][read][reference](time.Time) ---
+	p := new(time.Time)
+	q := buff.ReadInt() // byte array length
+	r := buff.ReadBytes(q)
+	errB := p.UnmarshalBinary(r)
+	if errB != nil {
+		return errB
+	}
+	target.End = *p
+	// --- [end][read][reference](time.Time) ---
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.Replicas = nil
+	} else {
+		// --- [begin][read][map](map[string]InferenceServerReplica) ---
+		t := buff.ReadInt() // map len
+		s := make(map[string]InferenceServerReplica, t)
+		for range t {
+			var v string
+			var w string
+			if ctx.IsStringTable() {
+				x := buff.ReadInt() // read string index
+				w = ctx.Table.At(x)
+			} else {
+				w = buff.ReadString() // read string
+			}
+			u := w
+			v = u
+
+			// --- [begin][read][struct](InferenceServerReplica) ---
+			y := new(InferenceServerReplica)
+			buff.ReadInt() // [compatibility, unused]
+			errC := y.UnmarshalBinaryWithContext(ctx)
+			if errC != nil {
+				return errC
+			}
+			z := *y
+			// --- [end][read][struct](InferenceServerReplica) ---
+
+			s[v] = z
+		}
+		target.Replicas = s
+		// --- [end][read][map](map[string]InferenceServerReplica) ---
+
+	}
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  InferenceServerReplica
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this InferenceServerReplica instance
+// into a byte array
+func (target *InferenceServerReplica) MarshalBinary() (data []byte, err error) {
+	ctx := NewEncodingContext(nil)
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	return ctx.ToBytes(), nil
+}
+
+// MarshalBinary serializes the internal properties of this InferenceServerReplica instance
+// into an io.Writer.
+func (target *InferenceServerReplica) MarshalBinaryTo(writer io.Writer) error {
+	buff := util.NewBufferFromWriter(writer)
+	defer buff.Flush()
+
+	ctx := NewEncodingContextFromBuffer(buff, nil)
+
+	return target.MarshalBinaryWithContext(ctx)
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this InferenceServerReplica instance
+// into a byte array leveraging a predefined context.
+func (target *InferenceServerReplica) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	buff.WriteFloat64(target.KVCacheUsageAvg) // write float64
+
+	buff.WriteFloat64(target.KVCacheUsageMax) // write float64
+
+	buff.WriteFloat64(target.QueueDepthAvg) // write float64
+
+	buff.WriteFloat64(target.QueueDepthMax) // write float64
+
+	buff.WriteFloat64(target.RunningRequestsAvg) // write float64
+
+	buff.WriteFloat64(target.Preemptions) // write float64
+
+	buff.WriteFloat64(target.KVCacheUsageP95) // write float64
+
+	buff.WriteFloat64(target.QueueDepthP95) // write float64
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the InferenceServerReplica type
+func (target *InferenceServerReplica) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the InferenceServerReplica type
+func (target *InferenceServerReplica) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the InferenceServerReplica type
+func (target *InferenceServerReplica) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshalling InferenceServerReplica. Expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	a := buff.ReadFloat64() // read float64
+	target.KVCacheUsageAvg = a
+
+	b := buff.ReadFloat64() // read float64
+	target.KVCacheUsageMax = b
+
+	c := buff.ReadFloat64() // read float64
+	target.QueueDepthAvg = c
+
+	d := buff.ReadFloat64() // read float64
+	target.QueueDepthMax = d
+
+	e := buff.ReadFloat64() // read float64
+	target.RunningRequestsAvg = e
+
+	f := buff.ReadFloat64() // read float64
+	target.Preemptions = f
+
+	g := buff.ReadFloat64() // read float64
+	target.KVCacheUsageP95 = g
+
+	h := buff.ReadFloat64() // read float64
+	target.QueueDepthP95 = h
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
 //  Job
 //--------------------------------------------------------------------------
 
@@ -3855,6 +4259,70 @@ func (target *KubeModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 		// --- [end][write][map](map[string]*Container) ---
 
 	}
+	if target.DCGMDevices == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]*DCGMDevice) ---
+		buff.WriteInt(len(target.DCGMDevices)) // map length
+		for vvvvvvvvvvvvvvv, zzzzzzzzzzzzzzz := range target.DCGMDevices {
+			if ctx.IsStringTable() {
+				r := ctx.Table.AddOrGet(vvvvvvvvvvvvvvv)
+				buff.WriteInt(r) // write table index
+			} else {
+				buff.WriteString(vvvvvvvvvvvvvvv) // write string
+			}
+			if zzzzzzzzzzzzzzz == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][struct](DCGMDevice) ---
+				buff.WriteInt(0) // [compatibility, unused]
+				errR := zzzzzzzzzzzzzzz.MarshalBinaryWithContext(ctx)
+				if errR != nil {
+					return errR
+				}
+				// --- [end][write][struct](DCGMDevice) ---
+
+			}
+		}
+		// --- [end][write][map](map[string]*DCGMDevice) ---
+
+	}
+	if target.InferenceServers == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]*InferenceServer) ---
+		buff.WriteInt(len(target.InferenceServers)) // map length
+		for vvvvvvvvvvvvvvvv, zzzzzzzzzzzzzzzz := range target.InferenceServers {
+			if ctx.IsStringTable() {
+				s := ctx.Table.AddOrGet(vvvvvvvvvvvvvvvv)
+				buff.WriteInt(s) // write table index
+			} else {
+				buff.WriteString(vvvvvvvvvvvvvvvv) // write string
+			}
+			if zzzzzzzzzzzzzzzz == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][struct](InferenceServer) ---
+				buff.WriteInt(0) // [compatibility, unused]
+				errS := zzzzzzzzzzzzzzzz.MarshalBinaryWithContext(ctx)
+				if errS != nil {
+					return errS
+				}
+				// --- [end][write][struct](InferenceServer) ---
+
+			}
+		}
+		// --- [end][write][map](map[string]*InferenceServer) ---
+
+	}
 
 	return nil
 }
@@ -4604,6 +5072,96 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	} else {
 		target.Containers = nil
+	}
+	// field version check
+	if uint8(3) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.DCGMDevices = nil
+		} else {
+			// --- [begin][read][map](map[string]*DCGMDevice) ---
+			eeeee := buff.ReadInt() // map len
+			ddddd := make(map[string]*DCGMDevice, eeeee)
+			for range eeeee {
+				var vvvvvvvvvvvvvvv string
+				var ggggg string
+				if ctx.IsStringTable() {
+					hhhhh := buff.ReadInt() // read string index
+					ggggg = ctx.Table.At(hhhhh)
+				} else {
+					ggggg = buff.ReadString() // read string
+				}
+				fffff := ggggg
+				vvvvvvvvvvvvvvv = fffff
+
+				var zzzzzzzzzzzzzzz *DCGMDevice
+				if buff.ReadUInt8() == uint8(0) {
+					zzzzzzzzzzzzzzz = nil
+				} else {
+					// --- [begin][read][struct](DCGMDevice) ---
+					lllll := new(DCGMDevice)
+					buff.ReadInt() // [compatibility, unused]
+					errR := lllll.UnmarshalBinaryWithContext(ctx)
+					if errR != nil {
+						return errR
+					}
+					zzzzzzzzzzzzzzz = lllll
+					// --- [end][read][struct](DCGMDevice) ---
+
+				}
+				ddddd[vvvvvvvvvvvvvvv] = zzzzzzzzzzzzzzz
+			}
+			target.DCGMDevices = ddddd
+			// --- [end][read][map](map[string]*DCGMDevice) ---
+
+		}
+
+	} else {
+		target.DCGMDevices = nil
+	}
+	// field version check
+	if uint8(3) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.InferenceServers = nil
+		} else {
+			// --- [begin][read][map](map[string]*InferenceServer) ---
+			nnnnn := buff.ReadInt() // map len
+			mmmmm := make(map[string]*InferenceServer, nnnnn)
+			for range nnnnn {
+				var vvvvvvvvvvvvvvvv string
+				var ppppp string
+				if ctx.IsStringTable() {
+					qqqqq := buff.ReadInt() // read string index
+					ppppp = ctx.Table.At(qqqqq)
+				} else {
+					ppppp = buff.ReadString() // read string
+				}
+				ooooo := ppppp
+				vvvvvvvvvvvvvvvv = ooooo
+
+				var zzzzzzzzzzzzzzzz *InferenceServer
+				if buff.ReadUInt8() == uint8(0) {
+					zzzzzzzzzzzzzzzz = nil
+				} else {
+					// --- [begin][read][struct](InferenceServer) ---
+					rrrrr := new(InferenceServer)
+					buff.ReadInt() // [compatibility, unused]
+					errS := rrrrr.UnmarshalBinaryWithContext(ctx)
+					if errS != nil {
+						return errS
+					}
+					zzzzzzzzzzzzzzzz = rrrrr
+					// --- [end][read][struct](InferenceServer) ---
+
+				}
+				mmmmm[vvvvvvvvvvvvvvvv] = zzzzzzzzzzzzzzzz
+			}
+			target.InferenceServers = mmmmm
+			// --- [end][read][map](map[string]*InferenceServer) ---
+
+		}
+
+	} else {
+		target.InferenceServers = nil
 	}
 
 	return nil
@@ -5586,6 +6144,124 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *b
 					}
 				}
 				// --- [end][read][streaming-map](map[string]*Container) ---
+
+			}
+
+		} else {
+
+			if !yield(fi, nil) {
+				return
+			}
+		}
+
+		fi = bstream.BingenFieldInfo{
+			Type: reflect.TypeFor[map[string]*DCGMDevice](),
+			Name: "DCGMDevices",
+		}
+		// field version check
+		if uint8(3) <= version {
+
+			if buff.ReadUInt8() == uint8(0) {
+				if !yield(fi, nil) {
+					return
+				}
+			} else {
+				// --- [begin][read][streaming-map](map[string]*DCGMDevice) ---
+				qqqq := buff.ReadInt() // map len
+				for range qqqq {
+					var vvvvvvvvvvvvvvv string
+					var ssss string
+					if ctx.IsStringTable() {
+						tttt := buff.ReadInt() // read string index
+						ssss = ctx.Table.At(tttt)
+					} else {
+						ssss = buff.ReadString() // read string
+					}
+					rrrr := ssss
+					vvvvvvvvvvvvvvv = rrrr
+
+					var zzzzzzzzzzzzzzz *DCGMDevice
+					if buff.ReadUInt8() == uint8(0) {
+						zzzzzzzzzzzzzzz = nil
+					} else {
+						// --- [begin][read][struct](DCGMDevice) ---
+						uuuu := new(DCGMDevice)
+						buff.ReadInt() // [compatibility, unused]
+						errR := uuuu.UnmarshalBinaryWithContext(ctx)
+						if errR != nil {
+							stream.err = errR
+							return
+
+						}
+						zzzzzzzzzzzzzzz = uuuu
+						// --- [end][read][struct](DCGMDevice) ---
+
+					}
+
+					if !yield(fi, bstream.PairV(vvvvvvvvvvvvvvv, zzzzzzzzzzzzzzz)) {
+						return
+					}
+				}
+				// --- [end][read][streaming-map](map[string]*DCGMDevice) ---
+
+			}
+
+		} else {
+
+			if !yield(fi, nil) {
+				return
+			}
+		}
+
+		fi = bstream.BingenFieldInfo{
+			Type: reflect.TypeFor[map[string]*InferenceServer](),
+			Name: "InferenceServers",
+		}
+		// field version check
+		if uint8(3) <= version {
+
+			if buff.ReadUInt8() == uint8(0) {
+				if !yield(fi, nil) {
+					return
+				}
+			} else {
+				// --- [begin][read][streaming-map](map[string]*InferenceServer) ---
+				wwww := buff.ReadInt() // map len
+				for range wwww {
+					var vvvvvvvvvvvvvvvv string
+					var yyyy string
+					if ctx.IsStringTable() {
+						aaaaa := buff.ReadInt() // read string index
+						yyyy = ctx.Table.At(aaaaa)
+					} else {
+						yyyy = buff.ReadString() // read string
+					}
+					xxxx := yyyy
+					vvvvvvvvvvvvvvvv = xxxx
+
+					var zzzzzzzzzzzzzzzz *InferenceServer
+					if buff.ReadUInt8() == uint8(0) {
+						zzzzzzzzzzzzzzzz = nil
+					} else {
+						// --- [begin][read][struct](InferenceServer) ---
+						bbbbb := new(InferenceServer)
+						buff.ReadInt() // [compatibility, unused]
+						errS := bbbbb.UnmarshalBinaryWithContext(ctx)
+						if errS != nil {
+							stream.err = errS
+							return
+
+						}
+						zzzzzzzzzzzzzzzz = bbbbb
+						// --- [end][read][struct](InferenceServer) ---
+
+					}
+
+					if !yield(fi, bstream.PairV(vvvvvvvvvvvvvvvv, zzzzzzzzzzzzzzzz)) {
+						return
+					}
+				}
+				// --- [end][read][streaming-map](map[string]*InferenceServer) ---
 
 			}
 
