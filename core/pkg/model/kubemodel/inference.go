@@ -34,8 +34,9 @@ import (
 // linkage (the GetParent analog of a MIG instance pointing at its physical
 // device) is deliberately not collected here; it belongs to the DRA/device
 // plugin requests join, which also relates replicas to MIG instances.
-// Utilization distributions (histograms) are a planned follow-up; this
-// version carries window avg/max scalars.
+// Each gauge carries a window distribution summary (avg, p95, max) rather
+// than per-bucket histograms, since quantiles compute identically from both
+// data sources; preemption counts round out the pressure signals.
 // @bingen:generate:InferenceServer
 type InferenceServer struct {
 	ModelName string `json:"modelName"`

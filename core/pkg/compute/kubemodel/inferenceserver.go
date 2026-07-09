@@ -10,10 +10,11 @@ import (
 
 // computeInferenceServers builds InferenceServer entries from the model-server
 // scheduler telemetry queries (Gateway API Inference Extension Model Server
-// Protocol gauges: KV-cache utilization, queue depth, running requests).
-// Servers are keyed by "model_name:namespace" with one replica entry per pod.
-// All five queries degrade gracefully: a data source with no model-server
-// telemetry produces an empty map.
+// Protocol signals: KV-cache utilization, queue depth, running requests, and
+// preemptions, with avg/p95/max summaries for the capacity gauges). Servers
+// are keyed by "model_name:namespace" with one replica entry per pod. Every
+// query degrades gracefully: a data source with no model-server telemetry
+// produces an empty map.
 func (km *KubeModel) computeInferenceServers(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
