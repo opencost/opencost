@@ -89,6 +89,7 @@ const (
 	InferenceQueueDepthAvgID                   MetricCollectorID = "InferenceQueueDepthAvg"
 	InferenceQueueDepthMaxID                   MetricCollectorID = "InferenceQueueDepthMax"
 	InferenceRunningRequestsAvgID              MetricCollectorID = "InferenceRunningRequestsAvg"
+	InferencePreemptionsID                     MetricCollectorID = "InferencePreemptions"
 	PodPVCAllocationID                         MetricCollectorID = "PodPVCAllocation"
 	PVCBytesRequestedID                        MetricCollectorID = "PVCBytesRequested"
 	PVCBytesUsedAverageID                      MetricCollectorID = "PVCBytesUsedAverage"

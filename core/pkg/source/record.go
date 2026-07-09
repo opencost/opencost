@@ -905,6 +905,11 @@ func (m *RecordMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.
 	return m.Querier.QueryInferenceRunningRequestsAvg(start, end)
 }
 
+func (m *RecordMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *Future[InferenceServerMetricResult] {
+	m.recordCall(QueryInferencePreemptions)
+	return m.Querier.QueryInferencePreemptions(start, end)
+}
+
 // Data Coverage Query
 
 func (m *RecordMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {

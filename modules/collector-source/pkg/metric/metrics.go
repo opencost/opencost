@@ -65,9 +65,10 @@ const (
 
 	// Inference Model Server Metrics (Gateway API Inference Extension Model
 	// Server Protocol; vLLM metric names)
-	VLLMKVCacheUsagePerc   = "vllm:kv_cache_usage_perc"
-	VLLMNumRequestsWaiting = "vllm:num_requests_waiting"
-	VLLMNumRequestsRunning = "vllm:num_requests_running"
+	VLLMKVCacheUsagePerc    = "vllm:kv_cache_usage_perc"
+	VLLMNumRequestsWaiting  = "vllm:num_requests_waiting"
+	VLLMNumRequestsRunning  = "vllm:num_requests_running"
+	VLLMNumPreemptionsTotal = "vllm:num_preemptions_total"
 
 	// Network Metrics
 	KubecostPodNetworkEgressBytesTotal  = "kubecost_pod_network_egress_bytes_total"

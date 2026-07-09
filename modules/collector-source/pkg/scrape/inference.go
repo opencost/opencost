@@ -40,9 +40,10 @@ const (
 // the Gateway API Inference Extension Model Server Protocol: KV-cache
 // utilization, queue depth (requests waiting), and running requests.
 var inferenceMetricNames = map[string]struct{}{
-	metric.VLLMKVCacheUsagePerc:   {},
-	metric.VLLMNumRequestsWaiting: {},
-	metric.VLLMNumRequestsRunning: {},
+	metric.VLLMKVCacheUsagePerc:    {},
+	metric.VLLMNumRequestsWaiting:  {},
+	metric.VLLMNumRequestsRunning:  {},
+	metric.VLLMNumPreemptionsTotal: {},
 }
 
 // inferenceTarget is a scrape target for a single model-server pod. The pod's

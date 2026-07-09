@@ -231,6 +231,7 @@ const (
 	QueryInferenceQueueDepthAvg      = "QueryInferenceQueueDepthAvg"
 	QueryInferenceQueueDepthMax      = "QueryInferenceQueueDepthMax"
 	QueryInferenceRunningRequestsAvg = "QueryInferenceRunningRequestsAvg"
+	QueryInferencePreemptions        = "QueryInferencePreemptions"
 )
 
 type MetricsQuerier interface {
@@ -494,6 +495,13 @@ type MetricsQuerier interface {
 	// QueryInferenceRunningRequestsAvg returns the window-averaged count of
 	// requests in the running batch by model_name, namespace, and pod
 	QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceServerMetricResult]
+
+	// QueryInferencePreemptions returns the count of scheduler preemptions
+	// (requests evicted from the running batch and recomputed) over the
+	// window by model_name, namespace, and pod. A pressure and instability
+	// signal: sustained preemptions mean the engine is thrashing its KV
+	// budget.
+	QueryInferencePreemptions(start, end time.Time) *Future[InferenceServerMetricResult]
 }
 
 type OpenCostDataSource interface {

@@ -46,4 +46,9 @@ message InferenceServerReplica {
 
   // Requests in the running batch (achieved batch size).
   float runningRequestsAvg = 5;
+
+  // Scheduler preemptions (requests evicted from the running batch and
+  // recomputed) during the window. Sustained preemptions mean the engine
+  // is thrashing its KV budget.
+  float preemptions = 6;
 }

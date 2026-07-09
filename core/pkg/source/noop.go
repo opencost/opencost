@@ -731,6 +731,10 @@ func (m *NoOpMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Ti
 	return newEmptyResult(DecodeInferenceServerMetricResult)
 }
 
+func (m *NoOpMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return newEmptyResult(DecodeInferenceServerMetricResult)
+}
+
 // Data Coverage Query
 
 func (m *NoOpMetricsQuerier) QueryDataCoverage(_ int) (time.Time, time.Time, error) {

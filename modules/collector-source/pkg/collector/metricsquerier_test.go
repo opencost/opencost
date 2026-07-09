@@ -160,6 +160,8 @@ func GetMockCollectorProvider() StoreProvider {
 	collector.Update(metric.VLLMNumRequestsWaiting, inference1Info, 4, end, nil)
 	collector.Update(metric.VLLMNumRequestsRunning, inference1Info, 10, start, nil)
 	collector.Update(metric.VLLMNumRequestsRunning, inference1Info, 30, end, nil)
+	collector.Update(metric.VLLMNumPreemptionsTotal, inference1Info, 2, start, nil)
+	collector.Update(metric.VLLMNumPreemptionsTotal, inference1Info, 6, end, nil)
 
 	collector.Update(metric.KubecostNetworkZoneEgressCost, nil, 1, start, nil)
 	collector.Update(metric.KubecostNetworkRegionEgressCost, nil, 2, start, nil)
@@ -1030,6 +1032,10 @@ func TestCollectorMetricsQuerier_QueryInferenceSaturation(t *testing.T) {
 		"running requests avg": {
 			query: c.QueryInferenceRunningRequestsAvg,
 			want:  20,
+		},
+		"preemptions delta": {
+			query: c.QueryInferencePreemptions,
+			want:  4,
 		},
 	}
 

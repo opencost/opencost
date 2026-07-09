@@ -847,3 +847,7 @@ func (c *collectorMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Ti
 func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
 	return queryCollector(c, start, end, metric.InferenceRunningRequestsAvgID, source.DecodeInferenceServerMetricResult)
 }
+
+func (c *collectorMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return queryCollector(c, start, end, metric.InferencePreemptionsID, source.DecodeInferenceServerMetricResult)
+}

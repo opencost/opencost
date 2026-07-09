@@ -26,7 +26,7 @@ func TestComputeInferenceServers(t *testing.T) {
 			want:      map[string]*kubemodel.InferenceServer{},
 		},
 		{
-			name: "all five gauges populate a single replica",
+			name: "all gauges and counters populate a single replica",
 			overrides: map[string]any{
 				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
 					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.42},
@@ -43,6 +43,9 @@ func TestComputeInferenceServers(t *testing.T) {
 				source.QueryInferenceRunningRequestsAvg: []*source.InferenceServerMetricResult{
 					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 33},
 				},
+				source.QueryInferencePreemptions: []*source.InferenceServerMetricResult{
+					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 7},
+				},
 			},
 			want: map[string]*kubemodel.InferenceServer{
 				"Qwen3-32B:llm-d": {
@@ -58,6 +61,7 @@ func TestComputeInferenceServers(t *testing.T) {
 							QueueDepthAvg:      0.5,
 							QueueDepthMax:      12,
 							RunningRequestsAvg: 33,
+							Preemptions:        7,
 						},
 					},
 				},

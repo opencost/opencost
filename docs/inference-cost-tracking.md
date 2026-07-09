@@ -401,6 +401,7 @@ In addition to token and timing metrics, OpenCost collects the model-server
 | KV-cache utilization (0–1) | `vllm:kv_cache_usage_perc` | avg, max |
 | Queue depth (requests waiting) | `vllm:num_requests_waiting` | avg, max |
 | Running requests (achieved batch) | `vllm:num_requests_running` | avg |
+| Preemptions (KV thrash / pressure) | `vllm:num_preemptions_total` | delta over window |
 
 These measure how much of a model server's **serving capacity** the workload
 actually consumes. Host-level GPU metrics cannot: a serving engine

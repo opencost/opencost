@@ -67,6 +67,11 @@ type InferenceServerReplica struct {
 	QueueDepthAvg      float64 `json:"queueDepthAvg"`
 	QueueDepthMax      float64 `json:"queueDepthMax"`
 	RunningRequestsAvg float64 `json:"runningRequestsAvg"`
+	// Preemptions is the count of scheduler preemptions (requests evicted
+	// from the running batch and recomputed) during the window. A pressure
+	// and instability signal: sustained preemptions mean the engine is
+	// thrashing its KV budget.
+	Preemptions float64 `json:"preemptions"`
 }
 
 // Key returns the identifier used to store this InferenceServer in the

@@ -147,6 +147,124 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end
 	return pds.queryInferenceGauge("vllm:num_requests_running", "avg", start, end)
 }
 
+// QueryInferencePreemptions implements MetricsQuerier.QueryInferencePreemptions
+func (pds *PrometheusMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+
+	resultsChan := make(source.QueryResultsChan, 1)
+
+	go func() {
+		results, err := queryCounterDeltaByReplica(ctx, "vllm:num_preemptions_total", start, end)
+		if err != nil {
+			resultsChan <- &source.QueryResults{Error: err}
+			return
+		}
+
+		resultsChan <- &source.QueryResults{Results: results}
+	}()
+
+	return source.NewFuture(source.DecodeInferenceServerMetricResult, resultsChan)
+}
+
+// replicaMetricValue carries one instant sample keyed by replica identity.
+type replicaMetricValue struct {
+	modelName string
+	namespace string
+	pod       string
+	value     float64
+}
+
+// queryCounterDeltaByReplica returns the net increase of a monotonic counter
+// metric over [start, end] per (model_name, namespace, pod). Same
+// @-pinned two-instant-query approach and counter-reset handling as
+// queryCounterDelta, but grouped per replica and returned as labeled
+// QueryResults for the shared InferenceServerMetricResult decoder.
+func queryCounterDeltaByReplica(ctx *Context, metric string, start, end time.Time) ([]*source.QueryResult, error) {
+	startUnix := start.Unix()
+	// Clamp end to now: last_over_time with a future @ timestamp returns no results.
+	effectiveEnd := end
+	if now := time.Now(); end.After(now) {
+		effectiveEnd = now
+	}
+	endUnix := effectiveEnd.Unix()
+
+	windowDuration := effectiveEnd.Sub(start)
+	windowMinutes := int(windowDuration.Minutes())
+	if windowMinutes < 2 {
+		windowMinutes = 2
+	}
+
+	endQuery := fmt.Sprintf(`sum by (model_name, namespace, pod) (last_over_time(%s[%dm] @ %d))`, metric, windowMinutes, endUnix)
+	endVals, err := queryInstantMetricByReplica(ctx, endQuery, effectiveEnd)
+	if err != nil {
+		return nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
+	}
+
+	startQuery := fmt.Sprintf(`sum by (model_name, namespace, pod) (last_over_time(%s[2m] @ %d))`, metric, startUnix)
+	startVals, err := queryInstantMetricByReplica(ctx, startQuery, effectiveEnd)
+	if err != nil {
+		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
+	}
+
+	results := make([]*source.QueryResult, 0, len(endVals))
+	for key, endVal := range endVals {
+		delta := endVal.value
+		if startVal, ok := startVals[key]; ok {
+			delta = endVal.value - startVal.value
+			if delta < 0 {
+				// Counter reset detected: use the end value to capture
+				// post-reset activity rather than reporting 0.
+				delta = endVal.value
+			}
+		}
+		results = append(results, source.NewQueryResult(
+			map[string]any{
+				source.InferenceModelNameLabel: endVal.modelName,
+				source.NamespaceLabel:          endVal.namespace,
+				source.PodLabel:                endVal.pod,
+			},
+			[]*util.Vector{{Value: delta}},
+			nil,
+		))
+	}
+	return results, nil
+}
+
+// queryInstantMetricByReplica runs a Prometheus instant query evaluated at t
+// and returns samples keyed by "model_name|namespace|pod".
+func queryInstantMetricByReplica(ctx *Context, query string, t time.Time) (map[string]replicaMetricValue, error) {
+	raw, _, err := ctx.query(query, t)
+	if err != nil {
+		return nil, err
+	}
+
+	results := NewQueryResults(query, raw, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+	if results.Error != nil {
+		return nil, results.Error
+	}
+
+	out := make(map[string]replicaMetricValue, len(results.Results))
+	for _, result := range results.Results {
+		modelName, err := result.GetString(source.InferenceModelNameLabel)
+		if err != nil || modelName == "" {
+			continue
+		}
+		namespace, _ := result.GetString(source.NamespaceLabel)
+		pod, _ := result.GetString(source.PodLabel)
+		if len(result.Values) == 0 {
+			continue
+		}
+		key := modelName + "|" + namespace + "|" + pod
+		out[key] = replicaMetricValue{
+			modelName: modelName,
+			namespace: namespace,
+			pod:       pod,
+			value:     result.Values[0].Value,
+		}
+	}
+	return out, nil
+}
+
 // queryInferenceGauge runs a window aggregation (avg or max) of a model-server
 // scheduler gauge, grouped by (model_name, namespace, pod).
 func (pds *PrometheusMetricsQuerier) queryInferenceGauge(metric, agg string, start, end time.Time) *source.Future[source.InferenceServerMetricResult] {

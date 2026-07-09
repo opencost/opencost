@@ -1096,6 +1096,12 @@ func (m *MockMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Ti
 	})
 }
 
+func (m *MockMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferencePreemptions, func() *Future[InferenceServerMetricResult] {
+		return m.noop.QueryInferencePreemptions(start, end)
+	})
+}
+
 // Data Coverage Query
 
 func (m *MockMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {

@@ -80,6 +80,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewInferenceQueueDepthAvgMetricCollector())
 	memStore.Register(NewInferenceQueueDepthMaxMetricCollector())
 	memStore.Register(NewInferenceRunningRequestsAvgMetricCollector())
+	memStore.Register(NewInferencePreemptionsMetricCollector())
 	memStore.Register(NewNodeCPUPricePerHourMetricCollector())
 	memStore.Register(NewNodeRAMPricePerGiBHourMetricCollector())
 	memStore.Register(NewNodeGPUPricePerHourMetricCollector())
@@ -1718,6 +1719,26 @@ func NewInferenceRunningRequestsAvgMetricCollector() *metric.MetricCollector {
 			source.PodLabel,
 		},
 		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	increase(
+//		vllm:num_preemptions_total[1h]
+//	) by (model_name, namespace, pod, cluster_id)
+
+func NewInferencePreemptionsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferencePreemptionsID,
+		metric.VLLMNumPreemptionsTotal,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.Increase,
 		func(labels map[string]string) bool {
 			return labels[source.InferenceModelNameLabel] != ""
 		},
