@@ -1067,7 +1067,7 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 
 			// Shared-disk mount fees are not modeled; skip so they cannot overwrite capacity prices.
 			if strings.Contains(meterName, "Disk Mount") {
-				log.Warnf("Azure shared disk mount pricing is not supported; skipping meter %q in region %s", meterName, region)
+				log.Debugf("Azure shared disk mount pricing is not supported; skipping meter %q in region %s", meterName, region)
 				return nil, nil
 			}
 
@@ -1738,6 +1738,9 @@ func (az *Azure) GetOrphanedResources() ([]models.OrphanedResource, error) {
 }
 
 func (az *Azure) findCostForDisk(d *compute.Disk) (float64, error) {
+	az.DownloadPricingDataLock.RLock()
+	defer az.DownloadPricingDataLock.RUnlock()
+
 	if d == nil {
 		return 0.0, fmt.Errorf("disk is empty")
 	}
