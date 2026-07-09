@@ -59,6 +59,6 @@ func KubeModelSetEquals(t *testing.T, this, that *KubeModelSet) {
 	require.Equal(t, this.PersistentVolumeClaims, that.PersistentVolumeClaims)
 	require.Equal(t, this.Services, that.Services)
 	require.Equal(t, this.PersistentVolumes, that.PersistentVolumes)
-	// DCGM is ignored by bingen
-	// require.Equal(t, this.DCGMDevices, that.DCGMDevices)
+	require.Equal(t, this.DCGMDevices, that.DCGMDevices)
+	require.Equal(t, this.InferenceServers, that.InferenceServers)
 }

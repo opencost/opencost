@@ -80,3 +80,34 @@ func TestQuantileOverTimeAggregator_Value(t *testing.T) {
 		})
 	}
 }
+
+func TestQuantileOverTimeAggregator_PhiOutOfRangeClamps(t *testing.T) {
+	time1 := time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
+	time2 := time.Date(1, 1, 1, 0, 1, 0, 0, time.UTC)
+
+	above := QuantileOverTime(1.5)(nil)
+	above.Update(2, time1, nil)
+	above.Update(8, time2, nil)
+	if got := above.Value()[0].Value; got != 8 {
+		t.Errorf("phi above 1 should clamp to the maximum: got %v, want 8", got)
+	}
+
+	below := QuantileOverTime(-0.5)(nil)
+	below.Update(2, time1, nil)
+	below.Update(8, time2, nil)
+	if got := below.Value()[0].Value; got != 2 {
+		t.Errorf("phi below 0 should clamp to the minimum: got %v, want 2", got)
+	}
+}
+
+func TestQuantileOverTimeAggregator_Metadata(t *testing.T) {
+	labelValues := []string{"model", "ns", "pod"}
+	agg := QuantileOverTime(0.95)(labelValues)
+
+	if got := agg.AdditionInfo(); got != nil {
+		t.Errorf("AdditionInfo() = %v, want nil", got)
+	}
+	if got := agg.LabelValues(); !reflect.DeepEqual(got, labelValues) {
+		t.Errorf("LabelValues() = %v, want %v", got, labelValues)
+	}
+}

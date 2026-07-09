@@ -252,6 +252,27 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 		End:   end,
 	})
 
+	// --- InferenceServer ---
+	kms.RegisterInferenceServer(&InferenceServer{
+		ModelName: "Qwen3-32B",
+		Namespace: "llm-d",
+		Engine:    EngineVLLM,
+		Replicas: map[string]InferenceServerReplica{
+			"vllm-0": {
+				KVCacheUsageAvg:    0.42,
+				KVCacheUsageMax:    0.97,
+				QueueDepthAvg:      0.5,
+				QueueDepthMax:      12,
+				RunningRequestsAvg: 33,
+				Preemptions:        7,
+				KVCacheUsageP95:    0.91,
+				QueueDepthP95:      8,
+			},
+		},
+		Start: start,
+		End:   end,
+	})
+
 	// --- Diagnostics ---
 	kms.Error(errMock("mock error"))
 	kms.Warn("mock warning")
