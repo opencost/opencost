@@ -1,7 +1,6 @@
 package scrape
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"strconv"
@@ -9,7 +8,7 @@ import (
 
 	"github.com/kubecost/events"
 	"github.com/opencost/opencost/core/pkg/clustercache"
-	"github.com/opencost/opencost/core/pkg/externallabels"
+	"github.com/opencost/opencost/core/pkg/external"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
 	coreutil "github.com/opencost/opencost/core/pkg/util"
@@ -28,10 +27,10 @@ const unmountedPVsContainer = "unmounted-pvs"
 
 type ClusterCacheScraper struct {
 	clusterCache           clustercache.ClusterCache
-	externalLabelsProvider externallabels.Provider
+	externalLabelsProvider external.LabelProvider
 }
 
-func newClusterCacheScraper(clusterCache clustercache.ClusterCache, externallabelsprovider externallabels.Provider) Scraper {
+func newClusterCacheScraper(clusterCache clustercache.ClusterCache, externallabelsprovider external.LabelProvider) Scraper {
 	return &ClusterCacheScraper{
 		clusterCache:           clusterCache,
 		externalLabelsProvider: externallabelsprovider,
@@ -92,7 +91,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 	var externalLabels map[string]string
 	var err error
 	if ccs.externalLabelsProvider != nil {
-		externalLabels, err = ccs.externalLabelsProvider.Labels(context.Background())
+		externalLabels, err = ccs.externalLabelsProvider.Labels()
 		if err != nil {
 			log.Errorf("failed to apply external labels to nodes: %s", err)
 		}
@@ -175,7 +174,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		nodeLabels := util.ToMap(labelNames, labelValues)
 
 		// Merge external labels into node labels; node labels win on conflict.
-		nodeLabels = externallabels.Merge(nodeLabels, externalLabels)
+		nodeLabels = external.Merge(nodeLabels, externalLabels)
 
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.KubeNodeLabels,

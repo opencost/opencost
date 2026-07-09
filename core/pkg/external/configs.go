@@ -1,11 +1,9 @@
-package externallabels
+package external
 
-// Config holds the configuration for reading external labels from a ConfigMap.
-// ConfigMapName is required; all other fields are optional.
-//
-// For traditional ConfigMaps (labels directly in data), leave Key and Route empty.
-// For block-scalar ConfigMaps, set Key to the data entry holding the YAML document and
-// Route to the dot-separated path to the labels map, e.g. "metadata.externalLabels".
+// Config identifies a ConfigMap to watch and describes how to extract
+// labels from its data. ConfigMapName is required; all other fields are optional.
+// Set Key and Route only when labels are embedded inside a YAML document
+// stored as a block-scalar value; leave both empty for a flat key/value ConfigMap.
 type Config struct {
 	// ConfigMapName is the name of the ConfigMap to watch.
 	ConfigMapName string

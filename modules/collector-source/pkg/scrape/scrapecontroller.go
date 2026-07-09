@@ -7,7 +7,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	coreenv "github.com/opencost/opencost/core/pkg/env"
-	"github.com/opencost/opencost/core/pkg/externallabels"
+	"github.com/opencost/opencost/core/pkg/external"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
@@ -82,7 +82,7 @@ func NewScrapeController(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
-	externallabelsprovider externallabels.Provider,
+	externallabelsprovider external.LabelProvider,
 ) *ScrapeController {
 	// Start with env-driven defaults, then layer in any caller-supplied entries.
 	filter := getDefaultMetricFilter()

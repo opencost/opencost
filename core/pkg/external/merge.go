@@ -1,4 +1,4 @@
-package externallabels
+package external
 
 // Merge returns a new map containing all entries from base plus any entries
 // from external whose keys are not already present in base. When the same key

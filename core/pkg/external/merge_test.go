@@ -1,4 +1,4 @@
-package externallabels
+package external
 
 import (
 	"testing"
