@@ -1020,6 +1020,7 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 			return err
 		}
 		page, token, err := gcp.parsePage(resp.Body, inputKeys, pvKeys)
+		resp.Body.Close()
 		if err != nil {
 			return err
 		}
