@@ -48,7 +48,9 @@ func CreateStore[Input UIDGetter, Output any](
 }
 
 func (s *GenericStore[Input, Output]) Watch(stopCh <-chan struct{}, onInit func()) {
+	s.mutex.Lock()
 	s.onInit = onInit
+	s.mutex.Unlock()
 
 	// reflector.Run() will eventually call Replace() on the store with the initial contents
 	// of the resource list. we'll call onInit after that happens the _first_ time
@@ -95,17 +97,23 @@ func (s *GenericStore[Input, Output]) GetAll() []Output {
 
 // Replace replaces the current list of items in the store.
 func (s *GenericStore[Input, Output]) Replace(list []any, _ string) error {
-	s.mutex.Lock()
-	s.items = make(map[types.UID]Output, len(list))
-	for _, o := range list {
-		item := o.(Input)
-		s.items[item.GetUID()] = s.transformFunc(item)
-	}
-	// Capture onInit under the lock to avoid a data race with Watch(),
-	// but call it after releasing the lock to prevent potential deadlocks.
-	onInit := s.onInit
-	s.onInit = nil
-	s.mutex.Unlock()
+	var onInit func()
+	
+	func() {
+		s.mutex.Lock()
+		defer s.mutex.Unlock()
+		
+		s.items = make(map[types.UID]Output, len(list))
+		for _, o := range list {
+			item := o.(Input)
+			s.items[item.GetUID()] = s.transformFunc(item)
+		}
+		
+		// Capture onInit under the lock to avoid a data race with Watch(),
+		// but call it after releasing the lock to prevent potential deadlocks.
+		onInit = s.onInit
+		s.onInit = nil
+	}()
 
 	if onInit != nil {
 		onInit()
