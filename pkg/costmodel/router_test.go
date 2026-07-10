@@ -3,7 +3,7 @@ package costmodel
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"strings"
 	"testing"
 
 	"github.com/julienschmidt/httprouter"
@@ -21,18 +21,31 @@ func TestAdminAuthMiddleware(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		setToken       string
-		authHeader     string
-		wantStatus     int
-		wantNextCalled bool
+		name              string
+		setToken          string
+		authHeader        string
+		wantStatus        int
+		wantNextCalled    bool
+		wantBodySubstr    string
+		wantCacheControl  string
 	}{
 		{
-			name:           "no admin token configured - request allowed with deduped warning",
-			setToken:       "",
-			authHeader:     "",
-			wantStatus:     http.StatusOK,
-			wantNextCalled: true,
+			name:             "no admin token configured - returns 503",
+			setToken:         "",
+			authHeader:       "",
+			wantStatus:       http.StatusServiceUnavailable,
+			wantNextCalled:   false,
+			wantBodySubstr:   "Admin token is required to activate this endpoint",
+			wantCacheControl: "no-store",
+		},
+		{
+			name:             "no admin token configured - bearer ignored, still 503",
+			setToken:         "",
+			authHeader:       "Bearer anything",
+			wantStatus:       http.StatusServiceUnavailable,
+			wantNextCalled:   false,
+			wantBodySubstr:   "Admin token is required to activate this endpoint",
+			wantCacheControl: "no-store",
 		},
 		{
 			name:           "missing authorization header",
@@ -72,18 +85,10 @@ func TestAdminAuthMiddleware(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prev := os.Getenv(env.AdminTokenEnvVar)
-			defer func() {
-				if prev == "" {
-					os.Unsetenv(env.AdminTokenEnvVar)
-				} else {
-					os.Setenv(env.AdminTokenEnvVar, prev)
-				}
-			}()
 			if tt.setToken != "" {
-				os.Setenv(env.AdminTokenEnvVar, tt.setToken)
+				t.Setenv(env.AdminTokenEnvVar, tt.setToken)
 			} else {
-				os.Unsetenv(env.AdminTokenEnvVar)
+				t.Setenv(env.AdminTokenEnvVar, "")
 			}
 
 			nextCalled = false
@@ -101,6 +106,12 @@ func TestAdminAuthMiddleware(t *testing.T) {
 			}
 			if nextCalled != tt.wantNextCalled {
 				t.Errorf("nextCalled = %v, want %v", nextCalled, tt.wantNextCalled)
+			}
+			if tt.wantBodySubstr != "" && !strings.Contains(rec.Body.String(), tt.wantBodySubstr) {
+				t.Errorf("body = %q, want substring %q", rec.Body.String(), tt.wantBodySubstr)
+			}
+			if tt.wantCacheControl != "" && rec.Header().Get("Cache-Control") != tt.wantCacheControl {
+				t.Errorf("Cache-Control = %q, want %q", rec.Header().Get("Cache-Control"), tt.wantCacheControl)
 			}
 		})
 	}
