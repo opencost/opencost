@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -1394,5 +1395,100 @@ func TestAWS_findCostForDisk(t *testing.T) {
 			Size:             &size1,
 		}
 		checkCost(t, diskNoPrice, expectedCost1)
+	})
+
+	// Case 6: Region-specific pricing key is present but value is nil.
+	// It should return an error, NOT fall back.
+	t.Run("Region pricing key present but value is nil", func(t *testing.T) {
+		awsCustom := &AWS{
+			ClusterRegion: "us-east-1",
+			Pricing: map[string]*AWSProductTerms{
+				"us-east-1,EBS:VolumeUsage.gp2": {
+					PV: &models.PV{
+						Cost: "0.10",
+					},
+				},
+				"us-west-2,EBS:VolumeUsage.gp2": nil,
+			},
+		}
+		zone := "us-west-2b"
+		disk := &ec2Types.Volume{
+			AvailabilityZone: &zone,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		_, err := awsCustom.findCostForDisk(disk)
+		if err == nil {
+			t.Fatal("expected error because us-west-2 pricing is nil, but got nil error")
+		}
+		expectedErr := "nil pricing data for key 'us-west-2,EBS:VolumeUsage.gp2'"
+		if err.Error() != expectedErr {
+			t.Fatalf("expected error message %q, got %q", expectedErr, err.Error())
+		}
+	})
+
+	// Case 7: Region-specific pricing key is present but pricing.PV is nil.
+	// It should return an error, NOT fall back.
+	t.Run("Region pricing key present but PV is nil", func(t *testing.T) {
+		awsCustom := &AWS{
+			ClusterRegion: "us-east-1",
+			Pricing: map[string]*AWSProductTerms{
+				"us-east-1,EBS:VolumeUsage.gp2": {
+					PV: &models.PV{
+						Cost: "0.10",
+					},
+				},
+				"us-west-2,EBS:VolumeUsage.gp2": {
+					PV: nil,
+				},
+			},
+		}
+		zone := "us-west-2b"
+		disk := &ec2Types.Volume{
+			AvailabilityZone: &zone,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		_, err := awsCustom.findCostForDisk(disk)
+		if err == nil {
+			t.Fatal("expected error because us-west-2 pricing PV is nil, but got nil error")
+		}
+		expectedErr := "pricing for key 'us-west-2,EBS:VolumeUsage.gp2' has nil PV"
+		if err.Error() != expectedErr {
+			t.Fatalf("expected error message %q, got %q", expectedErr, err.Error())
+		}
+	})
+
+	// Case 8: Region-specific pricing key is present but pricing.PV.Cost is unparsable.
+	// It should return an error, NOT fall back.
+	t.Run("Region pricing key present but Cost is unparsable", func(t *testing.T) {
+		awsCustom := &AWS{
+			ClusterRegion: "us-east-1",
+			Pricing: map[string]*AWSProductTerms{
+				"us-east-1,EBS:VolumeUsage.gp2": {
+					PV: &models.PV{
+						Cost: "0.10",
+					},
+				},
+				"us-west-2,EBS:VolumeUsage.gp2": {
+					PV: &models.PV{
+						Cost: "not-a-float",
+					},
+				},
+			},
+		}
+		zone := "us-west-2b"
+		disk := &ec2Types.Volume{
+			AvailabilityZone: &zone,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		_, err := awsCustom.findCostForDisk(disk)
+		if err == nil {
+			t.Fatal("expected error because us-west-2 pricing cost is unparsable, but got nil error")
+		}
+		if !strings.Contains(err.Error(), "parsing \"not-a-float\"") {
+			t.Fatalf("expected parsing float error, got %q", err.Error())
+		}
 	})
 }
