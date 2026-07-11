@@ -916,3 +916,26 @@ func TestFetchPricingData_Pagination(t *testing.T) {
 		t.Error("expected cache to have a non-zero timestamp")
 	}
 }
+
+func TestNewDOKSProvider_ClientInitializedWithToken(t *testing.T) {
+	t.Setenv("DIGITALOCEAN_ACCESS_TOKEN", "test_token_dop_v1_fake")
+
+	provider := NewDOKSProvider("https://api.digitalocean.com/v2/sizes")
+
+	if provider.client == nil {
+		t.Fatal("expected godo client to be initialized when DIGITALOCEAN_ACCESS_TOKEN is set")
+	}
+	if provider.PricingURL != "https://api.digitalocean.com/v2/sizes" {
+		t.Errorf("expected PricingURL to be set, got %q", provider.PricingURL)
+	}
+}
+
+func TestNewDOKSProvider_NoClientWithoutToken(t *testing.T) {
+	t.Setenv("DIGITALOCEAN_ACCESS_TOKEN", "")
+
+	provider := NewDOKSProvider("https://api.digitalocean.com/v2/sizes")
+
+	if provider.client != nil {
+		t.Fatal("expected godo client to be nil when no access token is set")
+	}
+}

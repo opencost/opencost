@@ -140,6 +140,9 @@ type multiKeyGCPAllocation struct {
 
 func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	c, err := gcp.Config.GetCustomPricingData()
+	// Even when GetCustomPricingData returns an error, loadConfig still returns
+	// a non-nil *CustomPricing (DefaultPricing). Apply GCP-specific defaults to
+	// whatever we got so callers always receive a usable config instead of panicking.
 	if c == nil {
 		c = &models.CustomPricing{}
 	}
@@ -294,6 +297,8 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	remoteEnabled := env.IsRemoteEnabled()
 
 	var attribute string
+	// MetadataClient is nil when the GCP struct is zero-initialised, in unit
+	// tests, or when OpenCost runs outside GKE where no metadata server is reachable.
 	if gcp.MetadataClient != nil {
 		var metaErr error
 		attribute, metaErr = gcp.MetadataClient.InstanceAttributeValue("cluster-name")
@@ -1016,16 +1021,13 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 	parsePagesHelper = func(pageToken string) error {
 		if pageToken == "done" {
 			return nil
+		} else if pageToken != "" {
+			url = url + "&pageToken=" + pageToken
 		}
-		reqURL := url
-		if pageToken != "" {
-			reqURL = url + "&pageToken=" + pageToken
-		}
-		resp, err := httpClient.Get(reqURL)
+		resp, err := httpClient.Get(url)
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
 		page, token, err := gcp.parsePage(resp.Body, inputKeys, pvKeys)
 		if err != nil {
 			return err
@@ -1388,6 +1390,10 @@ func (gcp *GCP) getReservedInstances() ([]*GCPReservedInstance, error) {
 
 	projID := gcp.ProjectID
 	if projID == "" {
+		if gcp.MetadataClient == nil {
+			return nil, fmt.Errorf("metadata client was nil")
+		}
+
 		projID, err = gcp.MetadataClient.ProjectID()
 		if err != nil {
 			return nil, err
@@ -1623,7 +1629,7 @@ func (gcp *GCP) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 		log.Debugf("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 
 		// Add pricing URL, but redact the key (hence, "***"")
-		meta.Source = fmt.Sprintf("Downloaded pricing from %s", gcp.buildBillingAPIURL("***", c.CurrencyCode).String())
+		meta.Source = fmt.Sprintf("Downloaded pricing from %s", gcp.buildBillingAPIURL("***", c.CurrencyCode))
 
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 
@@ -1643,7 +1649,7 @@ func (gcp *GCP) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 			log.Debugf("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 
 			// Add pricing URL, but redact the key (hence, "***"")
-			meta.Source = fmt.Sprintf("Downloaded pricing from %s", gcp.buildBillingAPIURL("***", c.CurrencyCode).String())
+			meta.Source = fmt.Sprintf("Downloaded pricing from %s", gcp.buildBillingAPIURL("***", c.CurrencyCode))
 
 			n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 
