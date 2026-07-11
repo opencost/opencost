@@ -417,6 +417,15 @@ func TestGCP_GetConfig(t *testing.T) {
 		assert.Equal(t, "0%", c.NegotiatedDiscount)
 		assert.Equal(t, "USD", c.CurrencyCode)
 	})
+	t.Run("nil Config returns defaults and error", func(t *testing.T) {
+		gcp := &GCP{Config: nil}
+		c, err := gcp.GetConfig()
+		assert.Error(t, err)
+		assert.NotNil(t, c)
+		assert.Equal(t, "30%", c.Discount)
+		assert.Equal(t, "0%", c.NegotiatedDiscount)
+		assert.Equal(t, "USD", c.CurrencyCode)
+	})
 }
 
 func TestGCP_GetManagementPlatform(t *testing.T) {
