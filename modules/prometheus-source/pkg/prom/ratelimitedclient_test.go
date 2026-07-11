@@ -18,6 +18,8 @@ import (
 	prometheus "github.com/prometheus/client_golang/api"
 )
 
+var errTransportFailed = errors.New("dial tcp: connection refused")
+
 // ResponseAndBody is just a test objet used to hold predefined responses
 // and response bodies
 type ResponseAndBody struct {
@@ -401,7 +403,7 @@ func TestRateLimitedRetryTransportError(t *testing.T) {
 		{
 			Response: nil,
 			Body:     nil,
-			Error:    errors.New("dial tcp: connection refused"),
+			Error:    errTransportFailed,
 		},
 	})
 
@@ -425,7 +427,7 @@ func TestRateLimitedRetryTransportError(t *testing.T) {
 	}
 
 	_, _, err = client.Do(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected a transport error, got nil")
+	if !errors.Is(err, errTransportFailed) {
+		t.Fatalf("Expected %v, got %v", errTransportFailed, err)
 	}
 }
