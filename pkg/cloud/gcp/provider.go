@@ -139,6 +139,13 @@ type multiKeyGCPAllocation struct {
 }
 
 func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
+	if gcp.Config == nil {
+		return &models.CustomPricing{
+			Discount:           "30%",
+			NegotiatedDiscount: "0%",
+			CurrencyCode:       "USD",
+		}, fmt.Errorf("GCP provider config is nil")
+	}
 	c, err := gcp.Config.GetCustomPricingData()
 	// Even when GetCustomPricingData returns an error, loadConfig still returns
 	// a non-nil *CustomPricing (DefaultPricing). Apply GCP-specific defaults to
