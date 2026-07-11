@@ -1165,7 +1165,7 @@ func (gcp *GCP) PVPricing(pvk models.PVKey) (*models.PV, error) {
 }
 
 // Stubbed NetworkPricing for GCP. Pull directly from gcp.json for now
-func (gcp *GCP) NetworkPricing() (*models.Network, error) {
+func (gcp *GCP) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	cpricing, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -1200,7 +1200,7 @@ func (gcp *GCP) NetworkPricing() (*models.Network, error) {
 	}, nil
 }
 
-func (gcp *GCP) LoadBalancerPricing() (*models.LoadBalancer, error) {
+func (gcp *GCP) LoadBalancerPricing(key models.LBKey) (*models.LoadBalancer, error) {
 	fffrc := 0.025
 	afrc := 0.010
 	lbidc := 0.008

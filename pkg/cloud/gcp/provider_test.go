@@ -809,7 +809,7 @@ func TestGCP_NetworkPricing(t *testing.T) {
 		Config: &mockConfig{},
 	}
 
-	result, err := gcp.NetworkPricing()
+	result, err := gcp.NetworkPricing(nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 }
@@ -817,7 +817,7 @@ func TestGCP_NetworkPricing(t *testing.T) {
 func TestGCP_LoadBalancerPricing(t *testing.T) {
 	gcp := &GCP{}
 
-	result, err := gcp.LoadBalancerPricing()
+	result, err := gcp.LoadBalancerPricing(nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 }

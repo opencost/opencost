@@ -304,7 +304,7 @@ func Test_populate_pricing(t *testing.T) {
 		t.Fatalf("expected parsed pricing did not match actual parsed result (us-east-2)")
 	}
 
-	lbPricing, _ := awsTest.LoadBalancerPricing()
+	lbPricing, _ := awsTest.LoadBalancerPricing(nil)
 	if lbPricing.Cost != 0.0225 {
 		t.Fatalf("expected loadbalancer pricing of 0.0225 but got %f (us-east-2)", lbPricing.Cost)
 	}
