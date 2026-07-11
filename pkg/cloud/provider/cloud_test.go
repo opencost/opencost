@@ -279,7 +279,7 @@ func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
 
 	c.DownloadPricingData()
 
-	fc := NewFakeNodeCache([]*clustercache.Node{n})
+	fc := &clustercache.MockClusterCache{Nodes: []*clustercache.Node{n}}
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
@@ -347,7 +347,7 @@ func TestRKE2NodePriceFromCSVWithGPULabels(t *testing.T) {
 
 	c.DownloadPricingData()
 
-	fc := NewFakeNodeCache([]*clustercache.Node{n})
+	fc := &clustercache.MockClusterCache{Nodes: []*clustercache.Node{n}}
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
@@ -560,25 +560,6 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	}
 }
 
-type FakeCache struct {
-	nodes []*clustercache.Node
-	clustercache.ClusterCache
-}
-
-func (f FakeCache) GetAllNodes() []*clustercache.Node {
-	return f.nodes
-}
-
-func (f FakeCache) GetAllDaemonSets() []*clustercache.DaemonSet {
-	return nil
-}
-
-func NewFakeNodeCache(nodes []*clustercache.Node) FakeCache {
-	return FakeCache{
-		nodes: nodes,
-	}
-}
-
 type FakeClusterMap struct {
 	clusters.ClusterMap
 }
@@ -664,7 +645,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	n.Labels["foo"] = "labelFooWant"
 	n.Labels[v1.LabelTopologyRegion] = "regionone"
 
-	fc := NewFakeNodeCache([]*clustercache.Node{n})
+	fc := &clustercache.MockClusterCache{Nodes: []*clustercache.Node{n}}
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
@@ -721,7 +702,7 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 	n3.Labels[v1.LabelTopologyRegion] = "eastus2"
 	n3.Labels[v1.LabelInstanceTypeStable] = "Standard_F32s_v2"
 
-	fc := NewFakeNodeCache([]*clustercache.Node{n, n2, n3})
+	fc := &clustercache.MockClusterCache{Nodes: []*clustercache.Node{n, n2, n3}}
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 

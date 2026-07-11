@@ -35,11 +35,19 @@ const (
 	ExportCompressionLevelDefault         ExportCompressionLevel = gzip.DefaultCompression
 )
 
+type ComputeExporterConfig struct {
+	AppName     string
+	ClusterUID  string
+	ClusterName string
+	Resolution  time.Duration
+	Streaming   bool
+	Compression ExportCompressionLevel
+}
+
 // NewComputePipelineExporter creates a new `ComputeExporter[T]` instance which is used to export computed data
 // by window for a specific pipeline.
 func NewComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], S validator.SetConstraint[T]](
-	clusterId string,
-	resolution time.Duration,
+	config ComputeExporterConfig,
 	store storage.Storage,
 ) (export.ComputeExporter[T], error) {
 	pipelineName := pipelines.NameFor[T]()
@@ -47,45 +55,18 @@ func NewComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], S validat
 		return nil, fmt.Errorf("failed to extract pipeline name for type: %s", typeutil.TypeOf[T]())
 	}
 
-	pathing, err := pathing.NewDefaultStoragePathFormatter(clusterId, pipelineName, &resolution)
+	pathing, err := pathing.NewDefaultStoragePathFormatter(config.AppName, config.ClusterUID, config.ClusterName, pipelineName, &config.Resolution)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create path formatter: %w", err)
 	}
 
-	return export.NewComputeStorageExporter(
-		pathing,
-		export.NewBingenEncoder[T, U](),
-		store,
-		validator.NewSetValidator[T, S](resolution),
-		false,
-	), nil
-}
-
-// NewStreamingComputePipelineExporter creates a new `ComputeExporter[T]` instance which is used to export computed data
-// by window for a specific pipeline.
-func NewStreamingComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], S validator.SetConstraint[T]](
-	clusterId string,
-	resolution time.Duration,
-	store storage.Storage,
-	compressionLevel ExportCompressionLevel,
-) (export.ComputeExporter[T], error) {
-	pipelineName := pipelines.NameFor[T]()
-	if pipelineName == "" {
-		return nil, fmt.Errorf("failed to extract pipeline name for type: %s", typeutil.TypeOf[T]())
-	}
-
-	pathing, err := pathing.NewDefaultStoragePathFormatter(clusterId, pipelineName, &resolution)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create path formatter: %w", err)
-	}
-
-	if !compressionLevel.IsValid() {
-		return nil, fmt.Errorf("invalid compression level passed: %d is not a valid compression level", int(compressionLevel))
+	if !config.Compression.IsValid() {
+		return nil, fmt.Errorf("invalid compression level passed: %d is not a valid compression level", int(config.Compression))
 	}
 
 	var encoder export.Encoder[T]
-	if compressionLevel != ExportCompressionLevelNone {
-		encoder = export.NewGZipEncoderWithLevel(export.NewBingenEncoder[T, U](), int(compressionLevel))
+	if config.Streaming && config.Compression != ExportCompressionLevelNone {
+		encoder = export.NewGZipEncoderWithLevel(export.NewBingenEncoder[T, U](), int(config.Compression))
 	} else {
 		encoder = export.NewBingenEncoder[T, U]()
 	}
@@ -94,40 +75,22 @@ func NewStreamingComputePipelineExporter[T any, U export.BinaryMarshalerPtr[T], 
 		pathing,
 		encoder,
 		store,
-		validator.NewSetValidator[T, S](resolution),
-		true,
+		validator.NewSetValidator[T, S](config.Resolution),
+		config.Streaming,
 	), nil
 }
 
 // NewComputePipelineExportController creates a new `ComputeExportController[T]` instance which is used to export computed data
 // using the provided source, storage, resolution, and source resolution.
 func NewComputePipelineExportController[T any, U export.BinaryMarshalerPtr[T], S validator.SetConstraint[T]](
-	clusterId string,
+	config ComputeExporterConfig,
 	store storage.Storage,
 	source export.ComputeSource[T],
-	resolution time.Duration,
 ) (*export.ComputeExportController[T], error) {
-	exporter, err := NewComputePipelineExporter[T, U, S](clusterId, resolution, store)
+	exporter, err := NewComputePipelineExporter[T, U, S](config, store)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compute exporter: %w", err)
 	}
 
-	return export.NewComputeExportController(source, exporter, resolution), nil
-}
-
-// NewStreamingComputePipelineExportController creates a new `ComputeExportController[T]` instance which is used to stream/export the
-// computed data using the provided source, storage, resolution, and source resolution.
-func NewStreamingComputePipelineExportController[T any, U export.BinaryMarshalerPtr[T], S validator.SetConstraint[T]](
-	clusterId string,
-	store storage.Storage,
-	source export.ComputeSource[T],
-	resolution time.Duration,
-	compressionLevel ExportCompressionLevel,
-) (*export.ComputeExportController[T], error) {
-	exporter, err := NewStreamingComputePipelineExporter[T, U, S](clusterId, resolution, store, compressionLevel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create compute exporter: %w", err)
-	}
-
-	return export.NewComputeExportController(source, exporter, resolution), nil
+	return export.NewComputeExportController(source, exporter, config.Resolution), nil
 }
