@@ -932,6 +932,7 @@ func TestNewDOKSProvider_ClientInitializedWithToken(t *testing.T) {
 
 func TestNewDOKSProvider_NoClientWithoutToken(t *testing.T) {
 	t.Setenv("DIGITALOCEAN_ACCESS_TOKEN", "")
+	t.Setenv("CLOUD_PROVIDER_API_KEY", "")
 
 	provider := NewDOKSProvider("https://api.digitalocean.com/v2/sizes")
 
