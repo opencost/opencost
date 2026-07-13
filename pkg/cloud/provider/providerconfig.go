@@ -193,12 +193,14 @@ func (pc *ProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (
 
 // ThreadSafe update of the config using a string map
 func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*models.CustomPricing, error) {
+	log.Infof("ProviderConfig updating from map with %d entries", len(a))
 	// Run our Update() method using SetCustomPricingField logic
 	return pc.Update(func(c *models.CustomPricing) error {
 		for k, v := range a {
 			// Just so we consistently supply / receive the same values, uppercase the first letter.
 			kUpper := utils.ToTitle.String(k)
 
+			log.Infof("Setting field %s to value %s", kUpper, v)
 			err := models.SetCustomPricingField(c, kUpper, v)
 			if err != nil {
 				return fmt.Errorf("error setting custom pricing field: %w", err)

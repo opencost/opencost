@@ -98,6 +98,7 @@ func (cmw *ConfigMapWatchers) Watch() {
 			log.Infof("No %s configmap found at install time, using existing configs: %s", cw, err.Error())
 		} else {
 			log.Infof("Found configmap %s, watching...", configs.Name)
+			// Ensure the config is applied synchronously before proceeding
 			watchConfigFunc(configs)
 		}
 	}
@@ -124,10 +125,13 @@ func (cmw *ConfigMapWatchers) toWatchFunc() func(any) {
 		name := conf.GetName()
 		data := conf.Data
 		if watchers, ok := cmw.watchers[name]; ok {
+			log.Infof("Updating config from %s configmap with %d entries", name, len(data))
 			for _, cw := range watchers {
 				err := cw.WatchFunc(name, data)
 				if err != nil {
 					log.Infof("ERROR UPDATING %s CONFIG: %s", name, err.Error())
+				} else {
+					log.Infof("Successfully updated config from %s", name)
 				}
 			}
 		}
