@@ -997,7 +997,6 @@ func (gcp *GCP) getBillingAPIClientAndURL(apiKey, currencyCode string) (*http.Cl
 }
 
 func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, error) {
-	var pages []map[string]*GCPPricing
 	c, err := gcp.GetConfig()
 	if err != nil {
 		return nil, err
@@ -1007,6 +1006,14 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 	if err != nil {
 		return nil, err
 	}
+
+	return gcp.parsePagesWithClient(httpClient, url, inputKeys, pvKeys)
+}
+
+// parsePagesWithClient pages through the billing API at url using httpClient,
+// parsing each page of SKUs and merging the results.
+func (gcp *GCP) parsePagesWithClient(httpClient *http.Client, url string, inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, error) {
+	var pages []map[string]*GCPPricing
 
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {
@@ -1030,7 +1037,7 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 		pages = append(pages, page)
 		return parsePagesHelper(token)
 	}
-	err = parsePagesHelper("")
+	err := parsePagesHelper("")
 	if err != nil {
 		return nil, err
 	}
