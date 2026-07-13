@@ -147,6 +147,21 @@ just validate-protobuf
 | `MCP_SERVER_ENABLED` | `false` | Enable MCP server |
 | `MCP_HTTP_PORT` | `8081` | MCP server HTTP port |
 
+### Admin Auth
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ADMIN_TOKEN` | (unset) | Bearer token for admin endpoints. If unset, those endpoints return HTTP 503. |
+
+Admin-protected endpoints:
+
+- `POST /serviceKey`
+- `GET /helmValues`
+- `GET /cloudCost/rebuild`, `GET /cloudCost/repair`
+- `GET /cloud/config/export`, `GET /cloud/config/enable`, `GET /cloud/config/disable`, `GET /cloud/config/delete`
+
+**Breaking change:** deployments without `ADMIN_TOKEN` can no longer call these endpoints. Set `ADMIN_TOKEN` (for example via [opencost-helm-chart](https://github.com/opencost/opencost-helm-chart) `opencost.exporter.adminToken`) before using admin APIs.
+
 ### Cloud Providers
 
 | Variable | Description |
