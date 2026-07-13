@@ -1376,6 +1376,10 @@ func (a *Allocation) add(that *Allocation) {
 		a.End = that.End
 	}
 
+	if a.GPUAllocation == nil && that.GPUAllocation != nil {
+		a.GPUAllocation = that.GPUAllocation.Clone()
+	}
+
 	// Convert cumulative request and usage back into rates
 	// TODO:TEST write a unit test that fails if this is done incorrectly
 	if a.Minutes() > 0 {
@@ -1385,10 +1389,6 @@ func (a *Allocation) add(that *Allocation) {
 		a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
 		a.RAMBytesLimitAverage = ramLimByteMins / a.Minutes()
 		a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
-
-		if a.GPUAllocation == nil && that.GPUAllocation != nil {
-			a.GPUAllocation = that.GPUAllocation.Clone()
-		}
 
 		if a.GPUAllocation != nil {
 			if gpuReqMins != nil {
@@ -1412,10 +1412,6 @@ func (a *Allocation) add(that *Allocation) {
 		a.RAMBytesRequestAverage = 0.0
 		a.RAMBytesLimitAverage = 0.0
 		a.RAMBytesUsageAverage = 0.0
-
-		if a.GPUAllocation == nil && that.GPUAllocation != nil {
-			a.GPUAllocation = that.GPUAllocation.Clone()
-		}
 
 		if a.GPUAllocation != nil {
 			a.GPUAllocation.GPURequestAverage = nil
