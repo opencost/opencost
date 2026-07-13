@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"reflect"
@@ -1137,6 +1139,40 @@ func TestGCP_parsePages(t *testing.T) {
 	// This will fail due to missing API key, but we can test the function structure
 	_, err := gcp.parsePages(keys, pvKeys)
 	assert.Error(t, err) // Expect error due to missing API key
+}
+
+// TestGCP_parsePagesWithClient_Pagination verifies that multi-page traversal
+// sends exactly one pageToken param per request rather than accumulating
+// tokens from earlier pages.
+func TestGCP_parsePagesWithClient_Pagination(t *testing.T) {
+	var pageTokens [][]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokens := r.URL.Query()["pageToken"]
+		pageTokens = append(pageTokens, tokens)
+		w.Header().Set("Content-Type", "application/json")
+		if len(tokens) > 0 && tokens[0] == "tok2" {
+			fmt.Fprint(w, `{"skus": [], "nextPageToken": ""}`)
+		} else {
+			fmt.Fprint(w, `{"skus": [], "nextPageToken": "tok2"}`)
+		}
+	}))
+	defer srv.Close()
+
+	gcp := &GCP{}
+	_, err := gcp.parsePagesWithClient(srv.Client(), srv.URL+"?currencyCode=USD", map[string]models.Key{}, map[string]models.PVKey{})
+	if err != nil {
+		t.Fatalf("parsePagesWithClient: %v", err)
+	}
+
+	if len(pageTokens) != 2 {
+		t.Fatalf("expected 2 page requests, got %d", len(pageTokens))
+	}
+	if len(pageTokens[0]) != 0 {
+		t.Errorf("first request should have no pageToken, got %v", pageTokens[0])
+	}
+	if len(pageTokens[1]) != 1 || pageTokens[1][0] != "tok2" {
+		t.Errorf("second request should have exactly one pageToken (tok2), got %v", pageTokens[1])
+	}
 }
 
 func TestGCP_DownloadPricingData(t *testing.T) {
