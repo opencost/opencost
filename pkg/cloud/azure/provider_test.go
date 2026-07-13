@@ -80,16 +80,20 @@ func TestConvertMeterToPricings(t *testing.T) {
 	})
 
 	t.Run("storage", func(t *testing.T) {
-		info := meterInfo("Storage", "Some SSD type", "P4 are good", "US East", 2000)
+		info := meterInfo("Storage", "Premium SSD Managed Disks", "P4 LRS Disk", "US East", 2000)
 		results, err := convertMeterToPricings(info, regions, baseCPUPrice)
 		require.NoError(t, err)
 
+		expectedHourly := formatPrice(tierHourlyFromMonthly(2000))
 		expected := map[string]*AzurePricing{
-			"useast,premium_ssd": {
-				PV: &models.PV{Cost: "0.085616", Region: "useast"},
+			"useast,premium_ssd,LRS,P4": {
+				PV: &models.PV{Cost: expectedHourly, Class: AzureDiskPremiumSSDStorageClass, Region: "useast", Size: "P4"},
 			},
 		}
 		require.Equal(t, expected, results)
+
+		ensureDiskClassFallbacks(results)
+		require.Equal(t, "0.085616", results["useast,premium_ssd"].PV.Cost)
 	})
 
 	t.Run("virtual machines", func(t *testing.T) {
@@ -187,6 +191,304 @@ func TestSelectRetailPrice(t *testing.T) {
 			require.Equal(t, tc.expected, got)
 		})
 	}
+}
+
+func TestConvertMeterToPricings_PremiumSSDIgnoresDiskMount(t *testing.T) {
+	regions := map[string]string{
+		"centralus": "Central US",
+	}
+	baseCPUPrice := "0.30000"
+
+	meterInfo := func(category, subcategory, name, region string, rate float64) commerce.MeterInfo {
+		return commerce.MeterInfo{
+			MeterCategory:    &category,
+			MeterSubCategory: &subcategory,
+			MeterName:        &name,
+			MeterRegion:      &region,
+			MeterRates:       map[string]*float64{"0": &rate},
+		}
+	}
+
+	// Order matters: Disk first, Disk Mount second mirrors the Azure Rate Card
+	// sort order and reproduces the overwrite bug.
+	meters := []commerce.MeterInfo{
+		meterInfo("Storage", "Premium SSD Managed Disks", "P4 LRS Disk", "US Central", 5.2795),
+		meterInfo("Storage", "Premium SSD Managed Disks", "P4 LRS Disk Mount", "US Central", 0.32),
+	}
+
+	result := map[string]*AzurePricing{}
+	for _, meter := range meters {
+		pricings, err := convertMeterToPricings(meter, regions, baseCPUPrice)
+		require.NoError(t, err)
+		for key, pricing := range pricings {
+			result[key] = pricing
+		}
+	}
+
+	pricing := result["centralus,premium_ssd,LRS,P4"]
+	require.NotNil(t, pricing)
+	require.NotNil(t, pricing.PV)
+	// Must reflect the Disk hourly price, not the Disk Mount price.
+	require.Equal(t, formatPrice(tierHourlyFromMonthly(5.2795)), pricing.PV.Cost,
+		"premium_ssd P4 pricing must use 'P4 LRS Disk' meter and ignore 'P4 LRS Disk Mount'")
+	_, mountPresent := result["centralus,premium_ssd,LRS,P4 Mount"]
+	require.False(t, mountPresent)
+}
+
+func TestRemoveManagedDiskTierEntries_KeepWindowsNodeKey(t *testing.T) {
+	prices := map[string]*AzurePricing{
+		"centralus,premium_ssd,LRS,P4": {
+			PV: &models.PV{
+				Cost:   formatPrice(tierHourlyFromMonthly(5.2795)),
+				Class:  AzureDiskPremiumSSDStorageClass,
+				Region: "centralus",
+				Size:   "P4",
+			},
+		},
+		"centralus,Standard_D2s_v3,ondemand,windows": {
+			Node: &models.Node{
+				Cost:         "0.300000",
+				BaseCPUPrice: "0.30000",
+				UsageType:    "ondemand",
+			},
+		},
+	}
+
+	removeManagedDiskTierEntries(prices)
+
+	_, diskTierPresent := prices["centralus,premium_ssd,LRS,P4"]
+	require.False(t, diskTierPresent)
+
+	_, windowsPresent := prices["centralus,Standard_D2s_v3,ondemand,windows"]
+	require.True(t, windowsPresent)
+}
+
+func TestSelectDiskTier(t *testing.T) {
+	cases := []struct {
+		name         string
+		storageClass string
+		sizeGiB      float64
+		wantTier     string
+		wantOK       bool
+	}{
+		{name: "10 gib premium maps to P3", storageClass: AzureDiskPremiumSSDStorageClass, sizeGiB: 10, wantTier: "P3", wantOK: true},
+		{name: "32 gib premium maps to P4", storageClass: AzureDiskPremiumSSDStorageClass, sizeGiB: 32, wantTier: "P4", wantOK: true},
+		{name: "33 gib premium maps to P6", storageClass: AzureDiskPremiumSSDStorageClass, sizeGiB: 33, wantTier: "P6", wantOK: true},
+		{name: "100 gib premium maps to P10", storageClass: AzureDiskPremiumSSDStorageClass, sizeGiB: 100, wantTier: "P10", wantOK: true},
+		{name: "512 gib standard ssd maps to E20", storageClass: AzureDiskStandardSSDStorageClass, sizeGiB: 512, wantTier: "E20", wantOK: true},
+		{name: "64 gib hdd maps to S6", storageClass: AzureDiskStandardStorageClass, sizeGiB: 64, wantTier: "S6", wantOK: true},
+		{name: "over max premium clamps to P80", storageClass: AzureDiskPremiumSSDStorageClass, sizeGiB: 40000, wantTier: "P80", wantOK: true},
+		{name: "zero size", storageClass: AzureDiskPremiumSSDStorageClass, sizeGiB: 0, wantOK: false},
+		{name: "unknown class", storageClass: "unknown", sizeGiB: 10, wantOK: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tier, ok := selectDiskTier(tc.storageClass, tc.sizeGiB)
+			require.Equal(t, tc.wantOK, ok)
+			if tc.wantOK {
+				require.Equal(t, tc.wantTier, tier.Name)
+			}
+		})
+	}
+}
+
+func TestAzurePVPricing_TierAware(t *testing.T) {
+	az := &Azure{
+		Pricing: map[string]*AzurePricing{
+			"centralus,premium_ssd": {
+				PV: &models.PV{Cost: "0.000226", Class: AzureDiskPremiumSSDStorageClass, Region: "centralus"},
+			},
+			"centralus,standard_ssd": {
+				PV: &models.PV{Cost: "0.000103", Class: AzureDiskStandardSSDStorageClass, Region: "centralus"},
+			},
+			"centralus,Custom_LRS": {
+				PV: &models.PV{Cost: "0.100000", Class: "Custom_LRS", Region: "centralus"},
+			},
+		},
+		managedDiskTierHourly: map[string]float64{
+			"centralus,premium_ssd,LRS,P3":   tierHourlyFromMonthly(2.64),
+			"centralus,premium_ssd,LRS,P4":   tierHourlyFromMonthly(5.2795),
+			"centralus,premium_ssd,LRS,P10":  tierHourlyFromMonthly(19.71),
+			"centralus,premium_ssd,ZRS,P3":   tierHourlyFromMonthly(4.0),
+			"centralus,standard_ssd,LRS,E20": tierHourlyFromMonthly(38.4),
+		},
+	}
+
+	t.Run("10 gib premium uses P3 effective rate", func(t *testing.T) {
+		key := &azurePvKey{
+			DefaultRegion: "centralus",
+			SizeGiB:       10,
+			StorageClassParameters: map[string]string{
+				"skuname": "Premium_LRS",
+			},
+		}
+		key.resolveSKU()
+		pv, err := az.PVPricing(key)
+		require.NoError(t, err)
+		require.Equal(t, formatPrice(effectiveGiBHourRate(2.64, 10)), pv.Cost)
+		require.Equal(t, "10", pv.Size)
+	})
+
+	t.Run("100 gib premium uses P10 effective rate", func(t *testing.T) {
+		key := &azurePvKey{
+			DefaultRegion: "centralus",
+			SizeGiB:       100,
+			StorageClassParameters: map[string]string{
+				"skuname": "Premium_LRS",
+			},
+		}
+		key.resolveSKU()
+		pv, err := az.PVPricing(key)
+		require.NoError(t, err)
+		require.Equal(t, formatPrice(effectiveGiBHourRate(19.71, 100)), pv.Cost)
+	})
+
+	t.Run("512 gib standard ssd uses E20", func(t *testing.T) {
+		key := &azurePvKey{
+			DefaultRegion: "centralus",
+			SizeGiB:       512,
+			StorageClassParameters: map[string]string{
+				"skuname": "StandardSSD_LRS",
+			},
+		}
+		key.resolveSKU()
+		pv, err := az.PVPricing(key)
+		require.NoError(t, err)
+		require.Equal(t, formatPrice(effectiveGiBHourRate(38.4, 512)), pv.Cost)
+	})
+
+	t.Run("premium zrs uses zrs meter", func(t *testing.T) {
+		key := &azurePvKey{
+			DefaultRegion: "centralus",
+			SizeGiB:       10,
+			StorageClassParameters: map[string]string{
+				"skuname": "Premium_ZRS",
+			},
+		}
+		key.resolveSKU()
+		pv, err := az.PVPricing(key)
+		require.NoError(t, err)
+		require.Equal(t, formatPrice(effectiveGiBHourRate(4.0, 10)), pv.Cost)
+	})
+
+	t.Run("missing size falls back to class rate", func(t *testing.T) {
+		key := &azurePvKey{
+			DefaultRegion: "centralus",
+			SizeGiB:       0,
+			StorageClassParameters: map[string]string{
+				"skuname": "Premium_LRS",
+			},
+		}
+		key.resolveSKU()
+		pv, err := az.PVPricing(key)
+		require.NoError(t, err)
+		require.Equal(t, "0.000226", pv.Cost)
+	})
+
+	t.Run("missing preferred tier falls back to class rate when no larger tier is available", func(t *testing.T) {
+		azMissing := &Azure{
+			Pricing: map[string]*AzurePricing{
+				"centralus,premium_ssd": {
+					PV: &models.PV{Cost: "0.000226", Class: AzureDiskPremiumSSDStorageClass, Region: "centralus"},
+				},
+			},
+			managedDiskTierHourly: map[string]float64{
+				"centralus,premium_ssd,LRS,P4": tierHourlyFromMonthly(5.2795),
+			},
+		}
+		key := &azurePvKey{
+			DefaultRegion: "centralus",
+			SizeGiB:       100,
+			StorageClassParameters: map[string]string{
+				"skuname": "Premium_LRS",
+			},
+		}
+		key.resolveSKU()
+		pv, err := azMissing.PVPricing(key)
+		require.NoError(t, err)
+		require.Equal(t, "0.000226", pv.Cost)
+	})
+
+	t.Run("zrs missing size falls back to lrs class rate", func(t *testing.T) {
+		key := &azurePvKey{
+			DefaultRegion: "centralus",
+			SizeGiB:       0,
+			StorageClassParameters: map[string]string{
+				"skuname": "Premium_ZRS",
+			},
+		}
+		key.resolveSKU()
+		pv, err := az.PVPricing(key)
+		require.NoError(t, err)
+		require.Equal(t, "0.000226", pv.Cost)
+	})
+
+	t.Run("unknown skuname preserves legacy lookup behavior", func(t *testing.T) {
+		key := &azurePvKey{
+			DefaultRegion: "centralus",
+			SizeGiB:       1,
+			StorageClassParameters: map[string]string{
+				"skuname": "Custom_LRS",
+			},
+		}
+		key.resolveSKU()
+		pv, err := az.PVPricing(key)
+		require.NoError(t, err)
+		require.Equal(t, "0.100000", pv.Cost)
+	})
+}
+
+func TestEnsureDiskClassFallbacks_UsesSmallestAvailableTier(t *testing.T) {
+	prices := map[string]*AzurePricing{
+		"useast,premium_ssd,LRS,P4": {
+			PV: &models.PV{Cost: formatPrice(tierHourlyFromMonthly(5.2795)), Class: AzureDiskPremiumSSDStorageClass, Region: "useast", Size: "P4"},
+		},
+		"useast,premium_ssd,LRS,P10": {
+			PV: &models.PV{Cost: formatPrice(tierHourlyFromMonthly(19.71)), Class: AzureDiskPremiumSSDStorageClass, Region: "useast", Size: "P10"},
+		},
+	}
+	ensureDiskClassFallbacks(prices)
+	require.NotNil(t, prices["useast,premium_ssd"])
+	require.Equal(t, formatPrice(effectiveGiBHourRate(5.2795, 32)), prices["useast,premium_ssd"].PV.Cost)
+}
+
+func TestManagedDiskTierPricing_IsNotExportedInPricingMap(t *testing.T) {
+	prices := map[string]*AzurePricing{
+		"centralus,premium_ssd,LRS,P4": {
+			PV: &models.PV{Cost: formatPrice(tierHourlyFromMonthly(5.2795)), Class: AzureDiskPremiumSSDStorageClass, Region: "centralus", Size: "P4"},
+		},
+		"centralus,premium_ssd": {
+			PV: &models.PV{Cost: "0.000226", Class: AzureDiskPremiumSSDStorageClass, Region: "centralus"},
+		},
+	}
+
+	tierHourly := collectManagedDiskTierHourly(prices)
+	removeManagedDiskTierEntries(prices)
+
+	require.Contains(t, tierHourly, "centralus,premium_ssd,LRS,P4")
+	require.NotContains(t, prices, "centralus,premium_ssd,LRS,P4")
+	require.Contains(t, prices, "centralus,premium_ssd")
+}
+
+func TestFindCostForDisk_TierAware(t *testing.T) {
+	var loc = "centralus"
+	var size int32 = 100
+	az := &Azure{
+		managedDiskTierHourly: map[string]float64{
+			"centralus,premium_ssd,LRS,P10": tierHourlyFromMonthly(19.71),
+		},
+	}
+	cost, err := az.findCostForDisk(&compute.Disk{
+		Location: &loc,
+		Sku: &compute.DiskSku{
+			Name: "Premium_LRS",
+		},
+		DiskProperties: &compute.DiskProperties{
+			DiskSizeGB: &size,
+		},
+	})
+	require.NoError(t, err)
+	require.InDelta(t, 19.71, cost, 0.0001)
 }
 
 func TestAzure_findCostForDisk(t *testing.T) {
@@ -362,6 +664,13 @@ func TestAzurePVKeyFeatures(t *testing.T) {
 			expected: "eastus,premium_ssd",
 		},
 		{
+			name: "managed disk csi skuname premium zrs",
+			parameters: map[string]string{
+				"skuname": "Premium_ZRS",
+			},
+			expected: "eastus,premium_ssd",
+		},
+		{
 			name: "managed disk csi skuname standard ssd",
 			parameters: map[string]string{
 				"skuname": "StandardSSD_LRS",
@@ -388,6 +697,13 @@ func TestAzurePVKeyFeatures(t *testing.T) {
 				"skuName": "Standard_LRS",
 			},
 			expected: "eastus,standard_smb",
+		},
+		{
+			name: "unknown skuname keeps raw legacy class key",
+			parameters: map[string]string{
+				"skuname": "Custom_LRS",
+			},
+			expected: "eastus,Custom_LRS",
 		},
 	}
 
