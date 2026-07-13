@@ -1076,26 +1076,68 @@ func (aws *AWS) DownloadPricingData() error {
 	return nil
 }
 
+// populatePricing parses AWS pricing JSON response and populates the pricing map.
+//
+// AWS Pricing JSON Structure:
+//
+//	{
+//	  "products": {
+//	    "<SKU>": {
+//	      "sku": "<SKU>",
+//	      "attributes": { "instanceType": "...", "regionCode": "...", ... }
+//	    },
+//	    ...
+//	  },
+//	  "terms": {
+//	    "OnDemand": {
+//	      "<SKU>": {
+//	        "<SKU>.<OfferTermCode>": {
+//	          "offerTermCode": "...",
+//	          "priceDimensions": {
+//	            "<SKU>.<OfferTermCode>.<RateCode>": {
+//	              "unit": "Hrs",
+//	              "pricePerUnit": { "USD": "..." },
+//	              "description": "..."
+//	            }
+//	          }
+//	        }
+//	      }
+//	    }
+//	  }
+//	}
+//
+// This function uses streaming JSON parsing to handle large pricing files efficiently:
+// 1. Parse "products" section: Extract SKUs and attributes for EC2 instances, EBS volumes, and load balancers
+// 2. Parse "terms" section: Extract on-demand pricing for each SKU. Note: only the
+//    first term-type key is read and processed if it equals "OnDemand", so this
+//    assumes "OnDemand" precedes any "Reserved" terms.
+// 3. Match SKUs to pricing keys and populate the pricing map
 func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) error {
 	aws.Pricing = make(map[string]*AWSProductTerms)
-	skusToKeys := make(map[string]string)
+	skuToPricingKeyMap := make(map[string]string)
 	dec := json.NewDecoder(resp.Body)
+
+	// Stream through the JSON response token by token
 	for {
-		t, err := dec.Token()
+		token, err := dec.Token()
 		if err == io.EOF {
-			log.Infof("done loading \"%s\"\n", resp.Request.URL.String())
+			log.Debugf("Finished parsing pricing data from \"%s\"", resp.Request.URL.String())
 			break
 		} else if err != nil {
-			log.Errorf("error parsing response json %v", resp.Body)
+			// Keep pricing parsed so far rather than discarding the whole region.
+			log.Errorf("Error parsing pricing JSON response from \"%s\": %v", resp.Request.URL.String(), err)
 			break
 		}
-		if t == "products" {
-			_, err := dec.Token() // this should parse the opening "{""
+
+		// Parse "products" section: Extract product metadata (SKU, instance type, region, etc.)
+		if token == "products" {
+			_, err := dec.Token() // opening "{"
 			if err != nil {
 				return err
 			}
+
 			for dec.More() {
-				_, err := dec.Token() // the sku token
+				_, err := dec.Token() // SKU key
 				if err != nil {
 					return err
 				}
@@ -1103,17 +1145,20 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 
 				err = dec.Decode(&product)
 				if err != nil {
-					log.Errorf("Error parsing response from \"%s\": %v", resp.Request.URL.String(), err.Error())
+					// Fall through to terms so registered SKUs still get a non-nil OnDemand.
+					log.Errorf("Error decoding product from \"%s\": %v", resp.Request.URL.String(), err)
 					break
 				}
 
+				// Filter for EC2 compute instances (on-demand, no pre-installed software)
 				if product.Attributes.PreInstalledSw == "NA" &&
 					(strings.HasPrefix(product.Attributes.UsageType, "BoxUsage") || strings.Contains(product.Attributes.UsageType, "-BoxUsage")) &&
 					product.Attributes.CapacityStatus == "Used" &&
 					product.Attributes.MarketOption == "OnDemand" {
 					key := aws.KubeAttrConversion(product.Attributes.RegionCode, product.Attributes.InstanceType, product.Attributes.OperatingSystem)
 					spotKey := key + ",preemptible"
-					if inputkeys[key] || inputkeys[spotKey] { // Just grab the sku even if spot, and change the price later.
+					// Only store pricing for instances we actually have in the cluster
+					if inputkeys[key] || inputkeys[spotKey] {
 						productTerms := &AWSProductTerms{
 							Sku:     product.Sku,
 							Memory:  product.Attributes.Memory,
@@ -1123,13 +1168,13 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 						}
 						aws.Pricing[key] = productTerms
 						aws.Pricing[spotKey] = productTerms
-						skusToKeys[product.Sku] = key
+						skuToPricingKeyMap[product.Sku] = key
 					}
 					aws.ValidPricingKeys[key] = true
 					aws.ValidPricingKeys[spotKey] = true
 				} else if strings.Contains(product.Attributes.UsageType, "EBS:Volume") {
-					// UsageTypes may be prefixed with a region code - we're removing this when using
-					// volTypes to keep lookups generic
+					// Parse EBS volume pricing (storage)
+					// UsageTypes may be prefixed with a region code - strip it for generic lookups
 					usageTypeMatch := usageTypeRegx.FindStringSubmatch(product.Attributes.UsageType)
 					usageTypeNoRegion := usageTypeMatch[len(usageTypeMatch)-1]
 					key := product.Attributes.RegionCode + "," + usageTypeNoRegion
@@ -1144,27 +1189,28 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					}
 					aws.Pricing[key] = productTerms
 					aws.Pricing[spotKey] = productTerms
-					skusToKeys[product.Sku] = key
+					skuToPricingKeyMap[product.Sku] = key
 					aws.ValidPricingKeys[key] = true
 					aws.ValidPricingKeys[spotKey] = true
 				} else if strings.Contains(product.Attributes.UsageType, "LoadBalancerUsage") && product.Attributes.Operation == "LoadBalancing:Network" {
-					// since the costmodel is only using services of type LoadBalancer
-					// (and not ingresses controlled by AWS load balancer controller)
-					// we can safely filter for Network load balancers only
+					// Parse Network Load Balancer pricing
+					// Note: Only NLBs are tracked since costmodel uses LoadBalancer services,
+					// not ingresses controlled by AWS load balancer controller
 					productTerms := &AWSProductTerms{
 						Sku:          product.Sku,
 						LoadBalancer: &models.LoadBalancer{},
 					}
-					// there is no spot pricing for load balancers
 					key := product.Attributes.RegionCode + ",LoadBalancerUsage"
 					aws.Pricing[key] = productTerms
-					skusToKeys[product.Sku] = key
+					skuToPricingKeyMap[product.Sku] = key
 					aws.ValidPricingKeys[key] = true
 				}
 			}
 		}
-		if t == "terms" {
-			_, err := dec.Token() // this should parse the opening "{""
+
+		// Parse "terms" section: Extract on-demand pricing for each SKU
+		if token == "terms" {
+			_, err := dec.Token() // opening "{"
 			if err != nil {
 				return err
 			}
@@ -1173,8 +1219,8 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 				return err
 			}
 			if termType == "OnDemand" {
-				_, err := dec.Token()
-				if err != nil { // again, should parse an opening "{"
+				_, err := dec.Token() // opening "{"
+				if err != nil {
 					return err
 				}
 				for dec.More() {
@@ -1182,70 +1228,80 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					if err != nil {
 						return err
 					}
-					_, err = dec.Token() // another opening "{"
+					skuStr, ok := sku.(string)
+					if !ok {
+						return fmt.Errorf("failed to parse %s pricing from %s: expected SKU to be a string, got %T", termType, resp.Request.URL.String(), sku)
+					}
+					_, err = dec.Token() // opening "{"
 					if err != nil {
 						return err
 					}
-					// SKUOndemand
-					_, err = dec.Token()
+					_, err = dec.Token() // SKU.OfferTermCode key
 					if err != nil {
 						return err
 					}
 					offerTerm := &AWSOfferTerm{}
 					err = dec.Decode(&offerTerm)
 					if err != nil {
-						log.Errorf("Error decoding AWS Offer Term: %s", err.Error())
+						log.Errorf("Error decoding AWS Offer Term for SKU %s: %v", skuStr, err)
 					}
 
-					key, ok := skusToKeys[sku.(string)]
-					spotKey := key + ",preemptible"
+					key, ok := skuToPricingKeyMap[skuStr]
 					if ok {
+						spotKey := key + ",preemptible"
 						aws.Pricing[key].OnDemand = offerTerm
 						if _, ok := aws.Pricing[spotKey]; ok {
 							aws.Pricing[spotKey].OnDemand = offerTerm
 						}
+
+						// Extract hourly cost from price dimensions
+						// Price dimension key format: <SKU>.<OfferTermCode>.<RateCode>
 						var cost string
 						if _, isMatch := OnDemandRateCodes[offerTerm.OfferTermCode]; isMatch {
-							priceDimensionKey := strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCode}, ".")
+							// USD pricing path
+							priceDimensionKey := strings.Join([]string{skuStr, offerTerm.OfferTermCode, HourlyRateCode}, ".")
 							dimension, ok := offerTerm.PriceDimensions[priceDimensionKey]
 							if ok {
+								// Expected dimension found - use it directly
 								cost = dimension.PricePerUnit.USD
 							} else {
-								// this is an edge case seen in AWS CN pricing files, including here just in case
-								// if there is only one dimension, use it, even if the key is incorrect, otherwise assume defaults
-								if len(offerTerm.PriceDimensions) == 1 {
-									for key, backupDimension := range offerTerm.PriceDimensions {
+								// Expected dimension missing - fallback. If there is only one
+								// dimension, use it even if the key doesn't match exactly
+								dimensionCount := len(offerTerm.PriceDimensions)
+								if dimensionCount == 1 {
+									for dimensionKey, backupDimension := range offerTerm.PriceDimensions {
 										cost = backupDimension.PricePerUnit.USD
-										log.DedupedWarningf(5, "using:%s for a price dimension instead of missing dimension: %s", offerTerm.PriceDimensions[key], priceDimensionKey)
+										log.DedupedWarningf(5, "using:%v for a price dimension instead of missing dimension: %s", offerTerm.PriceDimensions[dimensionKey], priceDimensionKey)
 										break
 									}
-								} else if len(offerTerm.PriceDimensions) == 0 {
+								} else if dimensionCount == 0 {
 									log.DedupedWarningf(5, "populatePricing: no pricing dimension available for: %s.", priceDimensionKey)
 								} else {
 									log.DedupedWarningf(5, "populatePricing: no assumable pricing dimension available for: %s.", priceDimensionKey)
 								}
 							}
 						} else if _, isMatch := OnDemandRateCodesCn[offerTerm.OfferTermCode]; isMatch {
-							priceDimensionKey := strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCodeCn}, ".")
+							// CNY pricing path (China regions)
+							priceDimensionKey := strings.Join([]string{skuStr, offerTerm.OfferTermCode, HourlyRateCodeCn}, ".")
 							dimension, ok := offerTerm.PriceDimensions[priceDimensionKey]
 							if ok {
 								cost = dimension.PricePerUnit.CNY
 							} else {
-								// fall through logic for handling inconsistencies in AWS CN pricing files
-								// if there is only one dimension, use it, even if the key is incorrect, otherwise assume defaults
-								if len(offerTerm.PriceDimensions) == 1 {
-									for key, backupDimension := range offerTerm.PriceDimensions {
+								dimensionCount := len(offerTerm.PriceDimensions)
+								if dimensionCount == 1 {
+									for dimensionKey, backupDimension := range offerTerm.PriceDimensions {
 										cost = backupDimension.PricePerUnit.CNY
-										log.DedupedWarningf(5, "using:%s for a price dimension instead of missing dimension: %s", offerTerm.PriceDimensions[key], priceDimensionKey)
+										log.DedupedWarningf(5, "using:%v for a price dimension instead of missing dimension: %s", offerTerm.PriceDimensions[dimensionKey], priceDimensionKey)
 										break
 									}
-								} else if len(offerTerm.PriceDimensions) == 0 {
+								} else if dimensionCount == 0 {
 									log.DedupedWarningf(5, "populatePricing: no pricing dimension available for: %s.", priceDimensionKey)
 								} else {
 									log.DedupedWarningf(5, "populatePricing: no assumable pricing dimension available for: %s.", priceDimensionKey)
 								}
 							}
 						}
+						// Apply cost to the appropriate resource type
 						if strings.Contains(key, "EBS:VolumeP-IOPS.piops") {
 							// If the specific UsageType is the per IO cost used on io1 volumes
 							// we need to add the per IO cost to the io1 PV cost
@@ -1253,27 +1309,36 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 							// Add the per IO cost to the PV object for the io1 volume type
 							aws.Pricing[key].PV.CostPerIO = cost
 						} else if strings.Contains(key, "EBS:Volume") {
-							// If volume, we need to get hourly cost and add it to the PV object
-							costFloat, _ := strconv.ParseFloat(cost, 64)
-							hourlyPrice := costFloat / 730
-
-							aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
-						} else if strings.Contains(key, "LoadBalancerUsage") {
+							// EBS volumes: convert monthly cost to hourly (730 hours/month)
 							costFloat, err := strconv.ParseFloat(cost, 64)
 							if err != nil {
-								return err
+								log.Debugf("Error parsing EBS volume cost for %s: %v", key, err)
+								// Preserve prior behavior: always leave a valid numeric
+								// string so downstream ParseFloat (e.g. findCostForDisk)
+								// doesn't fail on an empty value.
+								aws.Pricing[key].PV.Cost = "0"
+							} else {
+								hourlyPrice := costFloat / timeutil.HoursPerMonth
+								aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 							}
-
-							aws.Pricing[key].LoadBalancer.Cost = costFloat
+						} else if strings.Contains(key, "LoadBalancerUsage") {
+							// On an unparseable cost, rely on the default rather than
+							// discarding all pricing (mirrors the EBS handling above).
+							costFloat, err := strconv.ParseFloat(cost, 64)
+							if err != nil {
+								log.Debugf("Error parsing load balancer cost for %s: %v", key, err)
+							} else {
+								aws.Pricing[key].LoadBalancer.Cost = costFloat
+							}
 						}
 					}
 
-					_, err = dec.Token()
+					_, err = dec.Token() // closing "}"
 					if err != nil {
 						return err
 					}
 				}
-				_, err = dec.Token()
+				_, err = dec.Token() // closing "}"
 				if err != nil {
 					return err
 				}
