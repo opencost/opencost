@@ -138,6 +138,9 @@ type multiKeyGCPAllocation struct {
 	Cost    float64
 }
 
+// GetConfig returns the GCP provider's custom pricing configuration.
+// It always returns a non-nil *models.CustomPricing even on error, so that
+// downstream callers can safely access fields without nil pointer dereferences.
 func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	var c *models.CustomPricing
 	var err error
