@@ -142,16 +142,18 @@ type multiKeyGCPAllocation struct {
 // It always returns a non-nil *models.CustomPricing even on error, so that
 // downstream callers can safely access fields without nil pointer dereferences.
 func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
-	var c *models.CustomPricing
+	c := &models.CustomPricing{}
 	var err error
 	if gcp.Config == nil {
-		err = fmt.Errorf("GCP provider config is nil")
+		err = fmt.Errorf("gcp provider config is nil")
+	} else if pc, e := gcp.Config.GetCustomPricingData(); pc != nil {
+		c, err = pc, e
 	} else {
-		c, err = gcp.Config.GetCustomPricingData()
+		err = e
 	}
-	if c == nil {
-		c = &models.CustomPricing{}
-	}
+
+	// c is guaranteed non-nil at this point, even if config loading failed
+	// above, so we can safely apply default pricing values here.
 	if c.Discount == "" {
 		c.Discount = "30%"
 	}
