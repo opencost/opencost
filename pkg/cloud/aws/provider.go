@@ -1107,11 +1107,11 @@ func (aws *AWS) DownloadPricingData() error {
 //	}
 //
 // This function uses streaming JSON parsing to handle large pricing files efficiently:
-// 1. Parse "products" section: Extract SKUs and attributes for EC2 instances, EBS volumes, and load balancers
-// 2. Parse "terms" section: Extract on-demand pricing for each SKU. Note: only the
-//    first term-type key is read and processed if it equals "OnDemand", so this
-//    assumes "OnDemand" precedes any "Reserved" terms.
-// 3. Match SKUs to pricing keys and populate the pricing map
+//  1. Parse "products" section: Extract SKUs and attributes for EC2 instances, EBS volumes, and load balancers
+//  2. Parse "terms" section: Extract on-demand pricing for each SKU. Note: only the
+//     first term-type key is read and processed if it equals "OnDemand", so this
+//     assumes "OnDemand" precedes any "Reserved" terms.
+//  3. Match SKUs to pricing keys and populate the pricing map
 func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) error {
 	aws.Pricing = make(map[string]*AWSProductTerms)
 	skuToPricingKeyMap := make(map[string]string)
