@@ -12,6 +12,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
 	coreutil "github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/maputil"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
@@ -169,12 +170,13 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 			}
 		}
 
-		// node labels
-		labelNames, labelValues := promutil.KubeLabelsToLabels(node.Labels)
-		nodeLabels := util.ToMap(labelNames, labelValues)
-
 		// Merge external labels into node labels; node labels win on conflict.
-		nodeLabels = external.Merge(nodeLabels, externalLabels)
+		// mapUtil.Merge handles that when node.Labels is the second comparable map.
+		mergedLabels := maputil.Merge(externalLabels, node.Labels)
+
+		// node labels
+		labelNames, labelValues := promutil.KubeLabelsToLabels(mergedLabels)
+		nodeLabels := util.ToMap(labelNames, labelValues)
 
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.KubeNodeLabels,
