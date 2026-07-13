@@ -1012,10 +1012,14 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 	parsePagesHelper = func(pageToken string) error {
 		if pageToken == "done" {
 			return nil
-		} else if pageToken != "" {
-			url = url + "&pageToken=" + pageToken
 		}
-		resp, err := httpClient.Get(url)
+		// Build the URL per request; appending to the shared url would accumulate
+		// pageToken params across pages.
+		reqURL := url
+		if pageToken != "" {
+			reqURL = url + "&pageToken=" + pageToken
+		}
+		resp, err := httpClient.Get(reqURL)
 		if err != nil {
 			return err
 		}
