@@ -2,6 +2,7 @@ package scrape
 
 import (
 	"fmt"
+	stdmap "maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,14 +28,14 @@ import (
 const unmountedPVsContainer = "unmounted-pvs"
 
 type ClusterCacheScraper struct {
-	clusterCache           clustercache.ClusterCache
-	externalLabelsProvider external.LabelProvider
+	clusterCache          clustercache.ClusterCache
+	externalLabelProvider external.LabelProvider
 }
 
-func newClusterCacheScraper(clusterCache clustercache.ClusterCache, externalLabelsProvider external.LabelProvider) Scraper {
+func newClusterCacheScraper(clusterCache clustercache.ClusterCache, externalLabelProvider external.LabelProvider) Scraper {
 	return &ClusterCacheScraper{
-		clusterCache:           clusterCache,
-		externalLabelsProvider: externalLabelsProvider,
+		clusterCache:          clusterCache,
+		externalLabelProvider: externalLabelProvider,
 	}
 }
 
@@ -91,8 +92,8 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 	// get external labels
 	var externalLabels map[string]string
 	var err error
-	if ccs.externalLabelsProvider != nil {
-		externalLabels, err = ccs.externalLabelsProvider.Labels()
+	if ccs.externalLabelProvider != nil {
+		externalLabels, err = ccs.externalLabelProvider.Labels()
 		if err != nil {
 			log.Errorf("failed to apply external labels to nodes: %s", err)
 		}
@@ -172,7 +173,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 
 		// Merge external labels into node labels; node labels win on conflict.
 		// mapUtil.Merge handles that when node.Labels is the second comparable map.
-		mergedLabels := maps.Clone(node.Labels)
+		mergedLabels := stdmap.Clone(node.Labels)
 		if externalLabels != nil {
 			mergedLabels = maputil.Merge(externalLabels, node.Labels)
 		}

@@ -2,6 +2,7 @@ package external
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -27,7 +28,12 @@ func (cms *ConfigMapSource) ExtractNodeLabels(data map[string]string) (map[strin
 	route := nlCfg.Route()
 	// Traditional ConfigMap — labels live directly in data.
 	if key == "" && route == "" {
-		return data, nil
+		return maps.Clone(data), nil
+	}
+
+	// route is optional for block scalar. A root yaml node can be the map of node labels.
+	if key == "" && route != "" {
+		return nil, fmt.Errorf("key must be set for block scalar configMap")
 	}
 
 	// Block-scalar ConfigMap — extract the YAML document from data[Key].
