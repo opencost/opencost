@@ -210,7 +210,7 @@ func Test_kubernetesScraper_scrapeNodesWithExternalLabels(t *testing.T) {
 		testExternalLabelValue = "externalLabelValue"
 	)
 	mockLabelProvider := external.NewNodeLabelProvider()
-	err := mockLabelProvider.Update("mock", map[string]string{testExternalLabelKey: testExternalLabelValue})
+	err := mockLabelProvider.Update(testSource, map[string]string{testExternalLabelKey: testExternalLabelValue})
 	if err != nil {
 		t.Fatalf("failed to get test node labels: %s", err)
 	}

@@ -2,7 +2,6 @@ package scrape
 
 import (
 	"fmt"
-	stdmap "maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -173,7 +172,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 
 		// Merge external labels into node labels; node labels win on conflict.
 		// mapUtil.Merge handles that when node.Labels is the second comparable map.
-		mergedLabels := stdmap.Clone(node.Labels)
+		mergedLabels := node.Labels
 		if externalLabels != nil {
 			mergedLabels = maputil.Merge(externalLabels, node.Labels)
 		}
