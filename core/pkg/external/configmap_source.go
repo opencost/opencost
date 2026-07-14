@@ -152,6 +152,7 @@ func findMappingValue(node *yaml.Node, key string) (*yaml.Node, bool) {
 }
 
 func yamlLabelValue(node *yaml.Node) (string, error) {
+	// Label values must be scalar nodes.
 	if node.Kind != yaml.ScalarNode {
 		switch node.Kind {
 		// errors out when the map has a sequence type
@@ -195,6 +196,10 @@ func yamlLabelValue(node *yaml.Node) (string, error) {
 		}
 	}
 
+	// Check the scalar tag to determine the value type.
+	// Only string, integer, float, and boolean values are supported.
+	// Null values are rejected. The default case is a defensive check
+	// for unexpected scalar tags.
 	switch node.Tag {
 	// Only supported values in the labelValue type. For now.
 	case "!!str", "!!int", "!!float", "!!bool":
@@ -208,7 +213,6 @@ func yamlLabelValue(node *yaml.Node) (string, error) {
 			"null values are not supported at line %d",
 			node.Line,
 		)
-	// default case not supported any other.
 	default:
 		return "", fmt.Errorf(
 			"unsupported scalar type %q at line %d",

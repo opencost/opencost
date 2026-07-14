@@ -94,7 +94,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 	if ccs.externalLabelProvider != nil {
 		externalLabels, err = ccs.externalLabelProvider.Labels()
 		if err != nil {
-			log.Errorf("failed to apply external labels to nodes: %s", err)
+			log.Errorf("failed to get external labels to nodes: %s", err)
 		}
 	}
 	for _, node := range nodes {
@@ -173,7 +173,7 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		// Merge external labels into node labels; node labels win on conflict.
 		// mapUtil.Merge handles that when node.Labels is the second comparable map.
 		mergedLabels := node.Labels
-		if externalLabels != nil {
+		if len(externalLabels) > 0 {
 			mergedLabels = maputil.Merge(externalLabels, node.Labels)
 		}
 

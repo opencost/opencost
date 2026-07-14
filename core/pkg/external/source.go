@@ -30,6 +30,16 @@ func NewLabelSource(cfg *Config) (LabelSource, error) {
 // It returns a func(string, map[string]string) error that passes the raw source
 // data through src.ExtractNodeLabels and forwards the resulting labels to provider.Update.
 func WatchFunc(src LabelSource, provider LabelProvider) func(string, map[string]string) error {
+	if src == nil {
+		return func(string, map[string]string) error {
+			return fmt.Errorf("nil LabelSource")
+		}
+	}
+	if provider == nil {
+		return func(string, map[string]string) error {
+			return fmt.Errorf("nil LabelProvider")
+		}
+	}
 	return func(name string, data map[string]string) error {
 		labels, err := src.ExtractNodeLabels(data)
 		if err != nil {

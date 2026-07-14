@@ -14,7 +14,7 @@ func NewConfig(nodeCfg *NodeLabelConfig) *Config {
 }
 
 // NodeLabelConfig returns the node label configuration.
-// It returns nil if node labels are not configured.
+// It returns nil if node label configuration is not provided.
 func (c *Config) NodeLabelConfig() *NodeLabelConfig {
 	if c == nil {
 		return nil
