@@ -22,11 +22,12 @@ func NewNodeLabelProvider() *NodeLabelProvider {
 	}
 }
 
-// Update replaces the cached labels with the full contents of any source of data."
+// // Update replaces the cached labels with the full contents of any source of data.
 func (nlp *NodeLabelProvider) Update(name string, data map[string]string) error {
 	nlp.mu.Lock()
 	defer nlp.mu.Unlock()
-	nlp.labels = data
+	// Clone to avoid retaining a reference to a map that may be mutated by the caller.
+	nlp.labels = maps.Clone(data)
 	log.Debugf("External: NodeLabelProvider: updated %d label(s) %s", len(data), name)
 	return nil
 }

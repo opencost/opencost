@@ -28,7 +28,7 @@ func NewLabelSource(cfg *Config) (LabelSource, error) {
 
 // WatchFunc bridges a LabelSource and a LabelProvider as a watcher callback.
 // It returns a func(string, map[string]string) error that passes the raw source
-// data through src.Extract and forwards the resulting labels to provider.Update.
+// data through src.ExtractNodeLabels and forwards the resulting labels to provider.Update.
 func WatchFunc(src LabelSource, provider LabelProvider) func(string, map[string]string) error {
 	return func(name string, data map[string]string) error {
 		labels, err := src.ExtractNodeLabels(data)

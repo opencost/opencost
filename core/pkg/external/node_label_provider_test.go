@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfigMapProvider_Labels(t *testing.T) {
+func TestNodeLabelProvider_Labels(t *testing.T) {
 	p := NewNodeLabelProvider()
 
 	require.NoError(t, p.Update("external-labels", map[string]string{
@@ -23,7 +23,7 @@ func TestConfigMapProvider_Labels(t *testing.T) {
 	assert.Equal(t, "nam", labels["region"])
 }
 
-func TestConfigMapProvider_EmptyOnNoUpdates(t *testing.T) {
+func TestNodeLabelProvider_EmptyOnNoUpdates(t *testing.T) {
 	p := NewNodeLabelProvider()
 
 	labels, err := p.Labels()
@@ -31,7 +31,7 @@ func TestConfigMapProvider_EmptyOnNoUpdates(t *testing.T) {
 	assert.Empty(t, labels)
 }
 
-func TestConfigMapProvider_UpdateDropsRemovedKeys(t *testing.T) {
+func TestNodeLabelProvider_UpdateDropsRemovedKeys(t *testing.T) {
 	p := NewNodeLabelProvider()
 
 	require.NoError(t, p.Update("cm", map[string]string{"a": "1", "b": "2"}))
