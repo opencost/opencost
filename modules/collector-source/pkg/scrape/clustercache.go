@@ -171,7 +171,8 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 		}
 
 		// Merge external labels into node labels; node labels win on conflict.
-		// mapUtil.Merge handles that when node.Labels is the second comparable map.
+		// maputil.Merge achieves this because node.Labels is passed as the
+		// second map argument (it overwrites on conflict).
 		mergedLabels := node.Labels
 		if len(externalLabels) > 0 {
 			mergedLabels = maputil.Merge(externalLabels, node.Labels)
