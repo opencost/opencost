@@ -3,14 +3,21 @@ package external
 import "fmt"
 
 type LabelSource interface {
-	Extract(map[string]string) (map[string]string, error)
+	ExtractNodeLabels(map[string]string) (map[string]string, error)
 }
 
 func NewLabelSource(cfg *Config) (LabelSource, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("nil config")
 	}
-	if cfg.ConfigMapName != "" {
+
+	if !cfg.HasNodeLabelConfig() {
+		return nil, fmt.Errorf("no supported external label config")
+	}
+
+	nlConfig := cfg.NodeLabelConfig()
+
+	if nlConfig.ConfigMapName() != "" {
 		return &ConfigMapSource{
 			cfg: cfg,
 		}, nil
@@ -24,7 +31,7 @@ func NewLabelSource(cfg *Config) (LabelSource, error) {
 // data through src.Extract and forwards the resulting labels to provider.Update.
 func WatchFunc(src LabelSource, provider LabelProvider) func(string, map[string]string) error {
 	return func(name string, data map[string]string) error {
-		labels, err := src.Extract(data)
+		labels, err := src.ExtractNodeLabels(data)
 		if err != nil {
 			return err
 		}

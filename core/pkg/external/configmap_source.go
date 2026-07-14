@@ -12,19 +12,28 @@ type ConfigMapSource struct {
 	cfg *Config
 }
 
-func (cms *ConfigMapSource) Extract(data map[string]string) (map[string]string, error) {
+func (cms *ConfigMapSource) ExtractNodeLabels(data map[string]string) (map[string]string, error) {
 	if cms.cfg == nil {
 		return nil, fmt.Errorf("nil config")
 	}
+
+	nlCfg := cms.cfg.NodeLabelConfig()
+	if nlCfg == nil {
+		return nil, fmt.Errorf("no node label config")
+	}
+
+	cm := nlCfg.ConfigMapName()
+	key := nlCfg.Key()
+	route := nlCfg.Route()
 	// Traditional ConfigMap — labels live directly in data.
-	if cms.cfg.Key == "" && cms.cfg.Route == "" {
+	if key == "" && route == "" {
 		return data, nil
 	}
 
 	// Block-scalar ConfigMap — extract the YAML document from data[Key].
-	raw, ok := data[cms.cfg.Key]
+	raw, ok := data[key]
 	if !ok {
-		return nil, fmt.Errorf("key %q not found in ConfigMap %s", cms.cfg.Key, cms.cfg.ConfigMapName)
+		return nil, fmt.Errorf("key %q not found in ConfigMap %s", key, cm)
 	}
 
 	// yaml.v3 always unmarshals to a yaml.Node type.
@@ -32,7 +41,15 @@ func (cms *ConfigMapSource) Extract(data map[string]string) (map[string]string, 
 	// actual YAML document.
 	var root yaml.Node
 	if err := yaml.Unmarshal([]byte(raw), &root); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML from key %q in ConfigMap %s: %w", cms.cfg.Key, cms.cfg.ConfigMapName, err)
+		return nil, fmt.Errorf("failed to parse YAML from key %q in ConfigMap %s: %w", key, cm, err)
+	}
+
+	if root.Kind == 0 {
+		return nil, fmt.Errorf(
+			"empty YAML document in key %q of ConfigMap %s",
+			key,
+			cm,
+		)
 	}
 
 	current := &root
@@ -41,8 +58,8 @@ func (cms *ConfigMapSource) Extract(data map[string]string) (map[string]string, 
 		if len(current.Content) == 0 {
 			return nil, fmt.Errorf(
 				"empty YAML document in key %q of ConfigMap %s",
-				cms.cfg.Key,
-				cms.cfg.ConfigMapName,
+				key,
+				cm,
 			)
 		}
 
@@ -50,7 +67,7 @@ func (cms *ConfigMapSource) Extract(data map[string]string) (map[string]string, 
 	}
 
 	// Traverse the dot-separated route.
-	for _, segment := range strings.Split(cms.cfg.Route, ".") {
+	for _, segment := range strings.Split(route, ".") {
 		if segment == "" {
 			continue
 		}
@@ -59,7 +76,7 @@ func (cms *ConfigMapSource) Extract(data map[string]string) (map[string]string, 
 			return nil, fmt.Errorf(
 				"route segment %q: parent is not a map in ConfigMap %s",
 				segment,
-				cms.cfg.ConfigMapName,
+				cm,
 			)
 		}
 
@@ -68,7 +85,7 @@ func (cms *ConfigMapSource) Extract(data map[string]string) (map[string]string, 
 			return nil, fmt.Errorf(
 				"route segment %q not found in ConfigMap %s",
 				segment,
-				cms.cfg.ConfigMapName,
+				cm,
 			)
 		}
 
@@ -78,8 +95,8 @@ func (cms *ConfigMapSource) Extract(data map[string]string) (map[string]string, 
 	if current.Kind != yaml.MappingNode {
 		return nil, fmt.Errorf(
 			"route %q does not point to a map in ConfigMap %s",
-			cms.cfg.Route,
-			cms.cfg.ConfigMapName,
+			route,
+			cm,
 		)
 	}
 
@@ -95,7 +112,7 @@ func (cms *ConfigMapSource) Extract(data map[string]string) (map[string]string, 
 			return nil, fmt.Errorf(
 				"label key at line %d must be a scalar in ConfigMap %s",
 				keyNode.Line,
-				cms.cfg.ConfigMapName,
+				cm,
 			)
 		}
 
@@ -104,7 +121,7 @@ func (cms *ConfigMapSource) Extract(data map[string]string) (map[string]string, 
 			return nil, fmt.Errorf(
 				"invalid label %q in ConfigMap %s: %w",
 				keyNode.Value,
-				cms.cfg.ConfigMapName,
+				cm,
 				err,
 			)
 		}
