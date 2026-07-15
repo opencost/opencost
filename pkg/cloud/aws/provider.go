@@ -1399,8 +1399,7 @@ func (aws *AWS) NetworkPricing(netKey models.NetworkKey) (*models.Network, error
 }
 
 func (aws *AWS) LoadBalancerPricing(lbKey models.LBKey) (*models.LoadBalancer, error) {
-	// TODO: determine key based on function arguments
-	// this is something that should be changed in the Provider interface
+	// TODO: use lbKey to select a more specific pricing entry when available.
 
 	key := aws.ClusterRegion + ",LoadBalancerUsage"
 

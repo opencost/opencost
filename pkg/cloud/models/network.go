@@ -4,6 +4,7 @@ package models
 type LBKey interface {
 	ID() string
 	Features() string
+	IsLBKey() bool
 }
 
 // CustomLBKey is a default implementation of LBKey
@@ -14,11 +15,13 @@ type CustomLBKey struct {
 
 func (k *CustomLBKey) ID() string       { return k.LBID }
 func (k *CustomLBKey) Features() string { return k.LBFeatures }
+func (k *CustomLBKey) IsLBKey() bool    { return true }
 
 // NetworkKey represents metadata identifying a network resource for pricing
 type NetworkKey interface {
 	ID() string
 	Features() string
+	IsNetworkKey() bool
 }
 
 // CustomNetworkKey is a default implementation of NetworkKey
@@ -27,8 +30,9 @@ type CustomNetworkKey struct {
 	NetworkFeatures string
 }
 
-func (k *CustomNetworkKey) ID() string       { return k.NetworkID }
-func (k *CustomNetworkKey) Features() string { return k.NetworkFeatures }
+func (k *CustomNetworkKey) ID() string         { return k.NetworkID }
+func (k *CustomNetworkKey) Features() string   { return k.NetworkFeatures }
+func (k *CustomNetworkKey) IsNetworkKey() bool { return true }
 
 // Network is the interface by which the provider and cost model communicate network egress prices.
 // The provider will best-effort try to fill out this struct.

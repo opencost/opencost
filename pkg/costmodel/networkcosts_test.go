@@ -616,3 +616,11 @@ func TestGetNetworkCost_NATGatewayMisalignedVectors(t *testing.T) {
 		t.Errorf("expected third vector cost %f, got %f", expectedThird, result[2].Value)
 	}
 }
+
+func TestGetNetworkCost_NilUsage(t *testing.T) {
+	provider := &mockProvider{}
+	_, err := GetNetworkCost(nil, provider)
+	if err == nil {
+		t.Fatal("expected error when usage is nil, got nil")
+	}
+}
