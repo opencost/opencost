@@ -630,6 +630,28 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					return nil, "", err
 				}
 
+				// Check if this is a load balancer forwarding rule
+				if strings.Contains(product.Description, "Forwarding Rule") || product.Category.ResourceGroup == "ForwardingRule" {
+					var lbType string
+					descLower := strings.ToLower(product.Description)
+					if strings.Contains(descLower, "external http") || strings.Contains(descLower, "global forwarding rule") {
+						lbType = "external-http"
+					} else if strings.Contains(descLower, "internal http") {
+						lbType = "internal-http"
+					} else if strings.Contains(descLower, "regional forwarding rule") || strings.Contains(descLower, "network") || strings.Contains(descLower, "tcp") {
+						lbType = "network-tcp"
+					} else if strings.Contains(descLower, "ssl proxy") || strings.Contains(descLower, "ssl") || strings.Contains(descLower, "proxy") {
+						lbType = "ssl-proxy"
+					}
+
+					if lbType != "" {
+						for _, region := range product.ServiceRegions {
+							candidateKey := region + ",ForwardingRule:" + lbType
+							gcpPricingList[candidateKey] = product
+						}
+					}
+				}
+
 				usageType := strings.ToLower(product.Category.UsageType)
 				instanceType := strings.ToLower(product.Category.ResourceGroup)
 
@@ -1200,7 +1222,72 @@ func (gcp *GCP) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	}, nil
 }
 
+func getGCPPricingRate(product *GCPPricing) (float64, error) {
+	if len(product.PricingInfo) == 0 || product.PricingInfo[0].PricingExpression == nil {
+		return 0.0, fmt.Errorf("no pricing expression")
+	}
+	pe := product.PricingInfo[0].PricingExpression
+	lastRateIndex := len(pe.TieredRates) - 1
+	if lastRateIndex < 0 {
+		return 0.0, fmt.Errorf("no rates found")
+	}
+	rate := pe.TieredRates[lastRateIndex]
+	nanos := float64(rate.UnitPrice.Nanos)
+	units, err := strconv.ParseFloat(rate.UnitPrice.Units, 64)
+	if err != nil {
+		units = 0
+	}
+	price := units + nanos*math.Pow10(-9)
+	// If the unit is month or similar, convert it to hourly rate
+	if strings.Contains(strings.ToLower(pe.UsageUnit), "month") || strings.Contains(strings.ToLower(pe.UsageUnitDescription), "month") {
+		price = price / 730.0
+	}
+	return price, nil
+}
+
 func (gcp *GCP) LoadBalancerPricing(key models.LBKey) (*models.LoadBalancer, error) {
+	if key != nil {
+		features := strings.ToLower(key.Features())
+		id := strings.ToLower(key.ID())
+
+		var lbType string
+		if strings.Contains(features, "external-http") || strings.Contains(features, "external") || (strings.Contains(features, "http") && !strings.Contains(features, "internal")) ||
+			strings.Contains(id, "external-http") || strings.Contains(id, "external") || (strings.Contains(id, "http") && !strings.Contains(id, "internal")) {
+			lbType = "external-http"
+		} else if strings.Contains(features, "internal-http") || (strings.Contains(features, "internal") && strings.Contains(features, "http")) ||
+			strings.Contains(id, "internal-http") || (strings.Contains(id, "internal") && strings.Contains(id, "http")) {
+			lbType = "internal-http"
+		} else if strings.Contains(features, "network") || strings.Contains(features, "tcp") ||
+			strings.Contains(id, "network") || strings.Contains(id, "tcp") {
+			lbType = "network-tcp"
+		} else if strings.Contains(features, "ssl") || strings.Contains(features, "proxy") ||
+			strings.Contains(id, "ssl") || strings.Contains(id, "proxy") {
+			lbType = "ssl-proxy"
+		}
+
+		if lbType != "" {
+			region := gcp.ClusterRegion
+			if region == "" {
+				region = "us-central1"
+			}
+			cacheKey := region + ",ForwardingRule:" + lbType
+
+			gcp.DownloadPricingDataLock.RLock()
+			product, ok := gcp.Pricing[cacheKey]
+			gcp.DownloadPricingDataLock.RUnlock()
+
+			if ok {
+				price, err := getGCPPricingRate(product)
+				if err == nil {
+					return &models.LoadBalancer{
+						Cost: price,
+					}, nil
+				}
+			}
+		}
+	}
+
+	// Fallback to standard defaults
 	fffrc := 0.025
 	afrc := 0.010
 	lbidc := 0.008

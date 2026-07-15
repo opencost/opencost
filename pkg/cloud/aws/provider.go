@@ -1147,10 +1147,8 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					skusToKeys[product.Sku] = key
 					aws.ValidPricingKeys[key] = true
 					aws.ValidPricingKeys[spotKey] = true
-				} else if strings.Contains(product.Attributes.UsageType, "LoadBalancerUsage") && product.Attributes.Operation == "LoadBalancing:Network" {
-					// since the costmodel is only using services of type LoadBalancer
-					// (and not ingresses controlled by AWS load balancer controller)
-					// we can safely filter for Network load balancers only
+				} else if strings.Contains(product.Attributes.UsageType, "LoadBalancerUsage") {
+					// Parse different types of load balancers when available.
 					productTerms := &AWSProductTerms{
 						Sku:          product.Sku,
 						LoadBalancer: &models.LoadBalancer{},
@@ -1160,6 +1158,22 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					aws.Pricing[key] = productTerms
 					skusToKeys[product.Sku] = key
 					aws.ValidPricingKeys[key] = true
+
+					var specKey string
+					switch product.Attributes.Operation {
+					case "LoadBalancing:Network":
+						specKey = product.Attributes.RegionCode + ",LoadBalancerUsage:Network"
+					case "LoadBalancing:Application":
+						specKey = product.Attributes.RegionCode + ",LoadBalancerUsage:Application"
+					case "LoadBalancing":
+						specKey = product.Attributes.RegionCode + ",LoadBalancerUsage:Classic"
+					}
+
+					if specKey != "" {
+						aws.Pricing[specKey] = productTerms
+						skusToKeys[product.Sku] = specKey
+						aws.ValidPricingKeys[specKey] = true
+					}
 				}
 			}
 		}
@@ -1399,13 +1413,36 @@ func (aws *AWS) NetworkPricing(netKey models.NetworkKey) (*models.Network, error
 }
 
 func (aws *AWS) LoadBalancerPricing(lbKey models.LBKey) (*models.LoadBalancer, error) {
-	// TODO: use lbKey to select a more specific pricing entry when available.
+	hourlyCost := 0.025 // set default price
 
+	if lbKey != nil {
+		features := strings.ToLower(lbKey.Features())
+		id := strings.ToLower(lbKey.ID())
+
+		var specKey string
+		if strings.Contains(features, "nlb") || strings.Contains(features, "network") ||
+			strings.Contains(id, "nlb") || strings.Contains(id, "network") {
+			specKey = aws.ClusterRegion + ",LoadBalancerUsage:Network"
+		} else if strings.Contains(features, "alb") || strings.Contains(features, "application") ||
+			strings.Contains(id, "alb") || strings.Contains(id, "application") {
+			specKey = aws.ClusterRegion + ",LoadBalancerUsage:Application"
+		} else if strings.Contains(features, "clb") || strings.Contains(features, "classic") ||
+			strings.Contains(id, "clb") || strings.Contains(id, "classic") {
+			specKey = aws.ClusterRegion + ",LoadBalancerUsage:Classic"
+		}
+
+		if specKey != "" {
+			if terms, ok := aws.Pricing[specKey]; ok {
+				hourlyCost = terms.LoadBalancer.Cost
+				return &models.LoadBalancer{
+					Cost: hourlyCost,
+				}, nil
+			}
+		}
+	}
+
+	// Fallback to standard generic LoadBalancerUsage key
 	key := aws.ClusterRegion + ",LoadBalancerUsage"
-
-	// set default price
-	hourlyCost := 0.025
-	// use price index when available
 	if terms, ok := aws.Pricing[key]; ok {
 		hourlyCost = terms.LoadBalancer.Cost
 	}

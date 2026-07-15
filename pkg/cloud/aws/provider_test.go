@@ -298,6 +298,7 @@ func Test_populate_pricing(t *testing.T) {
 		"us-east-2,m5.large,linux":                  expectedProdTermsInstanceOndemand,
 		"us-east-2,m5.large,linux,preemptible":      expectedProdTermsInstanceSpot,
 		"us-east-2,LoadBalancerUsage":               expectedProdTermsLoadbalancer,
+		"us-east-2,LoadBalancerUsage:Network":       expectedProdTermsLoadbalancer,
 	}
 
 	if !reflect.DeepEqual(expectedPricing, awsTest.Pricing) {
@@ -1294,4 +1295,76 @@ func TestAWS_PricingSourceStatus_spotPriceHistory(t *testing.T) {
 			t.Error("Expected Available=true when cache initialized")
 		}
 	})
+}
+
+func TestAWS_LoadBalancerPricing(t *testing.T) {
+	aws := &AWS{
+		ClusterRegion: "us-east-2",
+		Pricing: map[string]*AWSProductTerms{
+			"us-east-2,LoadBalancerUsage": &AWSProductTerms{
+				LoadBalancer: &models.LoadBalancer{Cost: 0.0225},
+			},
+			"us-east-2,LoadBalancerUsage:Network": &AWSProductTerms{
+				LoadBalancer: &models.LoadBalancer{Cost: 0.0225},
+			},
+			"us-east-2,LoadBalancerUsage:Application": &AWSProductTerms{
+				LoadBalancer: &models.LoadBalancer{Cost: 0.0252},
+			},
+			"us-east-2,LoadBalancerUsage:Classic": &AWSProductTerms{
+				LoadBalancer: &models.LoadBalancer{Cost: 0.0280},
+			},
+		},
+	}
+
+	cases := []struct {
+		name         string
+		key          models.LBKey
+		expectedCost float64
+	}{
+		{
+			name:         "Nil key defaults to LoadBalancerUsage fallback",
+			key:          nil,
+			expectedCost: 0.0225,
+		},
+		{
+			name: "NLB by feature name",
+			key: &models.CustomLBKey{
+				LBFeatures: "nlb-service",
+			},
+			expectedCost: 0.0225,
+		},
+		{
+			name: "ALB by ID",
+			key: &models.CustomLBKey{
+				LBID: "aws-loadbalancer-alb-1234",
+			},
+			expectedCost: 0.0252,
+		},
+		{
+			name: "Classic LB by features",
+			key: &models.CustomLBKey{
+				LBFeatures: "classic-lb",
+			},
+			expectedCost: 0.0280,
+		},
+		{
+			name: "Unknown key defaults to generic LoadBalancerUsage",
+			key: &models.CustomLBKey{
+				LBFeatures: "some-unknown-type",
+			},
+			expectedCost: 0.0225,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			lb, err := aws.LoadBalancerPricing(tc.key)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if lb.Cost != tc.expectedCost {
+				t.Errorf("expected cost %f, got %f", tc.expectedCost, lb.Cost)
+			}
+		})
+	}
 }
