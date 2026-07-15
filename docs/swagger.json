@@ -78,6 +78,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid parameters (e.g. `window`, `aggregate`, `step`, `accumulate`)"
+          },
+          "500": {
+            "description": "Internal server error — the allocation query failed"
           }
         }
       }
@@ -106,6 +112,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid `window` parameter"
+          },
+          "500": {
+            "description": "Internal server error — computing or filtering assets failed"
           }
         }
       }
@@ -134,6 +146,15 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid parameters"
+          },
+          "500": {
+            "description": "Internal server error — the cloud cost query failed"
+          },
+          "501": {
+            "description": "Cloud cost query service is not available. Note: when `CLOUD_COST_ENABLED` is not set to `true` this route is not registered at all and requests return 404."
           }
         }
       }
@@ -214,6 +235,9 @@
           },
           "400": {
             "description": "Bad request — missing or invalid parameters"
+          },
+          "500": {
+            "description": "Internal server error — the inference cost query failed"
           },
           "501": {
             "description": "Inference cost tracking is not enabled (`INFERENCE_COST_ENABLED` is not set to `true`)"
@@ -296,6 +320,9 @@
           "400": {
             "description": "Bad request — missing or invalid parameters (including missing `accumulate`)"
           },
+          "500": {
+            "description": "Internal server error — the inference cost query failed"
+          },
           "501": {
             "description": "Inference cost tracking is not enabled (`INFERENCE_COST_ENABLED` is not set to `true`)"
           }
@@ -362,17 +389,7 @@
             "type": "number"
           },
           "window": {
-            "type": "object",
-            "properties": {
-              "start": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "end": {
-                "type": "string",
-                "format": "date-time"
-              }
-            }
+            "$ref": "#/components/schemas/Window"
           },
           "properties": {
             "type": "object",
@@ -418,17 +435,7 @@
             "type": "string"
           },
           "window": {
-            "type": "object",
-            "properties": {
-              "start": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "end": {
-                "type": "string",
-                "format": "date-time"
-              }
-            }
+            "$ref": "#/components/schemas/Window"
           }
         }
       },
