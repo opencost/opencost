@@ -78,6 +78,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid parameters (e.g. `window`, `step`, `accumulateBy`)"
+          },
+          "500": {
+            "description": "Internal server error — the allocation query failed"
           }
         }
       }
@@ -106,6 +112,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid `window` parameter"
+          },
+          "500": {
+            "description": "Internal server error — computing or filtering assets failed"
           }
         }
       }
@@ -113,7 +125,7 @@
     "/cloudCost": {
       "get": {
         "summary": "query for cloud provider billing data",
-        "description": "Retrieves non-K8s cloud provider costs via cloud integration.",
+        "description": "Retrieves non-K8s cloud provider costs via cloud integration. Requires `CLOUD_COST_ENABLED=true`; when disabled this route is not registered and requests return 404.",
         "parameters": [
           {
             "name": "window",
@@ -134,6 +146,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid parameters"
+          },
+          "500": {
+            "description": "Internal server error — the cloud cost query failed"
           }
         }
       }
@@ -214,6 +232,9 @@
           },
           "400": {
             "description": "Bad request — missing or invalid parameters"
+          },
+          "500": {
+            "description": "Internal server error — the inference cost query failed"
           },
           "501": {
             "description": "Inference cost tracking is not enabled (`INFERENCE_COST_ENABLED` is not set to `true`)"
@@ -296,6 +317,9 @@
           "400": {
             "description": "Bad request — missing or invalid parameters (including missing `accumulate`)"
           },
+          "500": {
+            "description": "Internal server error — the inference cost query failed"
+          },
           "501": {
             "description": "Inference cost tracking is not enabled (`INFERENCE_COST_ENABLED` is not set to `true`)"
           }
@@ -362,17 +386,7 @@
             "type": "number"
           },
           "window": {
-            "type": "object",
-            "properties": {
-              "start": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "end": {
-                "type": "string",
-                "format": "date-time"
-              }
-            }
+            "$ref": "#/components/schemas/Window"
           },
           "properties": {
             "type": "object",
@@ -418,17 +432,7 @@
             "type": "string"
           },
           "window": {
-            "type": "object",
-            "properties": {
-              "start": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "end": {
-                "type": "string",
-                "format": "date-time"
-              }
-            }
+            "$ref": "#/components/schemas/Window"
           }
         }
       },
