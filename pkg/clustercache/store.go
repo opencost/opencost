@@ -20,6 +20,7 @@ type GenericStore[Input UIDGetter, Output any] struct {
 	// storing this cyclic reflector allows us to defer watching
 	reflector *cache.Reflector
 	onInit    func()
+	isWatching bool
 }
 
 // NewGenericStore creates a new instance of GenericStore.
@@ -49,6 +50,11 @@ func CreateStore[Input UIDGetter, Output any](
 
 func (s *GenericStore[Input, Output]) Watch(stopCh <-chan struct{}, onInit func()) {
 	s.mutex.Lock()
+	if s.isWatching {
+		s.mutex.Unlock()
+		return
+	}
+	s.isWatching = true
 	s.onInit = onInit
 	s.mutex.Unlock()
 
@@ -97,17 +103,19 @@ func (s *GenericStore[Input, Output]) GetAll() []Output {
 
 // Replace replaces the current list of items in the store.
 func (s *GenericStore[Input, Output]) Replace(list []any, _ string) error {
+	newItems := make(map[types.UID]Output, len(list))
+	for _, o := range list {
+		item := o.(Input)
+		newItems[item.GetUID()] = s.transformFunc(item)
+	}
+
 	var onInit func()
 	
 	func() {
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
 		
-		s.items = make(map[types.UID]Output, len(list))
-		for _, o := range list {
-			item := o.(Input)
-			s.items[item.GetUID()] = s.transformFunc(item)
-		}
+		s.items = newItems
 		
 		// Capture onInit under the lock to avoid a data race with Watch(),
 		// but call it after releasing the lock to prevent potential deadlocks.
