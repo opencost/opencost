@@ -44,7 +44,7 @@ func (cms *ConfigMapSource) ExtractNodeLabels(data map[string]string) (map[strin
 
 	labels, err := parseIt(raw, route)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing the yaml: %s", err)
+		return nil, fmt.Errorf("error parsing the yaml: %w", err)
 	}
 
 	return labels, nil
