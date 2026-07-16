@@ -328,3 +328,97 @@ labels:
 	require.Error(t, err)
 	assert.Nil(t, res)
 }
+
+// --- filterValidLabels ---
+
+func TestFilterValidLabels_AllValid_ReturnedUnchanged(t *testing.T) {
+	in := map[string]string{
+		"env":                     "prod",
+		"region":                  "us-east-1",
+		"app.kubernetes.io/name":  "opencost",
+		"my-key":                  "my-value",
+		"a":                       "b",
+	}
+	out := filterValidLabels(in)
+	assert.Equal(t, in, out)
+}
+
+func TestFilterValidLabels_EmptyInput_ReturnsEmptyMap(t *testing.T) {
+	out := filterValidLabels(map[string]string{})
+	assert.NotNil(t, out)
+	assert.Empty(t, out)
+}
+
+func TestFilterValidLabels_InvalidKey_EntryDropped(t *testing.T) {
+	in := map[string]string{
+		"valid-key":  "value",
+		"":           "empty-key-dropped",
+		"-bad-start": "dropped",
+	}
+	out := filterValidLabels(in)
+	assert.Equal(t, map[string]string{"valid-key": "value"}, out)
+}
+
+func TestFilterValidLabels_InvalidValue_EntryDropped(t *testing.T) {
+	in := map[string]string{
+		"good-key":  "good-value",
+		"bad-value": "-starts-with-dash",
+	}
+	out := filterValidLabels(in)
+	assert.Equal(t, map[string]string{"good-key": "good-value"}, out)
+}
+
+func TestFilterValidLabels_ValueTooLong_EntryDropped(t *testing.T) {
+	longValue := string(make([]byte, 64))
+	for i := range longValue {
+		longValue = longValue[:i] + "a" + longValue[i+1:]
+	}
+	in := map[string]string{
+		"ok":      "fine",
+		"toolong": longValue,
+	}
+	out := filterValidLabels(in)
+	assert.Equal(t, map[string]string{"ok": "fine"}, out)
+}
+
+func TestFilterValidLabels_KeyTooLong_EntryDropped(t *testing.T) {
+	longKey := string(make([]byte, 64))
+	for i := range longKey {
+		longKey = longKey[:i] + "a" + longKey[i+1:]
+	}
+	in := map[string]string{
+		"ok":    "fine",
+		longKey: "value",
+	}
+	out := filterValidLabels(in)
+	assert.Equal(t, map[string]string{"ok": "fine"}, out)
+}
+
+func TestFilterValidLabels_PrefixedKey_Valid(t *testing.T) {
+	in := map[string]string{
+		"app.kubernetes.io/name":      "opencost",
+		"example.com/env":             "staging",
+	}
+	out := filterValidLabels(in)
+	assert.Equal(t, in, out)
+}
+
+func TestFilterValidLabels_PrefixedKey_InvalidPrefix_EntryDropped(t *testing.T) {
+	in := map[string]string{
+		"valid":          "kept",
+		"-bad.prefix/k": "dropped",
+	}
+	out := filterValidLabels(in)
+	assert.Equal(t, map[string]string{"valid": "kept"}, out)
+}
+
+func TestFilterValidLabels_MixedValidAndInvalid_OnlyValidReturned(t *testing.T) {
+	in := map[string]string{
+		"cluster":    "prod",
+		"":           "no-key",
+		"bad-value":  "-oops",
+		"region":     "eu-west-1",
+	}
+	out := filterValidLabels(in)
+	assert.Equal(t, map[string]string{"cluster": "prod", "region": "eu-west-1"}, out)
+}
