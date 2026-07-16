@@ -243,7 +243,7 @@ labels:
 	assert.Contains(t, err.Error(), `unmarshal !!map into string`)
 }
 
-func TestConfigMapSource_BlockScalar_NullValuesRejected(t *testing.T) {
+func TestConfigMapSource_BlockScalar_NullValues(t *testing.T) {
 	tests := []struct {
 		name      string
 		nullValue string
@@ -298,7 +298,6 @@ labels:
 		"config.yaml": yamlData,
 	})
 
-	t.Logf("res: %v", res)
 	require.NoError(t, err)
 	assert.Equal(t, "production", res["environment"])
 }

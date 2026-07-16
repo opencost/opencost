@@ -111,6 +111,15 @@ func parseIt(yamlData string, routeStr string) (map[string]string, error) {
 	if len(routes) == 0 {
 		return parseNormally(input)
 	}
+
+	// when there are empty segments error out
+	// Eg: external..labels
+	for _, r := range routes {
+		if r == "" {
+			return nil, fmt.Errorf("invalid route %q: empty segment found", routeStr)
+		}
+	}
+
 	// parse with routes
 	return parseRoute(input, routes)
 

@@ -2,7 +2,6 @@ package maputil
 
 import (
 	"iter"
-	"maps"
 )
 
 // Map applies a transformation function to each value within a map to get a new map containing the
@@ -39,18 +38,4 @@ func FlatMap[Map ~map[T]Inner, Inner ~map[T]U, T comparable, U any, V any](m Map
 			}
 		}
 	}
-}
-
-// Merge accepts two compatible maps and merges them into a single new map instance.
-func Merge[M1 ~map[K]V, M2 ~map[K]V, K comparable, V any](m1 M1, m2 M2) map[K]V {
-	size := len(m1) + len(m2)
-	if size == 0 {
-		return map[K]V{}
-	}
-
-	result := make(map[K]V, size)
-	maps.Copy(result, m1)
-	// keys in m2 overwrite keys from m1
-	maps.Copy(result, m2)
-	return result
 }

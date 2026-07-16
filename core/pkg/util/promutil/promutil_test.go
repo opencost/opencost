@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/stretchr/testify/assert"
 )
 
 func checkSlice(s1, s2 []string) error {
@@ -226,4 +227,124 @@ func TestClusterInfoLabels(t *testing.T) {
 			return
 		}
 	}
+}
+
+func TestPrependQualifierAndMerge(t *testing.T) {
+	m := map[string]string{
+		"a-a":     "A",
+		"b-b.c.d": "B",
+		"cfg-c":   "C",
+	}
+
+	exLabels := map[string]string{
+		"node-type":  "m1.large",
+		"cluster.id": "cluster-a",
+		"some-value": "524.2",
+	}
+
+	expected := map[string]string{
+		"label_a_a":        "A",
+		"label_b_b_c_d":    "B",
+		"label_cfg_c":      "C",
+		"label_cluster_id": "cluster-a",
+		"label_node_type":  "m1.large",
+		"label_some_value": "524.2",
+	}
+
+	result := KubePrependQualifierToLabelsAndMerge(m, exLabels, "label_")
+	for k, v := range expected {
+		val, ok := result[k]
+		if !ok {
+			t.Fatalf("Expected key: %s in result map, but was not found.", k)
+		}
+		if val != v {
+			t.Fatalf("Expected value: %s for key: %s in result map. Got: %s", v, k, val)
+		}
+	}
+}
+
+func TestPrependQualifierToMap(t *testing.T) {
+	m := map[string]string{
+		"a-a":     "A",
+		"b-b.c.d": "B",
+		"cfg-c":   "C",
+	}
+
+	expected := map[string]string{
+		"label_a_a":     "A",
+		"label_b_b_c_d": "B",
+		"label_cfg_c":   "C",
+	}
+
+	result := KubePrependQualifierToLabelsMap(m, "label_")
+	for k, v := range expected {
+		val, ok := result[k]
+		if !ok {
+			t.Fatalf("Expected key: %s in result map, but was not found.", k)
+		}
+		if val != v {
+			t.Fatalf("Expected value: %s for key: %s in result map. Got: %s", v, k, val)
+		}
+	}
+}
+
+func TestPrependQualifierAndMerge_ExternalAddedToBase(t *testing.T) {
+	base := map[string]string{"node": "worker-1"}
+	external := map[string]string{"region": "us-east-1"}
+
+	got := KubePrependQualifierToLabelsAndMerge(base, external, "label_")
+
+	assert.Equal(t, map[string]string{"label_node": "worker-1", "label_region": "us-east-1"}, got)
+}
+
+func TestMerge_BaseWinsOnConflict(t *testing.T) {
+	base := map[string]string{"region": "from-node"}
+	external := map[string]string{"region": "from-configmap"}
+
+	got := KubePrependQualifierToLabelsAndMerge(external, base, "label_")
+
+	assert.Equal(t, "from-node", got["label_region"])
+}
+
+func TestMerge_EmptyExternal(t *testing.T) {
+	base := map[string]string{"node": "worker-1"}
+	baseWithLabelPrefix := map[string]string{"label_node": "worker-1"}
+	got := KubePrependQualifierToLabelsAndMerge(map[string]string{}, base, "label_")
+
+	assert.Equal(t, baseWithLabelPrefix, got)
+}
+
+func TestMerge_NilExternal(t *testing.T) {
+	base := map[string]string{"node": "worker-1"}
+	baseWithLabelPrefix := map[string]string{"label_node": "worker-1"}
+	var external map[string]string
+	got := KubePrependQualifierToLabelsAndMerge(external, base, "label_")
+
+	assert.Equal(t, baseWithLabelPrefix, got)
+}
+
+func TestMerge_EmptyBase(t *testing.T) {
+	external := map[string]string{"region": "us-east-1"}
+	externalWithLabelPrefix := map[string]string{"label_region": "us-east-1"}
+	got := KubePrependQualifierToLabelsAndMerge(external, map[string]string{}, "label_")
+
+	assert.Equal(t, externalWithLabelPrefix, got)
+}
+
+func TestMerge_BothEmpty(t *testing.T) {
+	got := KubePrependQualifierToLabelsAndMerge(map[string]string{}, map[string]string{}, "label_")
+
+	assert.Empty(t, got)
+}
+
+// TestKubePrependQualifierToLabelsAndMerge proves the original base map is not modified.
+// A naive implementation using `out := base` copies the map header only,
+// so writes to out also mutate the caller's map.
+func TestMerge_DoesNotMutateBase(t *testing.T) {
+	base := map[string]string{"node": "worker-1"}
+	external := map[string]string{"region": "us-east-1"}
+
+	_ = KubePrependQualifierToLabelsAndMerge(external, base, "label_")
+
+	assert.Equal(t, map[string]string{"node": "worker-1"}, base, "Merge must not mutate the base map")
 }
