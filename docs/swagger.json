@@ -80,7 +80,7 @@
             }
           },
           "400": {
-            "description": "Bad request — missing or invalid parameters (e.g. `window`, `aggregate`, `step`, `accumulate`)"
+            "description": "Bad request — missing or invalid parameters (e.g. `window`, `step`, `accumulateBy`)"
           },
           "500": {
             "description": "Internal server error — the allocation query failed"
@@ -125,7 +125,7 @@
     "/cloudCost": {
       "get": {
         "summary": "query for cloud provider billing data",
-        "description": "Retrieves non-K8s cloud provider costs via cloud integration.",
+        "description": "Retrieves non-K8s cloud provider costs via cloud integration. Requires `CLOUD_COST_ENABLED=true`; when disabled this route is not registered and requests return 404.",
         "parameters": [
           {
             "name": "window",
@@ -152,9 +152,6 @@
           },
           "500": {
             "description": "Internal server error — the cloud cost query failed"
-          },
-          "501": {
-            "description": "Cloud cost query service is not available. Note: when `CLOUD_COST_ENABLED` is not set to `true` this route is not registered at all and requests return 404."
           }
         }
       }
