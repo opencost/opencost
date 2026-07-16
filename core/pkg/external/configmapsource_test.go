@@ -282,7 +282,7 @@ labels:
 	}
 }
 
-func TestConfigMapSource_BlockScalar_AliasValueRejected(t *testing.T) {
+func TestConfigMapSource_BlockScalar_AliasValue(t *testing.T) {
 	nlCfg := NewNodeLabelConfig("my-cm", "", "config.yaml", "labels")
 	cfg := NewConfig(nlCfg)
 	s := newSource(cfg)

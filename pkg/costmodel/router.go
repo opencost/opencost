@@ -485,40 +485,6 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 
 		return ds, e
 	}
-	if env.IsCollectorDataSourceEnabled() {
-		fn = func() (source.OpenCostDataSource, error) {
-			nodeStatConf, err := NewNodeClientConfigFromEnv()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get node client config: %w", err)
-			}
-			clusterConfig, err := kubeconfig.LoadKubeconfig("")
-			if err != nil {
-				return nil, fmt.Errorf("failed to load kube config: %w", err)
-			}
-			nodeStatClient := nodestats.NewNodeStatsSummaryClient(k8sCache, nodeStatConf, clusterConfig)
-			ds := collector.NewDefaultCollectorDataSource(
-				clusterUID,
-				store,
-				clusterInfoProvider,
-				k8sCache,
-				nodeStatClient,
-				nil,
-			)
-			return ds, nil
-		}
-	}
-
-	dataSource, _ := retry.Retry(
-		ctx,
-		fn,
-		maxRetries,
-		retryInterval,
-	)
-
-	if fatalErr != nil {
-		log.Fatalf("Failed to create Prometheus data source: %s", fatalErr)
-		panic(fatalErr)
-	}
 
 	// Append the pricing config watcher
 	installNamespace := env.GetOpencostNamespace()
@@ -530,10 +496,10 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	// Assign external label provider spec to opencost
 	var elProvider external.LabelProvider
 	var cfg *external.Config
-	externalnodeLabelsCM := env.GetExternalNodeLabelsConfigMapName()
-	if externalnodeLabelsCM != "" {
+	externalNodeLabelsCM := env.GetExternalNodeLabelsConfigMapName()
+	if externalNodeLabelsCM != "" {
 		nodeLabelsCfg := external.NewNodeLabelConfig(
-			externalnodeLabelsCM,
+			externalNodeLabelsCM,
 			env.GetExternalNodeLabelsNamespace(),
 			env.GetExternalNodeLabelsKey(),
 			env.GetExternalNodeLabelsRoute(),
@@ -561,6 +527,41 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	}
 
 	configWatchers.Watch()
+
+	if env.IsCollectorDataSourceEnabled() {
+		fn = func() (source.OpenCostDataSource, error) {
+			nodeStatConf, err := NewNodeClientConfigFromEnv()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get node client config: %w", err)
+			}
+			clusterConfig, err := kubeconfig.LoadKubeconfig("")
+			if err != nil {
+				return nil, fmt.Errorf("failed to load kube config: %w", err)
+			}
+			nodeStatClient := nodestats.NewNodeStatsSummaryClient(k8sCache, nodeStatConf, clusterConfig)
+			ds := collector.NewDefaultCollectorDataSource(
+				clusterUID,
+				store,
+				clusterInfoProvider,
+				k8sCache,
+				nodeStatClient,
+				elProvider,
+			)
+			return ds, nil
+		}
+	}
+
+	dataSource, _ := retry.Retry(
+		ctx,
+		fn,
+		maxRetries,
+		retryInterval,
+	)
+
+	if fatalErr != nil {
+		log.Fatalf("Failed to create Prometheus data source: %s", fatalErr)
+		panic(fatalErr)
+	}
 
 	clusterMap := dataSource.ClusterMap()
 	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)

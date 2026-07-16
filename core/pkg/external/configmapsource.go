@@ -98,15 +98,20 @@ func parseIt(yamlData string, routeStr string) (map[string]string, error) {
 
 	input := []byte(yamlData)
 
-	// split routes to determine if we have to dive into the yaml
-	routes := strings.Split(routeStr, ".")
-
-	// we have nested routes, parse route
-	if len(routes) > 0 {
-		// parse with routes
-		return parseRoute(input, routes)
-	} else {
-		// no routes, just parse yaml as is
+	routeStr = strings.TrimSpace(routeStr)
+	if routeStr == "" {
+		// No route provided; parse the root YAML as the labels map.
 		return parseNormally(input)
 	}
+
+	// Split routes and drop any empty segments (e.g. leading/trailing dots).
+	routes := strings.Split(routeStr, ".")
+
+	// no routes, just parse yaml as is
+	if len(routes) == 0 {
+		return parseNormally(input)
+	}
+	// parse with routes
+	return parseRoute(input, routes)
+
 }
