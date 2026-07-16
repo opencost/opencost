@@ -42,7 +42,7 @@ func (cms *ConfigMapSource) ExtractNodeLabels(data map[string]string) (map[strin
 		return nil, fmt.Errorf("key %q not found in ConfigMap %s", key, cm)
 	}
 
-	labels, err := parseIt(raw, route)
+	labels, err := parse(raw, route)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing the yaml: %w", err)
 	}
@@ -93,7 +93,7 @@ func parseRoute(input []byte, routes []string) (map[string]string, error) {
 	return parseNormally(targetBytes)
 }
 
-func parseIt(yamlData string, routeStr string) (map[string]string, error) {
+func parse(yamlData string, routeStr string) (map[string]string, error) {
 	// do all the validation stuff ...
 
 	input := []byte(yamlData)
