@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/external"
 	"github.com/opencost/opencost/core/pkg/kubeconfig"
 	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/protocol"
@@ -525,6 +526,40 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	configWatchers := watcher.NewConfigMapWatchers(kubeClientset, installNamespace, additionalConfigWatchers...)
 	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
 	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
+
+	// Assign external label provider spec to opencost
+	var elProvider external.LabelProvider
+	var cfg *external.Config
+	externalnodeLabelsCM := env.GetExternalNodeLabelsConfigMapName()
+	if externalnodeLabelsCM != "" {
+		nodeLabelsCfg := external.NewNodeLabelConfig(
+			externalnodeLabelsCM,
+			env.GetExternalNodeLabelsNamespace(),
+			env.GetExternalNodeLabelsKey(),
+			env.GetExternalNodeLabelsRoute(),
+		)
+		cfg = external.NewConfig(nodeLabelsCfg)
+	}
+
+	if cfg != nil {
+		elProvider = external.NewNodeLabelProvider()
+		elSource, err := external.NewLabelSource(cfg)
+		if err != nil {
+			log.Errorf("Failed to create an external Source: %s", err)
+		}
+
+		nlCfg := cfg.NodeLabelConfig()
+		elNamespace := nlCfg.Namespace()
+		// If configmap is in the same namespace as the finops agent we can just use the same configmap watcher.
+		if elNamespace == "" {
+			configWatchers.Add(nlCfg.ConfigMapName(), external.WatchFunc(elSource, elProvider))
+		} else {
+			elWatchers := watcher.NewConfigMapWatchers(kubeClientset, elNamespace)
+			elWatchers.Add(nlCfg.ConfigMapName(), external.WatchFunc(elSource, elProvider))
+			elWatchers.Watch()
+		}
+	}
+
 	configWatchers.Watch()
 
 	clusterMap := dataSource.ClusterMap()
