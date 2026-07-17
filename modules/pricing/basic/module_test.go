@@ -2,11 +2,12 @@ package basic
 
 import (
 	"context"
+	"errors"
+	"io"
 	"os"
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/pricing"
-	"github.com/opencost/opencost/core/pkg/reader"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/unit"
 	"github.com/stretchr/testify/require"
@@ -397,7 +398,7 @@ func testNewNodePricingReader(t *testing.T, ctx context.Context, pm *PricingModu
 			}
 		}
 
-		if err == reader.Done {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -442,7 +443,7 @@ func testNewVolumePricingReader(t *testing.T, ctx context.Context, pm *PricingMo
 			}
 		}
 
-		if err == reader.Done {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -619,7 +620,7 @@ func testNewClusterPricingReader(t *testing.T, ctx context.Context, pm *PricingM
 		for i := 0; i < n; i++ {
 			require.NotNil(t, dst[i], "expected non-nil ClusterPricing")
 		}
-		if err == reader.Done {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)
@@ -643,7 +644,7 @@ func testNewNetworkPricingReader(t *testing.T, ctx context.Context, pm *PricingM
 		for i := 0; i < n; i++ {
 			require.NotNil(t, dst[i], "expected non-nil NetworkPricing")
 		}
-		if err == reader.Done {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)
@@ -667,7 +668,7 @@ func testNewServicePricingReader(t *testing.T, ctx context.Context, pm *PricingM
 		for i := 0; i < n; i++ {
 			require.NotNil(t, dst[i], "expected non-nil ServicePricing")
 		}
-		if err == reader.Done {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)

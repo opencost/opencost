@@ -2,43 +2,14 @@ package reader
 
 import (
 	"context"
-	"errors"
 )
 
+// Reader is a generic, io.Reader-style streaming interface. Read fills dst with
+// up to len(dst) items and returns the number read. When the stream is
+// exhausted it returns io.EOF, which may accompany a non-zero count on the
+// final read; callers must always process the returned items before honoring
+// the error.
 type Reader[T any] interface {
 	Read(ctx context.Context, dst []T) (int, error)
 	Close() error
-}
-
-var Done = errors.New("Done")
-
-type SliceReader[T any] struct {
-	items []T
-	pos   int
-}
-
-func NewSliceReader[T any](items []T) *SliceReader[T] {
-	return &SliceReader[T]{
-		items: items,
-		pos:   0,
-	}
-}
-
-func (r *SliceReader[T]) Read(ctx context.Context, dst []T) (int, error) {
-	if err := ctx.Err(); err != nil {
-		return 0, err
-	}
-
-	if r.pos >= len(r.items) {
-		return 0, Done
-	}
-
-	n := copy(dst, r.items[r.pos:])
-	r.pos += n
-
-	return n, nil
-}
-
-func (r *SliceReader[T]) Close() error {
-	return nil
 }
