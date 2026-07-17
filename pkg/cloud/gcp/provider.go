@@ -1227,15 +1227,33 @@ func getGCPPricingRate(product *GCPPricing) (float64, error) {
 		return 0.0, fmt.Errorf("no pricing expression")
 	}
 	pe := product.PricingInfo[0].PricingExpression
-	lastRateIndex := len(pe.TieredRates) - 1
-	if lastRateIndex < 0 {
-		return 0.0, fmt.Errorf("no rates found")
+
+	var rate *TieredRates
+	for _, r := range pe.TieredRates {
+		if r != nil && r.StartUsageAmount == 0 {
+			rate = r
+			break
+		}
 	}
-	rate := pe.TieredRates[lastRateIndex]
+	if rate == nil {
+		for _, r := range pe.TieredRates {
+			if r != nil {
+				rate = r
+				break
+			}
+		}
+	}
+	if rate == nil {
+		return 0.0, fmt.Errorf("no non-nil tiered rates found")
+	}
+	if rate.UnitPrice == nil {
+		return 0.0, fmt.Errorf("tiered rate unit price is nil")
+	}
+
 	nanos := float64(rate.UnitPrice.Nanos)
 	units, err := strconv.ParseFloat(rate.UnitPrice.Units, 64)
 	if err != nil {
-		units = 0
+		return 0.0, fmt.Errorf("failed to parse rate unit price units %q: %w", rate.UnitPrice.Units, err)
 	}
 	price := units + nanos*math.Pow10(-9)
 	// If the unit is month or similar, convert it to hourly rate

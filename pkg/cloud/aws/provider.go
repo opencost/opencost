@@ -1413,6 +1413,9 @@ func (aws *AWS) NetworkPricing(netKey models.NetworkKey) (*models.Network, error
 }
 
 func (aws *AWS) LoadBalancerPricing(lbKey models.LBKey) (*models.LoadBalancer, error) {
+	aws.DownloadPricingDataLock.RLock()
+	defer aws.DownloadPricingDataLock.RUnlock()
+
 	hourlyCost := 0.025 // set default price
 
 	if lbKey != nil {
