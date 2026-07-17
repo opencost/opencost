@@ -1194,10 +1194,6 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					aws.ValidPricingKeys[spotKey] = true
 				} else if strings.Contains(product.Attributes.UsageType, "LoadBalancerUsage") {
 					// Parse different types of load balancers when available.
-				} else if strings.Contains(product.Attributes.UsageType, "LoadBalancerUsage") && product.Attributes.Operation == "LoadBalancing:Network" {
-					// Parse Network Load Balancer pricing
-					// Note: Only NLBs are tracked since costmodel uses LoadBalancer services,
-					// not ingresses controlled by AWS load balancer controller
 					productTerms := &AWSProductTerms{
 						Sku:          product.Sku,
 						LoadBalancer: &models.LoadBalancer{},
@@ -1219,7 +1215,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 
 					if specKey != "" {
 						aws.Pricing[specKey] = productTerms
-						skusToKeys[product.Sku] = specKey
+						skuToPricingKeyMap[product.Sku] = specKey
 						aws.ValidPricingKeys[specKey] = true
 					}
 				}
