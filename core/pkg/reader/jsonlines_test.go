@@ -1,12 +1,20 @@
 package reader
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"math/rand/v2"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 // jsonLinesOf marshals each of vals to its own line, returning a JSONL reader.
@@ -249,4 +257,135 @@ func TestJSONLinesReader_Close(t *testing.T) {
 	if !rc.closed {
 		t.Error("underlying source was not closed")
 	}
+}
+
+// Simple struct with various data types for benchmarking JSONLinesReader
+type benchRecord struct {
+	ID     string            `json:"id"`
+	Name   string            `json:"name"`
+	Value  float64           `json:"value"`
+	Labels map[string]string `json:"labels"`
+}
+
+// writeBenchJSONL writes n JSON-Lines records to path (one value per line).
+func writeBenchJSONL(tb testing.TB, path string, n int) {
+	tb.Helper()
+
+	f, err := os.Create(path)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
+	enc := json.NewEncoder(w) // Encode appends a newline after each value.
+	for i := 0; i < n; i++ {
+		rec := benchRecord{
+			ID:     uuid.NewString(),
+			Name:   fmt.Sprintf("name-%d", i),
+			Value:  rand.Float64(),
+			Labels: map[string]string{"foo": "bar", "baz": "bat"},
+		}
+		if err := enc.Encode(&rec); err != nil {
+			tb.Fatal(err)
+		}
+	}
+	if err := w.Flush(); err != nil {
+		tb.Fatal(err)
+	}
+}
+
+// streamAll reads path in batches of batchSize, discarding every batch (dst is
+// reused, nothing retained), and returns the number of records seen.
+func streamAll(tb testing.TB, path string, batchSize int) int {
+	tb.Helper()
+
+	f, err := os.Open(path)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	r := NewJSONLinesReader[benchRecord](f)
+	dst := make([]benchRecord, batchSize)
+	total := 0
+	for {
+		n, err := r.Read(context.Background(), dst)
+		total += n
+		// Discard: the next Read overwrites dst; no record outlives its batch.
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			tb.Fatal(err)
+		}
+	}
+	if err := r.Close(); err != nil {
+		tb.Fatal(err)
+	}
+	return total
+}
+
+const (
+	benchRecords   = 100_000
+	benchBatchSize = 1_000
+)
+
+// BenchmarkJSONLinesReader measures wall time and allocation churn to stream a
+// 50k-line JSONL file 1000 records at a time. With -benchmem, B/op is the TOTAL
+// bytes allocated per pass (churn, scales with record count) — not resident
+// memory. See BenchmarkJSONLinesReaderResident for the live-heap bound.
+func BenchmarkJSONLinesReader(b *testing.B) {
+	path := filepath.Join(b.TempDir(), "bench.jsonl") // disposable; auto-removed
+	writeBenchJSONL(b, path, benchRecords)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if got := streamAll(b, path, benchBatchSize); got != benchRecords {
+			b.Fatalf("streamed %d records, want %d", got, benchRecords)
+		}
+	}
+}
+
+// BenchmarkJSONLinesReaderResident measures PEAK live heap (HeapInuse) while
+// streaming, which is what the streaming design is meant to bound: it should
+// stay ~flat at one batch's worth of records regardless of file size. Note the
+// per-batch runtime.ReadMemStats sampling perturbs timing, so read ns/op from
+// BenchmarkJSONLinesReader, not this one.
+func BenchmarkJSONLinesReaderResident(b *testing.B) {
+	path := filepath.Join(b.TempDir(), "bench.jsonl")
+	writeBenchJSONL(b, path, benchRecords)
+
+	b.ResetTimer()
+
+	var peakHeapInuse uint64
+	for i := 0; i < b.N; i++ {
+		f, err := os.Open(path)
+		if err != nil {
+			b.Fatal(err)
+		}
+		r := NewJSONLinesReader[benchRecord](f)
+		dst := make([]benchRecord, benchBatchSize)
+		for {
+			n, err := r.Read(context.Background(), dst)
+			_ = n
+
+			var ms runtime.MemStats
+			runtime.ReadMemStats(&ms)
+			if ms.HeapInuse > peakHeapInuse {
+				peakHeapInuse = ms.HeapInuse
+			}
+
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+		r.Close()
+	}
+
+	b.ReportMetric(float64(peakHeapInuse)/1024, "peakHeapKB")
 }
