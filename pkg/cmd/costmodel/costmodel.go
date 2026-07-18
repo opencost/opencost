@@ -21,6 +21,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/version"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/costmodel"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/filemanager"
@@ -47,7 +48,12 @@ func Execute(conf *Config) error {
 
 	if conf.KubernetesEnabled {
 		a = costmodel.Initialize(router)
-		err := StartExportWorker(context.Background(), a.Model)
+		err := StartPricingRefreshWorker(ctx, a.CloudProvider)
+		if err != nil {
+			log.Errorf("couldn't start pricing cache refresh worker: %v", err)
+		}
+
+		err = StartExportWorker(context.Background(), a.Model)
 		if err != nil {
 			log.Errorf("couldn't start CSV export worker: %v", err)
 		}
@@ -222,6 +228,40 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) err
 				// next launch is at 00:10 UTC tomorrow
 				// extra 10 minutes is to let prometheus to collect all the data for the previous day
 				nextRunAt = time.Date(now.Year(), now.Month(), now.Day(), 0, 10, 0, 0, now.Location()).AddDate(0, 0, 1)
+			}
+		}
+	}()
+	return nil
+}
+
+var getPricingRefreshInterval = func() time.Duration {
+	return time.Duration(env.GetPricingRefreshRateHours()) * time.Hour
+}
+
+// StartPricingRefreshWorker starts the background worker for periodically refreshing the cloud provider pricing cache.
+func StartPricingRefreshWorker(ctx context.Context, provider models.Provider) error {
+	interval := getPricingRefreshInterval()
+	if interval <= 0 {
+		log.Infof("Pricing refresh rate is set to <= 0; background refresh worker is disabled")
+		return nil
+	}
+	go func() {
+		log.Infof("Starting pricing cache refresh worker (interval=%v)...", interval)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				log.Info("Pricing cache refresh worker stopping...")
+				return
+			case <-ticker.C:
+				log.Info("Pricing cache refresh worker: refreshing pricing cache...")
+				err := provider.DownloadPricingData()
+				if err != nil {
+					log.Errorf("Pricing cache refresh worker: failed to refresh pricing data: %v", err)
+				} else {
+					log.Info("Pricing cache refresh worker: successfully refreshed pricing data")
+				}
 			}
 		}
 	}()

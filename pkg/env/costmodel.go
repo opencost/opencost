@@ -109,6 +109,9 @@ const (
 	InferenceSharedInfraLabelEnvVar      = "INFERENCE_SHARED_INFRA_LABEL"
 	InferenceSharedInfraLabelValueEnvVar = "INFERENCE_SHARED_INFRA_LABEL_VALUE"
 	InferenceCollectionIntervalEnvVar    = "INFERENCE_COLLECTION_INTERVAL"
+
+	// Pricing Cache Refresh
+	PricingRefreshRateHoursEnvVar = "PRICING_REFRESH_RATE_HOURS"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -452,4 +455,11 @@ func GetInferenceSharedInfraLabelValue() string {
 // Default is 2 minutes to match the core metrics emitter query window.
 func GetInferenceCollectionInterval() time.Duration {
 	return env.GetDuration(InferenceCollectionIntervalEnvVar, 2*time.Minute)
+}
+
+// GetPricingRefreshRateHours returns the environment variable value for PricingRefreshRateHoursEnvVar
+// which represents the frequency (in hours) of the automatic pricing cache refresh worker.
+// Default is 24 hours. Set to 0 or negative to disable.
+func GetPricingRefreshRateHours() int {
+	return env.GetInt(PricingRefreshRateHoursEnvVar, 24)
 }
