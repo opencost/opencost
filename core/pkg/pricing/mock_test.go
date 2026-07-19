@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/model/shared"
@@ -287,17 +288,16 @@ func (ing *mockPricingIngestor) ingestNodePricing(ctx context.Context, pricingRe
 
 		if n > 0 {
 			ing.nodePricing = append(ing.nodePricing, nodeBuf[:n]...)
+			totalCount += n
 		}
 
-		if errors.Is(err, reader.Done) {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 
 		if err != nil {
 			return totalCount, fmt.Errorf("unexpected error reading node pricing: %s", err)
 		}
-
-		totalCount += n
 	}
 
 	return totalCount, nil
@@ -319,17 +319,16 @@ func (ing *mockPricingIngestor) ingestPersistentVolumePricing(ctx context.Contex
 
 		if n > 0 {
 			ing.persistentVolumePricing = append(ing.persistentVolumePricing, volBuf[:n]...)
+			totalCount += n
 		}
 
-		if errors.Is(err, reader.Done) {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 
 		if err != nil {
 			return totalCount, fmt.Errorf("unexpected error reading volume pricing: %s", err)
 		}
-
-		totalCount += n
 	}
 
 	return totalCount, nil

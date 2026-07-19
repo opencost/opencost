@@ -1381,6 +1381,10 @@ func (gcp *GCP) getReservedInstances() ([]*GCPReservedInstance, error) {
 
 	projID := gcp.ProjectID
 	if projID == "" {
+		if gcp.MetadataClient == nil {
+			return nil, fmt.Errorf("metadata client was nil")
+		}
+
 		projID, err = gcp.MetadataClient.ProjectID()
 		if err != nil {
 			return nil, err

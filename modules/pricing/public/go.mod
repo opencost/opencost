@@ -4,9 +4,7 @@ replace github.com/opencost/opencost/core => ../../../core
 
 require github.com/opencost/opencost/core v0.0.0 // return to v1.120.2-0.20260514205745-aa41c03dc67a
 
-require (
-	github.com/spf13/cobra v1.10.2
-)
+require github.com/spf13/cobra v1.10.2
 
 require (
 	cel.dev/expr v0.25.2 // indirect
@@ -115,4 +113,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-go 1.26.3
+go 1.26.4
