@@ -2,10 +2,10 @@ package cny
 
 import (
 	"context"
-	_ "embed"
+	"embed"
 	"fmt"
+	"io"
 
-	"github.com/opencost/opencost/core/pkg/embeddedstorage"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/reader"
 	"github.com/opencost/opencost/core/pkg/unit"
@@ -14,42 +14,54 @@ import (
 // PricingModule must satisfy the pricing.PricingModule interface
 var _ pricing.PricingModule = (*PricingModule)(nil)
 
-//go:embed pricing-data.json
-var embeddedPricingData []byte
+//go:embed *.jsonl
+var embeddedFS embed.FS
 
-type PricingModule struct {
-	store pricing.PricingStore
+type PricingModule struct{}
+
+// NewPricingModule creates a new CNY pricing module backed by embedded JSONL files.
+func NewPricingModule() (*PricingModule, error) {
+	return &PricingModule{}, nil
 }
 
-// NewPricingModule creates a new CNY pricing module that reads from embedded pricing-data.json
-func NewPricingModule() (*PricingModule, error) {
-	ctx := context.Background()
-	
-	// Create an embedded storage that serves the embedded data directly without copying
-	embeddedStorage := embeddedstorage.NewEmbeddedStorage(embeddedPricingData, "pricing-data.json")
-	
-	// Create a pricing store backed by the embedded storage
-	store, err := pricing.NewStoragePricingStore(ctx, embeddedStorage, "pricing-data.json")
+func (pm *PricingModule) newNodeReader() (reader.Reader[*pricing.NodePricing], error) {
+	f, err := embeddedFS.Open("nodes.jsonl")
 	if err != nil {
-		return nil, fmt.Errorf("creating CNY pricing store: %w", err)
+		return nil, fmt.Errorf("opening embedded nodes.jsonl: %w", err)
 	}
+	return reader.NewJSONLinesReader[*pricing.NodePricing](f), nil
+}
 
-	return &PricingModule{
-		store: store,
-	}, nil
+func (pm *PricingModule) newPVReader() (reader.Reader[*pricing.PersistentVolumePricing], error) {
+	f, err := embeddedFS.Open("persistentvolumes.jsonl")
+	if err != nil {
+		return nil, fmt.Errorf("opening embedded persistentvolumes.jsonl: %w", err)
+	}
+	return reader.NewJSONLinesReader[*pricing.PersistentVolumePricing](f), nil
 }
 
 func (pm *PricingModule) GetNodePricing(ctx context.Context, props pricing.NodePricingProperties) (*pricing.NodePricing, error) {
-	ps, err := pm.store.GetPricingSet(ctx)
+	r, err := pm.newNodeReader()
 	if err != nil {
 		return nil, err
 	}
+	defer r.Close()
 
-	for _, np := range ps.NodePricing {
-		if np.Properties.Provider == props.Provider &&
-			np.Properties.InstanceType == props.InstanceType &&
-			np.Properties.Region == props.Region {
-			return np, nil
+	dst := make([]*pricing.NodePricing, 64)
+	for {
+		n, err := r.Read(ctx, dst)
+		for _, np := range dst[:n] {
+			if np.Properties.Provider == props.Provider &&
+				np.Properties.InstanceType == props.InstanceType &&
+				np.Properties.Region == props.Region {
+				return np, nil
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -58,24 +70,31 @@ func (pm *PricingModule) GetNodePricing(ctx context.Context, props pricing.NodeP
 }
 
 func (pm *PricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*pricing.NodePricing], error) {
-	ps, err := pm.store.GetPricingSet(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return reader.NewSliceReader(ps.NodePricing), nil
+	return pm.newNodeReader()
 }
 
 func (pm *PricingModule) GetPersistentVolumePricing(ctx context.Context, props pricing.PersistentVolumePricingProperties) (*pricing.PersistentVolumePricing, error) {
-	ps, err := pm.store.GetPricingSet(ctx)
+	r, err := pm.newPVReader()
 	if err != nil {
 		return nil, err
 	}
+	defer r.Close()
 
-	for _, pvp := range ps.PersistentVolumePricing {
-		if pvp.Properties.Provider == props.Provider &&
-			pvp.Properties.VolumeType == props.VolumeType &&
-			pvp.Properties.Region == props.Region {
-			return pvp, nil
+	dst := make([]*pricing.PersistentVolumePricing, 64)
+	for {
+		n, err := r.Read(ctx, dst)
+		for _, pvp := range dst[:n] {
+			if pvp.Properties.Provider == props.Provider &&
+				pvp.Properties.VolumeType == props.VolumeType &&
+				pvp.Properties.Region == props.Region {
+				return pvp, nil
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -84,34 +103,15 @@ func (pm *PricingModule) GetPersistentVolumePricing(ctx context.Context, props p
 }
 
 func (pm *PricingModule) NewPersistentVolumePricingReader(ctx context.Context) (reader.Reader[*pricing.PersistentVolumePricing], error) {
-	ps, err := pm.store.GetPricingSet(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return reader.NewSliceReader(ps.PersistentVolumePricing), nil
+	return pm.newPVReader()
 }
 
 func (pm *PricingModule) GetClusterPricing(ctx context.Context, props pricing.ClusterPricingProperties) (*pricing.ClusterPricing, error) {
-	ps, err := pm.store.GetPricingSet(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, cp := range ps.ClusterPricing {
-		if cp.Properties.Provider == props.Provider {
-			return cp, nil
-		}
-	}
-
-	return nil, fmt.Errorf("cluster pricing not found for provider=%s", props.Provider)
+	return nil, fmt.Errorf("cluster pricing not yet implemented")
 }
 
 func (pm *PricingModule) NewClusterPricingReader(ctx context.Context) (reader.Reader[*pricing.ClusterPricing], error) {
-	ps, err := pm.store.GetPricingSet(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return reader.NewSliceReader(ps.ClusterPricing), nil
+	return nil, fmt.Errorf("cluster pricing not yet implemented")
 }
 
 func (pm *PricingModule) GetNetworkPricing(ctx context.Context, props pricing.NetworkPricingProperties) (*pricing.NetworkPricing, error) {
@@ -131,7 +131,43 @@ func (pm *PricingModule) NewServicePricingReader(ctx context.Context) (reader.Re
 }
 
 func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet, error) {
-	return pm.store.GetPricingSet(ctx)
+	ps := &pricing.PricingSet{}
+
+	nodeReader, err := pm.newNodeReader()
+	if err != nil {
+		return nil, err
+	}
+	defer nodeReader.Close()
+	dst := make([]*pricing.NodePricing, 64)
+	for {
+		n, err := nodeReader.Read(ctx, dst)
+		ps.NodePricing = append(ps.NodePricing, dst[:n]...)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	pvReader, err := pm.newPVReader()
+	if err != nil {
+		return nil, err
+	}
+	defer pvReader.Close()
+	pvDst := make([]*pricing.PersistentVolumePricing, 64)
+	for {
+		n, err := pvReader.Read(ctx, pvDst)
+		ps.PersistentVolumePricing = append(ps.PersistentVolumePricing, pvDst[:n]...)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return ps, nil
 }
 
 func (pm *PricingModule) SourceKind() string {
@@ -143,7 +179,7 @@ func (pm *PricingModule) SourceName() string {
 }
 
 func (pm *PricingModule) Checksum(ctx context.Context) (string, error) {
-	ps, err := pm.store.GetPricingSet(ctx)
+	ps, err := pm.GetPricingSet(ctx)
 	if err != nil {
 		return "", err
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -19,7 +20,7 @@ var (
 )
 
 // Assumes execution from the /cmd directory
-const outputFmt = "../%s/pricing-data.json"
+const outputDir = "../%s"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -31,13 +32,13 @@ func main() {
 var rootCmd = &cobra.Command{
 	Use:   "fetch-pricing",
 	Short: "Fetch cloud provider pricing data",
-	Long:  `Fetch pricing data from a cloud provider and output as JSON.`,
+	Long:  `Fetch pricing data from a cloud provider and output as JSONL files.`,
 	RunE:  run,
 }
 
 func init() {
 	rootCmd.Flags().StringVarP(&currency, "currency", "c", "USD", "Currency code (e.g. USD, CNY). Default: USD")
-	rootCmd.Flags().BoolVar(&compare, "compare", false, "Compare freshly fetched pricing against the existing pricing-data.json; exits 1 if they differ")
+	rootCmd.Flags().BoolVar(&compare, "compare", false, "Compare freshly fetched pricing against the existing JSONL files; exits 2 if they differ")
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -59,35 +60,52 @@ func run(cmd *cobra.Command, args []string) error {
 		return comparePricing(curr, pricingSet)
 	}
 
-	data, err := json.MarshalIndent(pricingSet, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal JSON: %w", err)
+	dir := fmt.Sprintf(outputDir, strings.ToLower(string(curr)))
+	return writePricingJSONL(dir, pricingSet)
+}
+
+// writePricingJSONL writes each pricing kind to its own JSONL file under dir.
+func writePricingJSONL(dir string, ps *pricing.PricingSet) error {
+	if err := writeJSONL(dir+"/nodes.jsonl", ps.NodePricing); err != nil {
+		return err
 	}
-
-	output := fmt.Sprintf(outputFmt, strings.ToLower(currency))
-
-	// Write to file
-	if err := os.WriteFile(output, data, 0644); err != nil {
-		return fmt.Errorf("failed to write output file: %w", err)
+	if err := writeJSONL(dir+"/persistentvolumes.jsonl", ps.PersistentVolumePricing); err != nil {
+		return err
 	}
-	log.Infof("Wrote pricing data to %s", output)
-
 	return nil
 }
 
-// comparePricing compares a fresh pricing set against the existing pricing-data.json
-// for a given currency
-func comparePricing(curr unit.Currency, newSet *pricing.PricingSet) error {
-	existingPath := fmt.Sprintf(outputFmt, strings.ToLower(string(curr)))
-	existingBytes, err := os.ReadFile(existingPath)
+// writeJSONL marshals each item in items as a single line and writes them to path.
+func writeJSONL[T any](path string, items []T) error {
+	f, err := os.Create(path)
 	if err != nil {
-		return fmt.Errorf("failed to read existing pricing data at %s: %w", existingPath, err)
+		return fmt.Errorf("creating %s: %w", path, err)
 	}
+	defer f.Close()
 
-	existingSet := &pricing.PricingSet{}
-	if err := json.Unmarshal(existingBytes, existingSet); err != nil {
-		return fmt.Errorf("failed to parse existing pricing data: %w", err)
+	w := bufio.NewWriter(f)
+	enc := json.NewEncoder(w) // Encode appends a trailing newline after each value.
+	for _, item := range items {
+		if err := enc.Encode(item); err != nil {
+			return fmt.Errorf("encoding record to %s: %w", path, err)
+		}
 	}
+	if err := w.Flush(); err != nil {
+		return fmt.Errorf("flushing %s: %w", path, err)
+	}
+	log.Infof("Wrote %d records to %s", len(items), path)
+	return nil
+}
+
+// comparePricing compares a fresh pricing set against the existing JSONL files
+// for a given currency.
+func comparePricing(curr unit.Currency, newSet *pricing.PricingSet) error {
+	dir := fmt.Sprintf(outputDir, strings.ToLower(string(curr)))
+	existingSet, err := readPricingJSONL(dir)
+	if err != nil {
+		return fmt.Errorf("reading existing pricing data from %s: %w", dir, err)
+	}
+	existingSet.Sort()
 
 	newChecksum, err := newSet.Checksum()
 	if err != nil {
@@ -106,4 +124,43 @@ func comparePricing(curr unit.Currency, newSet *pricing.PricingSet) error {
 
 	log.Infof("Pricing data is up to date for %s (checksum: %s)", curr, existingChecksum)
 	return nil
+}
+
+// readPricingJSONL reads nodes.jsonl and persistentvolumes.jsonl from dir.
+func readPricingJSONL(dir string) (*pricing.PricingSet, error) {
+	ps := &pricing.PricingSet{}
+
+	nodes, err := readJSONL[*pricing.NodePricing](dir + "/nodes.jsonl")
+	if err != nil {
+		return nil, err
+	}
+	ps.NodePricing = nodes
+
+	pvs, err := readJSONL[*pricing.PersistentVolumePricing](dir + "/persistentvolumes.jsonl")
+	if err != nil {
+		return nil, err
+	}
+	ps.PersistentVolumePricing = pvs
+
+	return ps, nil
+}
+
+// readJSONL decodes every line of path into a slice of T.
+func readJSONL[T any](path string) ([]T, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("opening %s: %w", path, err)
+	}
+	defer f.Close()
+
+	var items []T
+	dec := json.NewDecoder(f)
+	for dec.More() {
+		var item T
+		if err := dec.Decode(&item); err != nil {
+			return nil, fmt.Errorf("decoding record from %s: %w", path, err)
+		}
+		items = append(items, item)
+	}
+	return items, nil
 }
