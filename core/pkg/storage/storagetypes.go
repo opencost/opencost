@@ -18,7 +18,6 @@ import (
 type StorageType string
 
 const (
-	StorageTypeEmbedded    StorageType = "embedded"
 	StorageTypeMemory      StorageType = "memory"
 	StorageTypeFile        StorageType = "file"
 	StorageTypeCluster     StorageType = "cluster"
