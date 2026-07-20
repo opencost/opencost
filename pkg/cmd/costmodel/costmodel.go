@@ -240,6 +240,12 @@ var getPricingRefreshInterval = func() time.Duration {
 
 // StartPricingRefreshWorker starts the background worker for periodically refreshing the cloud provider pricing cache.
 func StartPricingRefreshWorker(ctx context.Context, provider models.Provider) error {
+	if ctx == nil {
+		return fmt.Errorf("pricing refresh worker requires non-nil context")
+	}
+	if provider == nil {
+		return fmt.Errorf("pricing refresh worker requires non-nil provider")
+	}
 	interval := getPricingRefreshInterval()
 	if interval <= 0 {
 		log.Infof("Pricing refresh rate is set to <= 0; background refresh worker is disabled")
@@ -255,6 +261,10 @@ func StartPricingRefreshWorker(ctx context.Context, provider models.Provider) er
 				log.Info("Pricing cache refresh worker stopping...")
 				return
 			case <-ticker.C:
+				// Avoid starting a refresh if shutdown has been requested.
+				if ctx.Err() != nil {
+					return
+				}
 				log.Info("Pricing cache refresh worker: refreshing pricing cache...")
 				err := provider.DownloadPricingData()
 				if err != nil {

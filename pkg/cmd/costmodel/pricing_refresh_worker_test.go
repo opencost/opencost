@@ -79,12 +79,15 @@ func TestStartPricingRefreshWorker_PeriodicTicks(t *testing.T) {
 	time.Sleep(35 * time.Millisecond)
 	cancel() // Stop the worker
 
+	// Give the worker a moment to observe cancellation and finish any in-flight tick.
+	time.Sleep(20 * time.Millisecond)
+
 	count := provider.getDownloadCount()
 	if count < 2 {
 		t.Errorf("expected at least 2 downloads, got %d", count)
 	}
 
-	// Wait more and verify no further downloads occur after cancel
+	// Verify no further downloads occur after cancel
 	time.Sleep(20 * time.Millisecond)
 	postCancelCount := provider.getDownloadCount()
 	if postCancelCount != count {
@@ -118,5 +121,22 @@ func TestStartPricingRefreshWorker_ErrorHandling(t *testing.T) {
 	count := provider.getDownloadCount()
 	if count < 1 {
 		t.Errorf("expected at least 1 download attempt, got %d", count)
+	}
+}
+
+func TestStartPricingRefreshWorker_NilArguments(t *testing.T) {
+	provider := &testPricingProvider{}
+	ctx := context.Background()
+
+	// 1. Nil context
+	err := StartPricingRefreshWorker(nil, provider)
+	if err == nil {
+		t.Errorf("expected error when context is nil, got nil")
+	}
+
+	// 2. Nil provider
+	err = StartPricingRefreshWorker(ctx, nil)
+	if err == nil {
+		t.Errorf("expected error when provider is nil, got nil")
 	}
 }
