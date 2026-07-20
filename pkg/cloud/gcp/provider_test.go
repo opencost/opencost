@@ -1006,44 +1006,52 @@ func TestSustainedUseDiscount(t *testing.T) {
 		name            string
 		class           string
 		defaultDiscount float64
+		n2Discount      float64
 		isPreemptible   bool
 		expected        float64
 	}{
-		{
-			name:            "Preemptible instance",
-			class:           "n1",
-			defaultDiscount: 0.30,
-			isPreemptible:   true,
-			expected:        0.0,
-		},
-		{
-			name:            "E2 instance",
-			class:           "e2",
-			defaultDiscount: 0.30,
-			isPreemptible:   false,
-			expected:        0.0,
-		},
-		{
-			name:            "N2 instance",
-			class:           "n2",
-			defaultDiscount: 0.30,
-			isPreemptible:   false,
-			expected:        0.2,
-		},
-		{
-			name:            "N1 instance",
-			class:           "n1",
-			defaultDiscount: 0.30,
-			isPreemptible:   false,
-			expected:        0.30,
-		},
+		{name: "Preemptible instance", class: "n1", defaultDiscount: 0.30, n2Discount: 0.2, isPreemptible: true, expected: 0.0},
+		{name: "E2 instance", class: "e2", defaultDiscount: 0.30, n2Discount: 0.2, expected: 0.0},
+		{name: "N2 default (0.2)", class: "n2", defaultDiscount: 0.30, n2Discount: 0.2, expected: 0.2},
+		{name: "N2D default (0.2)", class: "n2d", defaultDiscount: 0.30, n2Discount: 0.2, expected: 0.2},
+		{name: "N2 zeroed", class: "n2", defaultDiscount: 0.30, n2Discount: 0.0, expected: 0.0},
+		{name: "N2D zeroed", class: "n2d", defaultDiscount: 0.30, n2Discount: 0.0, expected: 0.0},
+		{name: "N1 uses defaultDiscount", class: "n1", defaultDiscount: 0.30, n2Discount: 0.2, expected: 0.30},
+		{name: "N1 ignores n2Discount", class: "n1", defaultDiscount: 0.30, n2Discount: 0.0, expected: 0.30},
+		{name: "E2 ignores n2Discount", class: "e2", defaultDiscount: 0.30, n2Discount: 0.0, expected: 0.0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := sustainedUseDiscount(tt.class, tt.defaultDiscount, tt.isPreemptible)
+			result := sustainedUseDiscount(tt.class, tt.defaultDiscount, tt.n2Discount, tt.isPreemptible)
 			assert.Equal(t, tt.expected, result)
 		})
+	}
+}
+
+func TestParseN2SustainedUseDiscount(t *testing.T) {
+	if got := parseN2SustainedUseDiscount(""); got != nil {
+		t.Errorf("empty: expected nil, got %v", *got)
+	}
+	if got := parseN2SustainedUseDiscount("not-a-number"); got != nil {
+		t.Errorf("unparseable: expected nil, got %v", *got)
+	}
+	for _, tc := range []struct {
+		in   string
+		want float64
+	}{
+		{"0.2", 0.2},
+		{"20%", 0.2},
+		{"0", 0.0},
+		{"0%", 0.0},
+		{" 30% ", 0.3},
+	} {
+		got := parseN2SustainedUseDiscount(tc.in)
+		if got == nil {
+			t.Errorf("%q: expected %v, got nil", tc.in, tc.want)
+			continue
+		}
+		assert.InDelta(t, tc.want, *got, 1e-9, "input %q", tc.in)
 	}
 }
 

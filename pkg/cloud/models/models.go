@@ -182,9 +182,12 @@ type CustomPricing struct {
 	CurrencyCode                 string `json:"currencyCode"`
 	Discount                     string `json:"discount"`
 	NegotiatedDiscount           string `json:"negotiatedDiscount"`
-	ClusterName                  string `json:"clusterName"`
-	ClusterAccountID             string `json:"clusterAccount,omitempty"`
-	DefaultLBPrice               string `json:"defaultLBPrice"`
+	// N2SustainedUseDiscount overrides the built-in sustained-use discount for the n2 and n2d
+	// machine families (GCP). Empty = built-in default (0.20). Accepts "0.2" or "20%".
+	N2SustainedUseDiscount string `json:"n2SustainedUseDiscount,omitempty"`
+	ClusterName            string `json:"clusterName"`
+	ClusterAccountID       string `json:"clusterAccount,omitempty"`
+	DefaultLBPrice         string `json:"defaultLBPrice"`
 }
 
 func sanitizeFloatString(number string, allowNaN bool) (string, error) {
