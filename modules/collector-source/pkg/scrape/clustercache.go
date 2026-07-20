@@ -8,6 +8,7 @@ import (
 
 	"github.com/kubecost/events"
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/external"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
 	coreutil "github.com/opencost/opencost/core/pkg/util"
@@ -25,12 +26,14 @@ import (
 const unmountedPVsContainer = "unmounted-pvs"
 
 type ClusterCacheScraper struct {
-	clusterCache clustercache.ClusterCache
+	clusterCache          clustercache.ClusterCache
+	externalLabelProvider external.LabelProvider
 }
 
-func newClusterCacheScraper(clusterCache clustercache.ClusterCache) Scraper {
+func newClusterCacheScraper(clusterCache clustercache.ClusterCache, externalLabelProvider external.LabelProvider) Scraper {
 	return &ClusterCacheScraper{
-		clusterCache: clusterCache,
+		clusterCache:          clusterCache,
+		externalLabelProvider: externalLabelProvider,
 	}
 }
 
@@ -84,6 +87,15 @@ func (ccs *ClusterCacheScraper) GetScrapeNodes(nodes []*clustercache.Node) Scrap
 func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric.Update {
 	var scrapeResults []metric.Update
 
+	// get external labels
+	var externalLabels map[string]string
+	var err error
+	if ccs.externalLabelProvider != nil {
+		externalLabels, err = ccs.externalLabelProvider.Labels()
+		if err != nil {
+			log.Errorf("failed to get external labels to nodes: %s", err)
+		}
+	}
 	for _, node := range nodes {
 		nodeInfo := map[string]string{
 			source.NodeLabel:       node.Name,
@@ -157,9 +169,13 @@ func (ccs *ClusterCacheScraper) scrapeNodes(nodes []*clustercache.Node) []metric
 			}
 		}
 
-		// node labels
-		labelNames, labelValues := promutil.KubeLabelsToLabels(node.Labels)
-		nodeLabels := util.ToMap(labelNames, labelValues)
+		var nodeLabels map[string]string
+		// Merge external labels into node labels; node labels win on conflict.\
+		if len(externalLabels) > 0 {
+			nodeLabels = promutil.KubeLabelsToLabelsMerge(node.Labels, externalLabels)
+		} else {
+			nodeLabels = promutil.KubeLabelsToLabelsMap(node.Labels)
+		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
 			Name:           metric.KubeNodeLabels,

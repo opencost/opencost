@@ -20,13 +20,13 @@ func TestAdminAuthMiddleware(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		setToken          string
-		authHeader        string
-		wantStatus        int
-		wantNextCalled    bool
-		wantBodySubstr    string
-		wantCacheControl  string
+		name             string
+		setToken         string
+		authHeader       string
+		wantStatus       int
+		wantNextCalled   bool
+		wantBodySubstr   string
+		wantCacheControl string
 	}{
 		{
 			name:             "no admin token configured - returns 503",
