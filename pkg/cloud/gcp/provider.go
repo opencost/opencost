@@ -1688,12 +1688,18 @@ func (gcp *GCP) PricingSourceStatus() map[string]*models.PricingSource {
 
 func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	class := strings.Split(instanceType, "-")[0]
-	// n2/n2d sustained-use discount is config-driven (GetConfig defaults it to 0.20). Fall back to
-	// 0.20 if config is unreadable, preserving the historical built-in value.
+	// n2/n2d sustained-use discount is config-driven; default 0.20. Only resolve config for those
+	// classes — every other class ignores n2Discount, so skip the lookup entirely. Read the raw
+	// pricing data rather than GetConfig, which mutates the shared CustomPricing to apply defaults
+	// (avoidable per-node writes / races on the hot path). Fall back to 0.20 if absent/unreadable.
 	n2Discount := 0.2
-	if c, err := gcp.GetConfig(); err == nil {
-		if v := parseN2SustainedUseDiscount(c.N2SustainedUseDiscount); v != nil {
-			n2Discount = *v
+	if class == "n2" || class == "n2d" {
+		if gcp.Config != nil {
+			if c, err := gcp.Config.GetCustomPricingData(); err == nil && c != nil {
+				if v := parseN2SustainedUseDiscount(c.N2SustainedUseDiscount); v != nil {
+					n2Discount = *v
+				}
+			}
 		}
 	}
 	return 1.0 - ((1.0 - sustainedUseDiscount(class, defaultDiscount, n2Discount, isPreemptible)) * (1.0 - negotiatedDiscount))
@@ -1712,24 +1718,29 @@ func (gcp *GCP) Regions() []string {
 }
 
 // parseN2SustainedUseDiscount parses the optional N2SustainedUseDiscount override for the
-// n2/n2d families. Accepts "0.2" or "20%". Returns nil for empty or unparseable input, in
-// which case the caller keeps the built-in 0.20 default (backwards-compatible).
+// n2/n2d families. Accepts "0.2" or "20%". Returns nil for empty, unparseable, non-finite, or
+// out-of-[0,1] input, in which case the caller keeps the built-in 0.20 default. Rejecting
+// out-of-range values prevents a bad override from producing a combined discount > 1 (which
+// would yield negative effective prices).
 func parseN2SustainedUseDiscount(s string) *float64 {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return nil
 	}
+	var v float64
+	var err error
 	if strings.HasSuffix(s, "%") {
-		if v, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(s, "%")), 64); err == nil {
-			d := v / 100.0
-			return &d
+		if v, err = strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(s, "%")), 64); err != nil {
+			return nil
 		}
+		v /= 100.0
+	} else if v, err = strconv.ParseFloat(s, 64); err != nil {
 		return nil
 	}
-	if v, err := strconv.ParseFloat(s, 64); err == nil {
-		return &v
+	if math.IsNaN(v) || math.IsInf(v, 0) || v < 0.0 || v > 1.0 {
+		return nil
 	}
-	return nil
+	return &v
 }
 
 func sustainedUseDiscount(class string, defaultDiscount, n2Discount float64, isPreemptible bool) float64 {
