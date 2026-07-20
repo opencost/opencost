@@ -83,7 +83,7 @@ build-binary VERSION=version:
            -X github.com/opencost/opencost/core/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel-arm64
 
-# Build and push a multi-arch using docker
+# Build and push a multi-arch image using Docker
 build IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
     docker buildx build \
         --rm \
