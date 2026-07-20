@@ -2184,7 +2184,7 @@ func (aws *AWS) GetOrphanedResources() ([]models.OrphanedResource, error) {
 				zone = *volume.AvailabilityZone
 			}
 			var region, url string
-			region = regionRx.FindString(zone)
+			region = parseRegionFromAZ(zone)
 			if region != "" {
 				url = "https://console.aws.amazon.com/ec2/home?region=" + region + "#Volumes:sort=desc:createTime"
 			} else {
@@ -2242,9 +2242,8 @@ func (aws *AWS) GetOrphanedResources() ([]models.OrphanedResource, error) {
 }
 
 func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
-	// todo: use AWS pricing from all regions
 	if disk.AvailabilityZone == nil {
-		return nil, fmt.Errorf("nil region")
+		return nil, fmt.Errorf("nil AvailabilityZone")
 	}
 	if disk.Size == nil {
 		return nil, fmt.Errorf("nil disk size")
@@ -2252,7 +2251,14 @@ func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
 
 	class := volTypes[string(disk.VolumeType)]
 
-	key := aws.ClusterRegion + "," + class
+	region := parseRegionFromAZ(*disk.AvailabilityZone)
+
+	key := region + "," + class
+	_, ok := aws.Pricing[key]
+	if region == "" || !ok {
+		// Fallback to ClusterRegion
+		key = aws.ClusterRegion + "," + class
+	}
 
 	pricing, ok := aws.Pricing[key]
 	if !ok {
@@ -2785,4 +2791,17 @@ func (aws *AWS) Regions() []string {
 func (aws *AWS) PricingSourceSummary() interface{} {
 	// encode the pricing source summary as a JSON string
 	return aws.Pricing
+}
+
+func parseRegionFromAZ(zone string) string {
+	region := ""
+	for _, r := range awsRegions {
+		if strings.HasPrefix(zone, r) && len(r) > len(region) {
+			region = r
+		}
+	}
+	if region == "" {
+		region = regionRx.FindString(zone)
+	}
+	return region
 }
