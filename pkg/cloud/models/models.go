@@ -281,6 +281,8 @@ type Provider interface {
 	NodePricing(Key) (*Node, PricingMetadata, error)
 	GpuPricing(map[string]string) (string, error)
 	PVPricing(PVKey) (*PV, error)
+	// NetworkPricing retrieves network egress/ingress prices for the given NetworkKey topology.
+	// Passing a nil NetworkKey resolves prices using global/default provider configurations.
 	NetworkPricing(NetworkKey) (*Network, error)
 	LoadBalancerPricing() (*LoadBalancer, error) // TODO: add key interface arg for dynamic price fetching
 	AllNodePricing() (interface{}, error)

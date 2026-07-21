@@ -261,7 +261,9 @@ func TestOracleGetNetworkKey(t *testing.T) {
 // oracleNetworkKey is a minimal NetworkKey stub for unit testing.
 type oracleNetworkKey struct{ region string }
 
-func (k *oracleNetworkKey) ID() string        { return k.region }
-func (k *oracleNetworkKey) Features() string  { return k.region }
-func (k *oracleNetworkKey) GetZone() string   { return "" }
-func (k *oracleNetworkKey) GetRegion() string { return k.region }
+func (k *oracleNetworkKey) ID() string                   { return k.region }
+func (k *oracleNetworkKey) Features() string             { return k.region }
+func (k *oracleNetworkKey) GetZone() string              { return "" }
+func (k *oracleNetworkKey) GetRegion() string            { return k.region }
+func (k *oracleNetworkKey) GetClusterID() string         { return "" }
+func (k *oracleNetworkKey) GetLabels() map[string]string { return nil }

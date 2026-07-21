@@ -18,11 +18,15 @@ import (
 //     (e.g. "us-east-1,us-east-1a", "us-east-1", or "us-east-1a").
 //   - GetZone(): Returns the availability zone string (empty string when unspecified).
 //   - GetRegion(): Returns the cloud region string (empty string when unspecified).
+//   - GetClusterID(): Returns the cluster identifier string (empty string when unspecified).
+//   - GetLabels(): Returns a copy of the node labels map.
 type NetworkKey interface {
 	ID() string
 	Features() string
 	GetZone() string
 	GetRegion() string
+	GetClusterID() string
+	GetLabels() map[string]string
 }
 
 // DefaultNetworkKey is the standard implementation of NetworkKey derived from
@@ -36,13 +40,24 @@ type DefaultNetworkKey struct {
 
 // NewNetworkKey constructs a NetworkKey by extracting zone and region from the
 // provided node labels map, falling back to empty strings when labels are absent.
+// The provided labels map is defensively cloned to prevent data races and unwanted mutations.
 func NewNetworkKey(labels map[string]string, clusterID string) NetworkKey {
-	zone, _ := util.GetZone(labels)
-	region, _ := util.GetRegion(labels)
+	var cloned map[string]string
+	if labels != nil {
+		cloned = make(map[string]string, len(labels))
+		for k, v := range labels {
+			cloned[k] = v
+		}
+	} else {
+		cloned = make(map[string]string)
+	}
+
+	zone, _ := util.GetZone(cloned)
+	region, _ := util.GetRegion(cloned)
 	return &DefaultNetworkKey{
 		Zone:      zone,
 		Region:    region,
-		Labels:    labels,
+		Labels:    cloned,
 		ClusterID: clusterID,
 	}
 }
@@ -50,6 +65,9 @@ func NewNetworkKey(labels map[string]string, clusterID string) NetworkKey {
 // ID returns the primary network topology identifier.
 // It returns Zone when non-empty, otherwise Region.
 func (n *DefaultNetworkKey) ID() string {
+	if n == nil {
+		return ""
+	}
 	if n.Zone != "" {
 		return n.Zone
 	}
@@ -62,6 +80,9 @@ func (n *DefaultNetworkKey) ID() string {
 //   - Only Region set          → "Region"
 //   - Neither set              → ""
 func (n *DefaultNetworkKey) Features() string {
+	if n == nil {
+		return ""
+	}
 	if n.Region != "" && n.Zone != "" {
 		return n.Region + "," + n.Zone
 	}
@@ -73,12 +94,38 @@ func (n *DefaultNetworkKey) Features() string {
 
 // GetZone returns the availability zone, or an empty string when unspecified.
 func (n *DefaultNetworkKey) GetZone() string {
+	if n == nil {
+		return ""
+	}
 	return n.Zone
 }
 
 // GetRegion returns the cloud region, or an empty string when unspecified.
 func (n *DefaultNetworkKey) GetRegion() string {
+	if n == nil {
+		return ""
+	}
 	return n.Region
+}
+
+// GetClusterID returns the cluster identifier, or an empty string when unspecified.
+func (n *DefaultNetworkKey) GetClusterID() string {
+	if n == nil {
+		return ""
+	}
+	return n.ClusterID
+}
+
+// GetLabels returns a defensive copy of the node labels map.
+func (n *DefaultNetworkKey) GetLabels() map[string]string {
+	if n == nil || n.Labels == nil {
+		return nil
+	}
+	cloned := make(map[string]string, len(n.Labels))
+	for k, v := range n.Labels {
+		cloned[k] = v
+	}
+	return cloned
 }
 
 // Network is the interface by which the provider and cost model communicate network egress prices.

@@ -341,6 +341,9 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 			var podNetCosts []*util.Vector
 			if usage, ok := networkUsageMap[ns+","+podName+","+clusterID]; ok {
 				nodeLabels := nodeLabelsMap[pod.Spec.NodeName]
+				if nodeLabels == nil {
+					nodeLabels = map[string]string{}
+				}
 				netKey := cp.GetNetworkKey(nodeLabels, clusterID)
 				netCosts, err := GetNetworkCost(usage, cp, netKey)
 				if err != nil {
