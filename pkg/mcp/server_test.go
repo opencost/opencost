@@ -697,9 +697,15 @@ func (mp *mockProvider) GetOrphanedResources() ([]models.OrphanedResource, error
 func (mp *mockProvider) NodePricing(models.Key) (*models.Node, models.PricingMetadata, error) {
 	return nil, models.PricingMetadata{}, nil
 }
-func (mp *mockProvider) GpuPricing(map[string]string) (string, error)            { return "", nil }
-func (mp *mockProvider) PVPricing(models.PVKey) (*models.PV, error)              { return nil, nil }
-func (mp *mockProvider) NetworkPricing() (*models.Network, error)                { return nil, nil }
+func (mp *mockProvider) GpuPricing(map[string]string) (string, error) { return "", nil }
+func (mp *mockProvider) PVPricing(models.PVKey) (*models.PV, error)   { return nil, nil }
+func (mp *mockProvider) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
+	return nil, nil
+}
+func (mp *mockProvider) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
+}
+
 func (mp *mockProvider) LoadBalancerPricing() (*models.LoadBalancer, error)      { return nil, nil }
 func (mp *mockProvider) DownloadPricingData() error                              { return nil }
 func (mp *mockProvider) GetKey(map[string]string, *clustercache.Node) models.Key { return nil }

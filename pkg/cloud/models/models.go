@@ -281,12 +281,13 @@ type Provider interface {
 	NodePricing(Key) (*Node, PricingMetadata, error)
 	GpuPricing(map[string]string) (string, error)
 	PVPricing(PVKey) (*PV, error)
-	NetworkPricing() (*Network, error)           // TODO: add key interface arg for dynamic price fetching
+	NetworkPricing(NetworkKey) (*Network, error)
 	LoadBalancerPricing() (*LoadBalancer, error) // TODO: add key interface arg for dynamic price fetching
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
 	GetKey(map[string]string, *clustercache.Node) Key
 	GetPVKey(*clustercache.PersistentVolume, map[string]string, string) PVKey
+	GetNetworkKey(labels map[string]string, clusterID string) NetworkKey
 	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
 	UpdateConfigFromConfigMap(map[string]string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)

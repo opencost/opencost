@@ -16,8 +16,12 @@ type mockProvider struct {
 	err     error
 }
 
-func (m *mockProvider) NetworkPricing() (*models.Network, error) {
+func (m *mockProvider) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	return m.network, m.err
+}
+
+func (m *mockProvider) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
 }
 
 func (m *mockProvider) GetKey(map[string]string, *clustercache.Node) models.Key {
@@ -531,7 +535,7 @@ func TestGetNetworkCost(t *testing.T) {
 				network: tc.pricing,
 			}
 
-			result, err := GetNetworkCost(tc.usage, provider)
+			result, err := GetNetworkCost(tc.usage, provider, nil)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -586,7 +590,7 @@ func TestGetNetworkCost_NATGatewayMisalignedVectors(t *testing.T) {
 		network: pricing,
 	}
 
-	result, err := GetNetworkCost(usage, provider)
+	result, err := GetNetworkCost(usage, provider, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
