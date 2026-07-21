@@ -30,27 +30,30 @@ func (t *testPricingProvider) getDownloadCount() int {
 	return t.downloadCount
 }
 
-func TestStartPricingRefreshWorker_Disabled(t *testing.T) {
-	// Save and restore original getPricingRefreshInterval
-	originalInterval := getPricingRefreshInterval
-	defer func() { getPricingRefreshInterval = originalInterval }()
-
-	// Set interval to <= 0 to disable worker
-	getPricingRefreshInterval = func() time.Duration {
-		return 0
+func waitForDownloadCount(t *testing.T, provider *testPricingProvider, targetCount int, timeout time.Duration) int {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		cnt := provider.getDownloadCount()
+		if cnt >= targetCount {
+			return cnt
+		}
+		time.Sleep(2 * time.Millisecond)
 	}
+	return provider.getDownloadCount()
+}
 
+func TestStartPricingRefreshWorker_Disabled(t *testing.T) {
 	provider := &testPricingProvider{}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err := StartPricingRefreshWorker(ctx, provider)
+	err := startPricingRefreshWorkerWithInterval(ctx, provider, 0)
 	if err != nil {
 		t.Fatalf("unexpected error starting pricing refresh worker: %v", err)
 	}
 
-	// Sleep slightly to confirm no goroutine runs/downloads
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(30 * time.Millisecond)
 
 	if provider.getDownloadCount() > 0 {
 		t.Errorf("expected 0 downloads when worker is disabled, got %d", provider.getDownloadCount())
@@ -58,67 +61,46 @@ func TestStartPricingRefreshWorker_Disabled(t *testing.T) {
 }
 
 func TestStartPricingRefreshWorker_PeriodicTicks(t *testing.T) {
-	// Save and restore original getPricingRefreshInterval
-	originalInterval := getPricingRefreshInterval
-	defer func() { getPricingRefreshInterval = originalInterval }()
-
-	// Set a very short interval for testing
-	getPricingRefreshInterval = func() time.Duration {
-		return 10 * time.Millisecond
-	}
-
 	provider := &testPricingProvider{}
 	ctx, cancel := context.WithCancel(context.Background())
 
-	err := StartPricingRefreshWorker(ctx, provider)
+	err := startPricingRefreshWorkerWithInterval(ctx, provider, 10*time.Millisecond)
 	if err != nil {
 		t.Fatalf("unexpected error starting pricing refresh worker: %v", err)
 	}
 
-	// Wait for at least 2 ticks
-	time.Sleep(35 * time.Millisecond)
-	cancel() // Stop the worker
-
-	// Give the worker a moment to observe cancellation and finish any in-flight tick.
-	time.Sleep(20 * time.Millisecond)
-
-	count := provider.getDownloadCount()
+	// Wait for at least 2 ticks deterministically
+	count := waitForDownloadCount(t, provider, 2, 500*time.Millisecond)
 	if count < 2 {
 		t.Errorf("expected at least 2 downloads, got %d", count)
 	}
 
-	// Verify no further downloads occur after cancel
-	time.Sleep(20 * time.Millisecond)
+	cancel() // Stop the worker
+
+	// Wait briefly to allow cancellation to be processed
+	time.Sleep(30 * time.Millisecond)
 	postCancelCount := provider.getDownloadCount()
-	if postCancelCount != count {
-		t.Errorf("expected download count to remain %d after cancellation, but got %d", count, postCancelCount)
+
+	// Wait further and verify count does not increase after cancellation
+	time.Sleep(30 * time.Millisecond)
+	if finalCount := provider.getDownloadCount(); finalCount != postCancelCount {
+		t.Errorf("expected download count to remain %d after cancellation, but got %d", postCancelCount, finalCount)
 	}
 }
 
 func TestStartPricingRefreshWorker_ErrorHandling(t *testing.T) {
-	// Save and restore original getPricingRefreshInterval
-	originalInterval := getPricingRefreshInterval
-	defer func() { getPricingRefreshInterval = originalInterval }()
-
-	getPricingRefreshInterval = func() time.Duration {
-		return 10 * time.Millisecond
-	}
-
 	provider := &testPricingProvider{
 		errToReturn: errors.New("download failed"),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err := StartPricingRefreshWorker(ctx, provider)
+	err := startPricingRefreshWorkerWithInterval(ctx, provider, 10*time.Millisecond)
 	if err != nil {
 		t.Fatalf("unexpected error starting pricing refresh worker: %v", err)
 	}
 
-	// Wait for at least 1 tick
-	time.Sleep(15 * time.Millisecond)
-
-	count := provider.getDownloadCount()
+	count := waitForDownloadCount(t, provider, 1, 500*time.Millisecond)
 	if count < 1 {
 		t.Errorf("expected at least 1 download attempt, got %d", count)
 	}
@@ -129,13 +111,13 @@ func TestStartPricingRefreshWorker_NilArguments(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Nil context
-	err := StartPricingRefreshWorker(nil, provider)
+	err := startPricingRefreshWorkerWithInterval(nil, provider, 10*time.Millisecond)
 	if err == nil {
 		t.Errorf("expected error when context is nil, got nil")
 	}
 
 	// 2. Nil provider
-	err = StartPricingRefreshWorker(ctx, nil)
+	err = startPricingRefreshWorkerWithInterval(ctx, nil, 10*time.Millisecond)
 	if err == nil {
 		t.Errorf("expected error when provider is nil, got nil")
 	}

@@ -53,7 +53,7 @@ func Execute(conf *Config) error {
 			log.Errorf("couldn't start pricing cache refresh worker: %v", err)
 		}
 
-		err = StartExportWorker(context.Background(), a.Model)
+		err = StartExportWorker(ctx, a.Model)
 		if err != nil {
 			log.Errorf("couldn't start CSV export worker: %v", err)
 		}
@@ -234,19 +234,32 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) err
 	return nil
 }
 
-var getPricingRefreshInterval = func() time.Duration {
-	return time.Duration(env.GetPricingRefreshRateHours()) * time.Hour
+func getPricingRefreshInterval() time.Duration {
+	hours := env.GetPricingRefreshRateHours()
+	if hours <= 0 {
+		return 0
+	}
+	// Bound check to prevent int64 duration overflow (~2,562,047 hours max duration)
+	const maxHours = 2000000
+	if hours > maxHours {
+		log.Warnf("PRICING_REFRESH_RATE_HOURS (%d) exceeds max supported value, clamping to %d hours", hours, maxHours)
+		hours = maxHours
+	}
+	return time.Duration(hours) * time.Hour
 }
 
 // StartPricingRefreshWorker starts the background worker for periodically refreshing the cloud provider pricing cache.
 func StartPricingRefreshWorker(ctx context.Context, provider models.Provider) error {
+	return startPricingRefreshWorkerWithInterval(ctx, provider, getPricingRefreshInterval())
+}
+
+func startPricingRefreshWorkerWithInterval(ctx context.Context, provider models.Provider, interval time.Duration) error {
 	if ctx == nil {
 		return fmt.Errorf("pricing refresh worker requires non-nil context")
 	}
 	if provider == nil {
 		return fmt.Errorf("pricing refresh worker requires non-nil provider")
 	}
-	interval := getPricingRefreshInterval()
 	if interval <= 0 {
 		log.Infof("Pricing refresh rate is set to <= 0; background refresh worker is disabled")
 		return nil
