@@ -4,7 +4,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/diagnostics"
 	"github.com/opencost/opencost/core/pkg/heartbeat"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
-	"github.com/opencost/opencost/core/pkg/model/pricingmodel"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/typeutil"
 )
@@ -42,7 +41,6 @@ func init() {
 	diagnosticsKey := typeutil.TypeOf[diagnostics.DiagnosticsRunReport]()
 
 	kubeModelSetKey := typeutil.TypeOf[kubemodel.KubeModelSet]()
-	pricingModelSetKey := typeutil.TypeOf[pricingmodel.PricingModelSet]()
 
 	nameByType = map[string]string{
 		allocSetKey:          AllocationPipelineName,
@@ -56,7 +54,6 @@ func init() {
 		heartbeatKey:         HeartbeatPipelineName,
 		diagnosticsKey:       DiagnosticsPipelineName,
 		kubeModelSetKey:      KubeModelPipelineName,
-		pricingModelSetKey:   PricingModelPipelineName,
 	}
 }
 
