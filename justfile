@@ -114,7 +114,7 @@ build IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
         --template {{IMAGE_TAG}}-ARCH \
         --target {{IMAGE_TAG}}
 
-# Build and push a multi-arch using podman
+# Build and push a multi-arch image using Podman
 build-podman IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
     podman build \
         --rm \
