@@ -6,7 +6,7 @@ Add requestor, tenant, and workload tracking to the OpenCost inference cost capa
 See the following related documents:
 
 - **[IPP Proposal for New Metrics](https://github.com/simanadler/llm-d-inference-payload-processor/blob/6d6f160ad969a9ad2761246f09a947e82e23d51c/docs/proposals/044-request-attribution-metrics/README.md):** — covers the extensions required to llm-d's Inference Payload Processor (IPP) to generate the new metrics.
-- **[OpenCost current inference cost capabilities](./docs/inference-cost-tracking.md)** — the existing model-level inference cost solution this plan extends.
+- **[OpenCost current inference cost capabilities](./inference-cost-tracking.md)** — the existing model-level inference cost solution this plan extends.
 ---
 
 ## 1. Background & Goal
@@ -122,11 +122,11 @@ The response shape is unchanged — `properties` in each `InferenceCostResponse`
 ┌─────────────────────────────────────────────────────────────┐
 │                        llm-d cluster                        │
 │                                                             │
-│  Client ──► Envoy ──► IPP ──► vLLM                         │
-│                        │       │                           │
-│                        │       └─► Prometheus              │
+│  Client ──► Envoy ──► IPP ──► vLLM                          │
+│                        │       │                            │
+│                        │       └─► Prometheus               │
 │                        │           vllm:prompt_tokens_total │
-│                        │           vllm:generation_tokens   │
+│                        │           vllm:gen_tokens_total    │
 │                        │           vllm:request_prefill_*   │
 │                        │           vllm:cache_config_info   │
 │                        │                                    │
@@ -142,24 +142,24 @@ The response shape is unchanged — `properties` in each `InferenceCostResponse`
 ┌─────────────────────────────────────────────────────────────┐
 │                         OpenCost                            │
 │                                                             │
-│  ┌──────────────┐   ┌───────────────┐   ┌───────────────┐  │
-│  │  Collector   │──►│  Calculator   │──►│   Exporter    │  │
-│  │              │   │               │   │               │  │
-│  │ • vLLM query │   │ • cost split  │   │ llm_total_    │  │
-│  │ • alloc query│   │ • per-million │   │   hourly_cost │  │
-│  │ • IPP query  │   │   rates       │   │ llm_cost_per_ │  │
-│  │   (new)      │   │               │   │   million_    │  │
-│  └──────┬───────┘   └───────┬───────┘   │   tokens      │  │
-│         │                   │           │ llm_cache_    │  │
-│         │   model costs     │           │   savings_    │  │
-│         │◄──────────────────┘           │   fraction    │  │
-│         │                               │ llm_dimension_│  │
-│         │   dimension costs (new)       │   hourly_cost │  │
-│         │──────────────────────────────►│   (new)       │  │
-│         │                               └───────────────┘  │
+│  ┌──────────────┐   ┌───────────────┐   ┌───────────────┐   │
+│  │  Collector   │──►│  Calculator   │──►│   Exporter    │   │
+│  │              │   │               │   │               │   │
+│  │ • vLLM query │   │ • cost split  │   │ llm_total_    │   │
+│  │ • alloc query│   │ • per-million │   │   hourly_cost │   │
+│  │ • IPP query  │   │   rates       │   │ llm_cost_per_ │   │
+│  │   (new)      │   │               │   │   million_    │   │
+│  └──────┬───────┘   └───────┬───────┘   │   tokens      │   │
+│         │                   │           │ llm_cache_    │   │
+│         │   model costs     │           │   savings_    │   │
+│         │◄──────────────────┘           │   fraction    │   │
+│         │                               │ llm_dimension-│   │
+│         │   dimension costs (new)       │   hourly_cost │   │
+│         │──────────────────────────────►│   (new)       │   │
+│         │                               └───────────────┘   │
 │         │                                                   │
 │  ┌──────▼────────────────────────────────────────────────┐  │
-│  │                    QueryService                        │  │
+│  │                    QueryService                       │  │
 │  │   GET /inferenceCost/total                            │  │
 │  │   GET /inferenceCost/timeseries                       │  │
 │  │   aggregate: model_name, namespace, cluster, ...      │  │
@@ -167,8 +167,6 @@ The response shape is unchanged — `properties` in each `InferenceCostResponse`
 │  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
-
-For the rationale for why IPP is the collection point rather than vLLM or EPP, see [Appendix C — Alternatives Considered](#appendix-c--alternatives-considered).
 
 ---
 
@@ -201,7 +199,7 @@ Per-namespace IPP configuration (whether the `requestor` label is present, which
 
 ### 4.3 Multi-llm-d deployments
 
-A cluster may contain multiple independent llm-d deployments, each in its own namespace with its own IPP gateway. Because IPP advertises its configuration via `ipp_config_info`, OpenCost automatically discovers which namespaces have IPP deployed and what their per-namespace settings are — no manual per-namespace configuration is required. See [Appendix B](#appendix-b--multi-llm-d-deployment-issues) for a known pre-existing limitation around shared infrastructure labels.
+A cluster may contain multiple independent llm-d deployments, each in its own namespace with its own IPP gateway. Because IPP advertises its configuration via `ipp_config_info`, OpenCost automatically discovers which namespaces have IPP deployed and what their per-namespace settings are — no manual per-namespace configuration is required. 
 
 ---
 
@@ -213,7 +211,7 @@ OpenCost's base allocation API already supports organisational attribution throu
 
 #### OpenCost's existing aliased label properties
 
-Defined in `core/pkg/opencost/allocationprops.go`, these five properties resolve at query time to configurable K8s label keys via [`LabelConfig`](core/pkg/opencost/config.go):
+Defined in `core/pkg/opencost/allocationprops.go`, these five properties resolve at query time to configurable K8s label keys via [`LabelConfig`](../core/pkg/opencost/config.go):
 
 | OpenCost property | API name | Default K8s label | Closest IPP analog |
 |---|---|---|---|
