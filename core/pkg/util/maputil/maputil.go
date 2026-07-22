@@ -1,6 +1,8 @@
 package maputil
 
-import "iter"
+import (
+	"iter"
+)
 
 // Map applies a transformation function to each value within a map to get a new map containing the
 // transformed values.
