@@ -40,7 +40,7 @@ type DefaultNetworkKey struct {
 
 // NewNetworkKey constructs a NetworkKey by extracting zone and region from the
 // provided node labels map, falling back to empty strings when labels are absent.
-// The provided labels map is defensively cloned to prevent data races and unwanted mutations.
+// The provided labels map is defensively cloned so future mutations of the input map don't affect the key.
 func NewNetworkKey(labels map[string]string, clusterID string) NetworkKey {
 	var cloned map[string]string
 	if labels != nil {
