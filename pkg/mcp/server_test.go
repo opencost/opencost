@@ -739,7 +739,7 @@ func TestGenerateQueryID(t *testing.T) {
 }
 
 func TestTransformAllocationSet_NilInput(t *testing.T) {
-	result := transformAllocationSet(nil)
+	result := transformAllocationSet(nil, false, false)
 
 	require.NotNil(t, result)
 	assert.NotNil(t, result.Allocations)
@@ -751,11 +751,149 @@ func TestTransformAllocationSet_EmptyInput(t *testing.T) {
 		Allocations: map[string]*opencost.Allocation{},
 	}
 
-	result := transformAllocationSet(emptySet)
+	result := transformAllocationSet(emptySet, false, false)
 
 	require.NotNil(t, result)
 	assert.Contains(t, result.Allocations, "allocations")
 	assert.Len(t, result.Allocations["allocations"].Allocations, 0)
+}
+
+func TestTransformAllocationSet_ReconciliationAndProperties(t *testing.T) {
+	// Create an allocation with adjustments
+	alloc := &opencost.Allocation{
+		Name: "test-alloc",
+		Properties: &opencost.AllocationProperties{
+			Cluster:    "cluster-1",
+			Namespace:  "namespace-1",
+			Pod:        "pod-1",
+			ProviderID: "provider-id-1",
+			Labels:     opencost.AllocationLabels{"app": "test-app"},
+		},
+		CPUCost:                    10.0,
+		CPUCostAdjustment:          2.0,
+		GPUCost:                    5.0,
+		GPUCostAdjustment:          1.0,
+		RAMCost:                    8.0,
+		RAMCostAdjustment:          1.5,
+		NetworkCost:                3.0,
+		NetworkCostAdjustment:      0.5,
+		LoadBalancerCost:           2.0,
+		LoadBalancerCostAdjustment: 0.2,
+		SharedCost:                 1.0,
+		ExternalCost:               0.5,
+		CPUCoreHours:               100.0,
+		RAMByteHours:               50000.0,
+		GPUHours:                   10.0,
+		Start:                      time.Now().Add(-24 * time.Hour),
+		End:                        time.Now(),
+	}
+
+	// We also need to add some PV to test PV reconciliation
+	alloc.PVs = opencost.PVAllocations{
+		opencost.PVKey{
+			Cluster: "cluster-1",
+			Name:    "pv-1",
+		}: &opencost.PVAllocation{Cost: 4.0},
+	}
+	alloc.PVCostAdjustment = 0.8
+
+	// Create allocation set
+	allocSet := &opencost.AllocationSet{
+		Allocations: map[string]*opencost.Allocation{
+			"test-alloc": alloc,
+		},
+	}
+
+	// Test case 1: Reconcile=false, ReconcileNetwork=false
+	{
+		res := transformAllocationSet(allocSet, false, false)
+		require.NotNil(t, res)
+		mcpAlloc := res.Allocations["allocations"].Allocations[0]
+		assert.Equal(t, 10.0, mcpAlloc.CPUCost)
+		assert.Equal(t, 5.0, mcpAlloc.GPUCost)
+		assert.Equal(t, 8.0, mcpAlloc.RAMCost)
+		assert.Equal(t, 4.0, mcpAlloc.PVCost)
+		assert.Equal(t, 3.0, mcpAlloc.NetworkCost)
+		assert.Equal(t, 1.0, mcpAlloc.SharedCost)
+		assert.Equal(t, 0.5, mcpAlloc.ExternalCost)
+		// Total: 10 + 5 + 8 + 4 + 3 + 2 (LB) + 1 + 0.5 = 33.5
+		assert.Equal(t, 33.5, mcpAlloc.TotalCost)
+
+		// Verify properties mapping
+		require.NotNil(t, mcpAlloc.Properties)
+		assert.Equal(t, "cluster-1", mcpAlloc.Properties.Cluster)
+		assert.Equal(t, "namespace-1", mcpAlloc.Properties.Namespace)
+		assert.Equal(t, "pod-1", mcpAlloc.Properties.Pod)
+		assert.Equal(t, "provider-id-1", mcpAlloc.Properties.ProviderID)
+		assert.Equal(t, "test-app", mcpAlloc.Properties.Labels["app"])
+	}
+
+	// Test case 2: Reconcile=true, ReconcileNetwork=true
+	{
+		res := transformAllocationSet(allocSet, true, true)
+		require.NotNil(t, res)
+		mcpAlloc := res.Allocations["allocations"].Allocations[0]
+		assert.Equal(t, 12.0, mcpAlloc.CPUCost)
+		assert.Equal(t, 6.0, mcpAlloc.GPUCost)
+		assert.Equal(t, 9.5, mcpAlloc.RAMCost)
+		assert.Equal(t, 4.8, mcpAlloc.PVCost)
+		assert.Equal(t, 3.5, mcpAlloc.NetworkCost)
+		// Total: 12 + 6 + 9.5 + 4.8 + 3.5 + 2.2 (LB) + 1 + 0.5 = 39.5
+		assert.Equal(t, 39.5, mcpAlloc.TotalCost)
+	}
+
+	// Test case 3: Reconcile=true, ReconcileNetwork=false
+	{
+		res := transformAllocationSet(allocSet, true, false)
+		require.NotNil(t, res)
+		mcpAlloc := res.Allocations["allocations"].Allocations[0]
+		assert.Equal(t, 12.0, mcpAlloc.CPUCost)
+		assert.Equal(t, 6.0, mcpAlloc.GPUCost)
+		assert.Equal(t, 9.5, mcpAlloc.RAMCost)
+		assert.Equal(t, 4.8, mcpAlloc.PVCost)
+		assert.Equal(t, 3.0, mcpAlloc.NetworkCost) // Network is not reconciled
+		// Total: 12 + 6 + 9.5 + 4.8 + 3.0 + 2.2 (LB) + 1 + 0.5 = 39.0
+		assert.Equal(t, 39.0, mcpAlloc.TotalCost)
+	}
+}
+
+func TestComputeEfficiencyMetric_Reconciliation(t *testing.T) {
+	alloc := &opencost.Allocation{
+		Name:                       "test-alloc",
+		CPUCoreHours:               100.0,
+		CPUCoreRequestAverage:      10.0,
+		RAMByteHours:               1000.0,
+		RAMBytesRequestAverage:     100.0,
+		CPUCost:                    10.0,
+		CPUCostAdjustment:          2.0,
+		GPUCost:                    0.0,
+		RAMCost:                    8.0,
+		RAMCostAdjustment:          1.5,
+		NetworkCost:                3.0,
+		NetworkCostAdjustment:      0.5,
+		LoadBalancerCost:           2.0,
+		LoadBalancerCostAdjustment: 0.2,
+		SharedCost:                 1.0,
+		ExternalCost:               0.5,
+		Start:                      time.Now().Add(-10 * time.Hour),
+		End:                        time.Now(),
+	}
+
+	// Case 1: Reconcile=false, ReconcileNetwork=false
+	{
+		metric := computeEfficiencyMetric(alloc, 1.2, false, false)
+		require.NotNil(t, metric)
+		// Total cost: 10 + 0 + 8 + 0 (PV) + 3 + 2 (LB) + 1 + 0.5 = 24.5
+		assert.Equal(t, 24.5, metric.CurrentTotalCost)
+	}
+
+	// Case 2: Reconcile=true, ReconcileNetwork=true
+	{
+		metric := computeEfficiencyMetric(alloc, 1.2, true, true)
+		require.NotNil(t, metric)
+		// Total cost: 12 + 0 + 9.5 + 0 + 3.5 + 2.2 + 1 + 0.5 = 28.7
+		assert.Equal(t, 28.7, metric.CurrentTotalCost)
+	}
 }
 
 func TestTransformAssetSet_NilInput(t *testing.T) {
@@ -1041,7 +1179,7 @@ func TestSafeDiv(t *testing.T) {
 }
 
 func TestComputeEfficiencyMetric_NilAllocation(t *testing.T) {
-	result := computeEfficiencyMetric(nil, 1.2)
+	result := computeEfficiencyMetric(nil, 1.2, false, false)
 	assert.Nil(t, result)
 }
 
@@ -1053,7 +1191,7 @@ func TestComputeEfficiencyMetric_ZeroMinutes(t *testing.T) {
 		End:   now, // Same time, so 0 minutes
 	}
 
-	result := computeEfficiencyMetric(alloc, 1.2)
+	result := computeEfficiencyMetric(alloc, 1.2, false, false)
 	assert.Nil(t, result)
 }
 
@@ -1072,7 +1210,7 @@ func TestComputeEfficiencyMetric_ValidAllocation(t *testing.T) {
 		RAMCost:                5.0,
 	}
 
-	result := computeEfficiencyMetric(alloc, 1.2)
+	result := computeEfficiencyMetric(alloc, 1.2, false, false)
 
 	require.NotNil(t, result)
 	assert.Equal(t, "test-pod", result.Name)
@@ -1103,7 +1241,7 @@ func TestComputeEfficiencyMetric_CustomBufferMultiplier(t *testing.T) {
 	}
 
 	// Test with 1.4 buffer multiplier (40% headroom)
-	result := computeEfficiencyMetric(alloc, 1.4)
+	result := computeEfficiencyMetric(alloc, 1.4, false, false)
 
 	require.NotNil(t, result)
 	assert.Equal(t, 1.4, result.RecommendedCPURequest)   // 1 * 1.4 = 1.4
@@ -1132,7 +1270,7 @@ func TestComputeEfficiencyMetric_MinimumThresholds(t *testing.T) {
 		RAMCost:                0.001,
 	}
 
-	result := computeEfficiencyMetric(alloc, 1.2)
+	result := computeEfficiencyMetric(alloc, 1.2, false, false)
 
 	require.NotNil(t, result)
 	// Should enforce minimum CPU (0.001 cores)
@@ -1155,7 +1293,7 @@ func TestComputeEfficiencyMetric_NoRequests(t *testing.T) {
 		RAMCost:                5.0,
 	}
 
-	result := computeEfficiencyMetric(alloc, 1.2)
+	result := computeEfficiencyMetric(alloc, 1.2, false, false)
 
 	require.NotNil(t, result)
 	// Efficiency should be 0 when no requests are set
@@ -1180,7 +1318,7 @@ func TestComputeEfficiencyMetric_OverProvisioned(t *testing.T) {
 		RAMCost:                20.0,
 	}
 
-	result := computeEfficiencyMetric(alloc, 1.2)
+	result := computeEfficiencyMetric(alloc, 1.2, false, false)
 
 	require.NotNil(t, result)
 	// Low efficiency due to over-provisioning
@@ -1208,7 +1346,7 @@ func TestComputeEfficiencyMetric_UnderProvisioned(t *testing.T) {
 		RAMCost:                5.0,
 	}
 
-	result := computeEfficiencyMetric(alloc, 1.2)
+	result := computeEfficiencyMetric(alloc, 1.2, false, false)
 
 	require.NotNil(t, result)
 	// High efficiency (>100%) due to under-provisioning
@@ -1237,7 +1375,7 @@ func TestComputeEfficiencyMetric_CostCalculations(t *testing.T) {
 		GPUCost:                1.0,  // $1 for GPU
 	}
 
-	result := computeEfficiencyMetric(alloc, 1.2)
+	result := computeEfficiencyMetric(alloc, 1.2, false, false)
 
 	require.NotNil(t, result)
 
@@ -1275,7 +1413,7 @@ func TestComputeEfficiencyMetric_OtherCostsPreserved(t *testing.T) {
 		GPUCost:                0.0,
 	}
 
-	result := computeEfficiencyMetric(alloc, 1.2)
+	result := computeEfficiencyMetric(alloc, 1.2, false, false)
 
 	require.NotNil(t, result)
 

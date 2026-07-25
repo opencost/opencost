@@ -84,6 +84,8 @@ type AllocationQuery struct {
 	IncludeAggregatedMetadata             bool          `json:"includeAggregatedMetadata,omitempty"`
 	ShareLB                               bool          `json:"sharelb,omitempty"`
 	Filter                                string        `json:"filter,omitempty"` // Filter expression for allocations (e.g., "cluster:production", "namespace:kube-system")
+	Reconcile                             bool          `json:"reconcile,omitempty"`
+	ReconcileNetwork                      bool          `json:"reconcileNetwork,omitempty"`
 }
 
 // AssetQuery contains the parameters for an asset query.
@@ -113,6 +115,8 @@ type EfficiencyQuery struct {
 	Aggregate                  string        `json:"aggregate,omitempty"`                  // Aggregation properties (e.g., "pod", "namespace", "controller")
 	Filter                     string        `json:"filter,omitempty"`                     // Filter expression for allocations (same as AllocationQuery)
 	EfficiencyBufferMultiplier *float64      `json:"efficiencyBufferMultiplier,omitempty"` // Buffer multiplier for recommendations (default: 1.2 for 20% headroom)
+	Reconcile                  bool          `json:"reconcile,omitempty"`
+	ReconcileNetwork           bool          `json:"reconcileNetwork,omitempty"`
 }
 
 // AllocationResponse represents the allocation data returned to the AI agent.
@@ -138,10 +142,27 @@ func (as *AllocationSet) TotalCost() float64 {
 	return total
 }
 
-// Allocation represents a single allocation data point.
+// AllocationProperties describes a set of Kubernetes objects.
+type AllocationProperties struct {
+	Cluster              string            `json:"cluster,omitempty"`
+	Node                 string            `json:"node,omitempty"`
+	Container            string            `json:"container,omitempty"`
+	Controller           string            `json:"controller,omitempty"`
+	ControllerKind       string            `json:"controllerKind,omitempty"`
+	Namespace            string            `json:"namespace,omitempty"`
+	Pod                  string            `json:"pod,omitempty"`
+	Services             []string          `json:"services,omitempty"`
+	ProviderID           string            `json:"providerID,omitempty"`
+	Labels               map[string]string `json:"labels,omitempty"`
+	Annotations          map[string]string `json:"annotations,omitempty"`
+	NamespaceLabels      map[string]string `json:"namespaceLabels,omitempty"`
+	NamespaceAnnotations map[string]string `json:"namespaceAnnotations,omitempty"`
+}
 
+// Allocation represents a single allocation data point.
 type Allocation struct {
-	Name string `json:"name"` // Allocation key (namespace, cluster, etc.)
+	Name       string                `json:"name"` // Allocation key (namespace, cluster, etc.)
+	Properties *AllocationProperties `json:"properties,omitempty"`
 
 	CPUCost      float64 `json:"cpuCost"`      // Cost of CPU usage
 	GPUCost      float64 `json:"gpuCost"`      // Cost of GPU usage
@@ -519,6 +540,7 @@ func (s *MCPServer) QueryAllocations(query *OpenCostQueryRequest) (*AllocationRe
 	var includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, shareIdle bool
 	var accumulateBy opencost.AccumulateOption
 	var filterString string
+	var reconcile, reconcileNetwork bool
 
 	// 3. Parse allocation parameters if provided
 	if query.AllocationParams != nil {
@@ -541,6 +563,8 @@ func (s *MCPServer) QueryAllocations(query *OpenCostQueryRequest) (*AllocationRe
 		includeAggregatedMetadata = query.AllocationParams.IncludeAggregatedMetadata
 		sharedLoadBalancer = query.AllocationParams.ShareLB
 		shareIdle = query.AllocationParams.ShareIdle
+		reconcile = query.AllocationParams.Reconcile
+		reconcileNetwork = query.AllocationParams.ReconcileNetwork
 
 		// Set filter string
 		filterString = query.AllocationParams.Filter
@@ -596,11 +620,11 @@ func (s *MCPServer) QueryAllocations(query *OpenCostQueryRequest) (*AllocationRe
 	// If we have multiple sets, we'll combine them or return the first one
 	// For now, let's return the first allocation set
 	firstSet := asr.Allocations[0]
-	return transformAllocationSet(firstSet), nil
+	return transformAllocationSet(firstSet, reconcile, reconcileNetwork), nil
 }
 
 // transformAllocationSet converts an opencost.AllocationSet into the MCP's AllocationResponse format.
-func transformAllocationSet(allocSet *opencost.AllocationSet) *AllocationResponse {
+func transformAllocationSet(allocSet *opencost.AllocationSet, reconcile bool, reconcileNetwork bool) *AllocationResponse {
 	if allocSet == nil {
 		return &AllocationResponse{Allocations: make(map[string]*AllocationSet)}
 	}
@@ -619,16 +643,83 @@ func transformAllocationSet(allocSet *opencost.AllocationSet) *AllocationRespons
 			continue
 		}
 
+		var cpuCost, gpuCost, ramCost, pvCost, networkCost, lbCost float64
+		if reconcile {
+			cpuCost = alloc.CPUCost + alloc.CPUCostAdjustment
+			gpuCost = alloc.GPUCost + alloc.GPUCostAdjustment
+			ramCost = alloc.RAMCost + alloc.RAMCostAdjustment
+			pvCost = alloc.PVCost() + alloc.PVCostAdjustment
+			lbCost = alloc.LoadBalancerCost + alloc.LoadBalancerCostAdjustment
+			if reconcileNetwork {
+				networkCost = alloc.NetworkCost + alloc.NetworkCostAdjustment
+			} else {
+				networkCost = alloc.NetworkCost
+			}
+		} else {
+			cpuCost = alloc.CPUCost
+			gpuCost = alloc.GPUCost
+			ramCost = alloc.RAMCost
+			pvCost = alloc.PVCost()
+			lbCost = alloc.LoadBalancerCost
+			if reconcileNetwork {
+				networkCost = alloc.NetworkCost + alloc.NetworkCostAdjustment
+			} else {
+				networkCost = alloc.NetworkCost
+			}
+		}
+
+		totalCost := cpuCost + gpuCost + ramCost + pvCost + networkCost + lbCost + alloc.SharedCost + alloc.ExternalCost
+
+		var props *AllocationProperties
+		if alloc.Properties != nil {
+			props = &AllocationProperties{
+				Cluster:        alloc.Properties.Cluster,
+				Node:           alloc.Properties.Node,
+				Container:      alloc.Properties.Container,
+				Controller:     alloc.Properties.Controller,
+				ControllerKind: alloc.Properties.ControllerKind,
+				Namespace:      alloc.Properties.Namespace,
+				Pod:            alloc.Properties.Pod,
+				Services:       alloc.Properties.Services,
+				ProviderID:     alloc.Properties.ProviderID,
+			}
+			if alloc.Properties.Labels != nil {
+				props.Labels = make(map[string]string, len(alloc.Properties.Labels))
+				for k, v := range alloc.Properties.Labels {
+					props.Labels[k] = v
+				}
+			}
+			if alloc.Properties.Annotations != nil {
+				props.Annotations = make(map[string]string, len(alloc.Properties.Annotations))
+				for k, v := range alloc.Properties.Annotations {
+					props.Annotations[k] = v
+				}
+			}
+			if alloc.Properties.NamespaceLabels != nil {
+				props.NamespaceLabels = make(map[string]string, len(alloc.Properties.NamespaceLabels))
+				for k, v := range alloc.Properties.NamespaceLabels {
+					props.NamespaceLabels[k] = v
+				}
+			}
+			if alloc.Properties.NamespaceAnnotations != nil {
+				props.NamespaceAnnotations = make(map[string]string, len(alloc.Properties.NamespaceAnnotations))
+				for k, v := range alloc.Properties.NamespaceAnnotations {
+					props.NamespaceAnnotations[k] = v
+				}
+			}
+		}
+
 		mcpAlloc := &Allocation{
 			Name:         alloc.Name,
-			CPUCost:      alloc.CPUCost,
-			GPUCost:      alloc.GPUCost,
-			RAMCost:      alloc.RAMCost,
-			PVCost:       alloc.PVCost(), // Call the method
-			NetworkCost:  alloc.NetworkCost,
+			Properties:   props,
+			CPUCost:      cpuCost,
+			GPUCost:      gpuCost,
+			RAMCost:      ramCost,
+			PVCost:       pvCost,
+			NetworkCost:  networkCost,
 			SharedCost:   alloc.SharedCost,
 			ExternalCost: alloc.ExternalCost,
-			TotalCost:    alloc.TotalCost(),
+			TotalCost:    totalCost,
 			CPUCoreHours: alloc.CPUCoreHours,
 			RAMByteHours: alloc.RAMByteHours,
 			GPUHours:     alloc.GPUHours,
@@ -1116,6 +1207,7 @@ func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyRes
 	var aggregateBy []string
 	var filterString string
 	var bufferMultiplier float64 = efficiencyBufferMultiplier // Default to 1.2 (20% headroom)
+	var reconcile, reconcileNetwork bool
 
 	// 3. Parse efficiency parameters if provided
 	if query.EfficiencyParams != nil {
@@ -1142,6 +1234,9 @@ func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyRes
 		if query.EfficiencyParams.EfficiencyBufferMultiplier != nil {
 			bufferMultiplier = *query.EfficiencyParams.EfficiencyBufferMultiplier
 		}
+
+		reconcile = query.EfficiencyParams.Reconcile
+		reconcileNetwork = query.EfficiencyParams.ReconcileNetwork
 	} else {
 		// Default to pod-level aggregation
 		aggregateBy = []string{"pod"}
@@ -1218,7 +1313,7 @@ func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyRes
 			// Compute metrics for all allocations in this set
 			localMetrics := make([]*EfficiencyMetric, 0, len(allocSet.Allocations))
 			for _, alloc := range allocSet.Allocations {
-				if metric := computeEfficiencyMetric(alloc, bufferMultiplier); metric != nil {
+				if metric := computeEfficiencyMetric(alloc, bufferMultiplier, reconcile, reconcileNetwork); metric != nil {
 					localMetrics = append(localMetrics, metric)
 				}
 			}
@@ -1249,7 +1344,7 @@ func safeDiv(numerator, denominator float64) float64 {
 }
 
 // computeEfficiencyMetric calculates efficiency metrics for a single allocation.
-func computeEfficiencyMetric(alloc *opencost.Allocation, bufferMultiplier float64) *EfficiencyMetric {
+func computeEfficiencyMetric(alloc *opencost.Allocation, bufferMultiplier float64, reconcile, reconcileNetwork bool) *EfficiencyMetric {
 	if alloc == nil {
 		return nil
 	}
@@ -1288,19 +1383,44 @@ func computeEfficiencyMetric(alloc *opencost.Allocation, bufferMultiplier float6
 	resultingCPUEff := safeDiv(cpuCoresUsed, recommendedCPU)
 	resultingMemEff := safeDiv(ramBytesUsed, recommendedRAM)
 
+	var cpuCost, gpuCost, ramCost, pvCost, networkCost, lbCost float64
+	if reconcile {
+		cpuCost = alloc.CPUCost + alloc.CPUCostAdjustment
+		gpuCost = alloc.GPUCost + alloc.GPUCostAdjustment
+		ramCost = alloc.RAMCost + alloc.RAMCostAdjustment
+		pvCost = alloc.PVCost() + alloc.PVCostAdjustment
+		lbCost = alloc.LoadBalancerCost + alloc.LoadBalancerCostAdjustment
+		if reconcileNetwork {
+			networkCost = alloc.NetworkCost + alloc.NetworkCostAdjustment
+		} else {
+			networkCost = alloc.NetworkCost
+		}
+	} else {
+		cpuCost = alloc.CPUCost
+		gpuCost = alloc.GPUCost
+		ramCost = alloc.RAMCost
+		pvCost = alloc.PVCost()
+		lbCost = alloc.LoadBalancerCost
+		if reconcileNetwork {
+			networkCost = alloc.NetworkCost + alloc.NetworkCostAdjustment
+		} else {
+			networkCost = alloc.NetworkCost
+		}
+	}
+
 	// Calculate cost per unit based on REQUESTED amounts (not used amounts)
 	// This gives us the cost per core-hour or byte-hour that the cluster charges
-	cpuCostPerCoreHour := safeDiv(alloc.CPUCost, cpuCoresRequested*hours)
-	ramCostPerByteHour := safeDiv(alloc.RAMCost, ramBytesRequested*hours)
+	cpuCostPerCoreHour := safeDiv(cpuCost, cpuCoresRequested*hours)
+	ramCostPerByteHour := safeDiv(ramCost, ramBytesRequested*hours)
 
 	// Current total cost
-	currentTotalCost := alloc.TotalCost()
+	currentTotalCost := cpuCost + gpuCost + ramCost + pvCost + networkCost + lbCost + alloc.SharedCost + alloc.ExternalCost
 
 	// Estimate recommended cost based on recommended requests
 	recommendedCPUCost := recommendedCPU * hours * cpuCostPerCoreHour
 	recommendedRAMCost := recommendedRAM * hours * ramCostPerByteHour
-	// Keep other costs the same (PV, network, shared, external, GPU)
-	otherCosts := alloc.PVCost() + alloc.NetworkCost + alloc.SharedCost + alloc.ExternalCost + alloc.GPUCost
+	// Keep other costs the same (PV, network, shared, external, GPU, LoadBalancer)
+	otherCosts := pvCost + networkCost + alloc.SharedCost + alloc.ExternalCost + gpuCost + lbCost
 	recommendedTotalCost := recommendedCPUCost + recommendedRAMCost + otherCosts
 
 	// Clamp recommended cost to avoid rounding issues making it higher than current
