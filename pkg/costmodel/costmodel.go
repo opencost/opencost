@@ -1373,11 +1373,9 @@ func getLBFeatures(service *clustercache.Service, providerType string) string {
 		}
 	}
 
-	// Add provider-specific defaults
-	if providerType == opencost.GCPProvider {
-		hints = append(hints, "network", "tcp")
-	}
-
+	// Intentionally avoid provider-specific defaults here. Leaving hints empty (when no annotations
+	// are present) allows cloud providers to fall back to their standard default pricing.
+	// (If we later add reliable GCP LB type detection, it should be derived from Service metadata.)
 	return strings.Join(hints, ",")
 }
 

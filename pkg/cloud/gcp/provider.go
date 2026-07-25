@@ -634,7 +634,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 				if strings.Contains(product.Description, "Forwarding Rule") || product.Category.ResourceGroup == "ForwardingRule" {
 					var lbType string
 					descLower := strings.ToLower(product.Description)
-					if strings.Contains(descLower, "external http") || strings.Contains(descLower, "global forwarding rule") {
+					if strings.Contains(descLower, "external http") || (strings.Contains(descLower, "global forwarding rule") && strings.Contains(descLower, "http")) {
 						lbType = "external-http"
 					} else if strings.Contains(descLower, "internal http") {
 						lbType = "internal-http"

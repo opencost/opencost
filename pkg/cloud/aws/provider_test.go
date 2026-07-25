@@ -1369,6 +1369,8 @@ func TestAWS_LoadBalancerPricing(t *testing.T) {
 			}
 		})
 	}
+}
+
 func TestAWS_findCostForDisk(t *testing.T) {
 	aws := &AWS{
 		ClusterRegion: "us-east-1",

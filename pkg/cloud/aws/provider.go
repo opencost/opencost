@@ -1198,25 +1198,27 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 						Sku:          product.Sku,
 						LoadBalancer: &models.LoadBalancer{},
 					}
-					key := product.Attributes.RegionCode + ",LoadBalancerUsage"
-					aws.Pricing[key] = productTerms
-					skuToPricingKeyMap[product.Sku] = key
-					aws.ValidPricingKeys[key] = true
-
-					var specKey string
+					genericKey := product.Attributes.RegionCode + ",LoadBalancerUsage"
+					pricingKey := genericKey
 					switch product.Attributes.Operation {
 					case "LoadBalancing:Network":
-						specKey = product.Attributes.RegionCode + ",LoadBalancerUsage:Network"
+						pricingKey = product.Attributes.RegionCode + ",LoadBalancerUsage:Network"
 					case "LoadBalancing:Application":
-						specKey = product.Attributes.RegionCode + ",LoadBalancerUsage:Application"
+						pricingKey = product.Attributes.RegionCode + ",LoadBalancerUsage:Application"
 					case "LoadBalancing":
-						specKey = product.Attributes.RegionCode + ",LoadBalancerUsage:Classic"
+						pricingKey = product.Attributes.RegionCode + ",LoadBalancerUsage:Classic"
 					}
+					aws.Pricing[pricingKey] = productTerms
+					skuToPricingKeyMap[product.Sku] = pricingKey
+					aws.ValidPricingKeys[pricingKey] = true
 
-					if specKey != "" {
-						aws.Pricing[specKey] = productTerms
-						skuToPricingKeyMap[product.Sku] = specKey
-						aws.ValidPricingKeys[specKey] = true
+					// Preserve a stable generic fallback key (prefer Network when available).
+					if pricingKey == genericKey || product.Attributes.Operation == "LoadBalancing:Network" {
+						aws.Pricing[genericKey] = productTerms
+						aws.ValidPricingKeys[genericKey] = true
+					} else if _, exists := aws.Pricing[genericKey]; !exists {
+						aws.Pricing[genericKey] = productTerms
+						aws.ValidPricingKeys[genericKey] = true
 					}
 				}
 			}
@@ -1478,6 +1480,7 @@ func (aws *AWS) NetworkPricing(netKey models.NetworkKey) (*models.Network, error
 }
 
 func (aws *AWS) LoadBalancerPricing(lbKey models.LBKey) (*models.LoadBalancer, error) {
+	// RLock is acquired to prevent data races with concurrent pricing downloads updating the aws.Pricing map.
 	aws.DownloadPricingDataLock.RLock()
 	defer aws.DownloadPricingDataLock.RUnlock()
 
