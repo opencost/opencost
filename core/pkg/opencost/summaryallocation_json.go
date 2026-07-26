@@ -33,6 +33,7 @@ type SummaryAllocationResponse struct {
 	ExternalCost           *float64  `json:"externalCost"`
 	TotalEfficiency        *float64  `json:"totalEfficiency"`
 	TotalCost              *float64  `json:"totalCost"`
+	CarbonKilograms        *float64  `json:"carbonKilograms"`
 }
 
 // ToResponse converts a SummaryAllocation to a SummaryAllocationResponse,
@@ -77,6 +78,7 @@ func (sa *SummaryAllocation) ToResponse() *SummaryAllocationResponse {
 		ExternalCost:           formatutil.Float64ToResponse(sa.ExternalCost),
 		TotalEfficiency:        formatutil.Float64ToResponse(efficiency),
 		TotalCost:              formatutil.Float64ToResponse(sa.TotalCost()),
+		CarbonKilograms:        formatutil.Float64ToResponse(sa.CarbonKilograms),
 	}
 }
 

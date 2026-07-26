@@ -87,6 +87,7 @@ type Allocation struct {
 	RAMCostIdle                float64               `json:"ramCostIdle"` //@bingen:field[ignore]
 	SharedCost                 float64               `json:"sharedCost"`
 	ExternalCost               float64               `json:"externalCost"`
+	CarbonKilograms            float64               `json:"carbonKilograms"`
 	// RawAllocationOnly is a pointer so if it is not present it will be
 	// marshalled as null rather than as an object with Go default values.
 	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
@@ -788,6 +789,7 @@ func (a *Allocation) Clone() *Allocation {
 		RAMCostAdjustment:              a.RAMCostAdjustment,
 		SharedCost:                     a.SharedCost,
 		ExternalCost:                   a.ExternalCost,
+		CarbonKilograms:                a.CarbonKilograms,
 		RawAllocationOnly:              a.RawAllocationOnly.Clone(),
 		ProportionalAssetResourceCosts: a.ProportionalAssetResourceCosts.Clone(),
 		SharedCostBreakdown:            a.SharedCostBreakdown.Clone(),
@@ -899,6 +901,9 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.ExternalCost, that.ExternalCost) {
+		return false
+	}
+	if !util.IsApproximately(a.CarbonKilograms, that.CarbonKilograms) {
 		return false
 	}
 
@@ -1438,6 +1443,7 @@ func (a *Allocation) add(that *Allocation) {
 	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
+	a.CarbonKilograms += that.CarbonKilograms
 	a.UnmountedPVCost += that.UnmountedPVCost
 
 	// Sum PVAllocations
@@ -2851,6 +2857,10 @@ func (a *Allocation) SanitizeNaN() {
 	if math.IsNaN(a.ExternalCost) {
 		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for ExternalCost name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
 		a.ExternalCost = 0
+	}
+	if math.IsNaN(a.CarbonKilograms) {
+		log.DedupedWarningf(5, "Allocation: Unexpected NaN found for CarbonKilograms name:%s, window:%s, properties:%s", a.Name, a.Window.String(), a.Properties.String())
+		a.CarbonKilograms = 0
 	}
 
 	a.PVs.SanitizeNaN()
