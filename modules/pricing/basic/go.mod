@@ -1,4 +1,4 @@
-module github.com/opencost/modules/pricing/basic
+module github.com/opencost/opencost/modules/pricing/basic
 
 replace github.com/opencost/opencost/core => ../../../core
 
