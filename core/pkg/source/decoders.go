@@ -2142,7 +2142,7 @@ func DecodeDCGMDeviceContainerUsageResult(result *QueryResult) *DCGMDeviceContai
 	if len(result.Values) > 0 {
 		value = result.Values[0].Value
 	} else {
-		log.Warnf("Error decoding DCGM Device Container Udage Result for device '%s': empty value returned", uuid)
+		log.Warnf("Error decoding DCGM Device Container Usage Result for device '%s': empty value returned", uuid)
 	}
 
 	return &DCGMDeviceContainerUsageResult{
