@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -16,7 +17,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
-var BillingAPIURLFmt = "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=%s&currencyCode=%s"
+var BillingAPIBaseURL = "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus"
 
 var gcpHTTPClient = &http.Client{Timeout: 120 * time.Second}
 
@@ -55,11 +56,11 @@ func (g *GCPPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	nextPageToken := ""
 
 	for {
-		url := g.buildURL(nextPageToken)
+		pageURL := g.buildURL(nextPageToken)
 
-		resp, err := gcpHTTPClient.Get(url)
+		resp, err := gcpHTTPClient.Get(pageURL)
 		if err != nil {
-			return nil, fmt.Errorf("PricingSource (GCP): GET %s: %w", url, err)
+			return nil, fmt.Errorf("PricingSource (GCP): GET %s: %w", pageURL, err)
 		}
 
 		if resp.StatusCode != http.StatusOK {
@@ -102,11 +103,13 @@ func (g *GCPPricingSource) GetPricing() (*pricing.PricingSet, error) {
 }
 
 func (g *GCPPricingSource) buildURL(pageToken string) string {
-	url := fmt.Sprintf(BillingAPIURLFmt, g.config.APIKey, g.config.CurrencyCode)
+	q := url.Values{}
+	q.Set("key", g.config.APIKey)
+	q.Set("currencyCode", g.config.CurrencyCode)
 	if pageToken != "" {
-		url += "&pageToken=" + pageToken
+		q.Set("pageToken", pageToken)
 	}
-	return url
+	return BillingAPIBaseURL + "?" + q.Encode()
 }
 
 func (g *GCPPricingSource) parsePage(body io.Reader, nodeCPUCosts map[nodeKey]float64, nodeRAMCosts map[nodeKey]float64,
@@ -231,7 +234,7 @@ func (g *GCPPricingSource) expandInstanceTypes(instanceType, resourceGroup strin
 
 // extractHourlyPrice extracts the hourly price from a GCP SKU
 func (g *GCPPricingSource) extractHourlyPrice(sku *GCPPricing) (float64, error) {
-	if len(sku.PricingInfo) == 0 {
+	if sku == nil || len(sku.PricingInfo) == 0 || sku.PricingInfo[0] == nil || sku.PricingInfo[0].PricingExpression == nil {
 		return 0, fmt.Errorf("no pricing info")
 	}
 

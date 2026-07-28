@@ -1,6 +1,7 @@
 package azure
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/pricing"
@@ -275,7 +276,7 @@ func TestBuildVMURL(t *testing.T) {
 			}
 			url := source.buildVMURL()
 			for _, want := range tt.wantContains {
-				if !contains(url, want) {
+				if !strings.Contains(url, want) {
 					t.Errorf("buildVMURL() = %v, want to contain %v", url, want)
 				}
 			}
@@ -318,7 +319,7 @@ func TestBuildDiskURL(t *testing.T) {
 			}
 			url := source.buildDiskURL()
 			for _, want := range tt.wantContains {
-				if !contains(url, want) {
+				if !strings.Contains(url, want) {
 					t.Errorf("buildDiskURL() = %v, want to contain %v", url, want)
 				}
 			}
@@ -341,11 +342,3 @@ func TestNewAzurePricingSource(t *testing.T) {
 		t.Errorf("CurrencyCode = %v, want USD", source.config.CurrencyCode)
 	}
 }
-
-// Helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && (s[0:len(substr)] == substr || contains(s[1:], substr))))
-}
-
-// Made with Bob

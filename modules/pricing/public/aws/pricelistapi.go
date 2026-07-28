@@ -73,15 +73,19 @@ func QueryEC2PriceList(
 		}
 	}()
 
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status %d fetching %q: %s", resp.StatusCode, pricingURL, strings.TrimSpace(string(body)))
+	}
+
 	dec := json.NewDecoder(resp.Body)
 	for {
 		t, err := dec.Token()
 		if err == io.EOF {
-			log.Infof("done loading \"%s\"\n", resp.Request.URL.String())
+			log.Infof("done loading %q", resp.Request.URL.String())
 			break
 		} else if err != nil {
-			log.Errorf("error parsing response json %v", resp.Body)
-			break
+			return fmt.Errorf("parsing pricing list JSON from %q: %w", resp.Request.URL.String(), err)
 		}
 		if t == "products" {
 			_, err := dec.Token() // this should parse the opening "{""
@@ -97,8 +101,7 @@ func QueryEC2PriceList(
 
 				err = dec.Decode(&product)
 				if err != nil {
-					log.Errorf("Error parsing response from \"%s\": %v", resp.Request.URL.String(), err.Error())
-					break
+					return fmt.Errorf("decoding EC2 product from %q: %w", resp.Request.URL.String(), err)
 				}
 
 				handleProduct(product)
@@ -136,7 +139,7 @@ func QueryEC2PriceList(
 					offerTerm := &PriceListEC2Term{}
 					err = dec.Decode(&offerTerm)
 					if err != nil {
-						log.Errorf("Error decoding AWS Offer Term: %s", err.Error())
+						return fmt.Errorf("decoding EC2 Offer Term from %q: %w", resp.Request.URL.String(), err)
 					}
 
 					handleTerm(offerTerm)
@@ -204,22 +207,10 @@ type PriceListEC2Term struct {
 	PriceDimensions map[string]*PriceListEC2PriceDimension `json:"priceDimensions"`
 }
 
-func (t *PriceListEC2Term) String() string {
-	var strs []string
-	for k, rc := range t.PriceDimensions {
-		strs = append(strs, fmt.Sprintf("%s:%s", k, rc.String()))
-	}
-	return fmt.Sprintf("%s:%s", t.Sku, strings.Join(strs, ","))
-}
-
 // PriceListEC2PriceDimension encodes data about the price of a product
 type PriceListEC2PriceDimension struct {
 	Unit         string                   `json:"unit"`
 	PricePerUnit PriceListEC2PricePerUnit `json:"pricePerUnit"`
-}
-
-func (pd *PriceListEC2PriceDimension) String() string {
-	return fmt.Sprintf("{unit: %s, pricePerUnit: %v", pd.Unit, pd.PricePerUnit)
 }
 
 // PriceListEC2PricePerUnit is the localized currency.

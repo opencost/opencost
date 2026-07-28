@@ -839,10 +839,10 @@ func TestGetPricing_Integration(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Point the package-level URL format at the test server.
-	originalURL := BillingAPIURLFmt
-	BillingAPIURLFmt = server.URL + "?key=%s&currencyCode=%s"
-	defer func() { BillingAPIURLFmt = originalURL }()
+	// Point the package-level base URL at the test server.
+	originalURL := BillingAPIBaseURL
+	BillingAPIBaseURL = server.URL
+	defer func() { BillingAPIBaseURL = originalURL }()
 
 	// Use the test server's own client so TLS/redirect rules match.
 	originalClient := gcpHTTPClient
