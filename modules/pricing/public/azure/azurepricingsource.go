@@ -238,12 +238,11 @@ func (a *AzurePricingSource) includeItem(item AzurePricingAttributes) bool {
 	if item.ArmSkuName == "" || item.ArmRegionName == "" {
 		return false
 	}
-	if strings.Contains(item.ProductName, "Windows") {
+	productLower := strings.ToLower(item.ProductName)
+	if strings.Contains(productLower, "windows") {
 		return false
 	}
 	skuLower := strings.ToLower(item.SkuName)
-	productLower := strings.ToLower(item.ProductName)
-	if strings.Contains(skuLower, "low priority") {
 		return false
 	}
 	if strings.Contains(productLower, "cloud services") || strings.Contains(productLower, "cloudservices") {
