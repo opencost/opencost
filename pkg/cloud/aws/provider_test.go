@@ -133,8 +133,8 @@ func Test_PricingData_Regression(t *testing.T) {
 			t.Errorf("Failed to download pricing data for region %s: %v", region, err)
 		}
 
-		// Unmarshal pricing data into PriceListEC2Response
-		var pricingData PriceListEC2Response
+		// Unmarshal pricing data into AWSPricing
+		var pricingData AWSPricing
 		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			t.Errorf("Failed to read pricing data for region %s: %v", region, err)
@@ -207,13 +207,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "",
 		VCpu:    "",
 		GPU:     "",
-		OnDemand: &PriceListEC2Term{
+		OnDemand: &AWSOfferTerm{
 			Sku:           "M6UGCCQ3CDJQAA37",
 			OfferTermCode: "JRTCKXETXF",
-			PriceDimensions: map[string]*PriceListEC2PriceDimension{
+			PriceDimensions: map[string]*AWSRateCode{
 				"M6UGCCQ3CDJQAA37.JRTCKXETXF.6YS6EN2CT7": {
 					Unit: "GB-Mo",
-					PricePerUnit: PriceListEC2PricePerUnit{
+					PricePerUnit: AWSCurrencyCode{
 						USD: "0.0800000000",
 						CNY: "",
 					},
@@ -236,13 +236,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "EBS only",
 		VCpu:    "2",
 		GPU:     "",
-		OnDemand: &PriceListEC2Term{
+		OnDemand: &AWSOfferTerm{
 			Sku:           "8D49XP354UEYTHGM",
 			OfferTermCode: "MZU6U2429S",
-			PriceDimensions: map[string]*PriceListEC2PriceDimension{
+			PriceDimensions: map[string]*AWSRateCode{
 				"8D49XP354UEYTHGM.MZU6U2429S.2TG2D8R56U": {
 					Unit: "Quantity",
-					PricePerUnit: PriceListEC2PricePerUnit{
+					PricePerUnit: AWSCurrencyCode{
 						USD: "1161",
 						CNY: "",
 					},
@@ -257,13 +257,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "EBS only",
 		VCpu:    "2",
 		GPU:     "",
-		OnDemand: &PriceListEC2Term{
+		OnDemand: &AWSOfferTerm{
 			Sku:           "8D49XP354UEYTHGM",
 			OfferTermCode: "MZU6U2429S",
-			PriceDimensions: map[string]*PriceListEC2PriceDimension{
+			PriceDimensions: map[string]*AWSRateCode{
 				"8D49XP354UEYTHGM.MZU6U2429S.2TG2D8R56U": {
 					Unit: "Quantity",
-					PricePerUnit: PriceListEC2PricePerUnit{
+					PricePerUnit: AWSCurrencyCode{
 						USD: "1161",
 						CNY: "",
 					},
@@ -274,13 +274,13 @@ func Test_populate_pricing(t *testing.T) {
 
 	expectedProdTermsLoadbalancer := &AWSProductTerms{
 		Sku: "Y9RYMSE644KDSV4S",
-		OnDemand: &PriceListEC2Term{
+		OnDemand: &AWSOfferTerm{
 			Sku:           "Y9RYMSE644KDSV4S",
 			OfferTermCode: "JRTCKXETXF",
-			PriceDimensions: map[string]*PriceListEC2PriceDimension{
+			PriceDimensions: map[string]*AWSRateCode{
 				"Y9RYMSE644KDSV4S.JRTCKXETXF.6YS6EN2CT7": {
 					Unit: "Hrs",
-					PricePerUnit: PriceListEC2PricePerUnit{
+					PricePerUnit: AWSCurrencyCode{
 						USD: "0.0225000000",
 						CNY: "",
 					},
@@ -337,13 +337,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "8 x 1000 SSD",
 		VCpu:    "96",
 		GPU:     "8",
-		OnDemand: &PriceListEC2Term{
+		OnDemand: &AWSOfferTerm{
 			Sku:           "H7NGEAC6UEHNTKSJ",
 			OfferTermCode: "JRTCKXETXF",
-			PriceDimensions: map[string]*PriceListEC2PriceDimension{
+			PriceDimensions: map[string]*AWSRateCode{
 				"H7NGEAC6UEHNTKSJ.JRTCKXETXF.6YS6EN2CT7": {
 					Unit: "Hrs",
-					PricePerUnit: PriceListEC2PricePerUnit{
+					PricePerUnit: AWSCurrencyCode{
 						USD: "32.7726000000",
 					},
 				},
@@ -392,13 +392,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "",
 		VCpu:    "",
 		GPU:     "",
-		OnDemand: &PriceListEC2Term{
+		OnDemand: &AWSOfferTerm{
 			Sku:           "R83VXG9NAPDASEGN",
 			OfferTermCode: "5Y9WH78GDR",
-			PriceDimensions: map[string]*PriceListEC2PriceDimension{
+			PriceDimensions: map[string]*AWSRateCode{
 				"R83VXG9NAPDASEGN.5Y9WH78GDR.Q7UJUT2CE6": {
 					Unit: "GB-Mo",
-					PricePerUnit: PriceListEC2PricePerUnit{
+					PricePerUnit: AWSCurrencyCode{
 						USD: "",
 						CNY: "0.5312000000",
 					},
@@ -1064,13 +1064,13 @@ func TestAWS_createNode_spotHistoryFallback(t *testing.T) {
 		priceKey := sku + "." + offerTermCode + "." + HourlyRateCode
 		return &AWSProductTerms{
 			Sku: sku,
-			OnDemand: &PriceListEC2Term{
+			OnDemand: &AWSOfferTerm{
 				Sku:           sku,
 				OfferTermCode: offerTermCode,
-				PriceDimensions: map[string]*PriceListEC2PriceDimension{
+				PriceDimensions: map[string]*AWSRateCode{
 					priceKey: {
 						Unit:         "Hrs",
-						PricePerUnit: PriceListEC2PricePerUnit{USD: cost},
+						PricePerUnit: AWSCurrencyCode{USD: cost},
 					},
 				},
 			},
@@ -1209,10 +1209,10 @@ func TestAWS_createNode_spotHistoryFallback(t *testing.T) {
 		// Terms without valid pricing dimensions
 		terms := &AWSProductTerms{
 			Sku: "SKU123",
-			OnDemand: &PriceListEC2Term{
+			OnDemand: &AWSOfferTerm{
 				Sku:             "SKU123",
 				OfferTermCode:   "JRTCKXETXF",
-				PriceDimensions: map[string]*PriceListEC2PriceDimension{},
+				PriceDimensions: map[string]*AWSRateCode{},
 			},
 			VCpu:   "4",
 			Memory: "16",

@@ -29,7 +29,7 @@ func TestFargatePricing_populatePricing(t *testing.T) {
 		t.Fatalf("Failed to read test data: %v", err)
 	}
 
-	var pricing PriceListEC2Response
+	var pricing AWSPricing
 	err = json.Unmarshal(data, &pricing)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal test data: %v", err)
@@ -37,7 +37,7 @@ func TestFargatePricing_populatePricing(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		pricing *PriceListEC2Response
+		pricing *AWSPricing
 		wantErr bool
 	}{
 		{
@@ -514,7 +514,7 @@ func TestFargatePricing_ValidateAWSPricingFormat(t *testing.T) {
 		t.Fatalf("Unexpected status code: %d", resp.StatusCode)
 	}
 
-	var pricing PriceListEC2Response
+	var pricing AWSPricing
 	if err := json.NewDecoder(resp.Body).Decode(&pricing); err != nil {
 		t.Fatalf("Failed to decode pricing data - AWS format may have changed: %v", err)
 	}

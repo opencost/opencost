@@ -22,8 +22,6 @@ const (
 	CustomCostEnabledEnvVar         = "CUSTOM_COST_ENABLED"
 	CustomCostQueryWindowDaysEnvVar = "CUSTOM_COST_QUERY_WINDOW_DAYS"
 
-	PricingModelEnabledEnvVar = "PRICING_MODEL_ENABLED"
-
 	PluginConfigDirEnvVar     = "PLUGIN_CONFIG_DIR"
 	PluginExecutableDirEnvVar = "PLUGIN_EXECUTABLE_DIR"
 
