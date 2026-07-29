@@ -239,15 +239,18 @@ func (a *AzurePricingSource) includeItem(item AzurePricingAttributes) bool {
 		return false
 	}
 	productLower := strings.ToLower(item.ProductName)
-	if strings.Contains(productLower, "windows") {
-		return false
-	}
-	skuLower := strings.ToLower(item.SkuName)
+	if strings.Contains(item.ProductName, "windows") {
 		return false
 	}
 	if strings.Contains(productLower, "cloud services") || strings.Contains(productLower, "cloudservices") {
 		return false
 	}
+	
+	skuLower := strings.ToLower(item.SkuName)
+	if strings.Contains(skuLower, "low priority") {
+		return false
+	}
+
 	return true
 }
 
