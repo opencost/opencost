@@ -656,14 +656,14 @@ func TestBuildNodePricing(t *testing.T) {
 			currencyCode: "USD",
 		},
 		{
-			name: "Preemptible instance",
+			name: "Preemptible instance - excluded",
 			cpuCosts: map[nodeKey]float64{
 				{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.007583,
 			},
 			ramCosts: map[nodeKey]float64{
 				{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.001017,
 			},
-			wantNodes:    1,
+			wantNodes:    0,
 			currencyCode: "USD",
 		},
 		{
@@ -699,21 +699,6 @@ func TestBuildNodePricing(t *testing.T) {
 				t.Errorf("buildNodePricing() created %d nodes, want %d", len(ps.NodePricing), tt.wantNodes)
 			}
 
-			// Verify provisioning type for preemptible
-			if tt.wantNodes > 0 {
-				for _, node := range ps.NodePricing {
-					key := nodeKey{
-						Region:       node.Properties.Region,
-						InstanceType: node.Properties.InstanceType,
-						UsageType:    "preemptible",
-					}
-					if _, exists := tt.cpuCosts[key]; exists {
-						if node.Properties.Provisioning != pricing.ProvisioningSpot {
-							t.Errorf("Expected preemptible node to have Spot provisioning, got %v", node.Properties.Provisioning)
-						}
-					}
-				}
-			}
 		})
 	}
 }

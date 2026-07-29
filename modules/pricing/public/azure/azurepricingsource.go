@@ -153,14 +153,6 @@ func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet)
 			continue
 		}
 
-		// TODO: handle currency?
-		// Parse the currency from config, default to USD if invalid
-		// currency, err := unit.ParseCurrency(a.config.CurrencyCode)
-		// if err != nil {
-		// 	log.Warnf("invalid currency code '%s', defaulting to USD: %s", a.config.CurrencyCode, err.Error())
-		// 	currency = unit.USD
-		// }
-
 		nodePricing := &pricing.NodePricing{
 			Properties: pricing.NodePricingProperties{
 				Provider:     cloud.ProviderAzure,
@@ -202,13 +194,6 @@ func (a *AzurePricingSource) parseDiskPage(body io.Reader, ps *pricing.PricingSe
 		if volumeType == pricing.VolumeTypeNil {
 			continue
 		}
-
-		// TODO: handle currency?
-		// currency, err := unit.ParseCurrency(a.config.CurrencyCode)
-		// if err != nil {
-		// 	log.Warnf("invalid currency code '%s', defaulting to USD: %s", a.config.CurrencyCode, err.Error())
-		// 	currency = unit.USD
-		// }
 
 		// Azure disk pricing is per GB-month, convert to per GB-hour
 		hourlyPrice := float64(item.RetailPrice) / 730.0

@@ -141,14 +141,6 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 			return
 		}
 
-		// TODO: handle currency?
-		// Parse the currency from config, default to USD if invalid
-		// currency, err := unit.ParseCurrency(p.config.CurrencyCode)
-		// if err != nil {
-		// 	log.Warnf("invalid currency code '%s', defaulting to USD: %s", p.config.CurrencyCode, err.Error())
-		// 	currency = unit.USD
-		// }
-
 		// Handle node pricing
 		if isNode {
 			nodePricing := &pricing.NodePricing{

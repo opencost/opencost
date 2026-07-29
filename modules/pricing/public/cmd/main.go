@@ -15,12 +15,10 @@ import (
 )
 
 var (
-	currency string
-	compare  bool
+	currency  string
+	compare   bool
+	outputDir string
 )
-
-// Assumes execution from the /cmd directory
-const outputDir = "../%s"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -39,6 +37,7 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.Flags().StringVarP(&currency, "currency", "c", "USD", "Currency code (e.g. USD, CNY). Default: USD")
 	rootCmd.Flags().BoolVar(&compare, "compare", false, "Compare freshly fetched pricing against the existing JSONL files; exits 2 if they differ")
+	rootCmd.Flags().StringVarP(&outputDir, "output", "o", "..", "Base output directory")
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -60,7 +59,7 @@ func run(cmd *cobra.Command, args []string) error {
 		return comparePricing(curr, pricingSet)
 	}
 
-	dir := fmt.Sprintf(outputDir, strings.ToLower(string(curr)))
+	dir := fmt.Sprintf("%s/%s", outputDir, strings.ToLower(string(curr)))
 	return writePricingJSONL(dir, pricingSet)
 }
 
@@ -100,7 +99,7 @@ func writeJSONL[T any](path string, items []T) error {
 // comparePricing compares a fresh pricing set against the existing JSONL files
 // for a given currency.
 func comparePricing(curr unit.Currency, newSet *pricing.PricingSet) error {
-	dir := fmt.Sprintf(outputDir, strings.ToLower(string(curr)))
+	dir := fmt.Sprintf("%s/%s", outputDir, strings.ToLower(string(curr)))
 	existingSet, err := readPricingJSONL(dir)
 	if err != nil {
 		return fmt.Errorf("reading existing pricing data from %s: %w", dir, err)
