@@ -40,90 +40,20 @@ func (pm *PricingModule) newPVReader() (reader.Reader[*pricing.PersistentVolumeP
 	return reader.NewJSONLinesReader[*pricing.PersistentVolumePricing](f), nil
 }
 
-func (pm *PricingModule) GetNodePricing(ctx context.Context, props pricing.NodePricingProperties) (*pricing.NodePricing, error) {
-	r, err := pm.newNodeReader()
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	dst := make([]*pricing.NodePricing, 64)
-	for {
-		n, err := r.Read(ctx, dst)
-		for _, np := range dst[:n] {
-			if np.Properties.Provider == props.Provider &&
-				np.Properties.InstanceType == props.InstanceType &&
-				np.Properties.Region == props.Region {
-				return np, nil
-			}
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return nil, fmt.Errorf("node pricing not found for provider=%s, instanceType=%s, region=%s",
-		props.Provider, props.InstanceType, props.Region)
-}
-
 func (pm *PricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*pricing.NodePricing], error) {
 	return pm.newNodeReader()
-}
-
-func (pm *PricingModule) GetPersistentVolumePricing(ctx context.Context, props pricing.PersistentVolumePricingProperties) (*pricing.PersistentVolumePricing, error) {
-	r, err := pm.newPVReader()
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	dst := make([]*pricing.PersistentVolumePricing, 64)
-	for {
-		n, err := r.Read(ctx, dst)
-		for _, pvp := range dst[:n] {
-			if pvp.Properties.Provider == props.Provider &&
-				pvp.Properties.VolumeType == props.VolumeType &&
-				pvp.Properties.Region == props.Region {
-				return pvp, nil
-			}
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return nil, fmt.Errorf("volume pricing not found for provider=%s, volumeType=%s, region=%s",
-		props.Provider, props.VolumeType, props.Region)
 }
 
 func (pm *PricingModule) NewPersistentVolumePricingReader(ctx context.Context) (reader.Reader[*pricing.PersistentVolumePricing], error) {
 	return pm.newPVReader()
 }
 
-func (pm *PricingModule) GetClusterPricing(ctx context.Context, props pricing.ClusterPricingProperties) (*pricing.ClusterPricing, error) {
-	return nil, fmt.Errorf("cluster pricing not yet implemented")
-}
-
 func (pm *PricingModule) NewClusterPricingReader(ctx context.Context) (reader.Reader[*pricing.ClusterPricing], error) {
 	return nil, fmt.Errorf("cluster pricing not yet implemented")
 }
 
-func (pm *PricingModule) GetNetworkPricing(ctx context.Context, props pricing.NetworkPricingProperties) (*pricing.NetworkPricing, error) {
-	return nil, fmt.Errorf("network pricing not yet implemented")
-}
-
 func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*pricing.NetworkPricing], error) {
 	return nil, fmt.Errorf("network pricing not yet implemented")
-}
-
-func (pm *PricingModule) GetServicePricing(ctx context.Context, props pricing.ServicePricingProperties) (*pricing.ServicePricing, error) {
-	return nil, fmt.Errorf("service pricing not yet implemented")
 }
 
 func (pm *PricingModule) NewServicePricingReader(ctx context.Context) (reader.Reader[*pricing.ServicePricing], error) {

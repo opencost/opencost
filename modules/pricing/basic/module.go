@@ -52,22 +52,6 @@ func NewBasicPricingModule(store pricing.PricingStore) (*PricingModule, error) {
 	return pm, nil
 }
 
-func (pm *PricingModule) GetClusterPricing(ctx context.Context, props pricing.ClusterPricingProperties) (*pricing.ClusterPricing, error) {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
-
-	cp, err := pm.getClusterPricing(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if cp != nil {
-		return cp, nil
-	}
-
-	return nil, errors.New("no cluster pricing")
-}
-
 func (pm *PricingModule) NewClusterPricingReader(ctx context.Context) (reader.Reader[*pricing.ClusterPricing], error) {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
@@ -78,22 +62,6 @@ func (pm *PricingModule) NewClusterPricingReader(ctx context.Context) (reader.Re
 	}
 
 	return reader.NewSliceReader([]*pricing.ClusterPricing{cp}), nil
-}
-
-func (pm *PricingModule) GetNetworkPricing(ctx context.Context, props pricing.NetworkPricingProperties) (*pricing.NetworkPricing, error) {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
-
-	np, err := pm.getNetworkPricing(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if np != nil {
-		return np, nil
-	}
-
-	return nil, errors.New("no network pricing")
 }
 
 func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*pricing.NetworkPricing], error) {
@@ -108,22 +76,6 @@ func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Re
 	return reader.NewSliceReader([]*pricing.NetworkPricing{np}), nil
 }
 
-func (pm *PricingModule) GetNodePricing(ctx context.Context, props pricing.NodePricingProperties) (*pricing.NodePricing, error) {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
-
-	np, err := pm.getNodePricing(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if np != nil {
-		return np, nil
-	}
-
-	return nil, errors.New("no node pricing")
-}
-
 func (pm *PricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*pricing.NodePricing], error) {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
@@ -136,22 +88,6 @@ func (pm *PricingModule) NewNodePricingReader(ctx context.Context) (reader.Reade
 	return reader.NewSliceReader([]*pricing.NodePricing{np}), nil
 }
 
-func (pm *PricingModule) GetPersistentVolumePricing(ctx context.Context, props pricing.PersistentVolumePricingProperties) (*pricing.PersistentVolumePricing, error) {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
-
-	pvp, err := pm.getPersistentVolumePricing(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if pvp != nil {
-		return pvp, nil
-	}
-
-	return nil, errors.New("no persistent volume pricing")
-}
-
 func (pm *PricingModule) NewPersistentVolumePricingReader(ctx context.Context) (reader.Reader[*pricing.PersistentVolumePricing], error) {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
@@ -162,22 +98,6 @@ func (pm *PricingModule) NewPersistentVolumePricingReader(ctx context.Context) (
 	}
 
 	return reader.NewSliceReader([]*pricing.PersistentVolumePricing{pvp}), nil
-}
-
-func (pm *PricingModule) GetServicePricing(ctx context.Context, props pricing.ServicePricingProperties) (*pricing.ServicePricing, error) {
-	pm.mu.RLock()
-	defer pm.mu.RUnlock()
-
-	sp, err := pm.getServicePricing(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if sp != nil {
-		return sp, nil
-	}
-
-	return nil, errors.New("no service pricing")
 }
 
 func (pm *PricingModule) NewServicePricingReader(ctx context.Context) (reader.Reader[*pricing.ServicePricing], error) {

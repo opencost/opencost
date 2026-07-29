@@ -65,10 +65,6 @@ func testPricingModuleWithStore(store pricing.PricingStore) func(t *testing.T) {
 			testGetPricingSet(t, ctx, pm)
 		})
 
-		t.Run("PublicGetters", func(t *testing.T) {
-			testPublicGetters(t, ctx, pm)
-		})
-
 		t.Run("SetClusterPricePerHour", func(t *testing.T) {
 			testSetClusterPricePerHour(t, ctx, pm)
 		})
@@ -473,30 +469,6 @@ func testGetPricingSet(t *testing.T, ctx context.Context, pm *PricingModule) {
 	require.NoError(t, err)
 	require.NotNil(t, ps)
 	require.False(t, ps.IsEmpty())
-}
-
-// testPublicGetters exercises the public Get*Pricing wrappers, which apply a
-// nil-check around the private getters.
-func testPublicGetters(t *testing.T, ctx context.Context, pm *PricingModule) {
-	cp, err := pm.GetClusterPricing(ctx, pricing.ClusterPricingProperties{})
-	require.NoError(t, err)
-	require.NotNil(t, cp)
-
-	netp, err := pm.GetNetworkPricing(ctx, pricing.NetworkPricingProperties{})
-	require.NoError(t, err)
-	require.NotNil(t, netp)
-
-	np, err := pm.GetNodePricing(ctx, pricing.NodePricingProperties{})
-	require.NoError(t, err)
-	require.NotNil(t, np)
-
-	vp, err := pm.GetPersistentVolumePricing(ctx, pricing.PersistentVolumePricingProperties{})
-	require.NoError(t, err)
-	require.NotNil(t, vp)
-
-	sp, err := pm.GetServicePricing(ctx, pricing.ServicePricingProperties{})
-	require.NoError(t, err)
-	require.NotNil(t, sp)
 }
 
 // testSetClusterPricePerHour tests the SetClusterPricePerHour function.
