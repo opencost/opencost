@@ -23,7 +23,6 @@ type NodePricingProperties struct {
 	Region       string            `json:"region,omitempty" yaml:"region,omitempty"`
 	InstanceType string            `json:"instanceType,omitempty" yaml:"instanceType,omitempty"`
 	Provisioning ProvisioningType  `json:"provisioning,omitempty" yaml:"provisioning,omitempty"`
-	Commitment   CommitmentType    `json:"commitment,omitempty" yaml:"commitment,omitempty"`
 	Cluster      string            `json:"cluster,omitempty" yaml:"cluster,omitempty"`
 	ProviderID   string            `json:"providerID,omitempty" yaml:"providerID,omitempty"`
 	Labels       map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
@@ -32,12 +31,11 @@ type NodePricingProperties struct {
 }
 
 func (np *NodePricingProperties) String() string {
-	return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s:%s",
+	return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s",
 		np.Provider,
 		np.Region,
 		np.InstanceType,
 		np.Provisioning,
-		np.Commitment,
 		np.Cluster,
 		np.ProviderID,
 		np.labelsKey(),

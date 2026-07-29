@@ -107,13 +107,12 @@ func (mpm *MockPricingModule) GetNodePricing(ctx context.Context, props NodePric
 		if np.Properties.Provider == props.Provider &&
 			np.Properties.Region == props.Region &&
 			np.Properties.InstanceType == props.InstanceType &&
-			np.Properties.Provisioning == props.Provisioning &&
-			np.Properties.Commitment == props.Commitment {
+			np.Properties.Provisioning == props.Provisioning {
 			return np, nil
 		}
 	}
-	return nil, fmt.Errorf("node pricing not found for provider=%s, region=%s, instanceType=%s, provisioning=%s, commitment=%s",
-		props.Provider, props.Region, props.InstanceType, props.Provisioning, props.Commitment)
+	return nil, fmt.Errorf("node pricing not found for provider=%s, region=%s, instanceType=%s, provisioning=%s",
+		props.Provider, props.Region, props.InstanceType, props.Provisioning)
 }
 
 func (mpm *MockPricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*NodePricing], error) {
