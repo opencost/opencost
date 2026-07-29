@@ -190,6 +190,9 @@ const OracleProvider = "Oracle"
 // OTCProvider describes the provider OTC
 const OTCProvider = "OTC"
 
+// HuaweiProvider describes the provider Huawei Cloud
+const HuaweiProvider = "Huawei"
+
 // DigitalOceanProvider describes the provider DigitalOcean
 const DigitalOceanProvider = "DigitalOcean"
 
@@ -225,6 +228,8 @@ func ParseProvider(str string) string {
 		return OVHProvider
 	case "stackit", "ske":
 		return STACKITProvider
+	case "huawei", "huaweicloud":
+		return HuaweiProvider
 	default:
 		return NilProvider
 	}

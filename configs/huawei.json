@@ -1,0 +1,12 @@
+{
+    "provider": "Huawei",
+    "description": "Default prices used until live pricing from the Huawei Cloud BSS demandPrice API is implemented.",
+    "CPU": "0.0345",
+    "RAM": "0.0046",
+    "storage": "0.00007",
+    "zoneNetworkEgress": "0.0",
+    "regionNetworkEgress": "0.0",
+    "internetNetworkEgress": "0.0",
+    "natGatewayEgress": "0.0",
+    "natGatewayIngress": "0.0"
+}

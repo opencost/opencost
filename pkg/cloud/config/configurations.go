@@ -10,6 +10,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/huawei"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
 	"github.com/opencost/opencost/pkg/cloud/stackit"
 )
@@ -70,6 +71,7 @@ type Configurations struct {
 	Alibaba *AlibabaConfigs `json:"alibaba,omitempty"`
 	OCI     *OCIConfigs     `json:"oci,omitempty"`
 	STACKIT *STACKITConfigs `json:"stackit,omitempty"`
+	Huawei  *HuaweiConfigs  `json:"huawei,omitempty"`
 }
 
 // UnmarshalJSON custom json unmarshalling to maintain support for MultiCloudConfig format
@@ -128,6 +130,10 @@ func (c *Configurations) Equals(that *Configurations) bool {
 		return false
 	}
 
+	if !c.Huawei.Equals(that.Huawei) {
+		return false
+	}
+
 	return true
 }
 
@@ -168,6 +174,11 @@ func (c *Configurations) Insert(keyedConfig cloud.Config) error {
 			c.STACKIT = &STACKITConfigs{}
 		}
 		c.STACKIT.CostAPI = append(c.STACKIT.CostAPI, keyedConfig.(*stackit.CostConfiguration))
+	case *huawei.CostConfiguration:
+		if c.Huawei == nil {
+			c.Huawei = &HuaweiConfigs{}
+		}
+		c.Huawei.CostAPI = append(c.Huawei.CostAPI, keyedConfig.(*huawei.CostConfiguration))
 	default:
 		return fmt.Errorf("Configurations: Insert: failed to insert config of type: %T", keyedConfig)
 	}
@@ -212,6 +223,12 @@ func (c *Configurations) ToSlice() []cloud.KeyedConfig {
 
 	if c.STACKIT != nil {
 		for _, costConfig := range c.STACKIT.CostAPI {
+			keyedConfigs = append(keyedConfigs, costConfig)
+		}
+	}
+
+	if c.Huawei != nil {
+		for _, costConfig := range c.Huawei.CostAPI {
 			keyedConfigs = append(keyedConfigs, costConfig)
 		}
 	}
@@ -372,6 +389,29 @@ func (sc *STACKITConfigs) Equals(that *STACKITConfigs) bool {
 		return false
 	}
 	for i, thisCost := range sc.CostAPI {
+		thatCost := that.CostAPI[i]
+		if !thisCost.Equals(thatCost) {
+			return false
+		}
+	}
+	return true
+}
+
+type HuaweiConfigs struct {
+	CostAPI []*huawei.CostConfiguration `json:"costApi,omitempty"`
+}
+
+func (hc *HuaweiConfigs) Equals(that *HuaweiConfigs) bool {
+	if hc == nil && that == nil {
+		return true
+	}
+	if hc == nil || that == nil {
+		return false
+	}
+	if len(hc.CostAPI) != len(that.CostAPI) {
+		return false
+	}
+	for i, thisCost := range hc.CostAPI {
 		thatCost := that.CostAPI[i]
 		if !thisCost.Equals(thatCost) {
 			return false
