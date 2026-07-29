@@ -48,6 +48,9 @@ type AllocationTotals struct {
 	RAMCost                        float64   `json:"ramCost"`
 	RAMCostAdjustment              float64   `json:"ramCostAdjustment"`
 	RAMByteHours                   float64   `json:"ramByteHours"`
+	QuotaOverheadCost              float64   `json:"quotaOverheadCost"`
+	QuotaOverheadCPUCost           float64   `json:"quotaOverheadCpuCost"`
+	QuotaOverheadRAMCost           float64   `json:"quotaOverheadRamCost"`
 	// UnmountedPVCost is used to track how much of the cost in
 	// PersistentVolumeCost is for an unmounted PV. It is not additive of that
 	// field, and need not be sent in API responses.
@@ -87,6 +90,9 @@ func (art *AllocationTotals) Clone() *AllocationTotals {
 		RAMCost:                        art.RAMCost,
 		RAMCostAdjustment:              art.RAMCostAdjustment,
 		RAMByteHours:                   art.RAMByteHours,
+		QuotaOverheadCost:              art.QuotaOverheadCost,
+		QuotaOverheadCPUCost:           art.QuotaOverheadCPUCost,
+		QuotaOverheadRAMCost:           art.QuotaOverheadRAMCost,
 	}
 }
 
@@ -123,7 +129,8 @@ func (art *AllocationTotals) TotalRAMCost() float64 {
 // TotalCost returns the sum of all costs.
 func (art *AllocationTotals) TotalCost() float64 {
 	return art.TotalCPUCost() + art.TotalGPUCost() + art.TotalLoadBalancerCost() +
-		art.TotalNetworkCost() + art.TotalPersistentVolumeCost() + art.TotalRAMCost()
+		art.TotalNetworkCost() + art.TotalPersistentVolumeCost() + art.TotalRAMCost() +
+		art.QuotaOverheadCost
 }
 
 // ComputeAllocationTotals totals the resource costs of the given AllocationSet
@@ -186,6 +193,9 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 		arts[key].RAMCost += alloc.RAMCost
 		arts[key].RAMCostAdjustment += alloc.RAMCostAdjustment
 		arts[key].RAMByteHours += alloc.RAMByteHours
+		arts[key].QuotaOverheadCost += alloc.QuotaOverheadCost
+		arts[key].QuotaOverheadCPUCost += alloc.QuotaOverheadCPUCost
+		arts[key].QuotaOverheadRAMCost += alloc.QuotaOverheadRAMCost
 	}
 
 	return arts

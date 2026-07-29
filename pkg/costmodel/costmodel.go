@@ -2144,6 +2144,32 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 	start, end := *allocSet.Window.Start(), *allocSet.Window.End()
 	idleSet := opencost.NewAllocationSet(start, end)
 
+	// Compute raw idle costs to distribute quota overhead proportionally
+	var totalRawIdleCPU, totalRawIdleRAM float64
+	for key, assetTotal := range assetTotals {
+		allocTotal := allocTotals[key]
+		if allocTotal == nil {
+			allocTotal = &opencost.AllocationTotals{}
+		}
+		cpuRaw := assetTotal.TotalCPUCost() - allocTotal.TotalCPUCost()
+		if cpuRaw > 0 {
+			totalRawIdleCPU += cpuRaw
+		}
+		ramRaw := assetTotal.TotalRAMCost() - allocTotal.TotalRAMCost()
+		if ramRaw > 0 {
+			totalRawIdleRAM += ramRaw
+		}
+	}
+
+	// Compute total quota overhead costs from allocSet
+	var totalOverheadCPU, totalOverheadRAM float64
+	for _, alloc := range allocSet.Allocations {
+		if strings.Contains(alloc.Name, "__quota_overhead__") {
+			totalOverheadCPU += alloc.QuotaOverheadCPUCost
+			totalOverheadRAM += alloc.QuotaOverheadRAMCost
+		}
+	}
+
 	for key, assetTotal := range assetTotals {
 		allocTotal, ok := allocTotals[key]
 		if !ok {
@@ -2174,6 +2200,15 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 		cpuIdleCost := assetTotal.TotalCPUCost() - allocTotal.TotalCPUCost()
 		gpuIdleCost := assetTotal.TotalGPUCost() - allocTotal.TotalGPUCost()
 		ramIdleCost := assetTotal.TotalRAMCost() - allocTotal.TotalRAMCost()
+
+		if cpuIdleCost > 0 && totalRawIdleCPU > 0 && totalOverheadCPU > 0 {
+			subtraction := (cpuIdleCost / totalRawIdleCPU) * totalOverheadCPU
+			cpuIdleCost -= subtraction
+		}
+		if ramIdleCost > 0 && totalRawIdleRAM > 0 && totalOverheadRAM > 0 {
+			subtraction := (ramIdleCost / totalRawIdleRAM) * totalOverheadRAM
+			ramIdleCost -= subtraction
+		}
 
 		// Clamp idle costs to zero to prevent negative idle allocations
 		if cpuIdleCost < 0 {

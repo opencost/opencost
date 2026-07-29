@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/env"
 )
@@ -549,6 +551,203 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 			// point due to it missing from queryMinutes) then insert.
 			alloc.Name = fmt.Sprintf("%s/%s/%s/%s/%s", cluster, nodeName, namespace, podName, container)
 			allocSet.Set(alloc)
+		}
+	}
+
+	// Compute and attribute ResourceQuota overhead costs
+	if cm.KubeModel != nil {
+		kms, err := cm.ComputeKubeModelSet(start, end)
+		if err == nil && kms != nil {
+			hours := end.Sub(start).Hours()
+
+			// Compute average node pricing for fallback
+			var sumCPUPrice, sumRAMPrice float64
+			var nodeCount int
+			for _, pricing := range nodeMap {
+				if pricing != nil {
+					sumCPUPrice += pricing.CostPerCPUHr
+					sumRAMPrice += pricing.CostPerRAMGiBHr
+					nodeCount++
+				}
+			}
+			avgCPUPrice := 0.0
+			avgRAMPrice := 0.0
+			if nodeCount > 0 {
+				avgCPUPrice = sumCPUPrice / float64(nodeCount)
+				avgRAMPrice = sumRAMPrice / float64(nodeCount)
+			}
+
+			// Map namespace name to nodes pricing
+			namespaceCPUPrices := make(map[string][]float64)
+			namespaceRAMPrices := make(map[string][]float64)
+			for _, pod := range podMap {
+				for _, alloc := range pod.Allocations {
+					nsName := alloc.Properties.Namespace
+					nodeName := alloc.Properties.Node
+					thisNodeKey := newNodeKey(alloc.Properties.Cluster, nodeName)
+					nodePricing := cm.getNodePricing(nodeMap, thisNodeKey)
+					if nodePricing != nil {
+						namespaceCPUPrices[nsName] = append(namespaceCPUPrices[nsName], nodePricing.CostPerCPUHr)
+						namespaceRAMPrices[nsName] = append(namespaceRAMPrices[nsName], nodePricing.CostPerRAMGiBHr)
+					}
+				}
+			}
+
+			// Map namespace name to requests and usage
+			namespaceCPURequests := make(map[string]float64)
+			namespaceCPUUsages := make(map[string]float64)
+			namespaceRAMRequests := make(map[string]float64)
+			namespaceRAMUsages := make(map[string]float64)
+			for _, pod := range podMap {
+				for _, alloc := range pod.Allocations {
+					nsName := alloc.Properties.Namespace
+					namespaceCPURequests[nsName] += alloc.CPUCoreRequestAverage
+					namespaceCPUUsages[nsName] += alloc.CPUCoreUsageAverage
+					namespaceRAMRequests[nsName] += alloc.RAMBytesRequestAverage
+					namespaceRAMUsages[nsName] += alloc.RAMBytesUsageAverage
+				}
+			}
+
+			namespaceCPURQOverhead := make(map[string]float64)
+			namespaceRAMRQOverhead := make(map[string]float64)
+
+			for _, rq := range kms.ResourceQuotas {
+				if rq == nil {
+					continue
+				}
+				var namespaceName string
+				ns, ok := kms.Namespaces[rq.NamespaceUID]
+				if ok {
+					namespaceName = ns.Name
+				} else {
+					namespaceName = rq.NamespaceUID
+				}
+				if namespaceName == "" {
+					continue
+				}
+
+				var hardCPU, hardRAM float64
+				if rq.Spec != nil && rq.Spec.Hard != nil {
+					if rqCPUReq, ok := rq.Spec.Hard.Requests[kubemodel.ResourceCPU]; ok {
+						if val, ok := rqCPUReq.Values[kubemodel.StatAvg]; ok {
+							hardCPU = val / 1000.0
+						}
+					}
+					if hardCPU == 0 {
+						if rqCPULim, ok := rq.Spec.Hard.Limits[kubemodel.ResourceCPU]; ok {
+							if val, ok := rqCPULim.Values[kubemodel.StatAvg]; ok {
+								hardCPU = val / 1000.0
+							}
+						}
+					}
+
+					if rqRAMReq, ok := rq.Spec.Hard.Requests[kubemodel.ResourceMemory]; ok {
+						if val, ok := rqRAMReq.Values[kubemodel.StatAvg]; ok {
+							hardRAM = val
+						}
+					}
+					if hardRAM == 0 {
+						if rqRAMLim, ok := rq.Spec.Hard.Limits[kubemodel.ResourceMemory]; ok {
+							if val, ok := rqRAMLim.Values[kubemodel.StatAvg]; ok {
+								hardRAM = val
+							}
+						}
+					}
+				}
+
+				if hardCPU == 0 && hardRAM == 0 {
+					continue
+				}
+
+				nsCPURequest := namespaceCPURequests[namespaceName]
+				nsCPUUsage := namespaceCPUUsages[namespaceName]
+				maxNSCPU := nsCPURequest
+				if nsCPUUsage > maxNSCPU {
+					maxNSCPU = nsCPUUsage
+				}
+
+				nsRAMRequest := namespaceRAMRequests[namespaceName]
+				nsRAMUsage := namespaceRAMUsages[namespaceName]
+				maxNSRAM := nsRAMRequest
+				if nsRAMUsage > maxNSRAM {
+					maxNSRAM = nsRAMUsage
+				}
+
+				idleCPU := hardCPU - maxNSCPU
+				if idleCPU < 0 {
+					idleCPU = 0
+				}
+				idleRAM := hardRAM - maxNSRAM
+				if idleRAM < 0 {
+					idleRAM = 0
+				}
+
+				if idleCPU > 0 {
+					nsCPUPrice := avgCPUPrice
+					if prices, ok := namespaceCPUPrices[namespaceName]; ok && len(prices) > 0 {
+						var sum float64
+						for _, p := range prices {
+							sum += p
+						}
+						nsCPUPrice = sum / float64(len(prices))
+					}
+					namespaceCPURQOverhead[namespaceName] += idleCPU * nsCPUPrice * hours
+				}
+
+				if idleRAM > 0 {
+					nsRAMPrice := avgRAMPrice
+					if prices, ok := namespaceRAMPrices[namespaceName]; ok && len(prices) > 0 {
+						var sum float64
+						for _, p := range prices {
+							sum += p
+						}
+						nsRAMPrice = sum / float64(len(prices))
+					}
+					namespaceRAMRQOverhead[namespaceName] += (idleRAM / 1024 / 1024 / 1024) * nsRAMPrice * hours
+				}
+			}
+
+			// Get all unique namespace names that have overhead
+			overheadNamespaces := make(map[string]bool)
+			for ns := range namespaceCPURQOverhead {
+				overheadNamespaces[ns] = true
+			}
+			for ns := range namespaceRAMRQOverhead {
+				overheadNamespaces[ns] = true
+			}
+
+			for namespaceName := range overheadNamespaces {
+				cpuOverhead := namespaceCPURQOverhead[namespaceName]
+				ramOverhead := namespaceRAMRQOverhead[namespaceName]
+				totalOverhead := cpuOverhead + ramOverhead
+				if totalOverhead <= 0 {
+					continue
+				}
+
+				clusterID := coreenv.GetClusterID()
+				if clusterID == "" {
+					clusterID = "default"
+				}
+
+				name := fmt.Sprintf("%s/%s/%s/%s/%s", clusterID, "__quota_overhead__", namespaceName, "__quota_overhead__", "__quota_overhead__")
+				overheadAlloc := &opencost.Allocation{
+					Name:   name,
+					Window: allocSet.Window.Clone(),
+					Properties: &opencost.AllocationProperties{
+						Cluster:   clusterID,
+						Namespace: namespaceName,
+						Pod:       "__quota_overhead__",
+						Container: "__quota_overhead__",
+						Node:      "__quota_overhead__",
+					},
+					Start:                start,
+					End:                  end,
+					QuotaOverheadCost:    totalOverhead,
+					QuotaOverheadCPUCost: cpuOverhead,
+					QuotaOverheadRAMCost: ramOverhead,
+				}
+				allocSet.Set(overheadAlloc)
+			}
 		}
 	}
 

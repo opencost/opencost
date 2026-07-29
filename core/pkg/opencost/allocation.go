@@ -87,6 +87,9 @@ type Allocation struct {
 	RAMCostIdle                float64               `json:"ramCostIdle"` //@bingen:field[ignore]
 	SharedCost                 float64               `json:"sharedCost"`
 	ExternalCost               float64               `json:"externalCost"`
+	QuotaOverheadCost          float64               `json:"quotaOverheadCost"`
+	QuotaOverheadCPUCost       float64               `json:"quotaOverheadCpuCost"`
+	QuotaOverheadRAMCost       float64               `json:"quotaOverheadRamCost"`
 	CarbonKilograms            float64               `json:"carbonKilograms"`
 	// RawAllocationOnly is a pointer so if it is not present it will be
 	// marshalled as null rather than as an object with Go default values.
@@ -789,6 +792,9 @@ func (a *Allocation) Clone() *Allocation {
 		RAMCostAdjustment:              a.RAMCostAdjustment,
 		SharedCost:                     a.SharedCost,
 		ExternalCost:                   a.ExternalCost,
+		QuotaOverheadCost:              a.QuotaOverheadCost,
+		QuotaOverheadCPUCost:           a.QuotaOverheadCPUCost,
+		QuotaOverheadRAMCost:           a.QuotaOverheadRAMCost,
 		CarbonKilograms:                a.CarbonKilograms,
 		RawAllocationOnly:              a.RawAllocationOnly.Clone(),
 		ProportionalAssetResourceCosts: a.ProportionalAssetResourceCosts.Clone(),
@@ -903,6 +909,15 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.ExternalCost, that.ExternalCost) {
 		return false
 	}
+	if !util.IsApproximately(a.QuotaOverheadCost, that.QuotaOverheadCost) {
+		return false
+	}
+	if !util.IsApproximately(a.QuotaOverheadCPUCost, that.QuotaOverheadCPUCost) {
+		return false
+	}
+	if !util.IsApproximately(a.QuotaOverheadRAMCost, that.QuotaOverheadRAMCost) {
+		return false
+	}
 	if !util.IsApproximately(a.CarbonKilograms, that.CarbonKilograms) {
 		return false
 	}
@@ -932,7 +947,7 @@ func (a *Allocation) TotalCost() float64 {
 		return 0.0
 	}
 
-	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkTotalCost() + a.LBTotalCost() + a.SharedTotalCost() + a.ExternalCost
+	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkTotalCost() + a.LBTotalCost() + a.SharedTotalCost() + a.ExternalCost + a.QuotaOverheadCost
 }
 
 // CPUTotalCost calculates total CPU cost of Allocation including adjustment
@@ -1443,6 +1458,9 @@ func (a *Allocation) add(that *Allocation) {
 	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
+	a.QuotaOverheadCost += that.QuotaOverheadCost
+	a.QuotaOverheadCPUCost += that.QuotaOverheadCPUCost
+	a.QuotaOverheadRAMCost += that.QuotaOverheadRAMCost
 	a.CarbonKilograms += that.CarbonKilograms
 	a.UnmountedPVCost += that.UnmountedPVCost
 

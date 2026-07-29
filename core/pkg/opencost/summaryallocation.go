@@ -45,6 +45,9 @@ type SummaryAllocation struct {
 	RAMCostIdle            float64               `json:"ramCostIdle"`
 	SharedCost             float64               `json:"sharedCost"`
 	ExternalCost           float64               `json:"externalCost"`
+	QuotaOverheadCost      float64               `json:"quotaOverheadCost"`
+	QuotaOverheadCPUCost   float64               `json:"quotaOverheadCpuCost"`
+	QuotaOverheadRAMCost   float64               `json:"quotaOverheadRamCost"`
 	Share                  bool                  `json:"-"`
 	UnmountedPVCost        float64               `json:"-"`
 	Efficiency             float64               `json:"efficiency"`
@@ -90,6 +93,9 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		RAMCostIdle:            alloc.RAMCostIdle,
 		SharedCost:             alloc.SharedCost,
 		ExternalCost:           alloc.ExternalCost,
+		QuotaOverheadCost:      alloc.QuotaOverheadCost,
+		QuotaOverheadCPUCost:   alloc.QuotaOverheadCPUCost,
+		QuotaOverheadRAMCost:   alloc.QuotaOverheadRAMCost,
 		UnmountedPVCost:        alloc.UnmountedPVCost,
 		CarbonKilograms:        alloc.CarbonKilograms,
 	}
@@ -231,6 +237,9 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	sa.PVCost += that.PVCost
 	sa.RAMCost += that.RAMCost
 	sa.SharedCost += that.SharedCost
+	sa.QuotaOverheadCost += that.QuotaOverheadCost
+	sa.QuotaOverheadCPUCost += that.QuotaOverheadCPUCost
+	sa.QuotaOverheadRAMCost += that.QuotaOverheadRAMCost
 	sa.CarbonKilograms += that.CarbonKilograms
 
 	sa.Efficiency = sa.TotalEfficiency()
@@ -260,6 +269,9 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 		RAMCost:                sa.RAMCost,
 		SharedCost:             sa.SharedCost,
 		ExternalCost:           sa.ExternalCost,
+		QuotaOverheadCost:      sa.QuotaOverheadCost,
+		QuotaOverheadCPUCost:   sa.QuotaOverheadCPUCost,
+		QuotaOverheadRAMCost:   sa.QuotaOverheadRAMCost,
 		Efficiency:             sa.Efficiency,
 		CarbonKilograms:        sa.CarbonKilograms,
 	}
@@ -453,7 +465,7 @@ func (sa *SummaryAllocation) TotalCost() float64 {
 		return 0.0
 	}
 
-	return sa.CPUCost + sa.GPUCost + sa.RAMCost + sa.PVCost + sa.NetworkCost + sa.LoadBalancerCost + sa.SharedCost + sa.ExternalCost
+	return sa.CPUCost + sa.GPUCost + sa.RAMCost + sa.PVCost + sa.NetworkCost + sa.LoadBalancerCost + sa.SharedCost + sa.ExternalCost + sa.QuotaOverheadCost
 }
 
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If

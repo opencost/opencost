@@ -61,6 +61,9 @@ type AllocationJSON struct {
 	RAMEfficiency                  *float64                        `json:"ramEfficiency"`
 	ExternalCost                   *float64                        `json:"externalCost"`
 	SharedCost                     *float64                        `json:"sharedCost"`
+	QuotaOverheadCost              *float64                        `json:"quotaOverheadCost"`
+	QuotaOverheadCPUCost           *float64                        `json:"quotaOverheadCpuCost"`
+	QuotaOverheadRAMCost           *float64                        `json:"quotaOverheadRamCost"`
 	TotalCost                      *float64                        `json:"totalCost"`
 	TotalEfficiency                *float64                        `json:"totalEfficiency"`
 	CarbonKilograms                *float64                        `json:"carbonKilograms"`
@@ -123,6 +126,9 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.RAMEfficiency = formatFloat64ForResponse(a.RAMEfficiency())
 	aj.SharedCost = formatFloat64ForResponse(a.SharedCost)
 	aj.ExternalCost = formatFloat64ForResponse(a.ExternalCost)
+	aj.QuotaOverheadCost = formatFloat64ForResponse(a.QuotaOverheadCost)
+	aj.QuotaOverheadCPUCost = formatFloat64ForResponse(a.QuotaOverheadCPUCost)
+	aj.QuotaOverheadRAMCost = formatFloat64ForResponse(a.QuotaOverheadRAMCost)
 	aj.TotalCost = formatFloat64ForResponse(a.TotalCost())
 	aj.TotalEfficiency = formatFloat64ForResponse(a.TotalEfficiency())
 	aj.CarbonKilograms = formatFloat64ForResponse(a.CarbonKilograms)
