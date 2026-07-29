@@ -200,12 +200,20 @@ func (h *Huawei) DownloadPricingData() error {
 		h.ValidPricingKeys[key.Features()] = true
 	}
 
-	if len(nodeCombos) == 0 && len(pvCombos) == 0 {
+	// The cluster's Shared (Basic) ELB on-demand price is queried once per region,
+	// not per in-cluster resource: Huawei Cloud ELBs aren't Node/PV resources the
+	// clustercache enumerates, so there's no per-instance combo to build here.
+	lbCombos := map[string]string{} // features -> region
+	if h.ClusterRegion != "" {
+		lbCombos[loadBalancerFeatures(h.ClusterRegion)] = h.ClusterRegion
+	}
+
+	if len(nodeCombos) == 0 && len(pvCombos) == 0 && len(lbCombos) == 0 {
 		return nil
 	}
 
-	products := make([]bssintlmodel.DemandProductInfo, 0, len(nodeCombos)+len(pvCombos))
-	idToFeatures := make(map[string]string, len(nodeCombos)+len(pvCombos))
+	products := make([]bssintlmodel.DemandProductInfo, 0, len(nodeCombos)+len(pvCombos)+len(lbCombos))
+	idToFeatures := make(map[string]string, len(nodeCombos)+len(pvCombos)+len(lbCombos))
 
 	i := 0
 	for features, combo := range nodeCombos {
@@ -217,6 +225,12 @@ func (h *Huawei) DownloadPricingData() error {
 	for features, combo := range pvCombos {
 		id := fmt.Sprintf("pv-%d", i)
 		products = append(products, buildVolumeProductInfo(id, combo.region, combo.evsType))
+		idToFeatures[id] = features
+		i++
+	}
+	for features, region := range lbCombos {
+		id := fmt.Sprintf("lb-%d", i)
+		products = append(products, buildLoadBalancerProductInfo(id, region))
 		idToFeatures[id] = features
 		i++
 	}
@@ -253,6 +267,12 @@ func (h *Huawei) DownloadPricingData() error {
 				PVAttributes: &HuaweiPVAttributes{
 					Type:  combo.storageClass,
 					Price: perGBHour.String(),
+				},
+			}
+		} else if _, ok := lbCombos[features]; ok {
+			h.Pricing[features] = &HuaweiPricing{
+				LoadBalancerAttributes: &HuaweiLoadBalancerAttributes{
+					Price: result.Amount.String(),
 				},
 			}
 		}
@@ -330,6 +350,22 @@ func (h *Huawei) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	}, nil
 }
 
+// NetworkPricing returns the static default $/GiB network rates from
+// configs/huawei.json.
+//
+// NatGatewayEgress/NatGatewayIngress are intentionally left at "0.0", unlike most
+// other providers here (which default to $0.045/GiB, matching AWS's NAT Gateway
+// data-processing charge). A real Huawei Cloud bill export confirms Huawei's NAT
+// Gateway (hws.service.type.natgateway) is billed as a flat per-spec fee (e.g.
+// "Small NAT Gateway" at $2.438/day, SKU natgateway_small) with no separate
+// per-GB data-processing charge -- traffic routed through it is billed as ordinary
+// EIP bandwidth (hws.service.type.vpc, "Fixed Bandwidth" resource), the same as any
+// other EIP-routed traffic. Populating these fields with the EIP bandwidth rate
+// would double-count that cost against ZoneNetworkEgress/RegionNetworkEgress/
+// InternetNetworkEgress once those are populated with real data, since
+// costmodel/networkcosts.go sums all of these independently. The NAT Gateway's own
+// flat fee is still captured correctly via CloudCost historical billing (see
+// selectHuaweiCategory's "nat gateway" match in costintegration.go).
 func (h *Huawei) NetworkPricing() (*models.Network, error) {
 	c, err := h.Config.GetCustomPricingData()
 	if err != nil {
@@ -365,11 +401,33 @@ func (h *Huawei) NetworkPricing() (*models.Network, error) {
 	}, nil
 }
 
-// LoadBalancerPricing returns a static default price for a Huawei Cloud ELB.
-// TODO: replace with live pricing from the Huawei Cloud BSS demandPrice API.
+// loadBalancerFeatures returns the Pricing map key for a region's Huawei Cloud
+// Shared (Basic) ELB on-demand price. It is keyed by region alone (mirroring the
+// region-only key pkg/cloud/aws's LoadBalancerPricing uses) since the
+// models.Provider interface has no key argument for load balancer pricing yet.
+func loadBalancerFeatures(region string) string {
+	return region + ",LoadBalancerUsage"
+}
+
+// LoadBalancerPricing returns the live BSS on-demand price for a Shared (Basic) ELB
+// in the cluster's region if available, or a static default otherwise.
 func (h *Huawei) LoadBalancerPricing() (*models.LoadBalancer, error) {
+	h.DownloadPricingDataLock.RLock()
+	defer h.DownloadPricingDataLock.RUnlock()
+
+	if h.ClusterRegion != "" {
+		if pricing, ok := h.Pricing[loadBalancerFeatures(h.ClusterRegion)]; ok && pricing.LoadBalancerAttributes != nil {
+			if cost, err := strconv.ParseFloat(pricing.LoadBalancerAttributes.Price, 64); err == nil {
+				return &models.LoadBalancer{Cost: cost}, nil
+			}
+		}
+	}
+
+	// Static default: the confirmed on-demand price of a Shared (Basic) ELB in
+	// la-south-2 per a real Huawei Cloud bill export (see pricingapi.go). Used as a
+	// fallback for other regions or when live BSS pricing is unavailable.
 	return &models.LoadBalancer{
-		Cost: 0.03,
+		Cost: 0.053,
 	}, nil
 }
 

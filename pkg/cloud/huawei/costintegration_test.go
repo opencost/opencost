@@ -98,6 +98,9 @@ func TestSelectHuaweiCategory(t *testing.T) {
 		{"Object Storage Service", "Storage"},
 		{"Elastic Load Balance", "Network"},
 		{"Virtual Private Cloud", "Network"},
+		{"Relational Database Service", "Storage"},
+		{"Distributed Cache Service", "Compute"},
+		{"Data Encryption Workshop", "Storage"},
 		{"Some Unrecognized Service", "Other"},
 	}
 	for _, c := range cases {

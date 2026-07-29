@@ -38,6 +38,15 @@ const (
 	evsCloudServiceType = "hws.service.type.ebs"
 	evsResourceType     = "hws.resource.type.volume"
 
+	// elbCloudServiceType/elbResourceType/elbBasicResourceSpec identify a Shared
+	// (Basic) Huawei Cloud ELB for the BSS demandPrice request. All three are
+	// confirmed against a real Huawei Cloud bill export: a Shared Load Balancer is
+	// billed under hws.service.type.elb / hws.resource.type.elbv2 with SKU code
+	// elbv2.basic.default, at $0.053/hour in la-south-2.
+	elbCloudServiceType  = "hws.service.type.elb"
+	elbResourceType      = "hws.resource.type.elbv2"
+	elbBasicResourceSpec = "elbv2.basic.default"
+
 	usageFactorDuration = "Duration"
 	// usageMeasureIDHour is the usage_measure_id enum value for "hour".
 	usageMeasureIDHour = 4
@@ -207,6 +216,25 @@ func buildNodeProductInfo(id, region, instanceType, kubernetesOS string) bssintl
 		CloudServiceType: ecsCloudServiceType,
 		ResourceType:     ecsResourceType,
 		ResourceSpec:     fmt.Sprintf("%s.%s", instanceType, osSuffix),
+		Region:           region,
+		UsageFactor:      usageFactorDuration,
+		UsageValue:       &usageValue,
+		UsageMeasureId:   usageMeasureIDHour,
+		SubscriptionNum:  1,
+	}
+}
+
+// buildLoadBalancerProductInfo builds the BSS demandPrice request for a region's
+// Shared (Basic) ELB on-demand price. Unlike node/volume pricing, this is queried
+// once per cluster region rather than per distinct in-cluster resource, since
+// Huawei Cloud ELBs are not Kubernetes Node/PV resources the clustercache enumerates.
+func buildLoadBalancerProductInfo(id, region string) bssintlmodel.DemandProductInfo {
+	usageValue := decimal.NewFromInt(1)
+	return bssintlmodel.DemandProductInfo{
+		Id:               id,
+		CloudServiceType: elbCloudServiceType,
+		ResourceType:     elbResourceType,
+		ResourceSpec:     elbBasicResourceSpec,
 		Region:           region,
 		UsageFactor:      usageFactorDuration,
 		UsageValue:       &usageValue,

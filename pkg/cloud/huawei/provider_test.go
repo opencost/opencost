@@ -272,8 +272,24 @@ func TestHuawei_LoadBalancerPricing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if lb.Cost != 0.03 {
-		t.Fatalf("expected cost 0.03, got %v", lb.Cost)
+	if lb.Cost != 0.053 {
+		t.Fatalf("expected static fallback cost 0.053, got %v", lb.Cost)
+	}
+}
+
+func TestHuawei_LoadBalancerPricing_UsesLivePricingWhenAvailable(t *testing.T) {
+	h := &Huawei{
+		ClusterRegion: "la-south-2",
+		Pricing: map[string]*HuaweiPricing{
+			"la-south-2,LoadBalancerUsage": {LoadBalancerAttributes: &HuaweiLoadBalancerAttributes{Price: "0.053"}},
+		},
+	}
+	lb, err := h.LoadBalancerPricing()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if lb.Cost != 0.053 {
+		t.Fatalf("expected live cost 0.053, got %v", lb.Cost)
 	}
 }
 
@@ -349,7 +365,8 @@ func TestHuawei_DownloadPricingData_LiveBSS(t *testing.T) {
 		w.Write([]byte(`{
 			"product_rating_results": [
 				{"id": "node-0", "amount": "1.234"},
-				{"id": "pv-1", "amount": "0.700"}
+				{"id": "pv-1", "amount": "0.700"},
+				{"id": "lb-2", "amount": "0.053"}
 			]
 		}`))
 	}))
@@ -409,6 +426,17 @@ func TestHuawei_DownloadPricingData_LiveBSS(t *testing.T) {
 	if pvPricing.PVAttributes.Price != expectedPVPrice {
 		t.Fatalf("expected PV price %s, got %s", expectedPVPrice, pvPricing.PVAttributes.Price)
 	}
+
+	lbPricing, ok := h.Pricing["la-south-2,LoadBalancerUsage"]
+	if !ok || lbPricing.LoadBalancerAttributes == nil {
+		t.Fatalf("expected live load balancer pricing to be populated, got %+v", h.Pricing)
+	}
+	if lbPricing.LoadBalancerAttributes.Price != "0.053" {
+		t.Fatalf("expected load balancer price 0.053, got %s", lbPricing.LoadBalancerAttributes.Price)
+	}
+	if lb, err := h.LoadBalancerPricing(); err != nil || lb.Cost != 0.053 {
+		t.Fatalf("expected LoadBalancerPricing to return live cost 0.053, got %v/%v", lb, err)
+	}
 }
 
 // TestHuawei_DownloadPricingData_MissingCredentials verifies that a missing
@@ -443,9 +471,13 @@ func TestHuawei_DownloadPricingData_MissingCredentials(t *testing.T) {
 // the raw Kubernetes StorageClass name, which the live API rejects with "Product not
 // found" (see TestHuawei_DownloadPricingData_LiveBSS).
 func TestHuawei_DownloadPricingData_SkipsUnmappedStorageClass(t *testing.T) {
-	requested := false
+	var requestBody string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requested = true
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("reading request body: %v", err)
+		}
+		requestBody = string(body)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"product_rating_results": []}`))
 	}))
@@ -468,10 +500,16 @@ func TestHuawei_DownloadPricingData_SkipsUnmappedStorageClass(t *testing.T) {
 	if err := h.DownloadPricingData(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if requested {
-		t.Fatalf("expected no BSS request when no PV/node could be confidently priced")
+	// A BSS request is still expected here for the cluster region's load balancer
+	// price (queried per-region, independent of PVs/nodes), but it must never
+	// reference the unmapped StorageClass name.
+	if requestBody == "" {
+		t.Fatalf("expected a BSS request for the cluster region's load balancer price")
+	}
+	if strings.Contains(requestBody, "unmapped-class") {
+		t.Fatalf("must not query BSS with the raw, unmapped StorageClass name, got: %s", requestBody)
 	}
 	if len(h.Pricing) != 0 {
-		t.Fatalf("expected no live pricing for an unmapped storage class, got %+v", h.Pricing)
+		t.Fatalf("expected no live pricing for an unmapped storage class or empty ratings response, got %+v", h.Pricing)
 	}
 }

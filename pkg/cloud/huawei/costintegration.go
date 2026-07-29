@@ -181,11 +181,13 @@ func parseCostAmount(s *string) (float64, error) {
 
 // selectHuaweiCategory maps a BSS CLOUD_SERVICE_TYPE dimension value (an
 // English-language service name, since GetCloudCost requests X-Language: en_us) to
-// an OpenCost asset category. The exact strings BSS returns for CLOUD_SERVICE_TYPE
-// have not been confirmed against a live account with real billing history (the
-// test account used during development had no billing data yet); this matches
-// against substrings of the commonly documented Huawei Cloud service display names
-// and should be revisited once real cost data is available.
+// an OpenCost asset category. The "Service Type" strings for ECS, CCE, EVS, OBS,
+// ELB, VPC (EIP bandwidth is billed under this service type as a "Fixed Bandwidth"
+// resource, not its own "Elastic IP" service type), NAT Gateway, RDS and Data
+// Encryption Workshop (DEW/KMS; note the account's Service Type Code is
+// hws.service.type.kms, not dew/csms) are confirmed against a real Huawei Cloud
+// bill export. DCS (Distributed Cache Service) did not appear in that export and
+// remains unconfirmed; its case matches the documented Huawei Cloud display name.
 func selectHuaweiCategory(serviceType string) string {
 	lower := strings.ToLower(serviceType)
 	switch {
@@ -195,6 +197,12 @@ func selectHuaweiCategory(serviceType string) string {
 		return opencost.StorageCategory
 	case containsAny(lower, "elastic load balance", "elb", "elastic ip", "eip", "virtual private cloud", "vpc", "nat gateway"):
 		return opencost.NetworkCategory
+	case containsAny(lower, "relational database", "rds"):
+		return opencost.StorageCategory
+	case containsAny(lower, "distributed cache", "dcs"):
+		return opencost.ComputeCategory
+	case containsAny(lower, "data encryption workshop", "dew", "csms"):
+		return opencost.StorageCategory
 	default:
 		return opencost.OtherCategory
 	}
