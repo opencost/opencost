@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/cloud"
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/unit"
 )
@@ -153,7 +153,7 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 		if isNode {
 			nodePricing := &pricing.NodePricing{
 				Properties: pricing.NodePricingProperties{
-					Provider:     shared.ProviderAWS,
+					Provider:     cloud.ProviderAWS,
 					Region:       nk.Region,
 					InstanceType: nk.InstanceType,
 					Provisioning: pricing.ProvisioningOnDemand,
@@ -176,7 +176,7 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 
 			volumePricing := &pricing.PersistentVolumePricing{
 				Properties: pricing.PersistentVolumePricingProperties{
-					Provider:   shared.ProviderAWS,
+					Provider:   cloud.ProviderAWS,
 					Region:     vk.Region,
 					VolumeType: vk.VolumeType,
 				},

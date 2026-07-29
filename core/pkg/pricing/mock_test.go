@@ -7,7 +7,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/opencost/opencost/core/pkg/model/shared"
+	"github.com/opencost/opencost/core/pkg/cloud"
 	"github.com/opencost/opencost/core/pkg/reader"
 )
 
@@ -72,7 +72,7 @@ func TestMockGetNodePricing(t *testing.T) {
 	mpm := newMock(t)
 
 	np, err := mpm.GetNodePricing(t.Context(), NodePricingProperties{
-		Provider:     shared.ProviderAWS,
+		Provider:     cloud.ProviderAWS,
 		Region:       "us-east-1",
 		InstanceType: "m5.large",
 		Provisioning: ProvisioningOnDemand,
@@ -92,7 +92,7 @@ func TestMockGetNodePricing(t *testing.T) {
 
 	// Missing entry should error rather than return a zero value.
 	if _, err := mpm.GetNodePricing(t.Context(), NodePricingProperties{
-		Provider:     shared.ProviderAWS,
+		Provider:     cloud.ProviderAWS,
 		Region:       "eu-west-1",
 		InstanceType: "m5.large",
 		Provisioning: ProvisioningOnDemand,
@@ -107,7 +107,7 @@ func TestMockGetNodePricingProvisioningDiscriminates(t *testing.T) {
 	mpm := newMock(t)
 
 	base := NodePricingProperties{
-		Provider:     shared.ProviderAWS,
+		Provider:     cloud.ProviderAWS,
 		Region:       "us-east-1",
 		InstanceType: "m5.large",
 	}
@@ -143,7 +143,7 @@ func TestMockGetPersistentVolumePricing(t *testing.T) {
 	mpm := newMock(t)
 
 	pv, err := mpm.GetPersistentVolumePricing(t.Context(), PersistentVolumePricingProperties{
-		Provider:   shared.ProviderAWS,
+		Provider:   cloud.ProviderAWS,
 		Region:     "us-east-1",
 		VolumeType: VolumeTypeGP3,
 	})
@@ -155,7 +155,7 @@ func TestMockGetPersistentVolumePricing(t *testing.T) {
 	}
 
 	if _, err := mpm.GetPersistentVolumePricing(t.Context(), PersistentVolumePricingProperties{
-		Provider:   shared.ProviderAWS,
+		Provider:   cloud.ProviderAWS,
 		Region:     "us-east-1",
 		VolumeType: VolumeTypeIO2,
 	}); err == nil {
@@ -167,7 +167,7 @@ func TestMockGetPersistentVolumePricing(t *testing.T) {
 func TestMockGetClusterPricing(t *testing.T) {
 	mpm := newMock(t)
 
-	cp, err := mpm.GetClusterPricing(t.Context(), ClusterPricingProperties{Provider: shared.ProviderAWS})
+	cp, err := mpm.GetClusterPricing(t.Context(), ClusterPricingProperties{Provider: cloud.ProviderAWS})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestMockGetClusterPricing(t *testing.T) {
 		t.Errorf("expected cluster price 0.10, got %v (ok=%t)", cp.Prices[ResourceCluster].Price, ok)
 	}
 
-	if _, err := mpm.GetClusterPricing(t.Context(), ClusterPricingProperties{Provider: shared.ProviderOracle}); err == nil {
+	if _, err := mpm.GetClusterPricing(t.Context(), ClusterPricingProperties{Provider: cloud.ProviderOracle}); err == nil {
 		t.Errorf("expected error for unknown provider, got nil")
 	}
 }
@@ -186,7 +186,7 @@ func TestMockGetNetworkPricing(t *testing.T) {
 	mpm := newMock(t)
 
 	np, err := mpm.GetNetworkPricing(t.Context(), NetworkPricingProperties{
-		Provider: shared.ProviderAWS,
+		Provider: cloud.ProviderAWS,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -208,7 +208,7 @@ func TestMockGetNetworkPricing(t *testing.T) {
 
 	// Missing provider should error rather than return a zero value.
 	if _, err := mpm.GetNetworkPricing(t.Context(), NetworkPricingProperties{
-		Provider: shared.ProviderOracle,
+		Provider: cloud.ProviderOracle,
 	}); err == nil {
 		t.Errorf("expected error for unknown provider, got nil")
 	}
@@ -219,7 +219,7 @@ func TestMockGetServicePricing(t *testing.T) {
 	mpm := newMock(t)
 
 	sp, err := mpm.GetServicePricing(t.Context(), ServicePricingProperties{
-		Provider: shared.ProviderAWS,
+		Provider: cloud.ProviderAWS,
 		Region:   "us-east-1",
 	})
 	if err != nil {
@@ -230,7 +230,7 @@ func TestMockGetServicePricing(t *testing.T) {
 	}
 
 	if _, err := mpm.GetServicePricing(t.Context(), ServicePricingProperties{
-		Provider: shared.ProviderAWS,
+		Provider: cloud.ProviderAWS,
 		Region:   "us-west-2",
 	}); err == nil {
 		t.Errorf("expected error for unknown region, got nil")

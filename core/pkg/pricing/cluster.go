@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/shared"
+	"github.com/opencost/opencost/core/pkg/cloud"
 )
 
 type ClusterPricing struct {
@@ -17,9 +17,9 @@ func (sp *ClusterPricing) String() string {
 }
 
 type ClusterPricingProperties struct {
-	Provider shared.Provider `json:"provider,omitempty" yaml:"provider,omitempty"`
-	Start    *time.Time      `json:"start,omitempty" yaml:"start,omitempty"`
-	End      *time.Time      `json:"end,omitempty" yaml:"end,omitempty"`
+	Provider cloud.Provider `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Start    *time.Time     `json:"start,omitempty" yaml:"start,omitempty"`
+	End      *time.Time     `json:"end,omitempty" yaml:"end,omitempty"`
 }
 
 func (sp *ClusterPricingProperties) String() string {

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/cloud"
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/unit"
 )
@@ -298,7 +298,7 @@ func (g *GCPPricingSource) buildNodePricing(ps *pricing.PricingSet, nodeCPUCosts
 
 		nodePricing := &pricing.NodePricing{
 			Properties: pricing.NodePricingProperties{
-				Provider:     shared.ProviderGCP,
+				Provider:     cloud.ProviderGCP,
 				Region:       key.Region,
 				InstanceType: key.InstanceType,
 				Provisioning: provisioning,
@@ -326,7 +326,7 @@ func (g *GCPPricingSource) buildVolumePricing(
 	for key, cost := range volumeCosts {
 		volumePricing := &pricing.PersistentVolumePricing{
 			Properties: pricing.PersistentVolumePricingProperties{
-				Provider:   shared.ProviderGCP,
+				Provider:   cloud.ProviderGCP,
 				Region:     key.Region,
 				VolumeType: key.VolumeType,
 			},

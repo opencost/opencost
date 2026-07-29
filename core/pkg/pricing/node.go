@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/shared"
+	"github.com/opencost/opencost/core/pkg/cloud"
 )
 
 type NodePricing struct {
@@ -19,7 +19,7 @@ func (np *NodePricing) String() string {
 }
 
 type NodePricingProperties struct {
-	Provider     shared.Provider   `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Provider     cloud.Provider    `json:"provider,omitempty" yaml:"provider,omitempty"`
 	Region       string            `json:"region,omitempty" yaml:"region,omitempty"`
 	InstanceType string            `json:"instanceType,omitempty" yaml:"instanceType,omitempty"`
 	Provisioning ProvisioningType  `json:"provisioning,omitempty" yaml:"provisioning,omitempty"`

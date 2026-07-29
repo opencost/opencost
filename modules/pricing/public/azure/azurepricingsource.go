@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/cloud"
 	"github.com/opencost/opencost/core/pkg/log"
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/unit"
 )
@@ -163,7 +163,7 @@ func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet)
 
 		nodePricing := &pricing.NodePricing{
 			Properties: pricing.NodePricingProperties{
-				Provider:     shared.ProviderAzure,
+				Provider:     cloud.ProviderAzure,
 				Region:       item.ArmRegionName,
 				InstanceType: item.ArmSkuName,
 				Provisioning: pricing.ProvisioningOnDemand,
@@ -215,7 +215,7 @@ func (a *AzurePricingSource) parseDiskPage(body io.Reader, ps *pricing.PricingSe
 
 		volumePricing := &pricing.PersistentVolumePricing{
 			Properties: pricing.PersistentVolumePricingProperties{
-				Provider:   shared.ProviderAzure,
+				Provider:   cloud.ProviderAzure,
 				Region:     item.ArmRegionName,
 				VolumeType: volumeType,
 			},
@@ -239,13 +239,13 @@ func (a *AzurePricingSource) includeItem(item AzurePricingAttributes) bool {
 		return false
 	}
 	productLower := strings.ToLower(item.ProductName)
-	if strings.Contains(item.ProductName, "windows") {
+	if strings.Contains(productLower, "windows") {
 		return false
 	}
 	if strings.Contains(productLower, "cloud services") || strings.Contains(productLower, "cloudservices") {
 		return false
 	}
-	
+
 	skuLower := strings.ToLower(item.SkuName)
 	if strings.Contains(skuLower, "low priority") {
 		return false

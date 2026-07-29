@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/shared"
+	"github.com/opencost/opencost/core/pkg/cloud"
 )
 
 type ServicePricing struct {
@@ -17,10 +17,10 @@ func (sp *ServicePricing) String() string {
 }
 
 type ServicePricingProperties struct {
-	Provider shared.Provider `json:"provider,omitempty" yaml:"provider,omitempty"`
-	Region   string          `json:"region,omitempty" yaml:"region,omitempty"`
-	Start    *time.Time      `json:"start,omitempty" yaml:"start,omitempty"`
-	End      *time.Time      `json:"end,omitempty" yaml:"end,omitempty"`
+	Provider cloud.Provider `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Region   string         `json:"region,omitempty" yaml:"region,omitempty"`
+	Start    *time.Time     `json:"start,omitempty" yaml:"start,omitempty"`
+	End      *time.Time     `json:"end,omitempty" yaml:"end,omitempty"`
 }
 
 func (sp *ServicePricingProperties) String() string {

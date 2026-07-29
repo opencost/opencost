@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/shared"
+	"github.com/opencost/opencost/core/pkg/cloud"
 )
 
 type PersistentVolumePricing struct {
@@ -19,7 +19,7 @@ func (vp *PersistentVolumePricing) String() string {
 }
 
 type PersistentVolumePricingProperties struct {
-	Provider   shared.Provider   `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Provider   cloud.Provider    `json:"provider,omitempty" yaml:"provider,omitempty"`
 	Region     string            `json:"region,omitempty" yaml:"region,omitempty"`
 	VolumeType VolumeType        `json:"volumeType,omitempty" yaml:"volumeType,omitempty"`
 	Cluster    string            `json:"cluster,omitempty" yaml:"cluster,omitempty"`

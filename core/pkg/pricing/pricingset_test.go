@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/shared"
+	"github.com/opencost/opencost/core/pkg/cloud"
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
 func nodePricing(instanceType string, price float64) *NodePricing {
 	return &NodePricing{
 		Properties: NodePricingProperties{
-			Provider:     shared.Provider("AWS"),
+			Provider:     cloud.ProviderAWS,
 			Region:       "us-east-1",
 			InstanceType: instanceType,
 		},
@@ -24,7 +24,7 @@ func nodePricing(instanceType string, price float64) *NodePricing {
 func pvPricing(volumeType VolumeType, price float64) *PersistentVolumePricing {
 	return &PersistentVolumePricing{
 		Properties: PersistentVolumePricingProperties{
-			Provider:   shared.Provider("AWS"),
+			Provider:   cloud.ProviderAWS,
 			Region:     "us-east-1",
 			VolumeType: volumeType,
 		},
@@ -95,11 +95,11 @@ func TestIsEmptyAllKinds(t *testing.T) {
 	}
 
 	cases := map[string]*PricingSet{
-		"cluster": {ClusterPricing: []*ClusterPricing{{Properties: ClusterPricingProperties{Provider: shared.Provider("AWS")}}}},
-		"network": {NetworkPricing: []*NetworkPricing{{Properties: NetworkPricingProperties{Provider: shared.Provider("AWS")}}}},
+		"cluster": {ClusterPricing: []*ClusterPricing{{Properties: ClusterPricingProperties{Provider: cloud.ProviderAWS}}}},
+		"network": {NetworkPricing: []*NetworkPricing{{Properties: NetworkPricingProperties{Provider: cloud.ProviderAWS}}}},
 		"node":    {NodePricing: []*NodePricing{nodePricing("m5.large", 0.096)}},
 		"volume":  {PersistentVolumePricing: []*PersistentVolumePricing{pvPricing(VolumeTypeGP3, 0.0001)}},
-		"service": {ServicePricing: []*ServicePricing{{Properties: ServicePricingProperties{Provider: shared.Provider("AWS")}}}},
+		"service": {ServicePricing: []*ServicePricing{{Properties: ServicePricingProperties{Provider: cloud.ProviderAWS}}}},
 	}
 
 	for name, ps := range cases {
@@ -127,17 +127,17 @@ func fullPricingSet() *PricingSet {
 
 	return &PricingSet{
 		ClusterPricing: []*ClusterPricing{{
-			Properties: ClusterPricingProperties{Provider: shared.Provider("AWS"), Start: &start},
+			Properties: ClusterPricingProperties{Provider: cloud.ProviderAWS, Start: &start},
 			Prices:     Prices{ResourceCluster: {Unit: unit.Hour, Price: 1.0}},
 		}},
 		NetworkPricing: []*NetworkPricing{{
-			Properties: NetworkPricingProperties{Provider: shared.Provider("AWS"), End: &end},
+			Properties: NetworkPricingProperties{Provider: cloud.ProviderAWS, End: &end},
 			Prices:     Prices{ResourceInternetEgress: {Unit: unit.GiB, Price: 0.09}},
 		}},
 		NodePricing:             []*NodePricing{node},
 		PersistentVolumePricing: []*PersistentVolumePricing{pv},
 		ServicePricing: []*ServicePricing{{
-			Properties: ServicePricingProperties{Provider: shared.Provider("AWS"), Region: "us-east-1", Start: &start},
+			Properties: ServicePricingProperties{Provider: cloud.ProviderAWS, Region: "us-east-1", Start: &start},
 			Prices:     Prices{ResourceService: {Unit: unit.Hour, Price: 0.025}},
 		}},
 	}
