@@ -7,9 +7,6 @@ import (
 
 type Currency string
 
-// TODO which of these are supported in the pricing APIs??
-// TODO if the configured currency is NOT available, default to USD!
-
 const (
 	AUD Currency = "AUD"
 	BRL Currency = "BRL"

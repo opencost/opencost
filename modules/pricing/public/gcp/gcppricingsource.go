@@ -281,6 +281,11 @@ func (g *GCPPricingSource) buildNodePricing(ps *pricing.PricingSet, nodeCPUCosts
 		}
 		processedKeys[key] = true
 
+		// Skip spot/preemptible pricing
+		if strings.EqualFold(key.UsageType, "preemptible") {
+			continue
+		}
+
 		cpuCost := nodeCPUCosts[key]
 		ramCost := nodeRAMCosts[key]
 
@@ -289,19 +294,12 @@ func (g *GCPPricingSource) buildNodePricing(ps *pricing.PricingSet, nodeCPUCosts
 			continue
 		}
 
-		// Determine provisioning type
-		// NOTE: Both preemptible and spot map to spot type
-		provisioning := pricing.ProvisioningOnDemand
-		if key.UsageType == "preemptible" || key.UsageType == "spot" {
-			provisioning = pricing.ProvisioningSpot
-		}
-
 		nodePricing := &pricing.NodePricing{
 			Properties: pricing.NodePricingProperties{
 				Provider:     shared.ProviderGCP,
 				Region:       key.Region,
 				InstanceType: key.InstanceType,
-				Provisioning: provisioning,
+				Provisioning: pricing.ProvisioningOnDemand,
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceCPU: pricing.Price{
