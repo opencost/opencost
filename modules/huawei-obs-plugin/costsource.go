@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/huaweicloud/huaweicloud-sdk-go-obs/obs"
+	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/global"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/opencost/opencost/core/pkg/model/pb"
@@ -46,13 +47,21 @@ func (s *ObsCostSource) GetCustomCosts(req *pb.CustomCostRequest) []*pb.CustomCo
 		return errResp(fmt.Errorf("huawei obs plugin: required environment variable not set: %s", envProjectID))
 	}
 
-	ak := os.Getenv(envAccessKeyID)
-	sk := os.Getenv(envAccessKeySecret)
-	if ak == "" || sk == "" {
-		return errResp(fmt.Errorf("huawei obs plugin: required environment variables not set: %s / %s", envAccessKeyID, envAccessKeySecret))
+	// Static AK/SK take precedence; otherwise fall back to the IAM agency
+	// attached to the node (see huaweiGlobalCredentials in credentials.go),
+	// authenticating the OBS S3-compatible client with its temporary
+	// AK/SK/security token.
+	var obsClient *obs.ObsClient
+	var err error
+	if ak, sk := os.Getenv(envAccessKeyID), os.Getenv(envAccessKeySecret); ak != "" && sk != "" {
+		obsClient, err = obs.New(ak, sk, obsEndpoint(s.cfg.Region))
+	} else {
+		var creds *global.Credentials
+		creds, err = huaweiGlobalCredentials()
+		if err == nil {
+			obsClient, err = obs.New(creds.AK, creds.SK, obsEndpoint(s.cfg.Region), obs.WithSecurityToken(creds.SecurityToken))
+		}
 	}
-
-	obsClient, err := obs.New(ak, sk, obsEndpoint(s.cfg.Region))
 	if err != nil {
 		return errResp(err)
 	}

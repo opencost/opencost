@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/global"
+	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/provider"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/config"
 	bssintl "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2"
 	bssintlmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2/model"
@@ -76,25 +77,57 @@ var evsReferenceSizeGBDecimal = decimal.NewFromInt(evsReferenceSizeGB)
 // of the real Huawei Cloud endpoint. Production code leaves this empty.
 var bssEndpointOverride string
 
-// newBssClient builds a BSS (international) client authenticated from the
-// HUAWEICLOUD_ACCESS_KEY_ID / HUAWEICLOUD_SECRET_ACCESS_KEY / HUAWEICLOUD_DOMAIN_ID
-// environment variables.
-func newBssClient() (*bssintl.BssintlClient, error) {
+// huaweiGlobalCredentials resolves the global.Credentials used to authenticate
+// against BSS. Static credentials (HUAWEICLOUD_ACCESS_KEY_ID/_SECRET_ACCESS_KEY,
+// optionally +_DOMAIN_ID) take precedence when both AK and SK are set; otherwise
+// it falls back to the IAM agency attached to the node, fetched from the ECS/CCE
+// instance metadata service (http://169.254.169.254/openstack/latest/securitykey)
+// via the SDK's own MetadataCredentialProvider -- the same mechanism other
+// in-cluster tools (e.g. ces-exporter) use, so no static AK/SK need to be
+// provisioned at all when the node already has an agency configured.
+//
+// HUAWEICLOUD_DOMAIN_ID is optional in both cases: GlobalCredentials.
+// ProcessAuthParams auto-discovers the domain ID from the credential's own IAM
+// permissions (via ListAuthDomains/GetCallerIdentity) when it's left empty.
+func huaweiGlobalCredentials() (*global.Credentials, error) {
 	ak := env.GetHuaweiAccessKeyID()
 	sk := env.GetHuaweiAccessKeySecret()
 	domainID := env.GetHuaweiDomainID()
-	if ak == "" || sk == "" || domainID == "" {
-		return nil, fmt.Errorf("huawei cloud BSS pricing requires %s, %s and %s to be set",
-			env.HuaweiAccessKeyIDEnvVar, env.HuaweiAccessKeySecretEnvVar, env.HuaweiDomainIDEnvVar)
+
+	if ak != "" && sk != "" {
+		creds, err := global.NewCredentialsBuilder().
+			WithAk(ak).
+			WithSk(sk).
+			WithDomainId(domainID).
+			SafeBuild()
+		if err != nil {
+			return nil, fmt.Errorf("building huawei cloud credentials: %w", err)
+		}
+		return creds, nil
 	}
 
-	creds, err := global.NewCredentialsBuilder().
-		WithAk(ak).
-		WithSk(sk).
-		WithDomainId(domainID).
-		SafeBuild()
+	agencyCreds, err := provider.GlobalCredentialMetadataProvider().GetCredentials()
 	if err != nil {
-		return nil, fmt.Errorf("building huawei cloud credentials: %w", err)
+		return nil, fmt.Errorf(
+			"huawei cloud BSS pricing requires either %s/%s to be set, or an IAM agency configured on the node: %w",
+			env.HuaweiAccessKeyIDEnvVar, env.HuaweiAccessKeySecretEnvVar, err)
+	}
+	creds, ok := agencyCreds.(*global.Credentials)
+	if !ok {
+		return nil, fmt.Errorf("huawei cloud BSS pricing: unexpected credential type %T from IAM agency", agencyCreds)
+	}
+	if domainID != "" {
+		creds.DomainId = domainID
+	}
+	return creds, nil
+}
+
+// newBssClient builds a BSS (international) client authenticated via
+// huaweiGlobalCredentials.
+func newBssClient() (*bssintl.BssintlClient, error) {
+	creds, err := huaweiGlobalCredentials()
+	if err != nil {
+		return nil, err
 	}
 
 	builder := bssintl.BssintlClientBuilder().

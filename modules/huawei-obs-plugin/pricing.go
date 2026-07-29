@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/global"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/config"
 	bssintl "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2"
 	bssintlmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2/model"
@@ -62,20 +60,9 @@ var obsReferenceSizeGBDecimal = decimal.NewFromInt(obsReferenceSizeGB)
 var bssEndpointOverride string
 
 func newBssClient() (*bssintl.BssintlClient, error) {
-	ak := os.Getenv(envAccessKeyID)
-	sk := os.Getenv(envAccessKeySecret)
-	domainID := os.Getenv(envDomainID)
-	if ak == "" || sk == "" || domainID == "" {
-		return nil, fmt.Errorf("huawei cloud BSS pricing requires %s, %s and %s to be set", envAccessKeyID, envAccessKeySecret, envDomainID)
-	}
-
-	creds, err := global.NewCredentialsBuilder().
-		WithAk(ak).
-		WithSk(sk).
-		WithDomainId(domainID).
-		SafeBuild()
+	creds, err := huaweiGlobalCredentials()
 	if err != nil {
-		return nil, fmt.Errorf("building huawei cloud credentials: %w", err)
+		return nil, err
 	}
 
 	builder := bssintl.BssintlClientBuilder().
