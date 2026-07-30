@@ -22,6 +22,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloudcost"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -57,6 +58,13 @@ type CostModel struct {
 	Provider        costAnalyzerCloud.Provider
 	KubeModel       *km.KubeModel
 	pricingMetadata *costAnalyzerCloud.PricingMatchMetadata
+	// CloudCostQuerier, when set, is queried by ComputeAssets for CloudCost data
+	// (e.g. RDS/DCS/OBS billing ingested via a CloudCostIntegration) so that it can
+	// be surfaced as Cloud assets alongside Node/Disk/LoadBalancer. It is optional
+	// and provider-agnostic: any registered CloudCostIntegration's ingested data
+	// flows through it identically. Nil unless wired up by the caller (see
+	// pkg/cmd/costmodel/costmodel.go).
+	CloudCostQuerier cloudcost.Querier
 }
 
 func NewCostModel(

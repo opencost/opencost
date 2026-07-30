@@ -1,11 +1,13 @@
 package costmodel
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/pkg/cloudcost"
 )
 
 // clampTimeToRange does not permit timestamps to exceed a given start, end
@@ -58,6 +60,16 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*opencost.AssetSet, er
 	clusterManagement, err := cm.ClusterManagement(start, end)
 	if err != nil {
 		return nil, fmt.Errorf("error computing cluster management assets for %s: %w", opencost.NewClosedWindow(start, end), err)
+	}
+
+	// Cloud costs (e.g. RDS/DCS/OBS billing) are optional: only present when a
+	// CloudCostIntegration has been wired up via CloudCostQuerier. A failure here
+	// is logged rather than propagated, so that an unavailable or misbehaving
+	// CloudCostIntegration never prevents Node/Disk/LoadBalancer assets from being
+	// computed.
+	cloudAssets, err := cm.ClusterCloudCosts(start, end)
+	if err != nil {
+		log.Errorf("error computing cloud cost assets for %s: %s", opencost.NewClosedWindow(start, end), err)
 	}
 
 	for _, d := range diskMap {
@@ -180,7 +192,67 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*opencost.AssetSet, er
 		assetSet.Insert(node, nil)
 	}
 
+	for _, ca := range cloudAssets {
+		assetSet.Insert(ca, nil)
+	}
+
 	return assetSet, nil
+}
+
+// ClusterCloudCosts converts CloudCost data already ingested via a registered
+// CloudCostIntegration (see pkg/cloudcost) into Cloud assets covering [start, end).
+// This is generic across every CloudCostIntegration implementation (AWS, Azure,
+// GCP, Huawei, etc.) -- it reads whatever categorized CloudCost data is available
+// for the window, regardless of which provider produced it. Returns (nil, nil) if
+// no CloudCostQuerier has been configured.
+func (cm *CostModel) ClusterCloudCosts(start, end time.Time) ([]*opencost.Cloud, error) {
+	if cm.CloudCostQuerier == nil {
+		return nil, nil
+	}
+
+	ccsr, err := cm.CloudCostQuerier.Query(context.Background(), cloudcost.QueryRequest{
+		Start:      start,
+		End:        end,
+		Accumulate: opencost.AccumulateOptionAll,
+		AggregateBy: []string{
+			opencost.CloudCostProviderProp,
+			opencost.CloudCostProviderIDProp,
+			opencost.CloudCostServiceProp,
+			opencost.CloudCostCategoryProp,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error querying cloud costs for %s: %w", opencost.NewClosedWindow(start, end), err)
+	}
+
+	var cloudAssets []*opencost.Cloud
+	for _, ccs := range ccsr.CloudCostSets {
+		if ccs.Window.Start() == nil || ccs.Window.End() == nil {
+			continue
+		}
+
+		// CloudCost is ingested daily and may cover a range different from the
+		// requested [start, end); clamp to the requested window, matching the
+		// pattern used for Disk/Node above.
+		s := clampTimeToRange(*ccs.Window.Start(), start, end)
+		e := clampTimeToRange(*ccs.Window.End(), start, end)
+
+		for _, cc := range ccs.CloudCosts {
+			if cc == nil || cc.Properties == nil {
+				continue
+			}
+
+			cloudAsset := opencost.NewCloud(cc.Properties.Category, cc.Properties.ProviderID, s, e, opencost.NewWindow(&start, &end))
+			cloudAsset.Properties.Provider = cc.Properties.Provider
+			cloudAsset.Properties.Service = cc.Properties.Service
+			cloudAsset.Properties.Account = cc.Properties.AccountID
+			cloudAsset.Cost = cc.NetCost.Cost
+
+			cloudAssets = append(cloudAssets, cloudAsset)
+		}
+	}
+
+	return cloudAssets, nil
 }
 
 func (cm *CostModel) ClusterDisks(start, end time.Time) (map[DiskIdentifier]*Disk, error) {
