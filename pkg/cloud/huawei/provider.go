@@ -143,6 +143,17 @@ func (h *Huawei) DownloadPricingData() error {
 		// and the BSS demandPrice API rejects requests with an empty project_id, so
 		// this must be set correctly for live pricing to work at all.
 		h.ProjectID = projectID
+	} else if h.ProjectID == "" {
+		// Neither the env var nor the static config file has a project ID: fall
+		// back to the instance metadata service, the same mechanism
+		// huaweiGlobalCredentials (pricingapi.go) already uses for AK/SK, so a
+		// node with an IAM agency attached needs no project ID provisioned
+		// anywhere either.
+		if projectID, err := huaweiProjectIDFromMetadata(); err == nil {
+			h.ProjectID = projectID
+		} else {
+			log.Warnf("huawei cloud: %s not set and IAM agency metadata lookup failed, live BSS pricing will fail: %v", env.HuaweiProjectIDEnvVar, err)
+		}
 	}
 
 	h.Pricing = make(map[string]*HuaweiPricing)

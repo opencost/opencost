@@ -42,9 +42,17 @@ func (s *ObsCostSource) GetCustomCosts(req *pb.CustomCostRequest) []*pb.CustomCo
 		}}
 	}
 
+	// HUAWEICLOUD_PROJECT_ID takes precedence when set; otherwise fall back to
+	// the instance metadata service (same mechanism as the AK/SK/token fallback
+	// below), so a node with an IAM agency attached needs no project ID
+	// provisioned anywhere either.
 	projectID := os.Getenv(envProjectID)
 	if projectID == "" {
-		return errResp(fmt.Errorf("huawei obs plugin: required environment variable not set: %s", envProjectID))
+		var err error
+		projectID, err = huaweiProjectIDFromMetadata()
+		if err != nil {
+			return errResp(fmt.Errorf("huawei obs plugin: %s not set and IAM agency metadata lookup failed: %w", envProjectID, err))
+		}
 	}
 
 	// Static AK/SK take precedence; otherwise fall back to the IAM agency

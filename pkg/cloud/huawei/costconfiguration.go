@@ -73,6 +73,16 @@ func (c *CostConfiguration) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return fmt.Errorf("CostConfiguration: UnmarshalJSON: %w", err)
 	}
+	if projectID == "" {
+		// cloud-integration.json ships with an empty projectID when no static
+		// HUAWEICLOUD_PROJECT_ID/values.yaml cloud.projectId was provisioned. Fall
+		// back to the instance metadata service (same mechanism
+		// huaweiGlobalCredentials uses for AK/SK), so a node with an IAM agency
+		// attached needs no project ID configured anywhere either.
+		if metaProjectID, metaErr := huaweiProjectIDFromMetadata(); metaErr == nil {
+			projectID = metaProjectID
+		}
+	}
 	c.ProjectID = projectID
 
 	region, err := cloud.GetInterfaceValue[string](fmap, "region")
