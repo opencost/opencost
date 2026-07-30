@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,17 +30,35 @@ const (
 type blobServer struct {
 	content []byte
 
-	mu       sync.Mutex
-	ranges   []string // x-ms-range values, in the order received
-	gets     int
-	failGET  func(n int) (status int, truncate bool) // nth GET (1-based) -> injected failure
-	onGet    func()
+	mu          sync.Mutex
+	ranges      []string       // x-ms-range values, in arrival order
+	attempts    map[string]int // per-range attempt count, for retry tests
+	inFlight    int
+	maxInFlight int
+
+	// failGET is consulted per request with the requested range and how many
+	// times that range has been requested. A non-zero status injects a failure;
+	// truncate sends a partial body and aborts instead.
+	failGET func(rangeHeader string, attempt int) (status int, truncate bool)
+	// onGet runs on every GET before the response is produced.
+	onGet func()
+	// delay is held before responding, so overlapping requests are observable.
+	delay    time.Duration
 	failHEAD bool
+	// blockForever makes GETs hang until teardown, to exercise stall handling.
+	blockForever bool
+	done         chan struct{}
 }
 
 func newBlobServer(t *testing.T, content []byte) (*blobServer, *azblob.Client) {
 	t.Helper()
-	bs := &blobServer{content: content}
+	bs := &blobServer{
+		content:  content,
+		attempts: map[string]int{},
+		done:     make(chan struct{}),
+	}
+	var closeOnce sync.Once
+	t.Cleanup(func() { closeOnce.Do(func() { close(bs.done) }) })
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
@@ -57,15 +76,38 @@ func newBlobServer(t *testing.T, content []byte) (*blobServer, *azblob.Client) {
 		rangeHeader := r.Header.Get("x-ms-range")
 
 		bs.mu.Lock()
-		bs.gets++
-		n := bs.gets
 		bs.ranges = append(bs.ranges, rangeHeader)
-		failFn := bs.failGET
-		onGet := bs.onGet
+		bs.attempts[rangeHeader]++
+		attempt := bs.attempts[rangeHeader]
+		bs.inFlight++
+		if bs.inFlight > bs.maxInFlight {
+			bs.maxInFlight = bs.inFlight
+		}
+		failFn, onGet, delay, blockForever := bs.failGET, bs.onGet, bs.delay, bs.blockForever
 		bs.mu.Unlock()
+
+		defer func() {
+			bs.mu.Lock()
+			bs.inFlight--
+			bs.mu.Unlock()
+		}()
 
 		if onGet != nil {
 			onGet()
+		}
+		if blockForever {
+			select {
+			case <-bs.done:
+			case <-r.Context().Done():
+			}
+			return
+		}
+		if delay > 0 {
+			select {
+			case <-time.After(delay):
+			case <-r.Context().Done():
+				return
+			}
 		}
 
 		start, end, err := parseRange(rangeHeader, len(bs.content))
@@ -76,7 +118,7 @@ func newBlobServer(t *testing.T, content []byte) (*blobServer, *azblob.Client) {
 		chunk := bs.content[start : end+1]
 
 		if failFn != nil {
-			if status, truncate := failFn(n); status != 0 {
+			if status, truncate := failFn(rangeHeader, attempt); status != 0 {
 				if !truncate {
 					w.WriteHeader(status)
 					return
@@ -106,10 +148,32 @@ func newBlobServer(t *testing.T, content []byte) (*blobServer, *azblob.Client) {
 	return bs, client
 }
 
-func (bs *blobServer) requestedRanges() []string {
+// uniqueSortedRanges returns the distinct ranges requested, sorted by start
+// offset. Prefetching means arrival order is not deterministic.
+func (bs *blobServer) uniqueSortedRanges() []string {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
-	return append([]string(nil), bs.ranges...)
+
+	seen := map[string]bool{}
+	out := []string{}
+	for _, r := range bs.ranges {
+		if !seen[r] {
+			seen[r] = true
+			out = append(out, r)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		si, _, _ := parseRange(out[i], len(bs.content))
+		sj, _, _ := parseRange(out[j], len(bs.content))
+		return si < sj
+	})
+	return out
+}
+
+func (bs *blobServer) peakConcurrency() int {
+	bs.mu.Lock()
+	defer bs.mu.Unlock()
+	return bs.maxInFlight
 }
 
 // parseRange parses an Azure "bytes=start-end" range header, where end is inclusive.
@@ -176,7 +240,7 @@ func TestStreamReader_ReadsBlobExactly(t *testing.T) {
 			content := testContent(tc.size)
 			bs, client := newBlobServer(t, content)
 
-			sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize)
+			sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize, defaultPrefetchDepth)
 			if err != nil {
 				t.Fatalf("newStreamReader() error = %v", err)
 			}
@@ -192,8 +256,8 @@ func TestStreamReader_ReadsBlobExactly(t *testing.T) {
 				t.Error("streamed content does not match the blob")
 			}
 
-			if n := len(bs.requestedRanges()); n != tc.expectedBlocks {
-				t.Errorf("issued %d ranged GETs (%v), want %d", n, bs.requestedRanges(), tc.expectedBlocks)
+			if n := len(bs.uniqueSortedRanges()); n != tc.expectedBlocks {
+				t.Errorf("issued %d ranged GETs (%v), want %d", n, bs.uniqueSortedRanges(), tc.expectedBlocks)
 			}
 		})
 	}
@@ -209,7 +273,7 @@ func TestStreamReader_HandlesUnalignedReads(t *testing.T) {
 		t.Run(fmt.Sprintf("read buffer %d", readSize), func(t *testing.T) {
 			_, client := newBlobServer(t, content)
 
-			sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize)
+			sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize, defaultPrefetchDepth)
 			if err != nil {
 				t.Fatalf("newStreamReader() error = %v", err)
 			}
@@ -241,7 +305,7 @@ func TestStreamReader_RequestsContiguousRanges(t *testing.T) {
 	content := testContent(blockSize*3 + 100)
 	bs, client := newBlobServer(t, content)
 
-	sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize)
+	sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize, defaultPrefetchDepth)
 	if err != nil {
 		t.Fatalf("newStreamReader() error = %v", err)
 	}
@@ -255,7 +319,7 @@ func TestStreamReader_RequestsContiguousRanges(t *testing.T) {
 		"bytes=512-767",
 		"bytes=768-867",
 	}
-	got := bs.requestedRanges()
+	got := bs.uniqueSortedRanges()
 	if len(got) != len(want) {
 		t.Fatalf("requested ranges = %v, want %v", got, want)
 	}
@@ -270,7 +334,7 @@ func TestStreamReader_PropertiesFailurePropagates(t *testing.T) {
 	bs, client := newBlobServer(t, testContent(10))
 	bs.failHEAD = true
 
-	if _, err := newStreamReader(context.Background(), client, testContainer, testBlobName, 1024); err == nil {
+	if _, err := newStreamReader(context.Background(), client, testContainer, testBlobName, 1024, defaultPrefetchDepth); err == nil {
 		t.Error("newStreamReader() error = nil, want an error when the blob properties cannot be read")
 	}
 }
@@ -279,9 +343,9 @@ func TestStreamReader_DownloadFailurePropagates(t *testing.T) {
 	const blockSize = 128
 	bs, client := newBlobServer(t, testContent(blockSize*3))
 	// Fail every GET with a non-retriable status.
-	bs.failGET = func(int) (int, bool) { return http.StatusBadRequest, false }
+	bs.failGET = func(string, int) (int, bool) { return http.StatusBadRequest, false }
 
-	sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize)
+	sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize, defaultPrefetchDepth)
 	if err != nil {
 		t.Fatalf("newStreamReader() error = %v", err)
 	}
@@ -298,14 +362,14 @@ func TestStreamReader_RetriesTruncatedBlock(t *testing.T) {
 	content := testContent(blockSize * 2)
 	bs, client := newBlobServer(t, content)
 	// Abort the first GET partway through; later attempts succeed.
-	bs.failGET = func(n int) (int, bool) {
-		if n == 1 {
+	bs.failGET = func(_ string, attempt int) (int, bool) {
+		if attempt == 1 {
 			return http.StatusPartialContent, true
 		}
 		return 0, false
 	}
 
-	sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize)
+	sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize, defaultPrefetchDepth)
 	if err != nil {
 		t.Fatalf("newStreamReader() error = %v", err)
 	}
@@ -332,7 +396,7 @@ func TestStreamReader_HonoursContextCancellation(t *testing.T) {
 	var once sync.Once
 	bs.onGet = func() { once.Do(cancel) }
 
-	sr, err := newStreamReader(ctx, client, testContainer, testBlobName, blockSize)
+	sr, err := newStreamReader(ctx, client, testContainer, testBlobName, blockSize, defaultPrefetchDepth)
 	if err != nil {
 		// Cancellation during GetProperties is also an acceptable outcome.
 		if errors.Is(err, context.Canceled) {
@@ -353,7 +417,7 @@ func TestStreamReader_HonoursContextCancellation(t *testing.T) {
 
 // NewStreamReader is the exported constructor and must default to the 8MB
 // block size rather than a zero-length block.
-func TestNewStreamReader_UsesDefaultBlockSize(t *testing.T) {
+func TestNewStreamReader_UsesDefaults(t *testing.T) {
 	_, client := newBlobServer(t, testContent(16))
 
 	sr, err := NewStreamReader(context.Background(), client, testContainer, testBlobName)
@@ -362,6 +426,12 @@ func TestNewStreamReader_UsesDefaultBlockSize(t *testing.T) {
 	}
 	if sr.blockSize != int64(defaultBlockSize) {
 		t.Errorf("blockSize = %d, want %d", sr.blockSize, defaultBlockSize)
+	}
+	if sr.depth != defaultPrefetchDepth {
+		t.Errorf("depth = %d, want %d", sr.depth, defaultPrefetchDepth)
+	}
+	if sr.blockTimeout != blockFetchTimeout {
+		t.Errorf("blockTimeout = %v, want %v", sr.blockTimeout, blockFetchTimeout)
 	}
 }
 
@@ -390,7 +460,7 @@ func TestStorageConnection_StreamBlob(t *testing.T) {
 	if string(got) != string(content) {
 		t.Error("streamed content does not match the blob")
 	}
-	if len(bs.requestedRanges()) == 0 {
+	if len(bs.uniqueSortedRanges()) == 0 {
 		t.Error("no ranged GETs were issued")
 	}
 }
@@ -433,7 +503,7 @@ func TestStreamReader_ParsesCSVRecordsSpanningBlocks(t *testing.T) {
 			t.Run(fmt.Sprintf("%s block %d", fileName, blockSize), func(t *testing.T) {
 				_, client := newBlobServer(t, content)
 
-				sr, err := newStreamReader(context.Background(), client, testContainer, fileName, blockSize)
+				sr, err := newStreamReader(context.Background(), client, testContainer, fileName, blockSize, defaultPrefetchDepth)
 				if err != nil {
 					t.Fatalf("newStreamReader() error = %v", err)
 				}
@@ -456,5 +526,94 @@ func TestStreamReader_ParsesCSVRecordsSpanningBlocks(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// Prefetching is the whole point of the double buffer: without it a multi-GB
+// blob is fetched one block at a time on a single connection, which is far
+// slower than the parallel download it replaces.
+func TestStreamReader_PrefetchesConcurrently(t *testing.T) {
+	const blockSize = 128
+	const depth = 4
+	content := testContent(blockSize * 12)
+
+	bs, client := newBlobServer(t, content)
+	// Hold each response briefly so overlapping requests are observable.
+	bs.delay = 25 * time.Millisecond
+
+	sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize, depth)
+	if err != nil {
+		t.Fatalf("newStreamReader() error = %v", err)
+	}
+	got, err := io.ReadAll(sr)
+	if err != nil {
+		t.Fatalf("io.ReadAll() error = %v", err)
+	}
+	if string(got) != string(content) {
+		t.Fatal("content mismatch under concurrent prefetch")
+	}
+
+	peak := bs.peakConcurrency()
+	if peak < 2 {
+		t.Errorf("peak concurrent fetches = %d, want > 1 (blocks are not being prefetched)", peak)
+	}
+	if peak > depth {
+		t.Errorf("peak concurrent fetches = %d, want <= depth %d (prefetch is unbounded)", peak, depth)
+	}
+}
+
+// Prefetch depth bounds memory: at most depth blocks are in flight, so the
+// reader holds at most depth+1 buffers regardless of blob size.
+func TestStreamReader_PrefetchDepthIsBounded(t *testing.T) {
+	const blockSize = 64
+	const depth = 2
+	content := testContent(blockSize * 20)
+
+	bs, client := newBlobServer(t, content)
+	bs.delay = 10 * time.Millisecond
+
+	sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize, depth)
+	if err != nil {
+		t.Fatalf("newStreamReader() error = %v", err)
+	}
+	if _, err := io.ReadAll(sr); err != nil {
+		t.Fatalf("io.ReadAll() error = %v", err)
+	}
+
+	if peak := bs.peakConcurrency(); peak > depth {
+		t.Errorf("peak concurrent fetches = %d, want <= %d", peak, depth)
+	}
+}
+
+// A stalled block must fail on its own deadline rather than hanging the
+// ingestion cycle. The deadline is per block, so total runtime scales with
+// blob size instead of being capped by a single whole-blob timeout.
+func TestStreamReader_BlockFetchTimeout(t *testing.T) {
+	const blockSize = 128
+	bs, client := newBlobServer(t, testContent(blockSize*4))
+	bs.blockForever = true
+
+	sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize, defaultPrefetchDepth)
+	if err != nil {
+		t.Fatalf("newStreamReader() error = %v", err)
+	}
+	sr.blockTimeout = 150 * time.Millisecond
+
+	done := make(chan error, 1)
+	go func() {
+		_, readErr := io.ReadAll(sr)
+		done <- readErr
+	}()
+
+	select {
+	case readErr := <-done:
+		if readErr == nil {
+			t.Fatal("io.ReadAll() error = nil, want the stalled block to time out")
+		}
+		if !errors.Is(readErr, context.DeadlineExceeded) {
+			t.Errorf("error = %v, want it to wrap context.DeadlineExceeded", readErr)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("Read did not return; the per-block deadline is not being applied")
 	}
 }

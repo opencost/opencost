@@ -142,24 +142,19 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 		for _, blobInfo := range blobInfos {
 			blobName := *blobInfo.Name
 
-			// Bound the stream the same way the download-to-disk path is bounded,
-			// so a stalled blob cannot hang the ingestion cycle indefinitely.
-			if err := func() error {
-				streamCtx, cancel := context.WithTimeout(ctx, blobTransferTimeout)
-				defer cancel()
+			// No overall deadline here: each block download is bounded
+			// individually by blockFetchTimeout, which catches a stalled transfer
+			// without capping how long a large blob may legitimately take to
+			// stream and parse.
+			streamReader, err := asbp.StreamBlob(ctx, blobName, client)
+			if err != nil {
+				asbp.ConnectionStatus = cloud.FailedConnection
+				return err
+			}
 
-				streamReader, err := asbp.StreamBlob(streamCtx, blobName, client)
-				if err != nil {
-					asbp.ConnectionStatus = cloud.FailedConnection
-					return err
-				}
-
-				if err := asbp.processStreamBillingData(streamReader, blobName, start, end, resultFn); err != nil {
-					asbp.ConnectionStatus = cloud.ParseError
-					return err
-				}
-				return nil
-			}(); err != nil {
+			err = asbp.processStreamBillingData(streamReader, blobName, start, end, resultFn)
+			if err != nil {
+				asbp.ConnectionStatus = cloud.ParseError
 				return err
 			}
 		}

@@ -4,45 +4,78 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 )
 
-const defaultBlockSize = int(8 * 1024 * 1024) // 8MB
+const (
+	defaultBlockSize = int(8 * 1024 * 1024) // 8MB
 
-// StreamReader is a double buffered streaming reader for Azure Blob Storage.
+	// defaultPrefetchDepth is how many blocks may be downloading at once. The
+	// reader holds at most depth+1 buffers, so the memory ceiling is
+	// (depth+1) * blockSize -- 40MB at the defaults -- regardless of blob size.
+	// Fetching a single block at a time leaves a large blob bound to one
+	// connection's throughput, which is markedly slower than the parallel
+	// download this reader replaces.
+	defaultPrefetchDepth = 4
+
+	// blockFetchTimeout bounds a single block download rather than the whole
+	// blob, so it acts as a stall detector while leaving total transfer time
+	// proportional to blob size. At the default 8MB block this tolerates
+	// sustained throughput down to roughly 27KB/s before failing.
+	blockFetchTimeout = 5 * time.Minute
+)
+
+// StreamReader is a prefetching streaming reader for Azure Blob Storage. It
+// fetches the blob as a series of ranged reads, keeping up to depth blocks in
+// flight so that downloading overlaps with parsing.
+//
+// Blocks are fetched lazily from Read, which cannot accept a context because
+// it must satisfy io.Reader. The context supplied to the constructor is
+// therefore retained for the lifetime of the reader and used for the downloads
+// it triggers; a StreamReader is a single-use, request-scoped object and must
+// not outlive that context.
 type StreamReader struct {
 	ctx       context.Context
 	client    *azblob.Client
 	container string
 	blobName  string
-	block     *bytes.Buffer
-	next      *streamingBlock
-	position  int64
-	size      int64
-	blockSize int64
+
+	block   *bytes.Buffer     // current block, being consumed by Read
+	pending []*streamingBlock // blocks in flight, in blob order
+	free    []*bytes.Buffer   // drained buffers available for reuse
+
+	position     int64 // bytes returned to the caller so far
+	scheduled    int64 // offset of the next block to schedule
+	size         int64
+	blockSize    int64
+	depth        int
+	blockTimeout time.Duration
 }
 
-// NewStreamReader creates a new streaming reader for the specified blob. The
-// provided context bounds the lifetime of every block download, so cancelling
-// it aborts the stream.
+// NewStreamReader creates a new streaming reader for the specified blob.
+// Cancelling ctx aborts any in-flight block download.
 func NewStreamReader(ctx context.Context, client *azblob.Client, container string, blobName string) (*StreamReader, error) {
-	return newStreamReader(ctx, client, container, blobName, int64(defaultBlockSize))
+	return newStreamReader(ctx, client, container, blobName, int64(defaultBlockSize), defaultPrefetchDepth)
 }
 
-// newStreamReader is NewStreamReader with a caller-supplied block size, which
-// allows tests to exercise block boundaries without moving 8MB per block.
-func newStreamReader(ctx context.Context, client *azblob.Client, container string, blobName string, blockSize int64) (*StreamReader, error) {
+// newStreamReader is NewStreamReader with a caller-supplied block size and
+// prefetch depth, which lets tests exercise block boundaries and concurrency
+// without moving 8MB per block.
+func newStreamReader(ctx context.Context, client *azblob.Client, container string, blobName string, blockSize int64, depth int) (*StreamReader, error) {
+	if depth < 1 {
+		depth = 1
+	}
+
 	sar := &StreamReader{
-		ctx:       ctx,
-		client:    client,
-		container: container,
-		blobName:  blobName,
-		block:     nil,
-		next:      nil,
-		position:  0,
-		size:      0,
-		blockSize: blockSize,
+		ctx:          ctx,
+		client:       client,
+		container:    container,
+		blobName:     blobName,
+		blockSize:    blockSize,
+		depth:        depth,
+		blockTimeout: blockFetchTimeout,
 	}
 
 	// get the size of the blob
@@ -79,79 +112,61 @@ func (r *StreamReader) Read(p []byte) (n int, err error) {
 	return copied, nil
 }
 
-// nextBlock fetches the next block of data from the blob and starts the download of
-// the next block in the background.
+// schedule tops the in-flight queue up to the prefetch depth, starting each
+// block where the previous one ended. Buffers drained by Read are recycled so
+// steady-state operation does not allocate.
+func (r *StreamReader) schedule() {
+	for len(r.pending) < r.depth && r.scheduled < r.size {
+		var buffer *bytes.Buffer
+		if last := len(r.free) - 1; last >= 0 {
+			buffer = r.free[last]
+			r.free = r.free[:last]
+		}
+
+		block := newStreamBlock(
+			r.ctx,
+			r.blockTimeout,
+			r.client,
+			r.container,
+			r.blobName,
+			buffer,
+			r.scheduled,
+			r.blockSize,
+			r.size,
+		)
+
+		// capacity is the number of bytes this block will actually cover, which
+		// is short of blockSize for the final block.
+		r.scheduled += block.capacity
+		r.pending = append(r.pending, block)
+	}
+}
+
+// nextBlock waits for the oldest in-flight block, makes it current, and
+// refills the queue behind it.
 func (r *StreamReader) nextBlock() error {
-	// if we don't have a block, we need to fetch the first block, and start fetching
-	// the next block in the background
-	if r.block == nil {
-		current := newStreamBlock(
-			r.ctx,
-			r.client,
-			r.container,
-			r.blobName,
-			nil,
-			r.position,
-			r.blockSize,
-			r.size,
-		)
+	r.schedule()
 
-		// explicitly wait here for the first block
-		err := current.Wait()
-		if err != nil {
-			return err
-		}
-
-		// set the current block and start the next block download
-		r.block = current.buffer
-
-		// if the block size capacity was reduced to a value different than the default block size,
-		// we can assume there is no more data beyond this block, so we don't need to start the next block
-		if current.capacity != r.blockSize {
-			return nil
-		}
-
-		// start next block stream
-		r.next = newStreamBlock(
-			r.ctx,
-			r.client,
-			r.container,
-			r.blobName,
-			nil,
-			r.position+current.capacity,
-			r.blockSize,
-			r.size,
-		)
-
-		return nil
+	if len(r.pending) == 0 {
+		// Read guards on position >= size, so the queue is only empty here if
+		// the blob was truncated underneath us.
+		return io.ErrUnexpectedEOF
 	}
 
-	// we have a block and a next block, so we need to wait for the next block to finish
-	// buffering, then we can swap current and next buffers
-	err := r.next.Wait()
-	if err != nil {
+	block := r.pending[0]
+	r.pending = r.pending[1:]
+
+	if err := block.Wait(); err != nil {
 		return err
 	}
 
-	// save the current buffer to re-use in the next block and set the current to the next block
-	currentBuffer := r.block
-	r.block = r.next.buffer
-
-	if r.next.capacity != r.blockSize {
-		return nil
+	// recycle the buffer we just finished with
+	if r.block != nil {
+		r.free = append(r.free, r.block)
 	}
+	r.block = block.buffer
 
-	// start next block stream
-	r.next = newStreamBlock(
-		r.ctx,
-		r.client,
-		r.container,
-		r.blobName,
-		currentBuffer, // recycle the old current buffer as the next buffer
-		r.position+r.blockSize,
-		r.blockSize,
-		r.size,
-	)
+	r.schedule()
 
 	return nil
 }
@@ -178,6 +193,7 @@ type streamingBlock struct {
 // mid-download.
 func newStreamBlock(
 	ctx context.Context,
+	timeout time.Duration,
 	client *azblob.Client,
 	container string,
 	blob string,
@@ -214,6 +230,11 @@ func newStreamBlock(
 	// start a goroutine to fetch the block of data, close the done channel when the block
 	// is fetched or an error occurs
 	go func(block *streamingBlock) {
+		// Bound this block rather than the whole blob, so a stalled transfer is
+		// caught without capping how long a large blob may legitimately take.
+		blockCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+
 		opts := azblob.DownloadStreamOptions{
 			Range: azblob.HTTPRange{
 				Offset: block.start,
@@ -221,7 +242,7 @@ func newStreamBlock(
 			},
 		}
 
-		resp, err := block.client.DownloadStream(ctx, block.container, block.blob, &opts)
+		resp, err := block.client.DownloadStream(blockCtx, block.container, block.blob, &opts)
 		if err != nil {
 			block.err = err
 			close(block.done)
@@ -232,7 +253,7 @@ func newStreamBlock(
 			MaxRetries: 3,
 		}
 
-		var body io.ReadCloser = resp.NewRetryReader(ctx, retryOpts)
+		var body io.ReadCloser = resp.NewRetryReader(blockCtx, retryOpts)
 		_, err = io.Copy(block.buffer, body)
 		if err != nil {
 			block.err = err
