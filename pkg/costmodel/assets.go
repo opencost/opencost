@@ -3,6 +3,7 @@ package costmodel
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -243,6 +244,7 @@ func (cm *CostModel) ClusterCloudCosts(start, end time.Time) ([]*opencost.Cloud,
 			}
 
 			cloudAsset := opencost.NewCloud(cc.Properties.Category, cc.Properties.ProviderID, s, e, opencost.NewWindow(&start, &end))
+			cloudAsset.SetCloudType(cloudCostServiceToAssetType(cc.Properties.Service))
 			cloudAsset.Properties.Provider = cc.Properties.Provider
 			cloudAsset.Properties.Service = cc.Properties.Service
 			cloudAsset.Properties.Account = cc.Properties.AccountID
@@ -288,4 +290,36 @@ func (cm *CostModel) PropertiesFromCluster(props *opencost.AssetProperties) {
 	props.Project = ci.Project
 	props.Account = ci.Account
 	props.Provider = ci.Provider
+}
+
+// cloudCostServiceToAssetType maps a CloudCost Service string (e.g. the BSS
+// CLOUD_SERVICE_TYPE dimension value) to a specific AssetType for Cloud assets.
+// This allows the Infra Assets dashboard to show RDS, DCS, OBS, etc. as
+// separate categories instead of a single "Cloud" catch-all.
+func cloudCostServiceToAssetType(service string) opencost.AssetType {
+	lower := strings.ToLower(service)
+	switch {
+	case strings.Contains(lower, "elastic cloud server") || strings.Contains(lower, "ecs") || strings.Contains(lower, "bare metal"):
+		return opencost.ECSCloudAssetType
+	case strings.Contains(lower, "elastic volume") || strings.Contains(lower, "evs"):
+		return opencost.EVSCloudAssetType
+	case strings.Contains(lower, "object storage") || strings.Contains(lower, "obs"):
+		return opencost.OBSCloudAssetType
+	case strings.Contains(lower, "relational database") || strings.Contains(lower, "rds"):
+		return opencost.RDSCloudAssetType
+	case strings.Contains(lower, "distributed cache") || strings.Contains(lower, "dcs"):
+		return opencost.DCSCloudAssetType
+	case strings.Contains(lower, "elastic load balance") || strings.Contains(lower, "elb"):
+		return opencost.ELBCloudAssetType
+	case strings.Contains(lower, "nat gateway") || strings.Contains(lower, "nat"):
+		return opencost.NATCloudAssetType
+	case strings.Contains(lower, "virtual private cloud") || strings.Contains(lower, "vpc"):
+		return opencost.VPCCloudAssetType
+	case strings.Contains(lower, "elastic ip") || strings.Contains(lower, "eip"):
+		return opencost.EIPCloudAssetType
+	case strings.Contains(lower, "data encryption") || strings.Contains(lower, "dew") || strings.Contains(lower, "kms") || strings.Contains(lower, "csms"):
+		return opencost.DEWCloudAssetType
+	default:
+		return opencost.OtherCloudAssetType
+	}
 }

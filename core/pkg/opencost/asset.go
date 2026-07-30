@@ -269,6 +269,19 @@ const (
 
 	// SharedAssetType describes the Shared AssetType
 	SharedAssetType
+
+	// Huawei Cloud service sub-types for Cloud assets.
+	ECSCloudAssetType
+	EVSCloudAssetType
+	OBSCloudAssetType
+	RDSCloudAssetType
+	DCSCloudAssetType
+	ELBCloudAssetType
+	NATCloudAssetType
+	VPCCloudAssetType
+	EIPCloudAssetType
+	DEWCloudAssetType
+	OtherCloudAssetType
 )
 
 // ParseAssetType attempts to parse the given string into an AssetType
@@ -288,6 +301,28 @@ func ParseAssetType(text string) (AssetType, error) {
 		return NodeAssetType, nil
 	case "shared":
 		return SharedAssetType, nil
+	case "ecs":
+		return ECSCloudAssetType, nil
+	case "evs":
+		return EVSCloudAssetType, nil
+	case "obs":
+		return OBSCloudAssetType, nil
+	case "rds":
+		return RDSCloudAssetType, nil
+	case "dcs":
+		return DCSCloudAssetType, nil
+	case "elb":
+		return ELBCloudAssetType, nil
+	case "nat":
+		return NATCloudAssetType, nil
+	case "vpc":
+		return VPCCloudAssetType, nil
+	case "eip":
+		return EIPCloudAssetType, nil
+	case "dew":
+		return DEWCloudAssetType, nil
+	case "othercloud":
+		return OtherCloudAssetType, nil
 	}
 	return AnyAssetType, fmt.Errorf("invalid asset type: %s", text)
 }
@@ -303,6 +338,17 @@ func (at AssetType) String() string {
 		"Network",
 		"Node",
 		"Shared",
+		"ECS",
+		"EVS",
+		"OBS",
+		"RDS",
+		"DCS",
+		"ELB",
+		"NAT",
+		"VPC",
+		"EIP",
+		"DEW",
+		"OtherCloud",
 	}[at]
 }
 
@@ -507,6 +553,7 @@ func (a *Any) SanitizeNaN() {
 
 // Cloud describes a cloud asset
 type Cloud struct {
+	typ        AssetType // sub-type for Huawei Cloud services (default CloudAssetType)
 	Labels     AssetLabels
 	Properties *AssetProperties
 	Start      time.Time
@@ -525,6 +572,7 @@ func NewCloud(category, providerID string, start, end time.Time, window Window) 
 	}
 
 	return &Cloud{
+		typ:        CloudAssetType,
 		Labels:     AssetLabels{},
 		Properties: properties,
 		Start:      start,
@@ -535,7 +583,14 @@ func NewCloud(category, providerID string, start, end time.Time, window Window) 
 
 // Type returns the AssetType
 func (ca *Cloud) Type() AssetType {
-	return CloudAssetType
+	return ca.typ
+}
+
+// SetCloudType sets the AssetType for this Cloud asset. Used by ClusterCloudCosts
+// to map Huawei Cloud services (RDS, DCS, OBS, etc.) to distinct AssetTypes
+// so the Infra Assets dashboard shows them as separate categories.
+func (ca *Cloud) SetCloudType(t AssetType) {
+	ca.typ = t
 }
 
 // Properties returns the AssetProperties
