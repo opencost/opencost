@@ -2,7 +2,7 @@ name: Compare Pricing Data
 
 on:
   schedule:
-    - cron: '0 10 * * *'
+    - cron: '0 18 * * *'
 
 permissions:
   contents: read
