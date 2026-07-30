@@ -101,3 +101,53 @@ func TestIsMCPServerEnabled_True(t *testing.T) {
 		t.Fatalf("expected true when env var set to true, got %v", got)
 	}
 }
+
+func TestIsAzureDownloadBillingDataToDisk(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+		pre  func()
+	}{
+		{
+			name: "Ensure the default is false, so billing data is streamed rather than staged on disk",
+			want: false,
+			pre: func() {
+				os.Unsetenv(AzureDownloadBillingDataToDiskEnvVar)
+			},
+		},
+		{
+			name: "Ensure the value is true when AZURE_DOWNLOAD_BILLING_DATA_TO_DISK is set to true",
+			want: true,
+			pre: func() {
+				os.Setenv(AzureDownloadBillingDataToDiskEnvVar, "true")
+			},
+		},
+		{
+			name: "Ensure the value is false when AZURE_DOWNLOAD_BILLING_DATA_TO_DISK is set to false",
+			want: false,
+			pre: func() {
+				os.Setenv(AzureDownloadBillingDataToDiskEnvVar, "false")
+			},
+		},
+		{
+			name: "Ensure the default applies when AZURE_DOWNLOAD_BILLING_DATA_TO_DISK is set to an empty string",
+			want: false,
+			pre: func() {
+				os.Setenv(AzureDownloadBillingDataToDiskEnvVar, "")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.pre != nil {
+				tt.pre()
+			}
+			t.Cleanup(func() { os.Unsetenv(AzureDownloadBillingDataToDiskEnvVar) })
+
+			if got := IsAzureDownloadBillingDataToDisk(); got != tt.want {
+				t.Errorf("IsAzureDownloadBillingDataToDisk() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

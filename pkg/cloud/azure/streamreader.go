@@ -12,6 +12,7 @@ const defaultBlockSize = int(8 * 1024 * 1024) // 8MB
 
 // StreamReader is a double buffered streaming reader for Azure Blob Storage.
 type StreamReader struct {
+	ctx       context.Context
 	client    *azblob.Client
 	container string
 	blobName  string
@@ -19,11 +20,21 @@ type StreamReader struct {
 	next      *streamingBlock
 	position  int64
 	size      int64
+	blockSize int64
 }
 
-// NewStreamReader creates a new streaming reader for the specified blob.
-func NewStreamReader(client *azblob.Client, container string, blobName string) (*StreamReader, error) {
+// NewStreamReader creates a new streaming reader for the specified blob. The
+// provided context bounds the lifetime of every block download, so cancelling
+// it aborts the stream.
+func NewStreamReader(ctx context.Context, client *azblob.Client, container string, blobName string) (*StreamReader, error) {
+	return newStreamReader(ctx, client, container, blobName, int64(defaultBlockSize))
+}
+
+// newStreamReader is NewStreamReader with a caller-supplied block size, which
+// allows tests to exercise block boundaries without moving 8MB per block.
+func newStreamReader(ctx context.Context, client *azblob.Client, container string, blobName string, blockSize int64) (*StreamReader, error) {
 	sar := &StreamReader{
+		ctx:       ctx,
 		client:    client,
 		container: container,
 		blobName:  blobName,
@@ -31,11 +42,12 @@ func NewStreamReader(client *azblob.Client, container string, blobName string) (
 		next:      nil,
 		position:  0,
 		size:      0,
+		blockSize: blockSize,
 	}
 
 	// get the size of the blob
 	blobClient := client.ServiceClient().NewContainerClient(container).NewBlobClient(blobName)
-	gr, err := blobClient.GetProperties(context.Background(), nil)
+	gr, err := blobClient.GetProperties(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -74,12 +86,13 @@ func (r *StreamReader) nextBlock() error {
 	// the next block in the background
 	if r.block == nil {
 		current := newStreamBlock(
+			r.ctx,
 			r.client,
 			r.container,
 			r.blobName,
 			nil,
 			r.position,
-			int64(defaultBlockSize),
+			r.blockSize,
 			r.size,
 		)
 
@@ -94,18 +107,19 @@ func (r *StreamReader) nextBlock() error {
 
 		// if the block size capacity was reduced to a value different than the default block size,
 		// we can assume there is no more data beyond this block, so we don't need to start the next block
-		if current.capacity != int64(defaultBlockSize) {
+		if current.capacity != r.blockSize {
 			return nil
 		}
 
 		// start next block stream
 		r.next = newStreamBlock(
+			r.ctx,
 			r.client,
 			r.container,
 			r.blobName,
 			nil,
 			r.position+current.capacity,
-			int64(defaultBlockSize),
+			r.blockSize,
 			r.size,
 		)
 
@@ -123,18 +137,19 @@ func (r *StreamReader) nextBlock() error {
 	currentBuffer := r.block
 	r.block = r.next.buffer
 
-	if r.next.capacity != int64(defaultBlockSize) {
+	if r.next.capacity != r.blockSize {
 		return nil
 	}
 
 	// start next block stream
 	r.next = newStreamBlock(
+		r.ctx,
 		r.client,
 		r.container,
 		r.blobName,
 		currentBuffer, // recycle the old current buffer as the next buffer
-		r.position+int64(defaultBlockSize),
-		int64(defaultBlockSize),
+		r.position+r.blockSize,
+		r.blockSize,
 		r.size,
 	)
 
@@ -162,6 +177,7 @@ type streamingBlock struct {
 // returns. This just ensures that we will never attempt to swap buffers
 // mid-download.
 func newStreamBlock(
+	ctx context.Context,
 	client *azblob.Client,
 	container string,
 	blob string,
@@ -198,8 +214,6 @@ func newStreamBlock(
 	// start a goroutine to fetch the block of data, close the done channel when the block
 	// is fetched or an error occurs
 	go func(block *streamingBlock) {
-		ctx := context.Background()
-
 		opts := azblob.DownloadStreamOptions{
 			Range: azblob.HTTPRange{
 				Offset: block.start,
