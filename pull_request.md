@@ -15,7 +15,7 @@ Key changes:
    - `filter`: allocation filters.
 
 ## Related Issues
-Closes #4156
+Closes #3979
 
 ## User Impact
 Users/FinOps teams can query `GET /anomaly` to identify sudden unexpected spikes in cost data, grouped by namespace, pod, cluster, etc.
