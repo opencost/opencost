@@ -3,7 +3,7 @@ package kubemodel
 import (
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/shared"
+	"github.com/opencost/opencost/core/pkg/cloud"
 )
 
 // NewMockKubeModelSet returns a KubeModelSet populated with one instance of every
@@ -15,7 +15,7 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 	// --- Cluster ---
 	kms.RegisterCluster(&Cluster{
 		UID:      "cluster-uid",
-		Provider: shared.ProviderAWS,
+		Provider: cloud.ProviderAWS,
 		Account:  "123456789012",
 		Name:     "test-cluster",
 		Region:   "us-east-1",
