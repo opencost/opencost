@@ -16,12 +16,15 @@ import (
 	"github.com/opencost/opencost/core/pkg/external"
 	"github.com/opencost/opencost/core/pkg/kubeconfig"
 	"github.com/opencost/opencost/core/pkg/nodestats"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/protocol"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/storage"
+	"github.com/opencost/opencost/core/pkg/util/httputil"
 	"github.com/opencost/opencost/core/pkg/util/retry"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	"github.com/opencost/opencost/core/pkg/version"
+	"github.com/opencost/opencost/pkg/anomaly"
 	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/cloudcost"
@@ -630,6 +633,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/installInfo", a.GetInstallInfo)
 	router.POST("/serviceKey", adminAuthMiddleware(a.AddServiceKey))
 	router.GET("/helmValues", adminAuthMiddleware(a.GetHelmValues))
+	router.GET("/anomaly", a.GetAnomalyHandler)
 
 	return a
 }
@@ -679,4 +683,80 @@ func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService
 	router.GET("/customCost/timeseries", customCostQueryService.GetCustomCostTimeseriesHandler())
 
 	return customCostPipelineService
+}
+
+func (a *Accesses) GetAnomalyHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+
+	windowStr := qp.Get("window", "30d")
+	window, err := opencost.ParseWindowWithOffset(windowStr, env.GetParsedUTCOffset())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	stepStr := qp.Get("step", "1d")
+	step, err := timeutil.ParseDuration(stepStr)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'step' parameter: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	lookbackStr := qp.Get("lookback", "7d")
+	lookbackDur, err := timeutil.ParseDuration(lookbackStr)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'lookback' parameter: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	algorithm := qp.Get("algorithm", "mad")
+	if algorithm != "zscore" && algorithm != "mad" {
+		http.Error(w, "Invalid 'algorithm' parameter: must be 'zscore' or 'mad'", http.StatusBadRequest)
+		return
+	}
+
+	var defaultThreshold float64 = 3.0
+	if algorithm == "mad" {
+		defaultThreshold = 3.5
+	}
+	threshold := qp.GetFloat64("threshold", defaultThreshold)
+	minCost := qp.GetFloat64("minCost", 0.10)
+
+	aggregations := qp.GetList("aggregate", ",")
+	aggregateBy, err := ParseAggregationProperties(aggregations)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'aggregate' parameter: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	allocationFilter := qp.Get("filter", "")
+
+	asr, err := a.Model.QueryAllocation(
+		window,
+		step,
+		aggregateBy,
+		false,
+		false,
+		false,
+		false,
+		false,
+		opencost.AccumulateOptionNone,
+		false,
+		allocationFilter,
+	)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error querying allocation: %s", err), http.StatusInternalServerError)
+		return
+	}
+
+	reports, err := anomaly.Detect(asr, step, lookbackDur, algorithm, threshold, minCost)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error detecting anomalies: %s", err), http.StatusInternalServerError)
+		return
+	}
+
+	WriteData(w, reports, nil)
 }
