@@ -15,11 +15,12 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/unit"
+	"github.com/opencost/opencost/modules/pricing/public/httpclient"
 )
 
 var BillingAPIBaseURL = "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus"
 
-var gcpHTTPClient = &http.Client{Timeout: 120 * time.Second}
+var gcpHTTPClient = httpclient.NewClient(120 * time.Second)
 
 type GCPPricingSourceConfig struct {
 	APIKey       string
