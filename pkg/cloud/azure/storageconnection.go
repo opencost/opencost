@@ -83,51 +83,116 @@ func (sc *StorageConnection) StreamBlob(blobName string, client *azblob.Client) 
 	return NewStreamReader(client, sc.Container, blobName)
 }
 
+// isExistingFileCurrent reports whether the file already on disk is a complete,
+// up-to-date copy of the blob and can be reused instead of downloading again.
+//
+// A modification time newer than the blob's is necessary but not sufficient. A
+// download that fails partway (for example ENOSPC) or whose process is killed
+// leaves a truncated file behind whose modification time is newer than the
+// blob's, so the size is also compared against the blob's ContentLength. When
+// the blob reports no ContentLength the size cannot be validated and the check
+// falls back to the modification time alone.
+func isExistingFileCurrent(fileInfo os.FileInfo, blob container.BlobItem) bool {
+	if blob.Properties == nil || blob.Properties.LastModified == nil {
+		return false
+	}
+	if !blob.Properties.LastModified.Before(fileInfo.ModTime()) {
+		return false
+	}
+	if blob.Properties.ContentLength != nil && *blob.Properties.ContentLength != fileInfo.Size() {
+		return false
+	}
+	return true
+}
+
+// downloadToFile runs download against a temporary file alongside
+// localFilePath and moves it into place only once the download has completed
+// and, when expectedSize is known, written the expected number of bytes. It
+// returns the number of bytes downloaded.
+//
+// Downloading via a temporary file means a failure can never leave a partial
+// file at localFilePath, and never destroys a previously downloaded copy.
+func downloadToFile(localFilePath string, expectedSize *int64, download func(*os.File) (int64, error)) (int64, error) {
+	dir := filepath.Dir(localFilePath)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return 0, fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Create the temporary file in the destination directory so the rename is
+	// atomic rather than a cross-filesystem copy.
+	fp, err := os.CreateTemp(dir, filepath.Base(localFilePath)+".part-*")
+	if err != nil {
+		return 0, fmt.Errorf("failed to create file: %w", err)
+	}
+	tempFilePath := fp.Name()
+
+	// Remove the temporary file unless it has been renamed into place.
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		if rmErr := os.Remove(tempFilePath); rmErr != nil && !os.IsNotExist(rmErr) {
+			log.Errorf("CloudCost: Azure: downloadToFile: failed to remove temporary file %s: %s", tempFilePath, rmErr)
+		}
+	}()
+
+	filesize, err := download(fp)
+	if err != nil {
+		fp.Close()
+		return 0, fmt.Errorf("failed to download: %w", err)
+	}
+
+	if expectedSize != nil && filesize != *expectedSize {
+		fp.Close()
+		return 0, fmt.Errorf("download size mismatch: got %d bytes, expected %d", filesize, *expectedSize)
+	}
+
+	// Close before renaming so all data is flushed to the file.
+	if err := fp.Close(); err != nil {
+		return 0, fmt.Errorf("failed to close file: %w", err)
+	}
+
+	if err := os.Rename(tempFilePath, localFilePath); err != nil {
+		return 0, fmt.Errorf("failed to move downloaded file into place: %w", err)
+	}
+	committed = true
+
+	return filesize, nil
+}
+
 // DownloadBlobToFile downloads the Azure Billing CSV to a local file
 func (sc *StorageConnection) DownloadBlobToFile(localFilePath string, blob container.BlobItem, client *azblob.Client, ctx context.Context) error {
 	// Lock to prevent accessing a file which may not be fully downloaded
 	sc.lock.Lock()
 	defer sc.lock.Unlock()
 	blobName := *blob.Name
-	// Check if file already exists
+	// Reuse the local copy only when it is a complete, up-to-date copy of the blob
 	if fileInfo, err := os.Stat(localFilePath); err == nil {
-		blobModTime := *blob.Properties.LastModified
-		// Check if the blob was last modified before the file was modified, indicating that the
-		// file is the most recent version of the blob
-		if blobModTime.Before(fileInfo.ModTime()) {
-			log.Debugf("CloudCost: Azure: DownloadBlobToFile: file %s is more recent than correspondig blob %s", localFilePath, blobName)
+		if isExistingFileCurrent(fileInfo, blob) {
+			log.Debugf("CloudCost: Azure: DownloadBlobToFile: file %s is more recent than corresponding blob %s", localFilePath, blobName)
 			return nil
 		}
-
 	}
-
-	// Create filepath
-	dir := filepath.Dir(localFilePath)
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return fmt.Errorf("CloudCost: Azure: DownloadBlobToFile: failed to create directory %w", err)
-	}
-	fp, err := os.Create(localFilePath)
-	if err != nil {
-		return fmt.Errorf("CloudCost: Azure: DownloadBlobToFile: failed to create file %w", err)
-	}
-	defer fp.Close()
-
-	// Download newest Azure Billing CSV to disk
 
 	// Time out to prevent deadlock on download
 	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 
 	log.Infof("CloudCost: Azure: DownloadBlobToFile: retrieving blob: %v", blobName)
-	filesize, err := client.DownloadFile(timeoutCtx, sc.Container, blobName, fp, nil)
-	if err != nil {
-		// Clean up file from failed download
-		err2 := os.Remove(localFilePath)
-		if err2 != nil {
-			log.Errorf("CloudCost: Azure: DownloadBlobToFile: failed to remove file %s after failed download %s", localFilePath, err2.Error())
-		}
-		return fmt.Errorf("CloudCost: Azure: DownloadBlobToFile: failed to download %w", err)
+
+	var expectedSize *int64
+	if blob.Properties != nil {
+		expectedSize = blob.Properties.ContentLength
 	}
+
+	filesize, err := downloadToFile(localFilePath, expectedSize, func(fp *os.File) (int64, error) {
+		return client.DownloadFile(timeoutCtx, sc.Container, blobName, fp, nil)
+	})
+	if err != nil {
+		return fmt.Errorf("CloudCost: Azure: DownloadBlobToFile: %w", err)
+	}
+
 	log.Infof("CloudCost: Azure: DownloadBlobToFile: retrieved %v of size %dMB", blobName, filesize/1024/1024)
 
 	return nil
