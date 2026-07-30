@@ -133,7 +133,7 @@ func downloadToFile(localFilePath string, expectedSize *int64, download func(*os
 			return
 		}
 		if rmErr := os.Remove(tempFilePath); rmErr != nil && !os.IsNotExist(rmErr) {
-			log.Errorf("CloudCost: Azure: downloadToFile: failed to remove temporary file %s: %s", tempFilePath, rmErr)
+			log.Errorf("CloudCost: Azure: downloadToFile: failed to remove temporary file %s: %v", tempFilePath, rmErr)
 		}
 	}()
 
