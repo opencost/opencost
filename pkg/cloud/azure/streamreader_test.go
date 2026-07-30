@@ -7,10 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 )
@@ -405,5 +407,54 @@ func TestStorageConnection_StreamBlobRespectsCancelledContext(t *testing.T) {
 
 	if _, err := sc.StreamBlob(ctx, testBlobName, client); !errors.Is(err, context.Canceled) {
 		t.Errorf("StreamBlob() error = %v, want context.Canceled", err)
+	}
+}
+
+// End-to-end proof that CSV rows are not required to fit within a block.
+// StreamReader returns a short read at each block boundary and csv.Reader's
+// bufio wrapper keeps calling Read, so records, fields and the header line all
+// reassemble across boundaries. Block sizes here are far smaller than the
+// fixture's ~959 byte header and ~716 byte rows, so every record is split
+// several times, frequently mid-field.
+func TestStreamReader_ParsesCSVRecordsSpanningBlocks(t *testing.T) {
+	const expectedRows = 5
+	start := time.Date(2024, 10, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2024, 11, 30, 0, 0, 0, 0, time.UTC)
+
+	for _, fileName := range []string{"test_azure_billing.csv", "test_azure_billing.csv.gz"} {
+		content, err := os.ReadFile(valueCasesPath + fileName)
+		if err != nil {
+			t.Fatalf("reading fixture %s: %v", fileName, err)
+		}
+
+		// 1 byte forces a boundary between every single byte; the larger sizes
+		// land boundaries at varied offsets within records and fields.
+		for _, blockSize := range []int64{1, 7, 64, 100, 512, 1000, 4096} {
+			t.Run(fmt.Sprintf("%s block %d", fileName, blockSize), func(t *testing.T) {
+				_, client := newBlobServer(t, content)
+
+				sr, err := newStreamReader(context.Background(), client, testContainer, fileName, blockSize)
+				if err != nil {
+					t.Fatalf("newStreamReader() error = %v", err)
+				}
+
+				asbp := &AzureStorageBillingParser{}
+				var rows int
+				err = asbp.processStreamBillingData(sr, fileName, start, end, func(abv *BillingRowValues) error {
+					if abv == nil {
+						t.Error("received nil BillingRowValues")
+					}
+					rows++
+					return nil
+				})
+				if err != nil {
+					t.Fatalf("processStreamBillingData() error = %v", err)
+				}
+
+				if rows != expectedRows {
+					t.Errorf("parsed %d rows, want %d — records did not survive block boundaries", rows, expectedRows)
+				}
+			})
+		}
 	}
 }
