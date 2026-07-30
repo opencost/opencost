@@ -617,3 +617,64 @@ func TestStreamReader_BlockFetchTimeout(t *testing.T) {
 		t.Fatal("Read did not return; the per-block deadline is not being applied")
 	}
 }
+
+// schedule() only queues a block while scheduled < size, so a block is never
+// created at or past EOF and its capacity is therefore always >= 1. This
+// matters most when the blob is an exact multiple of the block size and the
+// prefetch depth exceeds the number of blocks, where a missing guard would
+// issue a zero length ranged GET that no reader ever awaits.
+func TestStreamReader_DoesNotFetchBeyondEOF(t *testing.T) {
+	const blockSize = 128
+
+	testCases := map[string]struct {
+		size           int
+		depth          int
+		expectedBlocks int
+	}{
+		"exact multiple, depth equals block count":  {size: blockSize * 3, depth: 3, expectedBlocks: 3},
+		"exact multiple, depth exceeds block count": {size: blockSize * 3, depth: 8, expectedBlocks: 3},
+		"single exact block, deep prefetch":         {size: blockSize, depth: 8, expectedBlocks: 1},
+		"one byte short of a multiple":              {size: blockSize*3 - 1, depth: 8, expectedBlocks: 3},
+		"one byte over a multiple":                  {size: blockSize*3 + 1, depth: 8, expectedBlocks: 4},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			content := testContent(tc.size)
+			bs, client := newBlobServer(t, content)
+
+			sr, err := newStreamReader(context.Background(), client, testContainer, testBlobName, blockSize, tc.depth)
+			if err != nil {
+				t.Fatalf("newStreamReader() error = %v", err)
+			}
+			got, err := io.ReadAll(sr)
+			if err != nil {
+				t.Fatalf("io.ReadAll() error = %v", err)
+			}
+			if string(got) != string(content) {
+				t.Fatal("content mismatch")
+			}
+
+			ranges := bs.uniqueSortedRanges()
+			if len(ranges) != tc.expectedBlocks {
+				t.Errorf("issued %d ranged GETs (%v), want %d", len(ranges), ranges, tc.expectedBlocks)
+			}
+
+			// No request may start at or beyond the end of the blob, and none
+			// may be empty.
+			for _, r := range ranges {
+				start, end, parseErr := parseRange(r, tc.size)
+				if parseErr != nil {
+					t.Errorf("range %q is not a valid range for a %d byte blob: %v", r, tc.size, parseErr)
+					continue
+				}
+				if start >= tc.size {
+					t.Errorf("range %q starts at or beyond EOF (%d bytes)", r, tc.size)
+				}
+				if end < start {
+					t.Errorf("range %q is empty", r)
+				}
+			}
+		})
+	}
+}

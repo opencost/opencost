@@ -138,12 +138,26 @@ func TestIsAzureDownloadBillingDataToDisk(t *testing.T) {
 		},
 	}
 
+	// Save whatever the caller's environment already had and put it back
+	// afterwards, so running this package with a value set, or running it more
+	// than once, does not change the result of these or any later tests.
+	original, hadOriginal := os.LookupEnv(AzureDownloadBillingDataToDiskEnvVar)
+	t.Cleanup(func() {
+		if hadOriginal {
+			os.Setenv(AzureDownloadBillingDataToDiskEnvVar, original)
+			return
+		}
+		os.Unsetenv(AzureDownloadBillingDataToDiskEnvVar)
+	})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Start every subtest from a known-unset state so the cases are
+			// independent of each other and of their execution order.
+			os.Unsetenv(AzureDownloadBillingDataToDiskEnvVar)
 			if tt.pre != nil {
 				tt.pre()
 			}
-			t.Cleanup(func() { os.Unsetenv(AzureDownloadBillingDataToDiskEnvVar) })
 
 			if got := IsAzureDownloadBillingDataToDisk(); got != tt.want {
 				t.Errorf("IsAzureDownloadBillingDataToDisk() = %v, want %v", got, tt.want)
