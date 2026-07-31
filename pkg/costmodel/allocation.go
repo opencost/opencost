@@ -420,8 +420,21 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resLBActiveMins, _ := resChLBActiveMins.Await()
 
 	if grp.HasErrors() {
+		// Many concurrent sub-queries can fail with the exact same underlying
+		// error (e.g. a data source rejecting the whole start/end window), which
+		// would otherwise flood the log with dozens of identical lines. Collapse
+		// duplicates and report each distinct error once with an occurrence count.
+		counts := make(map[string]int)
+		var distinct []string
 		for _, err := range grp.Errors() {
-			log.Errorf("CostModel.ComputeAllocation: query context error %s", err)
+			msg := err.String()
+			if counts[msg] == 0 {
+				distinct = append(distinct, msg)
+			}
+			counts[msg]++
+		}
+		for _, msg := range distinct {
+			log.Errorf("CostModel.ComputeAllocation: query context error (x%d) %s", counts[msg], msg)
 		}
 
 		return allocSet, nil, grp.Error()
