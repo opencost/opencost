@@ -115,6 +115,13 @@ func TestQueryInferenceGauges(t *testing.T) {
 			wantSubstring: `avg by (model_name, namespace, pod) (avg_over_time(vllm:num_requests_running[`,
 		},
 		{
+			name: "running requests max",
+			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
+				return q.QueryInferenceRunningRequestsMax(start, end)
+			},
+			wantSubstring: `max by (model_name, namespace, pod) (max_over_time(vllm:num_requests_running[`,
+		},
+		{
 			name: "kv cache usage p95",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
 				return q.QueryInferenceKVCacheUsageP95(start, end)
@@ -127,6 +134,13 @@ func TestQueryInferenceGauges(t *testing.T) {
 				return q.QueryInferenceQueueDepthP95(start, end)
 			},
 			wantSubstring: `max by (model_name, namespace, pod) (quantile_over_time(0.95, vllm:num_requests_waiting[`,
+		},
+		{
+			name: "running requests p95",
+			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
+				return q.QueryInferenceRunningRequestsP95(start, end)
+			},
+			wantSubstring: `max by (model_name, namespace, pod) (quantile_over_time(0.95, vllm:num_requests_running[`,
 		},
 	}
 

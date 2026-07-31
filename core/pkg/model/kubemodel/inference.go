@@ -60,7 +60,8 @@ const EngineVLLM = "vllm"
 // InferenceServerReplica holds the window-aggregated scheduler gauges for a
 // single model-server pod. KV-cache usage values are fractions in [0, 1] of
 // the engine's configured KV block budget; queue depth and running requests
-// are request counts.
+// are request counts. All three gauges carry the same (avg, p95, max) window
+// summary, so no gauge is reported with less resolution than the others.
 // @bingen:generate:InferenceServerReplica
 type InferenceServerReplica struct {
 	KVCacheUsageAvg    float64 `json:"kvCacheUsageAvg"`
@@ -79,6 +80,20 @@ type InferenceServerReplica struct {
 	// distribution summary without per-bucket collection.
 	KVCacheUsageP95 float64 `json:"kvCacheUsageP95"`
 	QueueDepthP95   float64 `json:"queueDepthP95"`
+	// RunningRequestsMax and RunningRequestsP95 complete the (avg, p95, max)
+	// summary for the running batch. The maximum carries information the
+	// average cannot: two independent constraints bound a model server, the
+	// KV-cache budget (reported directly by vllm:kv_cache_usage_perc) and the
+	// concurrent-sequence limit (vLLM's max_num_seqs), and either can bind
+	// first depending on context length. vLLM exposes no metric for
+	// max_num_seqs, so the denominator of batch occupancy is not directly
+	// collectible. It is recoverable by observation instead: while the queue
+	// is non-empty the engine admits every sequence it can, so the running
+	// gauge sits pinned at its effective concurrent-sequence limit, and the
+	// window maximum is that ceiling. An average of running requests read
+	// against an unknown ceiling says nothing about saturation.
+	RunningRequestsMax float64 `json:"runningRequestsMax"`
+	RunningRequestsP95 float64 `json:"runningRequestsP95"`
 }
 
 // Key returns the identifier used to store this InferenceServer in the

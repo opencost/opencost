@@ -3314,6 +3314,10 @@ func (target *InferenceServerReplica) MarshalBinaryWithContext(ctx *EncodingCont
 
 	buff.WriteFloat64(target.QueueDepthP95) // write float64
 
+	buff.WriteFloat64(target.RunningRequestsMax) // write float64
+
+	buff.WriteFloat64(target.RunningRequestsP95) // write float64
+
 	return nil
 }
 
@@ -3391,6 +3395,12 @@ func (target *InferenceServerReplica) UnmarshalBinaryWithContext(ctx *DecodingCo
 
 	h := buff.ReadFloat64() // read float64
 	target.QueueDepthP95 = h
+
+	l := buff.ReadFloat64() // read float64
+	target.RunningRequestsMax = l
+
+	m := buff.ReadFloat64() // read float64
+	target.RunningRequestsP95 = m
 
 	return nil
 }

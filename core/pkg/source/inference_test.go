@@ -67,6 +67,8 @@ func inferenceSaturationQueries(q MetricsQuerier) map[string]func(start, end tim
 		QueryInferenceQueueDepthMax:      q.QueryInferenceQueueDepthMax,
 		QueryInferenceQueueDepthP95:      q.QueryInferenceQueueDepthP95,
 		QueryInferenceRunningRequestsAvg: q.QueryInferenceRunningRequestsAvg,
+		QueryInferenceRunningRequestsMax: q.QueryInferenceRunningRequestsMax,
+		QueryInferenceRunningRequestsP95: q.QueryInferenceRunningRequestsP95,
 		QueryInferencePreemptions:        q.QueryInferencePreemptions,
 	}
 }

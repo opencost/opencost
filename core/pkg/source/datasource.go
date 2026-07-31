@@ -234,6 +234,8 @@ const (
 	QueryInferencePreemptions        = "QueryInferencePreemptions"
 	QueryInferenceKVCacheUsageP95    = "QueryInferenceKVCacheUsageP95"
 	QueryInferenceQueueDepthP95      = "QueryInferenceQueueDepthP95"
+	QueryInferenceRunningRequestsMax = "QueryInferenceRunningRequestsMax"
+	QueryInferenceRunningRequestsP95 = "QueryInferenceRunningRequestsP95"
 )
 
 type MetricsQuerier interface {
@@ -515,6 +517,20 @@ type MetricsQuerier interface {
 	// QueryInferenceQueueDepthP95 returns the 95th-percentile count of
 	// waiting requests over the window by model_name, namespace, and pod.
 	QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceServerMetricResult]
+
+	// QueryInferenceRunningRequestsMax returns the window-max count of
+	// requests in the running batch by model_name, namespace, and pod. The
+	// batch is bounded by the engine's concurrent-sequence limit (vLLM's
+	// max_num_seqs) independently of the KV-cache budget, and no vLLM metric
+	// exposes that limit; while the queue is non-empty the running gauge sits
+	// pinned at it, so the window maximum recovers the ceiling that makes the
+	// average interpretable.
+	QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceServerMetricResult]
+
+	// QueryInferenceRunningRequestsP95 returns the 95th-percentile count of
+	// requests in the running batch over the window by model_name, namespace,
+	// and pod.
+	QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceServerMetricResult]
 }
 
 type OpenCostDataSource interface {

@@ -147,6 +147,15 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end
 	return pds.queryInferenceGauge("vllm:num_requests_running", "avg", start, end)
 }
 
+// QueryInferenceRunningRequestsMax implements MetricsQuerier.QueryInferenceRunningRequestsMax.
+// The running batch is bounded by the engine's concurrent-sequence limit
+// (vLLM's max_num_seqs) as well as by the KV budget, and vLLM publishes no
+// metric for that limit; the window max is what recovers it, since the gauge
+// pins there whenever requests are waiting.
+func (pds *PrometheusMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return pds.queryInferenceGauge("vllm:num_requests_running", "max", start, end)
+}
+
 // QueryInferenceKVCacheUsageP95 implements MetricsQuerier.QueryInferenceKVCacheUsageP95
 func (pds *PrometheusMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
 	return pds.queryInferenceGaugeQuantile("vllm:kv_cache_usage_perc", 0.95, start, end)
@@ -155,6 +164,11 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end ti
 // QueryInferenceQueueDepthP95 implements MetricsQuerier.QueryInferenceQueueDepthP95
 func (pds *PrometheusMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
 	return pds.queryInferenceGaugeQuantile("vllm:num_requests_waiting", 0.95, start, end)
+}
+
+// QueryInferenceRunningRequestsP95 implements MetricsQuerier.QueryInferenceRunningRequestsP95
+func (pds *PrometheusMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return pds.queryInferenceGaugeQuantile("vllm:num_requests_running", 0.95, start, end)
 }
 
 // queryInferenceGaugeQuantile runs quantile_over_time for a model-server

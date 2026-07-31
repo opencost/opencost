@@ -743,6 +743,14 @@ func (m *NoOpMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *
 	return newEmptyResult(DecodeInferenceServerMetricResult)
 }
 
+func (m *NoOpMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return newEmptyResult(DecodeInferenceServerMetricResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return newEmptyResult(DecodeInferenceServerMetricResult)
+}
+
 // Data Coverage Query
 
 func (m *NoOpMetricsQuerier) QueryDataCoverage(_ int) (time.Time, time.Time, error) {

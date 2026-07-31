@@ -920,6 +920,16 @@ func (m *RecordMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time)
 	return m.Querier.QueryInferenceQueueDepthP95(start, end)
 }
 
+func (m *RecordMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceServerMetricResult] {
+	m.recordCall(QueryInferenceRunningRequestsMax)
+	return m.Querier.QueryInferenceRunningRequestsMax(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceServerMetricResult] {
+	m.recordCall(QueryInferenceRunningRequestsP95)
+	return m.Querier.QueryInferenceRunningRequestsP95(start, end)
+}
+
 // Data Coverage Query
 
 func (m *RecordMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {

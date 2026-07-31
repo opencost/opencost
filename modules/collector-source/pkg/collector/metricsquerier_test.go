@@ -1048,6 +1048,15 @@ func TestCollectorMetricsQuerier_QueryInferenceSaturation(t *testing.T) {
 			// Interpolation between the two samples (0 and 4) at rank 0.95.
 			want: 0 + (4-0)*0.95,
 		},
+		"running requests max": {
+			query: c.QueryInferenceRunningRequestsMax,
+			want:  30,
+		},
+		"running requests p95": {
+			query: c.QueryInferenceRunningRequestsP95,
+			// Interpolation between the two samples (10 and 30) at rank 0.95.
+			want: 10 + (30-10)*0.95,
+		},
 	}
 
 	for name, tt := range tests {

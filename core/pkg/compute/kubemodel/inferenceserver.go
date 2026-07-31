@@ -27,6 +27,8 @@ func (km *KubeModel) computeInferenceServers(kms *kubemodel.KubeModelSet, start,
 	preemptionsFuture := source.WithGroup(grp, metrics.QueryInferencePreemptions(start, end))
 	kvUsageP95Future := source.WithGroup(grp, metrics.QueryInferenceKVCacheUsageP95(start, end))
 	queueDepthP95Future := source.WithGroup(grp, metrics.QueryInferenceQueueDepthP95(start, end))
+	runningMaxFuture := source.WithGroup(grp, metrics.QueryInferenceRunningRequestsMax(start, end))
+	runningP95Future := source.WithGroup(grp, metrics.QueryInferenceRunningRequestsP95(start, end))
 
 	serverMap := make(map[string]*kubemodel.InferenceServer)
 
@@ -85,6 +87,12 @@ func (km *KubeModel) computeInferenceServers(kms *kubemodel.KubeModelSet, start,
 
 	queueDepthP95Result, _ := queueDepthP95Future.Await()
 	apply(queueDepthP95Result, func(r *kubemodel.InferenceServerReplica, v float64) { r.QueueDepthP95 = v })
+
+	runningMaxResult, _ := runningMaxFuture.Await()
+	apply(runningMaxResult, func(r *kubemodel.InferenceServerReplica, v float64) { r.RunningRequestsMax = v })
+
+	runningP95Result, _ := runningP95Future.Await()
+	apply(runningP95Result, func(r *kubemodel.InferenceServerReplica, v float64) { r.RunningRequestsP95 = v })
 
 	for _, server := range serverMap {
 		if err := kms.RegisterInferenceServer(server); err != nil {

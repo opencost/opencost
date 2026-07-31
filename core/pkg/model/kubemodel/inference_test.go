@@ -119,6 +119,8 @@ func TestInferenceServerCodecRoundTrip(t *testing.T) {
 				Preemptions:        7,
 				KVCacheUsageP95:    0.91,
 				QueueDepthP95:      8,
+				RunningRequestsMax: 48,
+				RunningRequestsP95: 46,
 			},
 			"vllm-1": {},
 		},

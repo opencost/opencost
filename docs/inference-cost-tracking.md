@@ -398,9 +398,9 @@ In addition to token and timing metrics, OpenCost collects the model-server
 
 | Signal | vLLM metric | Aggregations |
 |--------|-------------|--------------|
-| KV-cache utilization (0–1) | `vllm:kv_cache_usage_perc` | avg, p95, max |
+| KV-cache utilization (0-1) | `vllm:kv_cache_usage_perc` | avg, p95, max |
 | Queue depth (requests waiting) | `vllm:num_requests_waiting` | avg, p95, max |
-| Running requests (achieved batch) | `vllm:num_requests_running` | avg |
+| Running requests (achieved batch) | `vllm:num_requests_running` | avg, p95, max |
 | Preemptions (KV thrash / pressure) | `vllm:num_preemptions_total` | delta over window |
 
 The avg/p95/max triple summarizes each gauge's window distribution. Quantiles
@@ -408,6 +408,28 @@ were chosen over bucketed histograms because they compute identically from
 both data sources (Prometheus `quantile_over_time` and the collector's sample
 store); bucketed histograms would require one subquery per bucket per metric
 on the Prometheus side.
+
+#### Why running requests are collected as a maximum too
+
+Two independent constraints bound a model server, and either can bind first.
+One is KV-cache memory, reported as a fraction by
+`vllm:kv_cache_usage_perc`. The other is the concurrent-sequence limit
+(vLLM's `max_num_seqs`), which caps how many requests can be in the running
+batch at once no matter how much KV memory is free. Short-context,
+high-concurrency serving exhausts batch slots while KV utilization stays low
+(each sequence holds few KV blocks); long-context serving does the reverse.
+KV utilization alone therefore cannot answer "is this replica at capacity",
+and a consumer that treats it as the only saturation signal will read a
+batch-saturated replica as nearly idle.
+
+vLLM exposes no Prometheus metric for `max_num_seqs`, and no scheduler-config
+or cache-config info metric carries it, so the denominator of batch occupancy
+cannot be collected directly. It can be observed, though: while the queue is
+non-empty (requests are waiting), the engine is admitting every sequence it
+can, so `vllm:num_requests_running` sits pinned at the effective
+concurrent-sequence limit. The window maximum is that ceiling. An average of
+30 running requests against an unknown ceiling is uninterpretable; a maximum
+that stays flat while queue depth is above zero is the ceiling itself.
 
 These measure how much of a model server's **serving capacity** the workload
 actually consumes. Host-level GPU metrics cannot: a serving engine

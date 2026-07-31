@@ -44,7 +44,9 @@ message InferenceServerReplica {
   float queueDepthAvg = 3;
   float queueDepthMax = 4;
 
-  // Requests in the running batch (achieved batch size).
+  // Requests in the running batch (achieved batch size). See
+  // runningRequestsMax and runningRequestsP95 below for the rest of the
+  // summary.
   float runningRequestsAvg = 5;
 
   // Scheduler preemptions (requests evicted from the running batch and
@@ -56,4 +58,12 @@ message InferenceServerReplica {
   // these summarize the distribution without per-bucket collection.
   float kvCacheUsageP95 = 7;
   float queueDepthP95 = 8;
+
+  // The running-batch maximum is collected because the concurrent-sequence
+  // limit (vLLM's max_num_seqs) bounds the batch independently of the KV
+  // budget and no vLLM metric exposes it. While the queue is non-empty the
+  // running gauge is pinned at that limit, so the window maximum recovers
+  // the ceiling the average must be read against.
+  float runningRequestsMax = 9;
+  float runningRequestsP95 = 10;
 }

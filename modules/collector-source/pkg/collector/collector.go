@@ -83,6 +83,8 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewInferencePreemptionsMetricCollector())
 	memStore.Register(NewInferenceKVCacheUsageP95MetricCollector())
 	memStore.Register(NewInferenceQueueDepthP95MetricCollector())
+	memStore.Register(NewInferenceRunningRequestsMaxMetricCollector())
+	memStore.Register(NewInferenceRunningRequestsP95MetricCollector())
 	memStore.Register(NewNodeCPUPricePerHourMetricCollector())
 	memStore.Register(NewNodeRAMPricePerGiBHourMetricCollector())
 	memStore.Register(NewNodeGPUPricePerHourMetricCollector())
@@ -1777,6 +1779,54 @@ func NewInferenceQueueDepthP95MetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
 		metric.InferenceQueueDepthP95ID,
 		metric.VLLMNumRequestsWaiting,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.QuantileOverTime(0.95),
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	max(
+//		max_over_time(
+//			vllm:num_requests_running[1h]
+//		)
+//	) by (model_name, namespace, pod, cluster_id)
+
+// The running batch is bounded by the engine's concurrent-sequence limit
+// (vLLM's max_num_seqs) as well as by the KV budget, and vLLM exposes no
+// metric for that limit; the window max recovers it, because the gauge pins
+// there whenever requests are waiting.
+
+func NewInferenceRunningRequestsMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceRunningRequestsMaxID,
+		metric.VLLMNumRequestsRunning,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.NamespaceLabel,
+			source.PodLabel,
+		},
+		aggregator.MaxOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	quantile_over_time(
+//		0.95,
+//		vllm:num_requests_running[1h]
+//	) by (model_name, namespace, pod, cluster_id)
+
+func NewInferenceRunningRequestsP95MetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceRunningRequestsP95ID,
+		metric.VLLMNumRequestsRunning,
 		[]string{
 			source.InferenceModelNameLabel,
 			source.NamespaceLabel,

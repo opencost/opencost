@@ -1114,6 +1114,18 @@ func (m *MockMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *
 	})
 }
 
+func (m *MockMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceRunningRequestsMax, func() *Future[InferenceServerMetricResult] {
+		return m.noop.QueryInferenceRunningRequestsMax(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceServerMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceRunningRequestsP95, func() *Future[InferenceServerMetricResult] {
+		return m.noop.QueryInferenceRunningRequestsP95(start, end)
+	})
+}
+
 // Data Coverage Query
 
 func (m *MockMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {

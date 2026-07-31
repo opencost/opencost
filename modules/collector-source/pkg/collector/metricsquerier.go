@@ -859,3 +859,11 @@ func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.
 func (c *collectorMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
 	return queryCollector(c, start, end, metric.InferenceQueueDepthP95ID, source.DecodeInferenceServerMetricResult)
 }
+
+func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceRunningRequestsMaxID, source.DecodeInferenceServerMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceRunningRequestsP95ID, source.DecodeInferenceServerMetricResult)
+}
