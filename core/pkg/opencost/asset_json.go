@@ -159,6 +159,13 @@ func (ca *Cloud) InterfaceToCloud(itf interface{}) error {
 		ca.Window = toWindow(fmap["window"].(map[string]interface{}))
 	}
 
+	ca.typ = CloudAssetType
+	if typeStr, ok := fmap["type"].(string); ok {
+		if parsed, err := ParseAssetType(typeStr); err == nil {
+			ca.typ = parsed
+		}
+	}
+
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
 		ca.Adjustment = adjustment.(float64)
 	}

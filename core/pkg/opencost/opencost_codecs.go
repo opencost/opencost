@@ -34,7 +34,7 @@ const (
 	AllocationCodecVersion uint8 = 25
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 21
+	AssetsCodecVersion uint8 = 22
 
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
 	CloudCostCodecVersion uint8 = 3
@@ -4059,6 +4059,15 @@ func (target *Cloud) MarshalBinaryWithContext(ctx *EncodingContext) (err error) 
 
 	buff.WriteFloat64(target.Credit) // write float64
 
+	// --- [begin][write][reference](AssetType) ---
+	e, errE := target.typ.MarshalBinary()
+	if errE != nil {
+		return errE
+	}
+	buff.WriteInt(len(e))
+	buff.WriteBytes(e)
+	// --- [end][write][reference](AssetType) ---
+
 	return nil
 }
 
@@ -4210,6 +4219,24 @@ func (target *Cloud) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 
 	x := buff.ReadFloat64() // read float64
 	target.Credit = x
+
+	// field version check
+	if uint8(22) <= version {
+
+		// --- [begin][read][reference](AssetType) ---
+		y := new(AssetType)
+		aa := buff.ReadInt() // byte array length
+		bb := buff.ReadBytes(aa)
+		errE := y.UnmarshalBinary(bb)
+		if errE != nil {
+			return errE
+		}
+		target.typ = *y
+		// --- [end][read][reference](AssetType) ---
+
+	} else {
+		target.typ = CloudAssetType // default
+	}
 
 	return nil
 }

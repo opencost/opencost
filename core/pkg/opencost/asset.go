@@ -352,6 +352,22 @@ func (at AssetType) String() string {
 	}[at]
 }
 
+// MarshalBinary implements encoding.BinaryMarshaler, used by the bingen-generated
+// codec since AssetType is not a plain built-in type.
+func (at AssetType) MarshalBinary() ([]byte, error) {
+	return []byte{byte(at)}, nil
+}
+
+// UnmarshalBinary implements encoding.BinaryUnmarshaler, used by the bingen-generated
+// codec since AssetType is not a plain built-in type.
+func (at *AssetType) UnmarshalBinary(data []byte) error {
+	if len(data) != 1 {
+		return fmt.Errorf("invalid AssetType binary data: expected 1 byte, got %d", len(data))
+	}
+	*at = AssetType(data[0])
+	return nil
+}
+
 // Any is the most general Asset, which is usually created as a result of
 // adding two Assets of different types.
 type Any struct {
@@ -553,7 +569,6 @@ func (a *Any) SanitizeNaN() {
 
 // Cloud describes a cloud asset
 type Cloud struct {
-	typ        AssetType // sub-type for Huawei Cloud services (default CloudAssetType)
 	Labels     AssetLabels
 	Properties *AssetProperties
 	Start      time.Time
@@ -561,7 +576,8 @@ type Cloud struct {
 	Window     Window
 	Adjustment float64
 	Cost       float64
-	Credit     float64 // Credit is a negative value representing dollars credited back to a given line-item
+	Credit     float64   // Credit is a negative value representing dollars credited back to a given line-item
+	typ        AssetType //@bingen:field[version=22, default=CloudAssetType]
 }
 
 // NewCloud returns a new Cloud Asset
@@ -737,6 +753,7 @@ func (ca *Cloud) add(that *Cloud) {
 // Clone returns a cloned instance of the Asset
 func (ca *Cloud) Clone() Asset {
 	return &Cloud{
+		typ:        ca.typ,
 		Labels:     ca.Labels.Clone(),
 		Properties: ca.Properties.Clone(),
 		Start:      ca.Start,
@@ -755,6 +772,9 @@ func (ca *Cloud) Equal(a Asset) bool {
 		return false
 	}
 
+	if ca.typ != that.typ {
+		return false
+	}
 	if !ca.Labels.Equal(that.Labels) {
 		return false
 	}
