@@ -2134,8 +2134,26 @@ type DCGMDeviceContainerUsageResult struct {
 	Value     float64
 }
 
-// Inference Metrics Decoders
+func DecodeDCGMDeviceContainerUsageResult(result *QueryResult) *DCGMDeviceContainerUsageResult {
+	uuid, _ := result.GetString(UUIDLabel)
+	podUID, _ := result.GetString(PodUIDLabel)
+	container, _ := result.GetString(ContainerLabel)
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[0].Value
+	} else {
+		log.Warnf("Error decoding DCGM Device Container Usage Result for device '%s': empty value returned", uuid)
+	}
 
+	return &DCGMDeviceContainerUsageResult{
+		UUID:      uuid,
+		PodUID:    podUID,
+		Container: container,
+		Value:     value,
+	}
+}
+
+// Inference Metrics Decoders
 func DecodeInferenceTokensResult(result *QueryResult) *InferenceTokensResult {
 	modelName, _ := result.GetString("model_name")
 	namespace, _ := result.GetString("namespace")
@@ -2189,25 +2207,6 @@ func DecodeInferenceCacheConfigResult(result *QueryResult) *InferenceCacheConfig
 				PrefixCachingEnabled: prefixCachingEnabled > 0,
 			},
 		},
-	}
-}
-
-func DecodeDCGMDeviceContainerUsageResult(result *QueryResult) *DCGMDeviceContainerUsageResult {
-	uuid, _ := result.GetString(UUIDLabel)
-	podUID, _ := result.GetString(PodUIDLabel)
-	container, _ := result.GetString(ContainerLabel)
-	var value float64
-	if len(result.Values) > 0 {
-		value = result.Values[0].Value
-	} else {
-		log.Warnf("Error decoding DCGM Device Container Udage Result for device '%s': empty value returned", uuid)
-	}
-
-	return &DCGMDeviceContainerUsageResult{
-		UUID:      uuid,
-		PodUID:    podUID,
-		Container: container,
-		Value:     value,
 	}
 }
 

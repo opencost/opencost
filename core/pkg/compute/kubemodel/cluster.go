@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/cloud"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/source"
 )
 
@@ -23,7 +23,7 @@ func (km *KubeModel) computeCluster(kms *kubemodel.KubeModelSet, start, end time
 	for _, res := range clusterInfoResult {
 		clusterMap[res.UID] = &kubemodel.Cluster{
 			UID:      res.UID,
-			Provider: shared.ParseProvider(res.Provider),
+			Provider: cloud.ParseProvider(res.Provider),
 			Account:  res.AccountID,
 			Name:     res.Cluster,
 			Region:   res.Region,

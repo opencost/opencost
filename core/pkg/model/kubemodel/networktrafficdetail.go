@@ -12,6 +12,7 @@ const (
 type TrafficType string
 
 const (
+	TrafficTypeLocal       TrafficType = "Local"
 	TrafficTypeCrossZone   TrafficType = "CrossZone"
 	TrafficTypeCrossRegion TrafficType = "CrossRegion"
 	TrafficTypeInternet    TrafficType = "Internet"
