@@ -133,3 +133,45 @@ func TestQuantileOverTimeAggregator_Metadata(t *testing.T) {
 		t.Errorf("LabelValues() = %v, want %v", got, labelValues)
 	}
 }
+
+// TestQuantileOverTimeAggregator_PoolsAcrossSeries pins the documented
+// precondition: Update carries no series identity, so samples from several
+// series landing in one aggregator are pooled flat rather than combined per
+// timestamp. The numbers are the worked example from the type comment.
+//
+// This is not asserting that flat pooling is desirable for a multi-series
+// group; it asserts that the behaviour is what the doc says, so that a future
+// change to the aggregator or to the collectors' grouping is caught here.
+func TestQuantileOverTimeAggregator_PoolsAcrossSeries(t *testing.T) {
+	time1 := time.Now()
+	time2 := time1.Add(30 * time.Minute)
+	time3 := time1.Add(time.Hour)
+
+	agg := QuantileOverTime(0.95)(nil)
+	// pod1 and pod2 reporting at the same three timestamps.
+	agg.Update(2, time1, nil)
+	agg.Update(3, time1, nil)
+	agg.Update(4, time2, nil)
+	agg.Update(5, time2, nil)
+	agg.Update(1, time3, nil)
+	agg.Update(1, time3, nil)
+
+	// Flat pool [1,1,2,3,4,5]: rank = 0.95*5 = 4.75, interpolating 4 -> 5.
+	const wantFlatPool = 4.75
+	if got := agg.Value()[0].Value; got != wantFlatPool {
+		t.Errorf("multi-series pool p95 = %v, want %v (flat pool, per the documented precondition)", got, wantFlatPool)
+	}
+
+	// The single-series case the inference collectors actually register is
+	// unaffected: one sample per timestamp, quantile over that series alone.
+	single := QuantileOverTime(0.95)(nil)
+	single.Update(2, time1, nil)
+	single.Update(4, time2, nil)
+	single.Update(1, time3, nil)
+
+	// Sorted [1,2,4]: rank = 0.95*2 = 1.9, interpolating 2 -> 4.
+	const wantSingleSeries = 3.8
+	if got := single.Value()[0].Value; got != wantSingleSeries {
+		t.Errorf("single-series p95 = %v, want %v", got, wantSingleSeries)
+	}
+}

@@ -20,26 +20,26 @@ func TestDecodeInferenceServerMetricResult(t *testing.T) {
 			result: NewQueryResult(
 				map[string]any{
 					InferenceModelNameLabel: "Qwen3-32B",
-					NamespaceLabel:          "llm-d",
-					PodLabel:                "vllm-0",
+					PodUIDLabel:             "pod-uid-0",
+					NamespaceUIDLabel:       "ns-uid",
 				},
 				[]*util.Vector{{Value: 0.42}},
 				nil,
 			),
-			want: &InferenceServerMetricResult{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.42},
+			want: &InferenceServerMetricResult{ModelName: "Qwen3-32B", PodUID: "pod-uid-0", NamespaceUID: "ns-uid", Value: 0.42},
 		},
 		{
 			name: "last vector value wins",
 			result: NewQueryResult(
 				map[string]any{
 					InferenceModelNameLabel: "Qwen3-32B",
-					NamespaceLabel:          "llm-d",
-					PodLabel:                "vllm-0",
+					PodUIDLabel:             "pod-uid-0",
+					NamespaceUIDLabel:       "ns-uid",
 				},
 				[]*util.Vector{{Value: 0.1}, {Value: 0.9}},
 				nil,
 			),
-			want: &InferenceServerMetricResult{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.9},
+			want: &InferenceServerMetricResult{ModelName: "Qwen3-32B", PodUID: "pod-uid-0", NamespaceUID: "ns-uid", Value: 0.9},
 		},
 		{
 			name:   "missing labels and values decode to zero values",
@@ -102,7 +102,7 @@ func TestMockInferenceSaturationQueries(t *testing.T) {
 	t.Run("override returns the typed results", func(t *testing.T) {
 		ds := NewMockOpenCostDataSource()
 		expected := []*InferenceServerMetricResult{
-			{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.42},
+			{ModelName: "Qwen3-32B", PodUID: "pod-uid-0", NamespaceUID: "ns-uid", Value: 0.42},
 		}
 		for name := range inferenceSaturationQueries(ds.Querier) {
 			ds.Querier.SetOverride(name, expected)

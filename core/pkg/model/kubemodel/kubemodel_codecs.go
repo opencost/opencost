@@ -123,7 +123,6 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"Diagnostic":              reflect.TypeFor[Diagnostic](),
 	"FileSystem":              reflect.TypeFor[FileSystem](),
 	"InferenceServer":         reflect.TypeFor[InferenceServer](),
-	"InferenceServerReplica":  reflect.TypeFor[InferenceServerReplica](),
 	"Job":                     reflect.TypeFor[Job](),
 	"KubeModelSet":            reflect.TypeFor[KubeModelSet](),
 	"Metadata":                reflect.TypeFor[Metadata](),
@@ -3041,71 +3040,52 @@ func (target *InferenceServer) MarshalBinaryWithContext(ctx *EncodingContext) (e
 	buff.WriteUInt8(DefaultCodecVersion) // version
 
 	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.ModelName)
+		a := ctx.Table.AddOrGet(target.PodUID)
 		buff.WriteInt(a) // write table index
+	} else {
+		buff.WriteString(target.PodUID) // write string
+	}
+
+	if ctx.IsStringTable() {
+		b := ctx.Table.AddOrGet(target.NamespaceUID)
+		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.NamespaceUID) // write string
+	}
+
+	if ctx.IsStringTable() {
+		c := ctx.Table.AddOrGet(target.ModelName)
+		buff.WriteInt(c) // write table index
 	} else {
 		buff.WriteString(target.ModelName) // write string
 	}
 
 	if ctx.IsStringTable() {
-		b := ctx.Table.AddOrGet(target.Namespace)
-		buff.WriteInt(b) // write table index
-	} else {
-		buff.WriteString(target.Namespace) // write string
-	}
-
-	if ctx.IsStringTable() {
-		c := ctx.Table.AddOrGet(target.Engine)
-		buff.WriteInt(c) // write table index
+		d := ctx.Table.AddOrGet(target.Engine)
+		buff.WriteInt(d) // write table index
 	} else {
 		buff.WriteString(target.Engine) // write string
 	}
 
-	// --- [begin][write][reference](time.Time) ---
-	d, errA := target.Start.MarshalBinary()
-	if errA != nil {
-		return errA
-	}
-	buff.WriteInt(len(d))
-	buff.WriteBytes(d)
-	// --- [end][write][reference](time.Time) ---
+	buff.WriteFloat64(target.KVCacheUsageAvg) // write float64
 
-	// --- [begin][write][reference](time.Time) ---
-	e, errB := target.End.MarshalBinary()
-	if errB != nil {
-		return errB
-	}
-	buff.WriteInt(len(e))
-	buff.WriteBytes(e)
-	// --- [end][write][reference](time.Time) ---
+	buff.WriteFloat64(target.KVCacheUsageP95) // write float64
 
-	if target.Replicas == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
+	buff.WriteFloat64(target.KVCacheUsageMax) // write float64
 
-		// --- [begin][write][map](map[string]InferenceServerReplica) ---
-		buff.WriteInt(len(target.Replicas)) // map length
-		for v, z := range target.Replicas {
-			if ctx.IsStringTable() {
-				f := ctx.Table.AddOrGet(v)
-				buff.WriteInt(f) // write table index
-			} else {
-				buff.WriteString(v) // write string
-			}
+	buff.WriteFloat64(target.QueueDepthAvg) // write float64
 
-			// --- [begin][write][struct](InferenceServerReplica) ---
-			buff.WriteInt(0) // [compatibility, unused]
-			errC := z.MarshalBinaryWithContext(ctx)
-			if errC != nil {
-				return errC
-			}
-			// --- [end][write][struct](InferenceServerReplica) ---
+	buff.WriteFloat64(target.QueueDepthP95) // write float64
 
-		}
-		// --- [end][write][map](map[string]InferenceServerReplica) ---
+	buff.WriteFloat64(target.QueueDepthMax) // write float64
 
-	}
+	buff.WriteFloat64(target.RunningRequestsAvg) // write float64
+
+	buff.WriteFloat64(target.RunningRequestsP95) // write float64
+
+	buff.WriteFloat64(target.RunningRequestsMax) // write float64
+
+	buff.WriteFloat64(target.Preemptions) // write float64
 
 	return nil
 }
@@ -3169,7 +3149,7 @@ func (target *InferenceServer) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		b = buff.ReadString() // read string
 	}
 	a := b
-	target.ModelName = a
+	target.PodUID = a
 
 	var e string
 	if ctx.IsStringTable() {
@@ -3179,7 +3159,7 @@ func (target *InferenceServer) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		e = buff.ReadString() // read string
 	}
 	d := e
-	target.Namespace = d
+	target.NamespaceUID = d
 
 	var h string
 	if ctx.IsStringTable() {
@@ -3189,218 +3169,47 @@ func (target *InferenceServer) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		h = buff.ReadString() // read string
 	}
 	g := h
-	target.Engine = g
+	target.ModelName = g
 
-	// --- [begin][read][reference](time.Time) ---
-	m := new(time.Time)
-	n := buff.ReadInt() // byte array length
-	o := buff.ReadBytes(n)
-	errA := m.UnmarshalBinary(o)
-	if errA != nil {
-		return errA
-	}
-	target.Start = *m
-	// --- [end][read][reference](time.Time) ---
-
-	// --- [begin][read][reference](time.Time) ---
-	p := new(time.Time)
-	q := buff.ReadInt() // byte array length
-	r := buff.ReadBytes(q)
-	errB := p.UnmarshalBinary(r)
-	if errB != nil {
-		return errB
-	}
-	target.End = *p
-	// --- [end][read][reference](time.Time) ---
-
-	if buff.ReadUInt8() == uint8(0) {
-		target.Replicas = nil
+	var n string
+	if ctx.IsStringTable() {
+		o := buff.ReadInt() // read string index
+		n = ctx.Table.At(o)
 	} else {
-		// --- [begin][read][map](map[string]InferenceServerReplica) ---
-		t := buff.ReadInt() // map len
-		s := make(map[string]InferenceServerReplica, t)
-		for range t {
-			var v string
-			var w string
-			if ctx.IsStringTable() {
-				x := buff.ReadInt() // read string index
-				w = ctx.Table.At(x)
-			} else {
-				w = buff.ReadString() // read string
-			}
-			u := w
-			v = u
-
-			// --- [begin][read][struct](InferenceServerReplica) ---
-			y := new(InferenceServerReplica)
-			buff.ReadInt() // [compatibility, unused]
-			errC := y.UnmarshalBinaryWithContext(ctx)
-			if errC != nil {
-				return errC
-			}
-			z := *y
-			// --- [end][read][struct](InferenceServerReplica) ---
-
-			s[v] = z
-		}
-		target.Replicas = s
-		// --- [end][read][map](map[string]InferenceServerReplica) ---
-
+		n = buff.ReadString() // read string
 	}
+	m := n
+	target.Engine = m
 
-	return nil
-}
+	p := buff.ReadFloat64() // read float64
+	target.KVCacheUsageAvg = p
 
-//--------------------------------------------------------------------------
-//  InferenceServerReplica
-//--------------------------------------------------------------------------
+	q := buff.ReadFloat64() // read float64
+	target.KVCacheUsageP95 = q
 
-// MarshalBinary serializes the internal properties of this InferenceServerReplica instance
-// into a byte array
-func (target *InferenceServerReplica) MarshalBinary() (data []byte, err error) {
-	ctx := NewEncodingContext(nil)
+	r := buff.ReadFloat64() // read float64
+	target.KVCacheUsageMax = r
 
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
+	s := buff.ReadFloat64() // read float64
+	target.QueueDepthAvg = s
 
-	return ctx.ToBytes(), nil
-}
+	t := buff.ReadFloat64() // read float64
+	target.QueueDepthP95 = t
 
-// MarshalBinary serializes the internal properties of this InferenceServerReplica instance
-// into an io.Writer.
-func (target *InferenceServerReplica) MarshalBinaryTo(writer io.Writer) error {
-	buff := util.NewBufferFromWriter(writer)
-	defer buff.Flush()
+	u := buff.ReadFloat64() // read float64
+	target.QueueDepthMax = u
 
-	ctx := NewEncodingContextFromBuffer(buff, nil)
+	w := buff.ReadFloat64() // read float64
+	target.RunningRequestsAvg = w
 
-	return target.MarshalBinaryWithContext(ctx)
-}
+	x := buff.ReadFloat64() // read float64
+	target.RunningRequestsP95 = x
 
-// MarshalBinaryWithContext serializes the internal properties of this InferenceServerReplica instance
-// into a byte array leveraging a predefined context.
-func (target *InferenceServerReplica) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("unexpected panic: %+v", r)
-			}
-		}
-	}()
+	y := buff.ReadFloat64() // read float64
+	target.RunningRequestsMax = y
 
-	buff := ctx.Buffer
-	buff.WriteUInt8(DefaultCodecVersion) // version
-
-	buff.WriteFloat64(target.KVCacheUsageAvg) // write float64
-
-	buff.WriteFloat64(target.KVCacheUsageMax) // write float64
-
-	buff.WriteFloat64(target.QueueDepthAvg) // write float64
-
-	buff.WriteFloat64(target.QueueDepthMax) // write float64
-
-	buff.WriteFloat64(target.RunningRequestsAvg) // write float64
-
-	buff.WriteFloat64(target.Preemptions) // write float64
-
-	buff.WriteFloat64(target.KVCacheUsageP95) // write float64
-
-	buff.WriteFloat64(target.QueueDepthP95) // write float64
-
-	buff.WriteFloat64(target.RunningRequestsMax) // write float64
-
-	buff.WriteFloat64(target.RunningRequestsP95) // write float64
-
-	return nil
-}
-
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the InferenceServerReplica type
-func (target *InferenceServerReplica) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
-// the InferenceServerReplica type
-func (target *InferenceServerReplica) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the InferenceServerReplica type
-func (target *InferenceServerReplica) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > DefaultCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshalling InferenceServerReplica. Expected %d or less, got %d", DefaultCodecVersion, version)
-	}
-
-	a := buff.ReadFloat64() // read float64
-	target.KVCacheUsageAvg = a
-
-	b := buff.ReadFloat64() // read float64
-	target.KVCacheUsageMax = b
-
-	c := buff.ReadFloat64() // read float64
-	target.QueueDepthAvg = c
-
-	d := buff.ReadFloat64() // read float64
-	target.QueueDepthMax = d
-
-	e := buff.ReadFloat64() // read float64
-	target.RunningRequestsAvg = e
-
-	f := buff.ReadFloat64() // read float64
-	target.Preemptions = f
-
-	g := buff.ReadFloat64() // read float64
-	target.KVCacheUsageP95 = g
-
-	h := buff.ReadFloat64() // read float64
-	target.QueueDepthP95 = h
-
-	l := buff.ReadFloat64() // read float64
-	target.RunningRequestsMax = l
-
-	m := buff.ReadFloat64() // read float64
-	target.RunningRequestsP95 = m
+	aa := buff.ReadFloat64() // read float64
+	target.Preemptions = aa
 
 	return nil
 }

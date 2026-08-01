@@ -169,7 +169,7 @@ func TestComputeKubeModelSet(t *testing.T) {
 					{UUID: "GPU-abc123", First: start, Last: end},
 				})
 				ds.Querier.SetOverride(source.QueryInferenceKVCacheUsageAvg, []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.42},
+					{ModelName: "Qwen3-32B", PodUID: "pod-uid-0", NamespaceUID: "ns-uid", Value: 0.42},
 				})
 			},
 			check: func(t *testing.T, kms *kubemodel.KubeModelSet) {

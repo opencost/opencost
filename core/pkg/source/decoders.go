@@ -1,6 +1,7 @@
 package source
 
 import (
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -70,6 +71,10 @@ const (
 // Extension Model Server Protocol). Distinct from ModelNameLabel, which is
 // the DCGM exporter's GPU hardware model name.
 const InferenceModelNameLabel = "model_name"
+
+// EnablePrefixCachingLabel is the label vLLM sets on its cache_config_info
+// info metric to report whether prefix caching is enabled.
+const EnablePrefixCachingLabel = "enable_prefix_caching"
 
 const (
 	NoneLabelValue = "<none>"
@@ -2183,6 +2188,21 @@ func DecodeInferenceCacheConfigResult(result *QueryResult) *InferenceCacheConfig
 	namespace, _ := result.GetString("namespace")
 	key := modelName + ":" + namespace
 
+	// vllm:cache_config_info is an info metric whose payload is the
+	// enable_prefix_caching label; its sample value is a constant 1. Prefer
+	// the label when the data source carries it through (the collector source
+	// does, via the Info aggregator), and fall back to the sample value for
+	// sources that fold the flag into the value instead.
+	if enabled, err := result.GetString(EnablePrefixCachingLabel); err == nil && enabled != "" {
+		return &InferenceCacheConfigResult{
+			Configs: map[string]*InferenceCacheConfig{
+				key: {
+					PrefixCachingEnabled: strings.EqualFold(enabled, "true"),
+				},
+			},
+		}
+	}
+
 	// Get the value from the last vector point if available
 	var prefixCachingEnabled float64
 	if len(result.Values) > 0 {
@@ -2200,11 +2220,11 @@ func DecodeInferenceCacheConfigResult(result *QueryResult) *InferenceCacheConfig
 
 // DecodeInferenceServerMetricResult decodes one window-aggregated model-server
 // scheduler metric sample (KV cache usage, queue depth, running requests) keyed
-// by model_name/namespace/pod.
+// by pod UID, carrying the served model name and the pod's namespace UID.
 func DecodeInferenceServerMetricResult(result *QueryResult) *InferenceServerMetricResult {
 	modelName, _ := result.GetString(InferenceModelNameLabel)
-	namespace, _ := result.GetString(NamespaceLabel)
-	pod, _ := result.GetString(PodLabel)
+	podUID, _ := result.GetString(PodUIDLabel)
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
 
 	// Get the value from the last vector point if available
 	var value float64
@@ -2213,10 +2233,10 @@ func DecodeInferenceServerMetricResult(result *QueryResult) *InferenceServerMetr
 	}
 
 	return &InferenceServerMetricResult{
-		ModelName: modelName,
-		Namespace: namespace,
-		Pod:       pod,
-		Value:     value,
+		ModelName:    modelName,
+		PodUID:       podUID,
+		NamespaceUID: namespaceUID,
+		Value:        value,
 	}
 }
 

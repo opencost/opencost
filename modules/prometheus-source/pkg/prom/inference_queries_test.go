@@ -41,9 +41,9 @@ func (f *fakePromClient) Do(_ context.Context, req *http.Request) (*http.Respons
 	return &http.Response{StatusCode: http.StatusOK}, []byte(body), nil
 }
 
-func vectorSample(modelName, namespace, pod string, value float64) string {
-	return fmt.Sprintf(`{"metric":{"model_name":"%s","namespace":"%s","pod":"%s"},"value":[1712000000,"%g"]}`,
-		modelName, namespace, pod, value)
+func vectorSample(modelName, namespaceUID, podUID string, value float64) string {
+	return fmt.Sprintf(`{"metric":{"model_name":"%s","namespace_uid":"%s","pod_uid":"%s"},"value":[1712000000,"%g"]}`,
+		modelName, namespaceUID, podUID, value)
 }
 
 func newFakeQuerier(responses map[string]string) (*PrometheusMetricsQuerier, *fakePromClient) {
@@ -62,7 +62,7 @@ func requireSingleResult(t *testing.T, results []*source.InferenceServerMetricRe
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
 	got := results[0]
-	if got.ModelName != "Qwen3-32B" || got.Namespace != "llm-d" || got.Pod != "vllm-0" {
+	if got.ModelName != "Qwen3-32B" || got.NamespaceUID != "ns-uid" || got.PodUID != "pod-uid-0" {
 		t.Errorf("unexpected result identity: %+v", got)
 	}
 	if got.Value != wantValue {
@@ -84,70 +84,70 @@ func TestQueryInferenceGauges(t *testing.T) {
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
 				return q.QueryInferenceKVCacheUsageAvg(start, end)
 			},
-			wantSubstring: `avg by (model_name, namespace, pod) (avg_over_time(vllm:kv_cache_usage_perc[`,
+			wantSubstring: `avg by (model_name, pod_uid, namespace_uid) (avg_over_time(vllm:kv_cache_usage_perc[`,
 		},
 		{
 			name: "kv cache usage max",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
 				return q.QueryInferenceKVCacheUsageMax(start, end)
 			},
-			wantSubstring: `max by (model_name, namespace, pod) (max_over_time(vllm:kv_cache_usage_perc[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid) (max_over_time(vllm:kv_cache_usage_perc[`,
 		},
 		{
 			name: "queue depth avg",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
 				return q.QueryInferenceQueueDepthAvg(start, end)
 			},
-			wantSubstring: `avg by (model_name, namespace, pod) (avg_over_time(vllm:num_requests_waiting[`,
+			wantSubstring: `avg by (model_name, pod_uid, namespace_uid) (avg_over_time(vllm:num_requests_waiting[`,
 		},
 		{
 			name: "queue depth max",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
 				return q.QueryInferenceQueueDepthMax(start, end)
 			},
-			wantSubstring: `max by (model_name, namespace, pod) (max_over_time(vllm:num_requests_waiting[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid) (max_over_time(vllm:num_requests_waiting[`,
 		},
 		{
 			name: "running requests avg",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
 				return q.QueryInferenceRunningRequestsAvg(start, end)
 			},
-			wantSubstring: `avg by (model_name, namespace, pod) (avg_over_time(vllm:num_requests_running[`,
+			wantSubstring: `avg by (model_name, pod_uid, namespace_uid) (avg_over_time(vllm:num_requests_running[`,
 		},
 		{
 			name: "running requests max",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
 				return q.QueryInferenceRunningRequestsMax(start, end)
 			},
-			wantSubstring: `max by (model_name, namespace, pod) (max_over_time(vllm:num_requests_running[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid) (max_over_time(vllm:num_requests_running[`,
 		},
 		{
 			name: "kv cache usage p95",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
 				return q.QueryInferenceKVCacheUsageP95(start, end)
 			},
-			wantSubstring: `max by (model_name, namespace, pod) (quantile_over_time(0.95, vllm:kv_cache_usage_perc[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid) (quantile_over_time(0.95, vllm:kv_cache_usage_perc[`,
 		},
 		{
 			name: "queue depth p95",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
 				return q.QueryInferenceQueueDepthP95(start, end)
 			},
-			wantSubstring: `max by (model_name, namespace, pod) (quantile_over_time(0.95, vllm:num_requests_waiting[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid) (quantile_over_time(0.95, vllm:num_requests_waiting[`,
 		},
 		{
 			name: "running requests p95",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
 				return q.QueryInferenceRunningRequestsP95(start, end)
 			},
-			wantSubstring: `max by (model_name, namespace, pod) (quantile_over_time(0.95, vllm:num_requests_running[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid) (quantile_over_time(0.95, vllm:num_requests_running[`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q, client := newFakeQuerier(map[string]string{
-				"vllm:": "[" + vectorSample("Qwen3-32B", "llm-d", "vllm-0", 0.42) + "]",
+				"vllm:": "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 0.42) + "]",
 			})
 
 			results, err := tt.query(q).Await()
@@ -173,8 +173,8 @@ func TestQueryInferencePreemptions(t *testing.T) {
 
 	t.Run("delta is end minus start", func(t *testing.T) {
 		q, client := newFakeQuerier(map[string]string{
-			fmt.Sprintf("@ %d", end.Unix()):   "[" + vectorSample("Qwen3-32B", "llm-d", "vllm-0", 40) + "]",
-			fmt.Sprintf("@ %d", start.Unix()): "[" + vectorSample("Qwen3-32B", "llm-d", "vllm-0", 15) + "]",
+			fmt.Sprintf("@ %d", end.Unix()):   "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 40) + "]",
+			fmt.Sprintf("@ %d", start.Unix()): "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 15) + "]",
 		})
 
 		results, err := q.QueryInferencePreemptions(start, end).Await()
@@ -184,7 +184,7 @@ func TestQueryInferencePreemptions(t *testing.T) {
 		if len(client.queries) != 2 {
 			t.Fatalf("expected 2 queries, got %d", len(client.queries))
 		}
-		if !strings.Contains(client.queries[0], "sum by (model_name, namespace, pod) (last_over_time(vllm:num_preemptions_total[") {
+		if !strings.Contains(client.queries[0], "sum by (model_name, pod_uid, namespace_uid) (last_over_time(vllm:num_preemptions_total[") {
 			t.Errorf("unexpected end-of-window query: %q", client.queries[0])
 		}
 		requireSingleResult(t, results, 25)
@@ -192,8 +192,8 @@ func TestQueryInferencePreemptions(t *testing.T) {
 
 	t.Run("counter reset falls back to the end value", func(t *testing.T) {
 		q, _ := newFakeQuerier(map[string]string{
-			fmt.Sprintf("@ %d", end.Unix()):   "[" + vectorSample("Qwen3-32B", "llm-d", "vllm-0", 4) + "]",
-			fmt.Sprintf("@ %d", start.Unix()): "[" + vectorSample("Qwen3-32B", "llm-d", "vllm-0", 100) + "]",
+			fmt.Sprintf("@ %d", end.Unix()):   "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 4) + "]",
+			fmt.Sprintf("@ %d", start.Unix()): "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 100) + "]",
 		})
 
 		results, err := q.QueryInferencePreemptions(start, end).Await()
@@ -205,7 +205,7 @@ func TestQueryInferencePreemptions(t *testing.T) {
 
 	t.Run("replica absent at window start counts from zero", func(t *testing.T) {
 		q, _ := newFakeQuerier(map[string]string{
-			fmt.Sprintf("@ %d", end.Unix()): "[" + vectorSample("Qwen3-32B", "llm-d", "vllm-0", 9) + "]",
+			fmt.Sprintf("@ %d", end.Unix()): "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 9) + "]",
 		})
 
 		results, err := q.QueryInferencePreemptions(start, end).Await()

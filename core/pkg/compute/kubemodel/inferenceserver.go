@@ -11,10 +11,11 @@ import (
 // computeInferenceServers builds InferenceServer entries from the model-server
 // scheduler telemetry queries (Gateway API Inference Extension Model Server
 // Protocol signals: KV-cache utilization, queue depth, running requests, and
-// preemptions, with avg/p95/max summaries for the capacity gauges). Servers
-// are keyed by "model_name:namespace" with one replica entry per pod. Every
-// query degrades gracefully: a data source with no model-server telemetry
-// produces an empty map.
+// preemptions, with avg/p95/max summaries for the capacity gauges). Entries
+// are keyed by the model-server pod's UID, so they join the rest of the
+// KubeModel the same way every other entity does. Every query degrades
+// gracefully: a data source with no model-server telemetry produces an empty
+// map.
 func (km *KubeModel) computeInferenceServers(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
@@ -32,67 +33,62 @@ func (km *KubeModel) computeInferenceServers(kms *kubemodel.KubeModelSet, start,
 
 	serverMap := make(map[string]*kubemodel.InferenceServer)
 
-	// apply merges one metric result into the server map, creating the server
-	// and replica entries on first sight of a (model, namespace, pod) key.
-	apply := func(results []*source.InferenceServerMetricResult, set func(r *kubemodel.InferenceServerReplica, value float64)) {
+	// apply merges one metric result into the server map, creating the entry
+	// on first sight of a pod UID.
+	apply := func(results []*source.InferenceServerMetricResult, set func(s *kubemodel.InferenceServer, value float64)) {
 		for _, res := range results {
-			if res.ModelName == "" || res.Namespace == "" || res.Pod == "" {
+			if res.PodUID == "" || res.ModelName == "" {
 				continue
 			}
 
-			key := res.ModelName + ":" + res.Namespace
-			server, ok := serverMap[key]
+			server, ok := serverMap[res.PodUID]
 			if !ok {
 				server = &kubemodel.InferenceServer{
-					ModelName: res.ModelName,
-					Namespace: res.Namespace,
+					PodUID:       res.PodUID,
+					NamespaceUID: res.NamespaceUID,
+					ModelName:    res.ModelName,
 					// The querier contract is currently implemented with the
 					// vLLM metric mapping in both data sources; when further
 					// Model Server Protocol mappings are added, engine
 					// provenance must ride the query results instead.
-					Engine:   kubemodel.EngineVLLM,
-					Start:    start,
-					End:      end,
-					Replicas: make(map[string]kubemodel.InferenceServerReplica),
+					Engine: kubemodel.EngineVLLM,
 				}
-				serverMap[key] = server
+				serverMap[res.PodUID] = server
 			}
 
-			replica := server.Replicas[res.Pod]
-			set(&replica, res.Value)
-			server.Replicas[res.Pod] = replica
+			set(server, res.Value)
 		}
 	}
 
 	kvUsageAvgResult, _ := kvUsageAvgFuture.Await()
-	apply(kvUsageAvgResult, func(r *kubemodel.InferenceServerReplica, v float64) { r.KVCacheUsageAvg = v })
+	apply(kvUsageAvgResult, func(s *kubemodel.InferenceServer, v float64) { s.KVCacheUsageAvg = v })
 
 	kvUsageMaxResult, _ := kvUsageMaxFuture.Await()
-	apply(kvUsageMaxResult, func(r *kubemodel.InferenceServerReplica, v float64) { r.KVCacheUsageMax = v })
+	apply(kvUsageMaxResult, func(s *kubemodel.InferenceServer, v float64) { s.KVCacheUsageMax = v })
 
 	queueDepthAvgResult, _ := queueDepthAvgFuture.Await()
-	apply(queueDepthAvgResult, func(r *kubemodel.InferenceServerReplica, v float64) { r.QueueDepthAvg = v })
+	apply(queueDepthAvgResult, func(s *kubemodel.InferenceServer, v float64) { s.QueueDepthAvg = v })
 
 	queueDepthMaxResult, _ := queueDepthMaxFuture.Await()
-	apply(queueDepthMaxResult, func(r *kubemodel.InferenceServerReplica, v float64) { r.QueueDepthMax = v })
+	apply(queueDepthMaxResult, func(s *kubemodel.InferenceServer, v float64) { s.QueueDepthMax = v })
 
 	runningAvgResult, _ := runningAvgFuture.Await()
-	apply(runningAvgResult, func(r *kubemodel.InferenceServerReplica, v float64) { r.RunningRequestsAvg = v })
+	apply(runningAvgResult, func(s *kubemodel.InferenceServer, v float64) { s.RunningRequestsAvg = v })
 
 	preemptionsResult, _ := preemptionsFuture.Await()
-	apply(preemptionsResult, func(r *kubemodel.InferenceServerReplica, v float64) { r.Preemptions = v })
+	apply(preemptionsResult, func(s *kubemodel.InferenceServer, v float64) { s.Preemptions = v })
 
 	kvUsageP95Result, _ := kvUsageP95Future.Await()
-	apply(kvUsageP95Result, func(r *kubemodel.InferenceServerReplica, v float64) { r.KVCacheUsageP95 = v })
+	apply(kvUsageP95Result, func(s *kubemodel.InferenceServer, v float64) { s.KVCacheUsageP95 = v })
 
 	queueDepthP95Result, _ := queueDepthP95Future.Await()
-	apply(queueDepthP95Result, func(r *kubemodel.InferenceServerReplica, v float64) { r.QueueDepthP95 = v })
+	apply(queueDepthP95Result, func(s *kubemodel.InferenceServer, v float64) { s.QueueDepthP95 = v })
 
 	runningMaxResult, _ := runningMaxFuture.Await()
-	apply(runningMaxResult, func(r *kubemodel.InferenceServerReplica, v float64) { r.RunningRequestsMax = v })
+	apply(runningMaxResult, func(s *kubemodel.InferenceServer, v float64) { s.RunningRequestsMax = v })
 
 	runningP95Result, _ := runningP95Future.Await()
-	apply(runningP95Result, func(r *kubemodel.InferenceServerReplica, v float64) { r.RunningRequestsP95 = v })
+	apply(runningP95Result, func(s *kubemodel.InferenceServer, v float64) { s.RunningRequestsP95 = v })
 
 	for _, server := range serverMap {
 		if err := kms.RegisterInferenceServer(server); err != nil {

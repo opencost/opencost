@@ -6,64 +6,58 @@ package kubemodel;
 option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
 
 // InferenceServer represents window-aggregated model-server scheduler
-// telemetry for one served model in one namespace. The signals are those
-// standardized by the Gateway API Inference Extension Model Server Protocol
-// (queue depth, running requests, KV-cache utilization), as reported by
-// serving engines such as vLLM. Unlike host-level GPU utilization, these
-// measure how much of a model server's serving capacity the workload
-// actually consumes, and they remain valid per MIG instance because each
-// instance runs its own engine sized to its slice.
+// telemetry for one model-server pod. The signals are those standardized by
+// the Gateway API Inference Extension Model Server Protocol (queue depth,
+// running requests, KV-cache utilization), as reported by serving engines
+// such as vLLM. Unlike host-level GPU utilization, these measure how much of
+// a model server's serving capacity the workload actually consumes, and they
+// remain valid per MIG instance because each instance runs its own engine
+// sized to its slice.
+//
+// Identity is the pod UID, so entries join the rest of the KubeModel the same
+// way every other entity does. There is no model-level grouping message: a
+// rollup by served model is a view a consumer computes from modelName. The
+// measurement window is the KubeModelSet's window and is not repeated here.
 message InferenceServer {
   // Identification
-  string modelName = 1;  // Served model name (vLLM model_name metric label)
-  string namespace = 2;  // Namespace of the model-server pods
+  string podUid = 1;        // UID of the model-server pod (the entry's key)
+  string namespaceUid = 2;  // UID of the pod's namespace
+  string modelName = 3;     // Served model name (vLLM model_name metric label)
 
-  // Serving engine whose metrics populated this entry ("vllm" today).
-  // Replica field semantics are normalized per the Model Server Protocol;
-  // engine preserves which per-engine mapping produced them.
+  // Serving engine whose metrics populated this entry ("vllm" today). Field
+  // semantics are normalized per the Model Server Protocol; engine preserves
+  // which per-engine mapping produced them.
   string engine = 4;
 
-  // Per-replica scheduler telemetry, keyed by pod name
-  map<string, InferenceServerReplica> replicas = 3;
-
-  // Diagnostic information about this resource
-  optional DiagnosticResult diagnostic = 99;
-}
-
-// InferenceServerReplica holds the window-aggregated scheduler gauges for a
-// single model-server pod.
-message InferenceServerReplica {
   // KV-cache utilization as a fraction (0-1) of the engine's configured KV
   // block budget. With continuous batching this is the honest capacity
   // dimension of a model server.
-  float kvCacheUsageAvg = 1;
-  float kvCacheUsageMax = 2;
+  float kvCacheUsageAvg = 5;
+  float kvCacheUsageP95 = 6;
+  float kvCacheUsageMax = 7;
 
   // Requests waiting for scheduler capacity. Sustained nonzero queue depth
   // means the replica is at or past saturation.
-  float queueDepthAvg = 3;
-  float queueDepthMax = 4;
+  float queueDepthAvg = 8;
+  float queueDepthP95 = 9;
+  float queueDepthMax = 10;
 
-  // Requests in the running batch (achieved batch size). See
-  // runningRequestsMax and runningRequestsP95 below for the rest of the
-  // summary.
-  float runningRequestsAvg = 5;
-
-  // Scheduler preemptions (requests evicted from the running batch and
-  // recomputed) during the window. Sustained preemptions mean the engine
-  // is thrashing its KV budget.
-  float preemptions = 6;
-
-  // 95th-percentile values over the window; together with avg and max
-  // these summarize the distribution without per-bucket collection.
-  float kvCacheUsageP95 = 7;
-  float queueDepthP95 = 8;
+  // Requests in the running batch (achieved batch size).
+  float runningRequestsAvg = 11;
+  float runningRequestsP95 = 12;
 
   // The running-batch maximum is collected because the concurrent-sequence
   // limit (vLLM's max_num_seqs) bounds the batch independently of the KV
   // budget and no vLLM metric exposes it. While the queue is non-empty the
   // running gauge is pinned at that limit, so the window maximum recovers
   // the ceiling the average must be read against.
-  float runningRequestsMax = 9;
-  float runningRequestsP95 = 10;
+  float runningRequestsMax = 13;
+
+  // Scheduler preemptions (requests evicted from the running batch and
+  // recomputed) during the window. Sustained preemptions mean the engine
+  // is thrashing its KV budget.
+  float preemptions = 14;
+
+  // Diagnostic information about this resource
+  optional DiagnosticResult diagnostic = 99;
 }

@@ -26,113 +26,113 @@ func TestComputeInferenceServers(t *testing.T) {
 			want:      map[string]*kubemodel.InferenceServer{},
 		},
 		{
-			name: "all gauges and counters populate a single replica",
+			name: "all gauges and counters populate a single pod entry",
 			overrides: map[string]any{
 				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.42},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.42},
 				},
 				source.QueryInferenceKVCacheUsageMax: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.97},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.97},
 				},
 				source.QueryInferenceQueueDepthAvg: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.5},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.5},
 				},
 				source.QueryInferenceQueueDepthMax: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 12},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 12},
 				},
 				source.QueryInferenceRunningRequestsAvg: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 33},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 33},
 				},
 				source.QueryInferencePreemptions: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 7},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 7},
 				},
 				source.QueryInferenceKVCacheUsageP95: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.91},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.91},
 				},
 				source.QueryInferenceQueueDepthP95: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 8},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 8},
 				},
 				source.QueryInferenceRunningRequestsMax: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 48},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 48},
 				},
 				source.QueryInferenceRunningRequestsP95: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 46},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 46},
 				},
 			},
 			want: map[string]*kubemodel.InferenceServer{
-				"Qwen3-32B:llm-d": {
-					ModelName: "Qwen3-32B",
-					Namespace: "llm-d",
-					Engine:    kubemodel.EngineVLLM,
-					Start:     start,
-					End:       end,
-					Replicas: map[string]kubemodel.InferenceServerReplica{
-						"vllm-0": {
-							KVCacheUsageAvg:    0.42,
-							KVCacheUsageMax:    0.97,
-							QueueDepthAvg:      0.5,
-							QueueDepthMax:      12,
-							RunningRequestsAvg: 33,
-							Preemptions:        7,
-							KVCacheUsageP95:    0.91,
-							QueueDepthP95:      8,
-							RunningRequestsMax: 48,
-							RunningRequestsP95: 46,
-						},
-					},
+				"pod-uid-0": {
+					PodUID:             "pod-uid-0",
+					NamespaceUID:       "ns-uid",
+					ModelName:          "Qwen3-32B",
+					Engine:             kubemodel.EngineVLLM,
+					KVCacheUsageAvg:    0.42,
+					KVCacheUsageP95:    0.91,
+					KVCacheUsageMax:    0.97,
+					QueueDepthAvg:      0.5,
+					QueueDepthP95:      8,
+					QueueDepthMax:      12,
+					RunningRequestsAvg: 33,
+					RunningRequestsP95: 46,
+					RunningRequestsMax: 48,
+					Preemptions:        7,
 				},
 			},
 		},
 		{
-			name: "replicas of the same model are grouped under one server",
+			name: "replicas of the same model are separate pod entries",
 			overrides: map[string]any{
 				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-0", Value: 0.9},
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "vllm-1", Value: 0.017},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.9},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-1", Value: 0.017},
 				},
 			},
 			want: map[string]*kubemodel.InferenceServer{
-				"Qwen3-32B:llm-d": {
-					ModelName: "Qwen3-32B",
-					Namespace: "llm-d",
-					Engine:    kubemodel.EngineVLLM,
-					Start:     start,
-					End:       end,
-					Replicas: map[string]kubemodel.InferenceServerReplica{
-						"vllm-0": {KVCacheUsageAvg: 0.9},
-						"vllm-1": {KVCacheUsageAvg: 0.017},
-					},
+				"pod-uid-0": {
+					PodUID: "pod-uid-0", NamespaceUID: "ns-uid", ModelName: "Qwen3-32B",
+					Engine: kubemodel.EngineVLLM, KVCacheUsageAvg: 0.9,
+				},
+				"pod-uid-1": {
+					PodUID: "pod-uid-1", NamespaceUID: "ns-uid", ModelName: "Qwen3-32B",
+					Engine: kubemodel.EngineVLLM, KVCacheUsageAvg: 0.017,
 				},
 			},
 		},
 		{
-			name: "same model in different namespaces yields separate servers",
+			name: "same model in different namespaces stays separate by pod uid",
 			overrides: map[string]any{
 				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
-					{ModelName: "Qwen3-32B", Namespace: "team-a", Pod: "vllm-0", Value: 0.5},
-					{ModelName: "Qwen3-32B", Namespace: "team-b", Pod: "vllm-0", Value: 0.6},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid-a", PodUID: "pod-uid-a", Value: 0.5},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid-b", PodUID: "pod-uid-b", Value: 0.6},
 				},
 			},
 			want: map[string]*kubemodel.InferenceServer{
-				"Qwen3-32B:team-a": {
-					ModelName: "Qwen3-32B",
-					Namespace: "team-a",
-					Engine:    kubemodel.EngineVLLM,
-					Start:     start,
-					End:       end,
-					Replicas: map[string]kubemodel.InferenceServerReplica{
-						"vllm-0": {KVCacheUsageAvg: 0.5},
-					},
+				"pod-uid-a": {
+					PodUID: "pod-uid-a", NamespaceUID: "ns-uid-a", ModelName: "Qwen3-32B",
+					Engine: kubemodel.EngineVLLM, KVCacheUsageAvg: 0.5,
 				},
-				"Qwen3-32B:team-b": {
-					ModelName: "Qwen3-32B",
-					Namespace: "team-b",
-					Engine:    kubemodel.EngineVLLM,
-					Start:     start,
-					End:       end,
-					Replicas: map[string]kubemodel.InferenceServerReplica{
-						"vllm-0": {KVCacheUsageAvg: 0.6},
-					},
+				"pod-uid-b": {
+					PodUID: "pod-uid-b", NamespaceUID: "ns-uid-b", ModelName: "Qwen3-32B",
+					Engine: kubemodel.EngineVLLM, KVCacheUsageAvg: 0.6,
+				},
+			},
+		},
+		{
+			name: "pods reusing a name in different namespaces no longer collide",
+			overrides: map[string]any{
+				// Both replicas are named "vllm-0"; only the UID separates them.
+				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid-a", PodUID: "pod-uid-a", Value: 0.5},
+					{ModelName: "Llama-3-70B", NamespaceUID: "ns-uid-b", PodUID: "pod-uid-b", Value: 0.6},
+				},
+			},
+			want: map[string]*kubemodel.InferenceServer{
+				"pod-uid-a": {
+					PodUID: "pod-uid-a", NamespaceUID: "ns-uid-a", ModelName: "Qwen3-32B",
+					Engine: kubemodel.EngineVLLM, KVCacheUsageAvg: 0.5,
+				},
+				"pod-uid-b": {
+					PodUID: "pod-uid-b", NamespaceUID: "ns-uid-b", ModelName: "Llama-3-70B",
+					Engine: kubemodel.EngineVLLM, KVCacheUsageAvg: 0.6,
 				},
 			},
 		},
@@ -140,12 +140,27 @@ func TestComputeInferenceServers(t *testing.T) {
 			name: "results with missing identity labels are skipped",
 			overrides: map[string]any{
 				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
-					{ModelName: "", Namespace: "llm-d", Pod: "vllm-0", Value: 0.5},
-					{ModelName: "Qwen3-32B", Namespace: "", Pod: "vllm-0", Value: 0.5},
-					{ModelName: "Qwen3-32B", Namespace: "llm-d", Pod: "", Value: 0.5},
+					{ModelName: "", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.5},
+					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "", Value: 0.5},
 				},
 			},
 			want: map[string]*kubemodel.InferenceServer{},
+		},
+		{
+			name: "a missing namespace uid still yields an entry",
+			overrides: map[string]any{
+				// namespace_uid is a convenience: it is derivable from
+				// kms.Pods[PodUID], so its absence must not drop the sample.
+				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
+					{ModelName: "Qwen3-32B", NamespaceUID: "", PodUID: "pod-uid-0", Value: 0.5},
+				},
+			},
+			want: map[string]*kubemodel.InferenceServer{
+				"pod-uid-0": {
+					PodUID: "pod-uid-0", ModelName: "Qwen3-32B",
+					Engine: kubemodel.EngineVLLM, KVCacheUsageAvg: 0.5,
+				},
+			},
 		},
 	}
 

@@ -120,7 +120,32 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceCachedTokens(start, end time.
 // depth (requests waiting), and running requests. Unlike host GPU utilization
 // (which reads high for any healthy deployment), these measure how much of a
 // model server's serving capacity the workload actually consumes. Results are
-// per (model_name, namespace, pod) so per-replica saturation is preserved.
+// per pod so per-replica saturation is preserved.
+//
+// Identity is the pod UID, matching how the KubeModel joins every other
+// entity and how the DCGM queries already group (see queryFmtDCGMContainerUsageAvg
+// in metricsquerier.go, which groups by UUID and pod_uid). Two label sources
+// make that possible here:
+//
+//   - pod_uid comes from the scrape configuration. Model-server metrics are
+//     already scraped with a config that attaches namespace and pod; adding
+//     pod_uid is one more relabel rule from the __meta_kubernetes_pod_uid
+//     meta-label that Kubernetes service discovery always provides. This is
+//     the same way DCGM series carry pod_uid. See docs/inference-cost-tracking.md.
+//   - namespace_uid has no equivalent meta-label, so it is joined in from
+//     OpenCost's own namespace_info series on the namespace name.
+
+// inferenceNamespaceUIDJoin enriches a model-server series with namespace_uid
+// by joining OpenCost's namespace_info (which carries the namespace UID in
+// its "uid" label) on the namespace name. namespace_info is an info metric
+// with a constant value of 1, so multiplying by it preserves the sample value
+// while grafting the label on. label_replace renames "uid" so it does not
+// collide with any other UID label in the expression.
+const inferenceNamespaceUIDJoin = ` * on (namespace) group_left(namespace_uid) ` +
+	`max by (namespace, namespace_uid) (label_replace(namespace_info, "namespace_uid", "$1", "uid", "(.+)"))`
+
+// inferenceGroupBy is the identity these queries reduce to.
+const inferenceGroupBy = `model_name, pod_uid, namespace_uid`
 
 // QueryInferenceKVCacheUsageAvg implements MetricsQuerier.QueryInferenceKVCacheUsageAvg
 func (pds *PrometheusMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
@@ -172,8 +197,8 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceRunningRequestsP95(start, end
 }
 
 // queryInferenceGaugeQuantile runs quantile_over_time for a model-server
-// scheduler gauge, grouped by (model_name, namespace, pod), pinned to the
-// window end like the other inference queries.
+// scheduler gauge, grouped by (model_name, pod_uid, namespace_uid), pinned to
+// the window end like the other inference queries.
 func (pds *PrometheusMetricsQuerier) queryInferenceGaugeQuantile(metric string, phi float64, start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 
@@ -192,8 +217,8 @@ func (pds *PrometheusMetricsQuerier) queryInferenceGaugeQuantile(metric string, 
 			windowMinutes = 2
 		}
 
-		query := fmt.Sprintf(`max by (model_name, namespace, pod) (quantile_over_time(%g, %s[%dm] @ %d))`,
-			phi, metric, windowMinutes, effectiveEnd.Unix())
+		query := fmt.Sprintf(`max by (%s) (quantile_over_time(%g, %s[%dm] @ %d)%s)`,
+			inferenceGroupBy, phi, metric, windowMinutes, effectiveEnd.Unix(), inferenceNamespaceUIDJoin)
 
 		raw, _, err := ctx.query(query, effectiveEnd)
 		if err != nil {
@@ -234,14 +259,14 @@ func (pds *PrometheusMetricsQuerier) QueryInferencePreemptions(start, end time.T
 
 // replicaMetricValue carries one instant sample keyed by replica identity.
 type replicaMetricValue struct {
-	modelName string
-	namespace string
-	pod       string
-	value     float64
+	modelName    string
+	podUID       string
+	namespaceUID string
+	value        float64
 }
 
 // queryCounterDeltaByReplica returns the net increase of a monotonic counter
-// metric over [start, end] per (model_name, namespace, pod). Same
+// metric over [start, end] per (model_name, pod_uid, namespace_uid). Same
 // @-pinned two-instant-query approach and counter-reset handling as
 // queryCounterDelta, but grouped per replica and returned as labeled
 // QueryResults for the shared InferenceServerMetricResult decoder.
@@ -260,13 +285,13 @@ func queryCounterDeltaByReplica(ctx *Context, metric string, start, end time.Tim
 		windowMinutes = 2
 	}
 
-	endQuery := fmt.Sprintf(`sum by (model_name, namespace, pod) (last_over_time(%s[%dm] @ %d))`, metric, windowMinutes, endUnix)
+	endQuery := fmt.Sprintf(`sum by (%s) (last_over_time(%s[%dm] @ %d)%s)`, inferenceGroupBy, metric, windowMinutes, endUnix, inferenceNamespaceUIDJoin)
 	endVals, err := queryInstantMetricByReplica(ctx, endQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
 	}
 
-	startQuery := fmt.Sprintf(`sum by (model_name, namespace, pod) (last_over_time(%s[2m] @ %d))`, metric, startUnix)
+	startQuery := fmt.Sprintf(`sum by (%s) (last_over_time(%s[2m] @ %d)%s)`, inferenceGroupBy, metric, startUnix, inferenceNamespaceUIDJoin)
 	startVals, err := queryInstantMetricByReplica(ctx, startQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
@@ -286,8 +311,8 @@ func queryCounterDeltaByReplica(ctx *Context, metric string, start, end time.Tim
 		results = append(results, source.NewQueryResult(
 			map[string]any{
 				source.InferenceModelNameLabel: endVal.modelName,
-				source.NamespaceLabel:          endVal.namespace,
-				source.PodLabel:                endVal.pod,
+				source.PodUIDLabel:             endVal.podUID,
+				source.NamespaceUIDLabel:       endVal.namespaceUID,
 			},
 			[]*util.Vector{{Value: delta}},
 			nil,
@@ -297,7 +322,7 @@ func queryCounterDeltaByReplica(ctx *Context, metric string, start, end time.Tim
 }
 
 // queryInstantMetricByReplica runs a Prometheus instant query evaluated at t
-// and returns samples keyed by "model_name|namespace|pod".
+// and returns samples keyed by "model_name|pod_uid".
 func queryInstantMetricByReplica(ctx *Context, query string, t time.Time) (map[string]replicaMetricValue, error) {
 	raw, _, err := ctx.query(query, t)
 	if err != nil {
@@ -315,24 +340,27 @@ func queryInstantMetricByReplica(ctx *Context, query string, t time.Time) (map[s
 		if err != nil || modelName == "" {
 			continue
 		}
-		namespace, _ := result.GetString(source.NamespaceLabel)
-		pod, _ := result.GetString(source.PodLabel)
+		podUID, _ := result.GetString(source.PodUIDLabel)
+		if podUID == "" {
+			continue
+		}
+		namespaceUID, _ := result.GetString(source.NamespaceUIDLabel)
 		if len(result.Values) == 0 {
 			continue
 		}
-		key := modelName + "|" + namespace + "|" + pod
+		key := modelName + "|" + podUID
 		out[key] = replicaMetricValue{
-			modelName: modelName,
-			namespace: namespace,
-			pod:       pod,
-			value:     result.Values[0].Value,
+			modelName:    modelName,
+			podUID:       podUID,
+			namespaceUID: namespaceUID,
+			value:        result.Values[0].Value,
 		}
 	}
 	return out, nil
 }
 
 // queryInferenceGauge runs a window aggregation (avg or max) of a model-server
-// scheduler gauge, grouped by (model_name, namespace, pod).
+// scheduler gauge, grouped by (model_name, pod_uid, namespace_uid).
 func (pds *PrometheusMetricsQuerier) queryInferenceGauge(metric, agg string, start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 
@@ -351,7 +379,7 @@ func (pds *PrometheusMetricsQuerier) queryInferenceGauge(metric, agg string, sta
 	return source.NewFuture(source.DecodeInferenceServerMetricResult, resultsChan)
 }
 
-// queryGaugeOverTime evaluates `agg by (model_name, namespace, pod)
+// queryGaugeOverTime evaluates `agg by (model_name, pod_uid, namespace_uid)
 // (agg_over_time(metric[window] @ end))` as an instant query pinned to the end
 // of the window, mirroring the clamping behaviour of queryCounterDelta.
 func queryGaugeOverTime(ctx *Context, metric, agg string, start, end time.Time) ([]*source.QueryResult, error) {
@@ -367,8 +395,8 @@ func queryGaugeOverTime(ctx *Context, metric, agg string, start, end time.Time) 
 		windowMinutes = 2
 	}
 
-	query := fmt.Sprintf(`%s by (model_name, namespace, pod) (%s_over_time(%s[%dm] @ %d))`,
-		agg, agg, metric, windowMinutes, effectiveEnd.Unix())
+	query := fmt.Sprintf(`%s by (%s) (%s_over_time(%s[%dm] @ %d)%s)`,
+		agg, inferenceGroupBy, agg, metric, windowMinutes, effectiveEnd.Unix(), inferenceNamespaceUIDJoin)
 
 	raw, _, err := ctx.query(query, effectiveEnd)
 	if err != nil {

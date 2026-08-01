@@ -1,7 +1,6 @@
 package collector
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/source"
@@ -749,77 +748,40 @@ func (c *collectorMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, t
 	return c.collectorProvider.GetDailyDataCoverage(limitDays)
 }
 
-// Inference cost methods - not supported by collector source (only available via Prometheus)
+// Inference Cost Metrics
+//
+// Served from the same inference model-server scraper as the saturation
+// metrics (scrape/inference.go), which keeps the vLLM token and timing
+// counters from the pods it already scrapes. Results are rolled up per
+// (model_name, namespace) to match the Prometheus source's
+// `sum by (model_name, namespace)` shape and the "model_name:namespace"
+// keying of the result types.
 func (c *collectorMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferencePromptTokens",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
-		return &source.InferenceTokensResult{Values: make(map[string]float64)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollector(c, start, end, metric.InferencePromptTokensID, source.DecodeInferenceTokensResult)
 }
 
 func (c *collectorMetricsQuerier) QueryInferenceGenerationTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferenceGenerationTokens",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
-		return &source.InferenceTokensResult{Values: make(map[string]float64)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollector(c, start, end, metric.InferenceGenerationTokensID, source.DecodeInferenceTokensResult)
 }
 
 func (c *collectorMetricsQuerier) QueryInferenceInputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferenceInputProcessingTime",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceProcessingTimeResult {
-		return &source.InferenceProcessingTimeResult{Values: make(map[string]float64)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollector(c, start, end, metric.InferenceInputProcessingTimeID, source.DecodeInferenceProcessingTimeResult)
 }
 
 func (c *collectorMetricsQuerier) QueryInferenceOutputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferenceOutputProcessingTime",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceProcessingTimeResult {
-		return &source.InferenceProcessingTimeResult{Values: make(map[string]float64)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollector(c, start, end, metric.InferenceOutputProcessingTimeID, source.DecodeInferenceProcessingTimeResult)
 }
 
 func (c *collectorMetricsQuerier) QueryInferenceCachedTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferenceCachedTokens",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
-		return &source.InferenceTokensResult{Values: make(map[string]float64)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollector(c, start, end, metric.InferenceCachedTokensID, source.DecodeInferenceTokensResult)
 }
 
+// QueryInferenceCacheConfig reads vllm:cache_config_info. It takes an instant
+// rather than a window, so the store is queried over a zero-length window
+// ending at t, matching how the other instant queries in this file resolve a
+// store.
 func (c *collectorMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *source.Future[source.InferenceCacheConfigResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferenceCacheConfig",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceCacheConfigResult {
-		return &source.InferenceCacheConfigResult{Configs: make(map[string]*source.InferenceCacheConfig)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollector(c, t, t, metric.InferenceCacheConfigID, source.DecodeInferenceCacheConfigResult)
 }
 
 // Inference Saturation Metrics

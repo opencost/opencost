@@ -30,6 +30,7 @@ OpenCost reads `PROMETHEUS_SERVER_ENDPOINT` for both the core metrics and the [v
 | `INFERENCE_SHARED_INFRA_LABEL` | `llm-d.ai/inference-shared` | Pod label key identifying shared infra pods (EPP, gateway). See [Shared infrastructure label](#shared-infrastructure-label) for details. |
 | `INFERENCE_SHARED_INFRA_LABEL_VALUE` | `true` | Label value that marks a pod as shared infra. See [Shared infrastructure label](#shared-infrastructure-label) for details. |
 | `INFERENCE_COLLECTION_INTERVAL` | `2m` | Background collection interval |
+| `INFERENCE_SCRAPE_PORT` | `8000` | Collector source only. Metrics port used for a model-server pod that carries no `prometheus.io/port` annotation. Defaults to the vLLM OpenAI-compatible server port. |
 
 ### Kubernetes Deployment Example
 
@@ -448,8 +449,8 @@ honest capacity signal:
   `DCGM_FI_DEV_GPU_UTIL` is not supported at all, which makes engine-level
   telemetry the only reliable capacity signal.)
 
-OpenCost ships these as raw materials, per model, namespace, and pod, and
-deliberately does not compute opinionated efficiency scores or consolidation
+OpenCost ships these as raw materials, per model-server pod, and deliberately
+does not compute opinionated efficiency scores or consolidation
 recommendations from them.
 
 ### Collection paths
@@ -458,20 +459,55 @@ Both data sources collect the same signals:
 
 - **Prometheus source**: window aggregations over the vLLM gauges already
   scraped by your Prometheus (same scrape configuration as the token metrics
-  above).
+  above, plus the `pod_uid` relabel rule below).
 - **Collector source** (Prometheus-free): a dedicated scraper discovers
   model-server pods by the `INFERENCE_MODEL_LABEL` pod label (default
   `llm-d.ai/model`) and scrapes their metrics endpoints directly. The port is
   taken from the pod's `prometheus.io/port` annotation when present,
   otherwise `INFERENCE_SCRAPE_PORT` (default `8000`, the vLLM server port).
   Because serving engines do not self-report their Kubernetes identity, the
-  scraper attaches `namespace` and `pod` labels at scrape time.
+  scraper attaches `namespace`, `namespace_uid`, `pod` and `pod_uid` labels at
+  scrape time. This path also serves the token and timing counters above, so
+  the full inference querier surface works without Prometheus.
+
+#### Required scrape configuration (Prometheus source)
+
+These metrics are keyed by **pod UID**, because a pod name is reused across a
+pod's lifetime and every other entity in the KubeModel joins by UID. Serving
+engines emit only `model_name`, so the scrape job must attach the pod's
+identity, the same way the `dcgm-exporter` series carry `pod_uid`. Add the
+`pod_uid` relabel rule alongside the `namespace` and `pod` rules you already
+have for the token metrics:
+
+```yaml
+relabel_configs:
+  - source_labels: [__meta_kubernetes_namespace]
+    target_label: namespace
+  - source_labels: [__meta_kubernetes_pod_name]
+    target_label: pod
+  # Required for saturation metrics to join the KubeModel.
+  - source_labels: [__meta_kubernetes_pod_uid]
+    target_label: pod_uid
+```
+
+Kubernetes service discovery always provides `__meta_kubernetes_pod_uid`, so
+no extra exporter is needed. There is no equivalent meta-label for the
+namespace UID, so OpenCost joins `namespace_uid` in from its own
+`namespace_info` series on the namespace name; no configuration is required
+for that.
+
+If `pod_uid` is missing, the series still scrape but group under an empty pod
+UID and are dropped when the KubeModel entry is built, so saturation data will
+simply be absent rather than wrong.
 
 ### KubeModel
 
-The aggregated signals land in the KubeModel as `InferenceServer` entries
-(keyed `model_name:namespace`, one replica entry per pod), alongside the
-DCGM device model. See `core/pkg/model/kubemodel/inference.go` and
+The aggregated signals land in the KubeModel as `InferenceServer` entries,
+one per model-server pod and keyed by pod UID, alongside the DCGM device
+model. Each entry carries `podUid` and `namespaceUid`, which index
+`KubeModelSet.Pods` and `KubeModelSet.Namespaces` directly; a rollup by served
+model is a view a consumer computes by grouping on `modelName`. See
+`core/pkg/model/kubemodel/inference.go` and
 `protos/kubemodel/inference.proto`.
 
 ## Troubleshooting

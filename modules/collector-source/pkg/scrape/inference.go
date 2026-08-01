@@ -8,9 +8,9 @@ import (
 
 	"github.com/kubecost/events"
 	"github.com/opencost/opencost/core/pkg/clustercache"
-	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/modules/collector-source/pkg/env"
 	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/parser"
@@ -18,42 +18,51 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const (
-	// inferenceModelLabelEnv names the pod label whose presence identifies a
-	// model-server pod and whose value is the served model name. The default
-	// matches the label used by the inference cost feature and llm-d.
-	inferenceModelLabelEnv     = "INFERENCE_MODEL_LABEL"
-	inferenceModelLabelDefault = "llm-d.ai/model"
+// prometheusPortAnnotation is the conventional pod annotation naming the port
+// that serves Prometheus metrics.
+const prometheusPortAnnotation = "prometheus.io/port"
 
-	// inferenceScrapePortEnv overrides the default metrics port used when a
-	// model-server pod does not carry a prometheus.io/port annotation. The
-	// default matches the vLLM OpenAI-compatible server port.
-	inferenceScrapePortEnv     = "INFERENCE_SCRAPE_PORT"
-	inferenceScrapePortDefault = 8000
-
-	// prometheusPortAnnotation is the conventional pod annotation naming the
-	// port that serves Prometheus metrics.
-	prometheusPortAnnotation = "prometheus.io/port"
-)
-
-// inferenceMetricNames are the model-server scheduler gauges standardized by
-// the Gateway API Inference Extension Model Server Protocol: KV-cache
-// utilization, queue depth (requests waiting), and running requests.
+// inferenceMetricNames are the model-server series kept from each scrape.
+//
+// The first group is the scheduler gauges standardized by the Gateway API
+// Inference Extension Model Server Protocol: KV-cache utilization, queue
+// depth (requests waiting), and running requests, plus preemptions.
+//
+// The second group is the token and timing counters the inference cost
+// feature reads, which the Prometheus source has always collected; keeping
+// them here costs no extra scrape traffic (it is the same /metrics response)
+// and lets the collector source serve the whole inference querier surface
+// rather than half of it. Only the _sum child of the timing histograms is
+// read, never the per-bucket series.
 var inferenceMetricNames = map[string]struct{}{
 	metric.VLLMKVCacheUsagePerc:    {},
 	metric.VLLMNumRequestsWaiting:  {},
 	metric.VLLMNumRequestsRunning:  {},
 	metric.VLLMNumPreemptionsTotal: {},
+
+	metric.VLLMPromptTokensTotal:                   {},
+	metric.VLLMGenerationTokensTotal:               {},
+	metric.VLLMRequestPrefillTimeSecondsSum:        {},
+	metric.VLLMRequestTimePerOutputTokenSecondsSum: {},
+	metric.VLLMPrefixCacheHitsTotal:                {},
+	metric.VLLMCacheConfigInfo:                     {},
 }
 
 // inferenceTarget is a scrape target for a single model-server pod. The pod's
 // Kubernetes identity is carried alongside the URL because serving engines
 // emit model_name on their metrics but, unlike the DCGM exporter, do not
 // self-report the namespace and pod they run in.
+//
+// The UIDs are what let these metrics join the rest of the KubeModel: names
+// are ambiguous across a pod's lifetime (a recreated pod reuses its name),
+// whereas pod_uid is the identity every other kubemodel entity is keyed on.
+// Names are kept alongside them for human-readable output.
 type inferenceTarget struct {
-	target    target.ScrapeTarget
-	namespace string
-	pod       string
+	target       target.ScrapeTarget
+	namespace    string
+	namespaceUID string
+	pod          string
+	podUID       string
 }
 
 // InferenceScraper discovers model-server pods by pod label and scrapes their
@@ -70,13 +79,14 @@ type InferenceScraper struct {
 func newInferenceScraper(clusterCache clustercache.ClusterCache) *InferenceScraper {
 	return &InferenceScraper{
 		clusterCache: clusterCache,
-		modelLabel:   coreenv.Get(inferenceModelLabelEnv, inferenceModelLabelDefault),
-		defaultPort:  coreenv.GetInt(inferenceScrapePortEnv, inferenceScrapePortDefault),
+		modelLabel:   env.GetInferenceModelLabel(),
+		defaultPort:  env.GetInferenceScrapePort(),
 	}
 }
 
 func (s *InferenceScraper) getTargets() []inferenceTarget {
 	pods := s.clusterCache.GetAllPods()
+	namespaceIndex := buildNamespaceIndex(s.clusterCache.GetAllNamespaces())
 
 	var targets []inferenceTarget
 	for _, pod := range pods {
@@ -85,6 +95,11 @@ func (s *InferenceScraper) getTargets() []inferenceTarget {
 		}
 		if _, ok := pod.Labels[s.modelLabel]; !ok {
 			continue
+		}
+
+		nsUID, ok := namespaceIndex[pod.Namespace]
+		if !ok {
+			log.Debugf("Inference: namespaceUID missing from index for namespace name '%s'", pod.Namespace)
 		}
 
 		port := s.defaultPort
@@ -98,9 +113,11 @@ func (s *InferenceScraper) getTargets() []inferenceTarget {
 		log.Debugf("Inference: found target: %s", url)
 
 		targets = append(targets, inferenceTarget{
-			target:    target.NewUrlTarget(url),
-			namespace: pod.Namespace,
-			pod:       pod.Name,
+			target:       target.NewUrlTarget(url),
+			namespace:    pod.Namespace,
+			namespaceUID: string(nsUID),
+			pod:          pod.Name,
+			podUID:       string(pod.UID),
 		})
 	}
 
@@ -149,14 +166,27 @@ func (s *InferenceScraper) Scrape() []metric.Update {
 					labels = map[string]string{}
 				}
 				// Attach the pod's Kubernetes identity from discovery; the
-				// serving engine only knows its model_name.
+				// serving engine only knows its model_name. pod_uid is the
+				// key the rest of the KubeModel joins on, so it rides along
+				// with the names rather than being reconstructed later.
 				labels[source.NamespaceLabel] = t.namespace
+				labels[source.NamespaceUIDLabel] = t.namespaceUID
 				labels[source.PodLabel] = t.pod
-				scrapeResults = append(scrapeResults, metric.Update{
+				labels[source.PodUIDLabel] = t.podUID
+
+				update := metric.Update{
 					Name:   result.Name,
 					Labels: labels,
 					Value:  result.Value,
-				})
+				}
+				// cache_config_info is an info metric: its value is a constant
+				// 1 and the payload rides on labels such as
+				// enable_prefix_caching. The Info aggregator reads that off
+				// AdditionalInfo, so the labels have to be carried there too.
+				if result.Name == metric.VLLMCacheConfigInfo {
+					update.AdditionalInfo = labels
+				}
+				scrapeResults = append(scrapeResults, update)
 			}
 			return scrapeResults
 		}

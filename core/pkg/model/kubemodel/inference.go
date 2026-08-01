@@ -2,14 +2,12 @@ package kubemodel
 
 import (
 	"fmt"
-	"time"
 )
 
 // InferenceServer holds window-aggregated model-server scheduler telemetry for
-// one served model in one namespace, broken down per replica (pod). The
-// signals are those standardized by the Gateway API Inference Extension Model
-// Server Protocol (queue depth, running requests, KV-cache utilization) and
-// are reported by serving engines such as vLLM.
+// one model-server pod. The signals are those standardized by the Gateway API
+// Inference Extension Model Server Protocol (queue depth, running requests,
+// KV-cache utilization) and are reported by serving engines such as vLLM.
 //
 // These metrics measure how much of a model server's serving capacity the
 // workload actually consumes, which host-level GPU metrics (SM utilization,
@@ -19,9 +17,13 @@ import (
 // with queue depth is the capacity signal, and it remains valid per MIG
 // instance because each instance runs its own engine sized to its slice.
 //
-// Like DCGMDevice, this is split out from the universal k8s API structures;
-// the join keys back to the rest of the KubeModel are the namespace and pod
-// names carried on each replica entry.
+// Identity is the pod UID. Like DCGMDevice, this is split out from the
+// universal k8s API structures, and like every other entity in the KubeModel
+// it joins back by UID rather than by name: PodUID indexes kms.Pods directly
+// and NamespaceUID indexes kms.Namespaces. There is deliberately no
+// model-level grouping entity here. A rollup by served model is a view a
+// consumer computes from ModelName; what the KubeModel stores is the
+// measurement attached to the Kubernetes object it was measured on.
 //
 // Design note (kubemodel device direction): this follows the same shape as
 // the planned per-source device types rather than introducing a generic
@@ -34,56 +36,42 @@ import (
 // linkage (the GetParent analog of a MIG instance pointing at its physical
 // device) is deliberately not collected here; it belongs to the DRA/device
 // plugin requests join, which also relates replicas to MIG instances.
+//
 // Each gauge carries a window distribution summary (avg, p95, max) rather
 // than per-bucket histograms, since quantiles compute identically from both
-// data sources; preemption counts round out the pressure signals.
+// data sources; preemption counts round out the pressure signals. KV-cache
+// usage values are fractions in [0, 1] of the engine's configured KV block
+// budget; queue depth and running requests are request counts. All three
+// gauges carry the same (avg, p95, max) summary, so no gauge is reported with
+// less resolution than the others.
+//
+// The measurement window is the KubeModelSet's window, so it is not repeated
+// on each entry.
 // @bingen:generate:InferenceServer
 type InferenceServer struct {
+	// PodUID is the UID of the model-server pod these measurements describe,
+	// and the key this entry is stored under.
+	PodUID string `json:"podUid"`
+	// NamespaceUID is the UID of the pod's namespace.
+	NamespaceUID string `json:"namespaceUid"`
+	// ModelName is the model the engine reports serving (vLLM's model_name).
 	ModelName string `json:"modelName"`
-	Namespace string `json:"namespace"`
 	// Engine identifies the serving engine whose metrics populated this
-	// entry (see the Engine* constants). Field values on replicas follow
-	// the Model Server Protocol semantics; Engine records which engine's
-	// mapping produced them.
-	Engine   string                            `json:"engine"`
-	Start    time.Time                         `json:"start"`
-	End      time.Time                         `json:"end"`
-	Replicas map[string]InferenceServerReplica `json:"replicas"`
-}
-
-// EngineVLLM identifies vLLM as the serving engine that produced an
-// InferenceServer entry. Additional engines (per the Model Server Protocol
-// mappings, e.g. SGLang, Triton TensorRT-LLM) get constants as their metric
-// mappings are implemented in the data sources.
-const EngineVLLM = "vllm"
-
-// InferenceServerReplica holds the window-aggregated scheduler gauges for a
-// single model-server pod. KV-cache usage values are fractions in [0, 1] of
-// the engine's configured KV block budget; queue depth and running requests
-// are request counts. All three gauges carry the same (avg, p95, max) window
-// summary, so no gauge is reported with less resolution than the others.
-// @bingen:generate:InferenceServerReplica
-type InferenceServerReplica struct {
+	// entry (see the Engine* constants). Field values follow the Model
+	// Server Protocol semantics; Engine records which engine's mapping
+	// produced them.
+	Engine             string  `json:"engine"`
 	KVCacheUsageAvg    float64 `json:"kvCacheUsageAvg"`
+	KVCacheUsageP95    float64 `json:"kvCacheUsageP95"`
 	KVCacheUsageMax    float64 `json:"kvCacheUsageMax"`
 	QueueDepthAvg      float64 `json:"queueDepthAvg"`
+	QueueDepthP95      float64 `json:"queueDepthP95"`
 	QueueDepthMax      float64 `json:"queueDepthMax"`
 	RunningRequestsAvg float64 `json:"runningRequestsAvg"`
-	// Preemptions is the count of scheduler preemptions (requests evicted
-	// from the running batch and recomputed) during the window. A pressure
-	// and instability signal: sustained preemptions mean the engine is
-	// thrashing its KV budget.
-	Preemptions float64 `json:"preemptions"`
-	// P95 values summarize the window distribution alongside avg and max,
-	// computed identically from Prometheus (quantile_over_time) and from
-	// the collector's sample store. Together (avg, p95, max) give a
-	// distribution summary without per-bucket collection.
-	KVCacheUsageP95 float64 `json:"kvCacheUsageP95"`
-	QueueDepthP95   float64 `json:"queueDepthP95"`
-	// RunningRequestsMax and RunningRequestsP95 complete the (avg, p95, max)
-	// summary for the running batch. The maximum carries information the
-	// average cannot: two independent constraints bound a model server, the
-	// KV-cache budget (reported directly by vllm:kv_cache_usage_perc) and the
+	RunningRequestsP95 float64 `json:"runningRequestsP95"`
+	// RunningRequestsMax carries information the average cannot: two
+	// independent constraints bound a model server, the KV-cache budget
+	// (reported directly by vllm:kv_cache_usage_perc) and the
 	// concurrent-sequence limit (vLLM's max_num_seqs), and either can bind
 	// first depending on context length. vLLM exposes no metric for
 	// max_num_seqs, so the denominator of batch occupancy is not directly
@@ -93,47 +81,46 @@ type InferenceServerReplica struct {
 	// window maximum is that ceiling. An average of running requests read
 	// against an unknown ceiling says nothing about saturation.
 	RunningRequestsMax float64 `json:"runningRequestsMax"`
-	RunningRequestsP95 float64 `json:"runningRequestsP95"`
+	// Preemptions is the count of scheduler preemptions (requests evicted
+	// from the running batch and recomputed) during the window. A pressure
+	// and instability signal: sustained preemptions mean the engine is
+	// thrashing its KV budget.
+	Preemptions float64 `json:"preemptions"`
 }
 
-// Key returns the identifier used to store this InferenceServer in the
-// KubeModelSet, matching the "model_name:namespace" keying used by the
-// inference cost feature.
-func (is *InferenceServer) Key() string {
-	return is.ModelName + ":" + is.Namespace
-}
+// EngineVLLM identifies vLLM as the serving engine that produced an
+// InferenceServer entry. Additional engines (per the Model Server Protocol
+// mappings, e.g. SGLang, Triton TensorRT-LLM) get constants as their metric
+// mappings are implemented in the data sources.
+const EngineVLLM = "vllm"
 
-func (is *InferenceServer) ValidateInferenceServer(window Window) error {
+func (is *InferenceServer) ValidateInferenceServer() error {
+	if is.PodUID == "" {
+		return fmt.Errorf("PodUID is missing for InferenceServer with model '%s'", is.ModelName)
+	}
+
 	if is.ModelName == "" {
-		return fmt.Errorf("ModelName is missing for InferenceServer in namespace '%s'", is.Namespace)
-	}
-
-	if is.Namespace == "" {
-		return fmt.Errorf("Namespace is missing for InferenceServer with model '%s'", is.ModelName)
-	}
-
-	if err := checkWindow(window, is.Start, is.End); err != nil {
-		return err
+		return fmt.Errorf("ModelName is missing for InferenceServer on pod '%s'", is.PodUID)
 	}
 
 	return nil
 }
 
 // RegisterInferenceServer validates and adds an InferenceServer to the set,
-// keyed by "model_name:namespace".
+// keyed by the model-server pod's UID.
 func (kms *KubeModelSet) RegisterInferenceServer(server *InferenceServer) error {
-	if err := server.ValidateInferenceServer(kms.Window); err != nil {
+	if err := server.ValidateInferenceServer(); err != nil {
 		err = fmt.Errorf("RegisterInferenceServer: invalid inference server: %w", err)
 		kms.Error(err)
 		return err
 	}
 
-	if _, ok := kms.InferenceServers[server.Key()]; !ok {
+	if _, ok := kms.InferenceServers[server.PodUID]; !ok {
 		if kms.Cluster == nil {
 			kms.Warnf("RegisterInferenceServer: Cluster is nil")
 		}
 
-		kms.InferenceServers[server.Key()] = server
+		kms.InferenceServers[server.PodUID] = server
 
 		kms.Metadata.ObjectCount++
 	}

@@ -151,8 +151,8 @@ func GetMockCollectorProvider() StoreProvider {
 
 	inference1Info := map[string]string{
 		source.InferenceModelNameLabel: "Qwen3-32B",
-		source.NamespaceLabel:          "namespace1",
-		source.PodLabel:                "pod1",
+		source.PodUIDLabel:             "pod1-uid",
+		source.NamespaceUIDLabel:       "namespace1-uid",
 	}
 	collector.Update(metric.VLLMKVCacheUsagePerc, inference1Info, 0.2, start, nil)
 	collector.Update(metric.VLLMKVCacheUsagePerc, inference1Info, 0.8, end, nil)
@@ -162,6 +162,31 @@ func GetMockCollectorProvider() StoreProvider {
 	collector.Update(metric.VLLMNumRequestsRunning, inference1Info, 30, end, nil)
 	collector.Update(metric.VLLMNumPreemptionsTotal, inference1Info, 2, start, nil)
 	collector.Update(metric.VLLMNumPreemptionsTotal, inference1Info, 6, end, nil)
+
+	// Inference cost counters roll up by (model_name, namespace) rather than
+	// by pod, so their label set is the name pair.
+	inferenceCost1Info := map[string]string{
+		source.InferenceModelNameLabel: "Qwen3-32B",
+		source.NamespaceLabel:          "namespace1",
+	}
+	collector.Update(metric.VLLMPromptTokensTotal, inferenceCost1Info, 1000, start, nil)
+	collector.Update(metric.VLLMPromptTokensTotal, inferenceCost1Info, 5000, end, nil)
+	collector.Update(metric.VLLMGenerationTokensTotal, inferenceCost1Info, 200, start, nil)
+	collector.Update(metric.VLLMGenerationTokensTotal, inferenceCost1Info, 900, end, nil)
+	collector.Update(metric.VLLMPrefixCacheHitsTotal, inferenceCost1Info, 10, start, nil)
+	collector.Update(metric.VLLMPrefixCacheHitsTotal, inferenceCost1Info, 60, end, nil)
+	collector.Update(metric.VLLMRequestPrefillTimeSecondsSum, inferenceCost1Info, 2, start, nil)
+	collector.Update(metric.VLLMRequestPrefillTimeSecondsSum, inferenceCost1Info, 8, end, nil)
+	collector.Update(metric.VLLMRequestTimePerOutputTokenSecondsSum, inferenceCost1Info, 5, start, nil)
+	collector.Update(metric.VLLMRequestTimePerOutputTokenSecondsSum, inferenceCost1Info, 20, end, nil)
+
+	// cache_config_info is an info metric: the payload rides on AdditionalInfo.
+	cacheConfig1Info := map[string]string{
+		source.InferenceModelNameLabel:  "Qwen3-32B",
+		source.NamespaceLabel:           "namespace1",
+		source.EnablePrefixCachingLabel: "true",
+	}
+	collector.Update(metric.VLLMCacheConfigInfo, cacheConfig1Info, 1, start, cacheConfig1Info)
 
 	collector.Update(metric.KubecostNetworkZoneEgressCost, nil, 1, start, nil)
 	collector.Update(metric.KubecostNetworkRegionEgressCost, nil, 2, start, nil)
@@ -1069,7 +1094,7 @@ func TestCollectorMetricsQuerier_QueryInferenceSaturation(t *testing.T) {
 				t.Fatalf("length of result was not as expected: got = %d, want 1", len(res))
 			}
 			got := res[0]
-			if got.ModelName != "Qwen3-32B" || got.Namespace != "namespace1" || got.Pod != "pod1" {
+			if got.ModelName != "Qwen3-32B" || got.PodUID != "pod1-uid" || got.NamespaceUID != "namespace1-uid" {
 				t.Errorf("result identity did not match: got = %+v", got)
 			}
 			if got.Value != tt.want {
@@ -1077,4 +1102,93 @@ func TestCollectorMetricsQuerier_QueryInferenceSaturation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCollectorMetricsQuerier_QueryInferenceCost exercises the inference cost
+// queries that the collector source previously answered with "inference
+// metrics not supported by collector source". They roll up per
+// (model_name, namespace) to match the Prometheus source's
+// `sum by (model_name, namespace)` and the "model:namespace" result keying.
+func TestCollectorMetricsQuerier_QueryInferenceCost(t *testing.T) {
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+	end1, _ := time.Parse(time.RFC3339, End1Str)
+
+	c := collectorMetricsQuerier{
+		collectorProvider: GetMockCollectorProvider(),
+	}
+
+	const key = "Qwen3-32B:namespace1"
+
+	t.Run("token counters return window deltas", func(t *testing.T) {
+		tests := map[string]struct {
+			query func(start, end time.Time) *source.Future[source.InferenceTokensResult]
+			want  float64
+		}{
+			// seeded 1000 -> 5000 over the window
+			"prompt tokens": {query: c.QueryInferencePromptTokens, want: 4000},
+			// seeded 200 -> 900
+			"generation tokens": {query: c.QueryInferenceGenerationTokens, want: 700},
+			// seeded 10 -> 60
+			"cached tokens": {query: c.QueryInferenceCachedTokens, want: 50},
+		}
+
+		for name, tt := range tests {
+			t.Run(name, func(t *testing.T) {
+				res, err := tt.query(start1, end1).Await()
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err.Error())
+				}
+				if len(res) != 1 {
+					t.Fatalf("length of result was not as expected: got = %d, want 1", len(res))
+				}
+				if got := res[0].Values[key]; got != tt.want {
+					t.Errorf("value for %q did not match: got = %v, want %v", key, got, tt.want)
+				}
+			})
+		}
+	})
+
+	t.Run("processing times return window deltas", func(t *testing.T) {
+		tests := map[string]struct {
+			query func(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult]
+			want  float64
+		}{
+			// seeded 2 -> 8
+			"input processing time": {query: c.QueryInferenceInputProcessingTime, want: 6},
+			// seeded 5 -> 20
+			"output processing time": {query: c.QueryInferenceOutputProcessingTime, want: 15},
+		}
+
+		for name, tt := range tests {
+			t.Run(name, func(t *testing.T) {
+				res, err := tt.query(start1, end1).Await()
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err.Error())
+				}
+				if len(res) != 1 {
+					t.Fatalf("length of result was not as expected: got = %d, want 1", len(res))
+				}
+				if got := res[0].Values[key]; got != tt.want {
+					t.Errorf("value for %q did not match: got = %v, want %v", key, got, tt.want)
+				}
+			})
+		}
+	})
+
+	t.Run("cache config reads the enable_prefix_caching label", func(t *testing.T) {
+		res, err := c.QueryInferenceCacheConfig(end1).Await()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err.Error())
+		}
+		if len(res) != 1 {
+			t.Fatalf("length of result was not as expected: got = %d, want 1", len(res))
+		}
+		config, ok := res[0].Configs[key]
+		if !ok {
+			t.Fatalf("no cache config for key %q, got %+v", key, res[0].Configs)
+		}
+		if !config.PrefixCachingEnabled {
+			t.Errorf("PrefixCachingEnabled = false, want true")
+		}
+	})
 }

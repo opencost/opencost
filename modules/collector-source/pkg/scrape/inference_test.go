@@ -14,10 +14,12 @@ import (
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func inferencePod(name, namespace, ip string, labels, annotations map[string]string, phase v1.PodPhase) *clustercache.Pod {
 	return &clustercache.Pod{
+		UID:         types.UID(name + "-uid"),
 		Name:        name,
 		Namespace:   namespace,
 		Labels:      labels,
@@ -29,10 +31,18 @@ func inferencePod(name, namespace, ip string, labels, annotations map[string]str
 	}
 }
 
+func inferenceNamespaces() []*clustercache.Namespace {
+	return []*clustercache.Namespace{
+		{UID: types.UID("llm-d-uid"), Name: "llm-d"},
+		{UID: types.UID("default-uid"), Name: "default"},
+	}
+}
+
 func TestInferenceScraperGetTargets(t *testing.T) {
 	modelLabels := map[string]string{"llm-d.ai/model": "Qwen3-32B"}
 
 	cache := &clustercache.MockClusterCache{
+		Namespaces: inferenceNamespaces(),
 		Pods: []*clustercache.Pod{
 			// selected, default port
 			inferencePod("vllm-0", "llm-d", "10.0.0.1", modelLabels, nil, v1.PodRunning),
@@ -60,6 +70,30 @@ func TestInferenceScraperGetTargets(t *testing.T) {
 	require.Equal(t, "llm-d", byPod["vllm-0"].namespace)
 	require.Contains(t, byPod, "vllm-1")
 	require.Contains(t, byPod, "vllm-2")
+
+	// UIDs are what the KubeModel joins on, so every target must carry them.
+	for pod, tgt := range byPod {
+		require.Equal(t, pod+"-uid", tgt.podUID, pod)
+		require.Equal(t, "llm-d-uid", tgt.namespaceUID, pod)
+	}
+}
+
+func TestInferenceScraperGetTargetsUnknownNamespace(t *testing.T) {
+	// A pod whose namespace is missing from the cache still yields a target:
+	// the pod UID alone is enough to identify it, and namespace_uid is a
+	// convenience label.
+	modelLabels := map[string]string{"llm-d.ai/model": "Qwen3-32B"}
+	cache := &clustercache.MockClusterCache{
+		Pods: []*clustercache.Pod{
+			inferencePod("vllm-0", "llm-d", "10.0.0.1", modelLabels, nil, v1.PodRunning),
+		},
+	}
+
+	targets := newInferenceScraper(cache).getTargets()
+
+	require.Len(t, targets, 1)
+	require.Equal(t, "vllm-0-uid", targets[0].podUID)
+	require.Empty(t, targets[0].namespaceUID)
 }
 
 func TestInferenceScraperScrape(t *testing.T) {
@@ -74,6 +108,12 @@ vllm:num_requests_running{model_name="Qwen3-32B"} 17
 vllm:num_preemptions_total{model_name="Qwen3-32B"} 5
 # TYPE vllm:generation_tokens_total counter
 vllm:generation_tokens_total{model_name="Qwen3-32B"} 123456
+# TYPE vllm:prompt_tokens_total counter
+vllm:prompt_tokens_total{model_name="Qwen3-32B"} 654321
+# TYPE vllm:cache_config_info gauge
+vllm:cache_config_info{model_name="Qwen3-32B",enable_prefix_caching="true"} 1
+# TYPE vllm:not_collected gauge
+vllm:not_collected{model_name="Qwen3-32B"} 99
 `
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -91,6 +131,7 @@ vllm:generation_tokens_total{model_name="Qwen3-32B"} 123456
 
 	modelLabels := map[string]string{"llm-d.ai/model": "Qwen3-32B"}
 	cache := &clustercache.MockClusterCache{
+		Namespaces: inferenceNamespaces(),
 		Pods: []*clustercache.Pod{
 			inferencePod("vllm-0", "llm-d", host, modelLabels, map[string]string{"prometheus.io/port": portStr}, v1.PodRunning),
 			// unreachable target: errors are collected, scrape continues
@@ -101,19 +142,35 @@ vllm:generation_tokens_total{model_name="Qwen3-32B"} 123456
 	s := newInferenceScraper(cache)
 	updates := s.Scrape()
 
-	// generation_tokens_total is not in the saturation whitelist and must be
-	// filtered out; the four whitelisted metrics come through.
-	require.Len(t, updates, 4)
+	// The saturation gauges plus the inference cost counters are kept;
+	// anything outside the whitelist (vllm:not_collected) is dropped.
+	require.Len(t, updates, 7)
 
 	seen := map[string]float64{}
 	for _, update := range updates {
 		seen[update.Name] = update.Value
 		require.Equal(t, "llm-d", update.Labels[source.NamespaceLabel], update.Name)
+		require.Equal(t, "llm-d-uid", update.Labels[source.NamespaceUIDLabel], update.Name)
 		require.Equal(t, "vllm-0", update.Labels[source.PodLabel], update.Name)
+		require.Equal(t, "vllm-0-uid", update.Labels[source.PodUIDLabel], update.Name)
 		require.Equal(t, "Qwen3-32B", update.Labels[source.InferenceModelNameLabel], update.Name)
 	}
 	require.Equal(t, 0.42, seen[metric.VLLMKVCacheUsagePerc])
 	require.Equal(t, float64(3), seen[metric.VLLMNumRequestsWaiting])
 	require.Equal(t, float64(17), seen[metric.VLLMNumRequestsRunning])
 	require.Equal(t, float64(5), seen[metric.VLLMNumPreemptionsTotal])
+	require.Equal(t, float64(123456), seen[metric.VLLMGenerationTokensTotal])
+	require.Equal(t, float64(654321), seen[metric.VLLMPromptTokensTotal])
+	require.NotContains(t, seen, "vllm:not_collected")
+
+	// cache_config_info is an info metric: the Info aggregator reads its
+	// payload from AdditionalInfo, so the labels must be carried there.
+	var cacheConfig *metric.Update
+	for i := range updates {
+		if updates[i].Name == metric.VLLMCacheConfigInfo {
+			cacheConfig = &updates[i]
+		}
+	}
+	require.NotNil(t, cacheConfig)
+	require.Equal(t, "true", cacheConfig.AdditionalInfo[source.EnablePrefixCachingLabel])
 }
