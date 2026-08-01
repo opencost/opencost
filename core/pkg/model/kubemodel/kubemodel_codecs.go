@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/shared"
+	"github.com/opencost/opencost/core/pkg/cloud"
 
 	bstream "github.com/opencost/bingen/pkg/stream"
 	stringtable "github.com/opencost/bingen/pkg/table"
@@ -426,7 +426,7 @@ func (target *Cluster) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 		buff.WriteString(target.UID) // write string
 	}
 
-	// --- [begin][write][alias](shared.Provider) ---
+	// --- [begin][write][alias](cloud.Provider) ---
 
 	if ctx.IsStringTable() {
 		b := ctx.Table.AddOrGet(string(target.Provider))
@@ -435,7 +435,7 @@ func (target *Cluster) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 		buff.WriteString(string(target.Provider)) // write string
 	}
 
-	// --- [end][write][alias](shared.Provider) ---
+	// --- [end][write][alias](cloud.Provider) ---
 
 	if ctx.IsStringTable() {
 		c := ctx.Table.AddOrGet(target.Account)
@@ -548,7 +548,7 @@ func (target *Cluster) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	}
 	// field version check
 	if uint8(1) <= version {
-		// --- [begin][read][alias](shared.Provider) ---
+		// --- [begin][read][alias](cloud.Provider) ---
 		var d string
 		var f string
 		if ctx.IsStringTable() {
@@ -560,8 +560,8 @@ func (target *Cluster) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 		e := f
 		d = e
 
-		target.Provider = shared.Provider(d)
-		// --- [end][read][alias](shared.Provider) ---
+		target.Provider = cloud.Provider(d)
+		// --- [end][read][alias](cloud.Provider) ---
 
 	} else {
 	}

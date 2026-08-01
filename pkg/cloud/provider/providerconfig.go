@@ -25,7 +25,7 @@ const closedSourceConfigMount = "models/"
 // ProviderConfig is a utility class that provides a thread-safe configuration storage/cache for all Provider
 // implementations
 type ProviderConfig struct {
-	lock            sync.Mutex
+	lock            sync.RWMutex
 	configManager   *config.ConfigFileManager
 	configFile      *config.ConfigFile
 	customPricing   *models.CustomPricing
@@ -137,6 +137,14 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPrici
 
 // ThreadSafe method for retrieving the custom pricing config.
 func (pc *ProviderConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	// Fast path: once loaded, the config is cached, so readers only need the read lock.
+	pc.lock.RLock()
+	cached := pc.customPricing
+	pc.lock.RUnlock()
+	if cached != nil {
+		return cached, nil
+	}
+
 	pc.lock.Lock()
 	defer pc.lock.Unlock()
 

@@ -20,6 +20,6 @@ package kubemodel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-// @bingen:define[string]:github.com/opencost/opencost/core/pkg/model/shared.Provider
+// @bingen:define[string]:github.com/opencost/opencost/core/pkg/cloud.Provider
 
 //go:generate bingen -package=kubemodel -version=3

@@ -1,10 +1,14 @@
 package costmodel
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
 )
@@ -443,5 +447,67 @@ func TestTrimAllocationSetRangeToRequestWindow(t *testing.T) {
 	}
 	if trimmed.FromStore != asr.FromStore {
 		t.Fatalf("expected FromStore to be preserved")
+	}
+}
+
+// invalidWindowRequest builds a GET request to the given path with an
+// unparseable window parameter.
+func invalidWindowRequest(path string) *http.Request {
+	r, _ := http.NewRequest(http.MethodGet, path+"?window=notawindow", nil)
+	return r
+}
+
+// The handlers must return immediately after writing the 400 for an invalid
+// window. Before the fix, execution continued with a zero-value Window: the
+// nil Model here would have caused a panic instead of a clean 400.
+func TestComputeAllocationHandler_InvalidWindow_Returns400(t *testing.T) {
+	a := &Accesses{}
+
+	w := httptest.NewRecorder()
+	a.ComputeAllocationHandler(w, invalidWindowRequest("/allocation"), httprouter.Params{})
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Invalid 'window' parameter") {
+		t.Fatalf("expected invalid window error in body, got: %q", w.Body.String())
+	}
+}
+
+func TestComputeAllocationHandler_MissingWindow_Returns400(t *testing.T) {
+	a := &Accesses{}
+
+	r, _ := http.NewRequest(http.MethodGet, "/allocation", nil)
+	w := httptest.NewRecorder()
+	a.ComputeAllocationHandler(w, r, httprouter.Params{})
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestComputeAllocationHandlerSummary_InvalidWindow_Returns400(t *testing.T) {
+	a := &Accesses{}
+
+	w := httptest.NewRecorder()
+	a.ComputeAllocationHandlerSummary(w, invalidWindowRequest("/allocation/summary"), httprouter.Params{})
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Invalid 'window' parameter") {
+		t.Fatalf("expected invalid window error in body, got: %q", w.Body.String())
+	}
+}
+
+func TestComputeAllocationHandlerSummary_MissingWindow_Returns400(t *testing.T) {
+	a := &Accesses{}
+
+	r, _ := http.NewRequest(http.MethodGet, "/allocation/summary", nil)
+	w := httptest.NewRecorder()
+	a.ComputeAllocationHandlerSummary(w, r, httprouter.Params{})
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }
