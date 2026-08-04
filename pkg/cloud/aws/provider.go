@@ -4,16 +4,20 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"encoding/csv"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/smithy-go"
@@ -850,6 +854,81 @@ func getPricingListURL(serviceCode string, nodeList []*clustercache.Node) string
 }
 
 // Use the pricing data from the current region. Fall back to using all region data if needed.
+// pricingCacheFilePrefix names the offer-file cache written under os.TempDir().
+const pricingCacheFilePrefix = "opencost-aws-pricing-"
+
+// pricingCachePaths returns where the offer file for url and its entity tag are cached.
+// The paths are keyed by a hash of the URL so that a region change, or an AWS_PRICING_URL
+// override, cannot read a body cached for a different URL.
+func pricingCachePaths(url string) (bodyPath string, etagPath string) {
+	sum := sha256.Sum256([]byte(url))
+	base := filepath.Join(os.TempDir(), pricingCacheFilePrefix+hex.EncodeToString(sum[:8]))
+	return base + ".json", base + ".etag"
+}
+
+// cachedPricingResponse presents a cached body as the *http.Response the parse path
+// expects, so parsing is identical whether the bytes came from the network or from disk.
+func cachedPricingResponse(req *http.Request, bodyPath string) (*http.Response, error) {
+	f, err := os.Open(bodyPath)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Response{
+		Status:     "200 OK",
+		StatusCode: http.StatusOK,
+		Body:       f,
+		Request:    req,
+		Header:     http.Header{},
+	}, nil
+}
+
+// pricingCacheUnusable latches once the cache cannot be written - a read-only or full
+// temporary directory, say. Without it, every later refresh would retry the cache, fail,
+// and re-request the file, which is worse than not caching at all.
+var pricingCacheUnusable atomic.Bool
+
+// storePricingBody copies the download into tmp, promotes it to the cache, and returns a
+// response reading back from that copy. tmp is created before the request is issued, so an
+// unwritable cache is detected without having spent a download.
+func storePricingBody(req *http.Request, resp *http.Response, tmp *os.File, bodyPath, etagPath string) (*http.Response, error) {
+	tmpName := tmp.Name()
+
+	_, copyErr := io.Copy(tmp, resp.Body)
+	closeErr := tmp.Close()
+	resp.Body.Close()
+	if copyErr != nil || closeErr != nil {
+		os.Remove(tmpName)
+		if copyErr != nil {
+			return nil, copyErr
+		}
+		return nil, closeErr
+	}
+
+	if err := os.Rename(tmpName, bodyPath); err != nil {
+		os.Remove(tmpName)
+		return nil, err
+	}
+
+	// Write the validator only once the body it describes is in place, so an interruption
+	// between the two leaves a cache that is merely unvalidated rather than mismatched.
+	etag := resp.Header.Get("ETag")
+	if etag == "" {
+		// Nothing to revalidate against, so make sure no older validator survives to be
+		// paired with these bytes.
+		os.Remove(etagPath)
+		return cachedPricingResponse(req, bodyPath)
+	}
+	if err := os.WriteFile(etagPath, []byte(etag), 0o600); err != nil {
+		log.Warnf("cached the pricing file but not its ETag (%v); the next refresh will download it in full", err)
+		os.Remove(etagPath)
+	}
+	return cachedPricingResponse(req, bodyPath)
+}
+
+// getRegionPricing fetches the region's offer file, revalidating a cached copy where
+// possible. The file is hundreds of MB and changes roughly weekly, but is re-fetched
+// whenever pricing is refreshed, so without a conditional request the same bytes are
+// transferred over and over. Any failure of the cache degrades to a plain download.
 func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response, string, error) {
 	var pricingURL string
 	if env.GetAWSPricingURL() != "" { // Allow override of pricing URL
@@ -858,16 +937,100 @@ func (aws *AWS) getRegionPricing(nodeList []*clustercache.Node) (*http.Response,
 		pricingURL = getPricingListURL("AmazonEC2", nodeList)
 	}
 
-	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
+	bodyPath, etagPath := pricingCachePaths(pricingURL)
+
+	// Open the destination before spending a download, so an unwritable cache costs
+	// nothing and simply falls back to the previous streaming behaviour.
+	var tmp *os.File
+	if !pricingCacheUnusable.Load() {
+		f, err := os.CreateTemp(filepath.Dir(bodyPath), filepath.Base(bodyPath)+".part-")
+		if err != nil {
+			pricingCacheUnusable.Store(true)
+			log.Warnf("cannot write a pricing cache in %q (%v); the offer file will be downloaded on every refresh", filepath.Dir(bodyPath), err)
+		} else {
+			tmp = f
+		}
+	}
+
+	cachedETag := ""
+	if tmp != nil {
+		if _, err := os.Stat(bodyPath); err == nil {
+			if b, err := os.ReadFile(etagPath); err == nil {
+				cachedETag = strings.TrimSpace(string(b))
+			}
+		}
+	}
+
 	// This file is large and can take a while to stream, so the streaming client
 	// bounds connect/TLS/response-header time but not the total body read - enough
 	// to bail on a hung endpoint without truncating a legitimate slow download.
-	resp, err := httputil.StreamingGet(context.Background(), pricingURL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, pricingURL, nil)
 	if err != nil {
+		discardPricingTemp(tmp)
+		return nil, pricingURL, err
+	}
+	if cachedETag != "" {
+		req.Header.Set("If-None-Match", cachedETag)
+	}
+
+	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
+	resp, err := httputil.StreamingClient().Do(req)
+	if err != nil {
+		discardPricingTemp(tmp)
 		log.Errorf("Bogus fetch of \"%s\": %v", pricingURL, err)
 		return nil, pricingURL, err
 	}
-	return resp, pricingURL, err
+
+	if resp.StatusCode == http.StatusNotModified {
+		resp.Body.Close()
+		cached, cacheErr := cachedPricingResponse(req, bodyPath)
+		if cacheErr == nil {
+			discardPricingTemp(tmp)
+			log.Infof("pricing file \"%s\" is unchanged, parsing the cached copy", pricingURL)
+			return cached, pricingURL, nil
+		}
+		// The body went away between the stat and the open, so re-ask without the
+		// validator rather than failing the refresh.
+		log.Warnf("pricing cache for \"%s\" is unusable (%v), requesting it in full", pricingURL, cacheErr)
+		req = req.Clone(req.Context())
+		req.Header.Del("If-None-Match")
+		resp, err = httputil.StreamingClient().Do(req)
+		if err != nil {
+			discardPricingTemp(tmp)
+			log.Errorf("Bogus fetch of \"%s\": %v", pricingURL, err)
+			return nil, pricingURL, err
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK || tmp == nil {
+		// Leave non-OK responses, and the uncached path, exactly as they were before.
+		discardPricingTemp(tmp)
+		return resp, pricingURL, nil
+	}
+
+	cached, cacheErr := storePricingBody(req, resp, tmp, bodyPath, etagPath)
+	if cacheErr != nil {
+		// The body has been consumed, so this refresh needs the bytes again. Latch the
+		// cache off first so this costs one extra download in total, never one per refresh.
+		pricingCacheUnusable.Store(true)
+		log.Warnf("could not cache the pricing file \"%s\" (%v); disabling the pricing cache and re-requesting", pricingURL, cacheErr)
+		retry, err := httputil.StreamingClient().Do(req.Clone(req.Context()))
+		if err != nil {
+			return nil, pricingURL, err
+		}
+		return retry, pricingURL, nil
+	}
+	return cached, pricingURL, nil
+}
+
+// discardPricingTemp cleans up a cache destination that ended up unused.
+func discardPricingTemp(tmp *os.File) {
+	if tmp == nil {
+		return
+	}
+	name := tmp.Name()
+	tmp.Close()
+	os.Remove(name)
 }
 
 // SpotFeedRefreshEnabled determines whether the required configs to run the spot feed query have been set up
@@ -1035,6 +1198,8 @@ func (aws *AWS) DownloadPricingData() error {
 	if err != nil {
 		return err
 	}
+	// The body was previously left open, leaking a connection or file handle per refresh.
+	defer resp.Body.Close()
 	err = aws.populatePricing(resp, inputkeys)
 	if err != nil {
 		return err

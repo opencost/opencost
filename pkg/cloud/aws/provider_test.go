@@ -5,8 +5,10 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -1489,6 +1491,165 @@ func TestAWS_findCostForDisk(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "parsing \"not-a-float\"") {
 			t.Fatalf("expected parsing float error, got %q", err.Error())
+		}
+	})
+}
+
+// TestPricingOfferFileCache covers caching the AWS offer file on disk and revalidating it
+// with a conditional request. The file is hundreds of MB and changes about weekly, but is
+// re-fetched on every pricing refresh, so without this the same bytes move repeatedly.
+func TestPricingOfferFileCache(t *testing.T) {
+	const bodyV1 = `{"products":{},"terms":{}}`
+	const bodyV2 = `{"products":{},"terms":{"OnDemand":{}}}`
+
+	type serverState struct {
+		etag      string
+		body      string
+		fullGets  int
+		revalid   int
+		notModify int
+	}
+
+	newServer := func(st *serverState) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if inm := r.Header.Get("If-None-Match"); inm != "" {
+				st.revalid++
+				if inm == st.etag {
+					st.notModify++
+					w.Header().Set("ETag", st.etag)
+					w.WriteHeader(http.StatusNotModified)
+					return
+				}
+			}
+			st.fullGets++
+			w.Header().Set("ETag", st.etag)
+			w.Write([]byte(st.body))
+		}))
+	}
+
+	// Isolate the cache directory and reset the process-wide latch.
+	prepare := func(t *testing.T) {
+		t.Setenv("TMPDIR", t.TempDir())
+		pricingCacheUnusable.Store(false)
+	}
+
+	read := func(t *testing.T, resp *http.Response) string {
+		t.Helper()
+		defer resp.Body.Close()
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("reading pricing body: %v", err)
+		}
+		return string(b)
+	}
+
+	t.Run("second refresh revalidates instead of downloading", func(t *testing.T) {
+		prepare(t)
+		st := &serverState{etag: `"v1"`, body: bodyV1}
+		srv := newServer(st)
+		defer srv.Close()
+		t.Setenv("AWS_PRICING_URL", srv.URL)
+
+		awsTest := AWS{}
+		resp, _, err := awsTest.getRegionPricing(nil)
+		if err != nil {
+			t.Fatalf("first fetch: %v", err)
+		}
+		if got := read(t, resp); got != bodyV1 {
+			t.Fatalf("first fetch body = %q, want %q", got, bodyV1)
+		}
+
+		resp, _, err = awsTest.getRegionPricing(nil)
+		if err != nil {
+			t.Fatalf("second fetch: %v", err)
+		}
+		if got := read(t, resp); got != bodyV1 {
+			t.Errorf("second fetch body = %q, want the cached %q", got, bodyV1)
+		}
+
+		if st.fullGets != 1 {
+			t.Errorf("full downloads = %d, want 1 (the second refresh should revalidate)", st.fullGets)
+		}
+		if st.notModify != 1 {
+			t.Errorf("304 responses = %d, want 1", st.notModify)
+		}
+	})
+
+	t.Run("a changed offer file is downloaded again", func(t *testing.T) {
+		prepare(t)
+		st := &serverState{etag: `"v1"`, body: bodyV1}
+		srv := newServer(st)
+		defer srv.Close()
+		t.Setenv("AWS_PRICING_URL", srv.URL)
+
+		awsTest := AWS{}
+		resp, _, err := awsTest.getRegionPricing(nil)
+		if err != nil {
+			t.Fatalf("first fetch: %v", err)
+		}
+		read(t, resp)
+
+		st.etag, st.body = `"v2"`, bodyV2
+		resp, _, err = awsTest.getRegionPricing(nil)
+		if err != nil {
+			t.Fatalf("fetch after change: %v", err)
+		}
+		if got := read(t, resp); got != bodyV2 {
+			t.Errorf("body after change = %q, want %q", got, bodyV2)
+		}
+		if st.fullGets != 2 {
+			t.Errorf("full downloads = %d, want 2", st.fullGets)
+		}
+	})
+
+	t.Run("a missing cached body falls back to a full download", func(t *testing.T) {
+		prepare(t)
+		st := &serverState{etag: `"v1"`, body: bodyV1}
+		srv := newServer(st)
+		defer srv.Close()
+		t.Setenv("AWS_PRICING_URL", srv.URL)
+
+		awsTest := AWS{}
+		resp, _, err := awsTest.getRegionPricing(nil)
+		if err != nil {
+			t.Fatalf("first fetch: %v", err)
+		}
+		read(t, resp)
+
+		// Delete the body but leave the validator, the state a partially-cleaned
+		// temporary directory would leave behind.
+		bodyPath, _ := pricingCachePaths(srv.URL)
+		if err := os.Remove(bodyPath); err != nil {
+			t.Fatalf("removing cached body: %v", err)
+		}
+
+		resp, _, err = awsTest.getRegionPricing(nil)
+		if err != nil {
+			t.Fatalf("fetch after cache loss: %v", err)
+		}
+		if got := read(t, resp); got != bodyV1 {
+			t.Errorf("body after cache loss = %q, want %q", got, bodyV1)
+		}
+	})
+
+	t.Run("an unwritable cache directory still serves pricing", func(t *testing.T) {
+		prepare(t)
+		st := &serverState{etag: `"v1"`, body: bodyV1}
+		srv := newServer(st)
+		defer srv.Close()
+		t.Setenv("AWS_PRICING_URL", srv.URL)
+		t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "does-not-exist"))
+
+		awsTest := AWS{}
+		resp, _, err := awsTest.getRegionPricing(nil)
+		if err != nil {
+			t.Fatalf("fetch with unwritable cache: %v", err)
+		}
+		if got := read(t, resp); got != bodyV1 {
+			t.Errorf("body = %q, want %q", got, bodyV1)
+		}
+		if !pricingCacheUnusable.Load() {
+			t.Error("expected the cache to latch off when its directory is unwritable")
 		}
 	})
 }
