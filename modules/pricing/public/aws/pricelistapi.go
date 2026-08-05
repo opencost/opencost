@@ -9,7 +9,10 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/modules/pricing/public/env"
+	"github.com/opencost/opencost/modules/pricing/public/httpclient"
 )
+
+var awsHTTPClient = httpclient.NewClient(0) // no timeout
 
 const (
 	awsPricingBaseURL      = "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/"
@@ -62,7 +65,7 @@ func QueryEC2PriceList(
 	pricingURL := getListPriceURL("AmazonEC2", region)
 
 	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
-	resp, err := http.Get(pricingURL)
+	resp, err := awsHTTPClient.Get(pricingURL)
 	if err != nil {
 		return fmt.Errorf("bogus fetch of \"%s\": %w", pricingURL, err)
 	}
