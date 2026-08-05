@@ -28,6 +28,10 @@ jobs:
             ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
 
+      - name: Build pricing tool
+        working-directory: modules/pricing/public/cmd
+        run: go build -o pricing-tool .
+
       - name: Debug API key presence
         run: echo "key length=${#GCP_API_KEY}"
         env:
@@ -42,7 +46,7 @@ jobs:
         # distinguish drift (2) from a generation/infra error (1).
         run: |
           set +e
-          go run . --currency USD --compare
+          ./pricing-tool --currency USD --compare
           CODE=$?
           echo "exit_code=$CODE" >> $GITHUB_OUTPUT
           [ "$CODE" -eq 2 ] && exit 0 || exit $CODE
@@ -67,13 +71,17 @@ jobs:
             ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
 
+      - name: Build pricing tool
+        working-directory: modules/pricing/public/cmd
+        run: go build -o pricing-tool .
+
       - name: Compare CNY pricing data
         id: compare
         working-directory: modules/pricing/public/cmd
         # CNY does not use GCP so no API key needed
         run: |
           set +e
-          go run . --currency CNY --compare
+          ./pricing-tool --currency CNY --compare
           CODE=$?
           echo "exit_code=$CODE" >> $GITHUB_OUTPUT
           [ "$CODE" -eq 2 ] && exit 0 || exit $CODE
