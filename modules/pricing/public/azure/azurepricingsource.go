@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/pricing"
 	"github.com/opencost/opencost/core/pkg/unit"
+	"github.com/opencost/opencost/modules/pricing/public/httpclient"
 )
 
 const (
@@ -26,7 +27,7 @@ type AzurePricingSourceConfig struct {
 	CurrencyCode string
 }
 
-var azureHTTPClient = &http.Client{Timeout: 60 * time.Second}
+var azureHTTPClient = httpclient.NewClient(120 * time.Second)
 
 // AzurePricingSource implements the PricingSource interface using the
 // Azure Retail Prices API (no auth required).
@@ -232,11 +233,7 @@ func (a *AzurePricingSource) includeItem(item AzurePricingAttributes) bool {
 	}
 
 	skuLower := strings.ToLower(item.SkuName)
-	if strings.Contains(skuLower, "low priority") {
-		return false
-	}
-
-	return true
+	return !strings.Contains(skuLower, "low priority")
 }
 
 // includeDiskItem filters disk items to include only managed disks.
