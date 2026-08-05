@@ -1234,7 +1234,15 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 					}
 				} else { // add case to use default pricing model when API data fails.
 					log.Debugf("No node price or CPUprice found, falling back to default")
-					nodePrice = defaultCPU*cpu + defaultRAM*ram + gpuc*defaultGPU
+					// ramGB, not ram: defaultRAM is a per-GB-hour price, while ram
+					// is the node's memory in BYTES. Multiplying by bytes inflated
+					// nodePrice by ~1.07e9x, and since gpuToRAMRatio then claims the
+					// bulk of ramMultiple, nearly all of that bogus total landed on
+					// the GPU price (observed: a 4 vCPU/16GB/1x T4 node priced at
+					// 42,607,801 USD/hr). CPU and RAM hid the same inflation because
+					// the metrics exporter drops >30x outliers for them but records
+					// the GPU price unguarded.
+					nodePrice = defaultCPU*cpu + defaultRAM*ramGB + gpuc*defaultGPU
 				}
 				if math.IsNaN(nodePrice) {
 					log.Warnf("nodePrice parsed as NaN. Setting to 0.")

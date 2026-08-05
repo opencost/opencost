@@ -5,6 +5,8 @@ import (
 	"io"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	bssintlmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2/model"
 	v1 "k8s.io/api/core/v1"
@@ -33,6 +35,10 @@ type Huawei struct {
 
 	Pricing          map[string]*HuaweiPricing
 	ValidPricingKeys map[string]bool
+
+	// lastPricingRefresh is the UnixNano of the last NodePricing-triggered
+	// DownloadPricingData attempt, used to rate-limit it (see tryRefreshPricing).
+	lastPricingRefresh atomic.Int64
 
 	BaseCPUPrice string
 	BaseRAMPrice string
@@ -292,7 +298,42 @@ func (h *Huawei) DownloadPricingData() error {
 	return nil
 }
 
-// NodePricing returns live BSS pricing for the node's region/instance-type/OS if
+// pricingRefreshCooldown bounds how often a NodePricing cache miss may trigger a
+// live BSS re-query. NodePricing is called once per node per cost-model cycle, so
+// a flavor BSS genuinely cannot price (an unsupported spec, a revoked permission)
+// would otherwise hammer the demandPrice API on every node of every cycle.
+const pricingRefreshCooldown = 10 * time.Minute
+
+// tryRefreshPricing re-runs DownloadPricingData to pick up node flavors that
+// joined the cluster after the last download, and reports whether h.Pricing may
+// have changed. It is a no-op within pricingRefreshCooldown of the last attempt.
+//
+// The caller holds DownloadPricingDataLock for reading; DownloadPricingData takes
+// it for writing, so the read lock is released around the call and reacquired
+// before returning (the caller's deferred RUnlock stays balanced). This mirrors
+// pkg/cloud/otc's NodePricing.
+func (h *Huawei) tryRefreshPricing() bool {
+	last := h.lastPricingRefresh.Load()
+	now := time.Now().UnixNano()
+	if last != 0 && time.Duration(now-last) < pricingRefreshCooldown {
+		return false
+	}
+	// CompareAndSwap so concurrent missing-key lookups collapse into one refresh.
+	if !h.lastPricingRefresh.CompareAndSwap(last, now) {
+		return false
+	}
+
+	h.DownloadPricingDataLock.RUnlock()
+	err := h.DownloadPricingData()
+	h.DownloadPricingDataLock.RLock()
+	if err != nil {
+		log.Warnf("huawei cloud: refreshing pricing data after a node pricing cache miss failed: %v", err)
+		return false
+	}
+	return true
+}
+
+// NodePricing returns the live BSS on-demand price for the node's flavor if
 // available, or the static base CPU/RAM rates otherwise. Since BSS returns a single
 // total instance price with no CPU/RAM split, Node.Cost carries the live total and
 // BaseCPUPrice/BaseRAMPrice remain set so the cost model can still weight the
@@ -314,6 +355,18 @@ func (h *Huawei) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	}
 
 	pricing, ok := h.Pricing[key.Features()]
+	if !ok || pricing.NodeAttributes == nil {
+		// Cache miss. DownloadPricingData only queries BSS for the node flavors
+		// present in the cluster cache at the time it ran, so any flavor that
+		// joins later -- an autoscaled GPU pool, a new node pool -- is missing
+		// from h.Pricing until the process restarts, and every node of that
+		// flavor silently falls back to default pricing forever. Re-download
+		// once (rate-limited, since NodePricing runs per node per cycle) and
+		// retry, the same recovery pkg/cloud/otc does on a miss.
+		if h.tryRefreshPricing() {
+			pricing, ok = h.Pricing[key.Features()]
+		}
+	}
 	if !ok || pricing.NodeAttributes == nil {
 		return &models.Node{
 			VCPU:             vcpu,
