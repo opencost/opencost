@@ -28,6 +28,11 @@ jobs:
             ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
 
+      - name: Debug API key presence
+        run: echo "key length=${#GCP_API_KEY}"
+        env:
+          GCP_API_KEY: ${{ secrets.GCP_API_KEY }}
+
       - name: Compare USD pricing data
         id: compare
         working-directory: modules/pricing/public/cmd
@@ -40,7 +45,7 @@ jobs:
           go run . --currency USD --compare
           CODE=$?
           echo "exit_code=$CODE" >> $GITHUB_OUTPUT
-          exit $CODE
+          [ "$CODE" -eq 2 ] && exit 0 || exit $CODE
 
   compare-cny:
     runs-on: ubuntu-latest
@@ -71,7 +76,7 @@ jobs:
           go run . --currency CNY --compare
           CODE=$?
           echo "exit_code=$CODE" >> $GITHUB_OUTPUT
-          exit $CODE
+          [ "$CODE" -eq 2 ] && exit 0 || exit $CODE
 
   notify-drift:
     runs-on: ubuntu-latest
