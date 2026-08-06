@@ -21,6 +21,7 @@ const nodePoolIdAnnotation = "oci.oraclecloud.com/node-pool-id"
 const virtualPoolIdAnnotation = "oci.oraclecloud.com/virtual-node-pool-id"
 const virtualNodeLabel = "node-role.kubernetes.io/virtual-node"
 const preemptibleLabel = "oci.oraclecloud.com/oke-is-preemptible"
+const ociInstanceShapeLabel = "oci.oraclecloud.com/instance-shape"
 const managementPlatformOKE = "oke"
 const currencyCodeUSD = "USD"
 
@@ -147,6 +148,9 @@ func (o *Oracle) GetKey(labels map[string]string, n *clustercache.Node) models.K
 		gpuType = "nvidia.com/gpu"
 	}
 	instanceType, _ := util.GetInstanceType(labels)
+	if instanceType == "" {
+		instanceType = labels[ociInstanceShapeLabel]
+	}
 	return &oracleKey{
 		providerID:   n.SpecProviderID,
 		instanceType: instanceType,

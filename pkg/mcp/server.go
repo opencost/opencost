@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"math"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -107,9 +109,10 @@ type CloudCostQuery struct {
 
 // EfficiencyQuery contains the parameters for an efficiency query.
 type EfficiencyQuery struct {
-	Aggregate                  string   `json:"aggregate,omitempty"`                  // Aggregation properties (e.g., "pod", "namespace", "controller")
-	Filter                     string   `json:"filter,omitempty"`                     // Filter expression for allocations (same as AllocationQuery)
-	EfficiencyBufferMultiplier *float64 `json:"efficiencyBufferMultiplier,omitempty"` // Buffer multiplier for recommendations (default: 1.2 for 20% headroom)
+	Step                       time.Duration `json:"step,omitempty"`                       // Query step size; controls peak memory by batching large windows (default: auto-scaled based on window)
+	Aggregate                  string        `json:"aggregate,omitempty"`                  // Aggregation properties (e.g., "pod", "namespace", "controller")
+	Filter                     string        `json:"filter,omitempty"`                     // Filter expression for allocations (same as AllocationQuery)
+	EfficiencyBufferMultiplier *float64      `json:"efficiencyBufferMultiplier,omitempty"` // Buffer multiplier for recommendations (default: 1.2 for 20% headroom)
 }
 
 // AllocationResponse represents the allocation data returned to the AI agent.
@@ -409,6 +412,12 @@ func (s *MCPServer) ProcessMCPRequest(ctx context.Context, request *MCPRequest) 
 		return nil, err
 	}
 
+	// The MCP SDK marshals tool output with encoding/json, which errors on
+	// non-finite floats. Upstream cost calculations can yield NaN or Inf (e.g.
+	// a 0/0 breakdown or overhead fraction), so scrub them before they reach the
+	// SDK and fail the whole tool call.
+	data = sanitizeNonFiniteFloats(data)
+
 	processingTime := time.Since(queryStart)
 
 	// 3. Construct Final Response
@@ -421,6 +430,68 @@ func (s *MCPServer) ProcessMCPRequest(ctx context.Context, request *MCPRequest) 
 		},
 	}
 	return mcpResponse, nil
+}
+
+// sanitizeNonFiniteFloats returns v with every non-finite float (NaN, +Inf,
+// -Inf) replaced by 0 so the value can be marshaled by encoding/json, which the
+// MCP SDK uses and which rejects non-finite floats. Callers must use the return
+// value, since value-type inputs are sanitized on a copy. It is best-effort:
+// any reflection panic is recovered and the original value returned unchanged.
+func sanitizeNonFiniteFloats(v any) (out any) {
+	out = v
+	defer func() {
+		if r := recover(); r != nil {
+			log.Warnf("mcp: sanitizeNonFiniteFloats recovered: %v", r)
+			out = v
+		}
+	}()
+	if v == nil {
+		return nil
+	}
+	// Work on an addressable copy so value-type inputs are sanitized too, not
+	// only pointers. For a pointer input this copies the pointer and mutates the
+	// pointed-to value in place; for a value input it yields a sanitized copy.
+	box := reflect.New(reflect.TypeOf(v))
+	box.Elem().Set(reflect.ValueOf(v))
+	sanitizeFloatsValue(box.Elem())
+	return box.Elem().Interface()
+}
+
+func sanitizeFloatsValue(v reflect.Value) {
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Interface:
+		if !v.IsNil() {
+			sanitizeFloatsValue(v.Elem())
+		}
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			sanitizeFloatsValue(v.Field(i))
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			sanitizeFloatsValue(v.Index(i))
+		}
+	case reflect.Map:
+		for _, key := range v.MapKeys() {
+			elem := v.MapIndex(key)
+			// Map elements aren't addressable. Pointer/interface/slice/map
+			// values are mutated in place by recursing; value-type elements
+			// (e.g. a float or struct) must be rebuilt and reassigned.
+			switch elem.Kind() {
+			case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map:
+				sanitizeFloatsValue(elem)
+			default:
+				tmp := reflect.New(elem.Type()).Elem()
+				tmp.Set(elem)
+				sanitizeFloatsValue(tmp)
+				v.SetMapIndex(key, tmp)
+			}
+		}
+	case reflect.Float32, reflect.Float64:
+		if v.CanSet() && (math.IsNaN(v.Float()) || math.IsInf(v.Float(), 0)) {
+			v.SetFloat(0)
+		}
+	}
 }
 
 // validate is the singleton validator instance.
@@ -1016,6 +1087,23 @@ func transformCloudCostSetRange(ccsr *opencost.CloudCostSetRange) *CloudCostResp
 	}
 }
 
+// defaultEfficiencyStep returns a step duration that keeps peak memory
+// bounded for large query windows. When the caller does not specify a step,
+// this provides a safe default that avoids loading the entire window into
+// memory at once.
+func defaultEfficiencyStep(windowDuration time.Duration) time.Duration {
+	switch {
+	case windowDuration >= 30*24*time.Hour:
+		return 24 * time.Hour
+	case windowDuration >= 7*24*time.Hour:
+		return 6 * time.Hour
+	case windowDuration >= 24*time.Hour:
+		return time.Hour
+	default:
+		return windowDuration
+	}
+}
+
 // QueryEfficiency queries allocation data and computes efficiency metrics with recommendations.
 func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyResponse, error) {
 	// 1. Parse Window
@@ -1060,9 +1148,31 @@ func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyRes
 		filterString = ""
 	}
 
-	// 4. Query allocations with the specified parameters
-	// Use the entire window as step to get aggregated data
-	step := window.Duration()
+	// 4. Determine query step size.
+	// A smaller step reduces peak memory by breaking large windows into batches.
+	// Results are accumulated so the output is functionally equivalent regardless
+	// of step, though minor floating-point differences are possible because
+	// per-step cost calculations (which use max(request, usage)) are summed
+	// rather than computed in a single pass.
+	var step time.Duration
+	if query.EfficiencyParams != nil && query.EfficiencyParams.Step > 0 {
+		step = query.EfficiencyParams.Step
+	} else {
+		step = defaultEfficiencyStep(window.Duration())
+	}
+
+	if step > window.Duration() {
+		step = window.Duration()
+	}
+	if step <= 0 {
+		return nil, fmt.Errorf("invalid query: window has zero or negative duration")
+	}
+
+	accumulateBy := opencost.AccumulateOptionNone
+	if step < window.Duration() {
+		accumulateBy = opencost.AccumulateOptionAll
+	}
+
 	asr, err := s.costModel.QueryAllocation(
 		window,
 		step,
@@ -1072,7 +1182,7 @@ func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyRes
 		false, // includeProportionalAssetResourceCosts
 		false, // includeAggregatedMetadata
 		false, // sharedLoadBalancer
-		opencost.AccumulateOptionNone,
+		accumulateBy,
 		false, // shareIdle
 		filterString,
 	)

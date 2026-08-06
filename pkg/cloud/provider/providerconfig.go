@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	gopath "path"
-	"strconv"
 	"sync"
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
@@ -26,7 +25,7 @@ const closedSourceConfigMount = "models/"
 // ProviderConfig is a utility class that provides a thread-safe configuration storage/cache for all Provider
 // implementations
 type ProviderConfig struct {
-	lock            sync.Mutex
+	lock            sync.RWMutex
 	configManager   *config.ConfigFileManager
 	configFile      *config.ConfigFile
 	customPricing   *models.CustomPricing
@@ -138,6 +137,14 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPrici
 
 // ThreadSafe method for retrieving the custom pricing config.
 func (pc *ProviderConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	// Fast path: once loaded, the config is cached, so readers only need the read lock.
+	pc.lock.RLock()
+	cached := pc.customPricing
+	pc.lock.RUnlock()
+	if cached != nil {
+		return cached, nil
+	}
+
 	pc.lock.Lock()
 	defer pc.lock.Unlock()
 
@@ -191,13 +198,6 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*models.CustomPric
 		for k, v := range a {
 			// Just so we consistently supply / receive the same values, uppercase the first letter.
 			kUpper := utils.ToTitle.String(k)
-			if kUpper == "CPU" || kUpper == "SpotCPU" || kUpper == "RAM" || kUpper == "SpotRAM" || kUpper == "GPU" || kUpper == "Storage" {
-				val, err := strconv.ParseFloat(v, 64)
-				if err != nil {
-					return fmt.Errorf("unable to parse CPU from string to float: %s", err.Error())
-				}
-				v = fmt.Sprintf("%f", val/730)
-			}
 
 			err := models.SetCustomPricingField(c, kUpper, v)
 			if err != nil {

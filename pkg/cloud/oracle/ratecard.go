@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 )
 
@@ -52,8 +53,10 @@ func NewRateCardStore(url, currencyCode string) *RateCardStore {
 	return &RateCardStore{
 		url:          url,
 		currencyCode: currencyCode,
-		client:       &http.Client{},
-		prices:       map[string]Price{},
+		// Zero-value http.Client has no timeout; use the shared bounded client so
+		// a stalled rate-card endpoint can't hang ingestion.
+		client: httputil.BoundedClient(),
+		prices: map[string]Price{},
 	}
 }
 
@@ -126,7 +129,17 @@ func (rcs *RateCardStore) ForPVK(pvk models.PVKey, defaultPricing DefaultPricing
 // ForKey retrieves costing metadata for a key.
 func (rcs *RateCardStore) ForKey(key models.Key, defaultPricing DefaultPricing) (*models.Node, models.PricingMetadata, error) {
 	features := strings.Split(key.Features(), ",")
-	product := instanceProducts.get(features[0])
+	shape := features[0]
+	cpuPriceMultiplier := 1.0
+	product := instanceProducts.get(shape)
+	if baseShape, multiplier, ok := normalizeOCIInstanceShape(shape); ok {
+		baseProduct := instanceProducts.get(baseShape)
+		if !baseProduct.isEmpty() {
+			shape = baseShape
+			cpuPriceMultiplier = multiplier
+			product = baseProduct
+		}
+	}
 	var node *models.Node
 	// Use the default pricing if the instance product is unknown
 	if product.isEmpty() {
@@ -151,7 +164,7 @@ func (rcs *RateCardStore) ForKey(key models.Key, defaultPricing DefaultPricing) 
 			GPU:      defaultPricing.GPU,
 		}
 	} else {
-		ocpuPrice := rcs.prices[product.OCPU].UnitPrice
+		ocpuPrice := rcs.prices[product.OCPU].UnitPrice * cpuPriceMultiplier
 		if !isARMArch(features) {
 			// Non-ARM architectures have 2 VCPU per OCPU
 			ocpuPrice /= 2

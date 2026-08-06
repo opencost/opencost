@@ -64,43 +64,6 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 	return opts, nil
 }
 
-func ParseCloudCostAutocompleteRequest(qp httputil.QueryParams) (*CloudCostAutocompleteRequest, error) {
-	windowStr := qp.Get("window", "")
-	if windowStr == "" {
-		return nil, fmt.Errorf("missing required 'window' parameter")
-	}
-
-	window, err := opencost.ParseWindowUTC(windowStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid window parameter: %w", err)
-	}
-	if window.IsOpen() {
-		return nil, fmt.Errorf("invalid window parameter: %s", window.String())
-	}
-
-	var parsedFilter filter.Filter
-	filterString := qp.Get("filter", "")
-	if filterString != "" {
-		parser := cloudcost.NewCloudCostFilterParser()
-		parsedFilter, err = parser.Parse(filterString)
-		if err != nil {
-			return nil, fmt.Errorf("invalid 'filter' parameter: %w", err)
-		}
-	}
-
-	req := &CloudCostAutocompleteRequest{
-		Search: qp.Get("search", ""),
-		Field:  qp.Get("field", ""),
-		Limit:  qp.GetInt("limit", 0),
-		Window: window,
-		Filter: parsedFilter,
-	}
-	if req.Field == "" {
-		return nil, fmt.Errorf("missing required 'field' parameter")
-	}
-	return req, nil
-}
-
 func ParseCloudCostViewRequest(qp httputil.QueryParams) (*ViewQueryRequest, error) {
 	qr, err := ParseCloudCostRequest(qp)
 	if err != nil {
@@ -133,6 +96,11 @@ func ParseCloudCostViewRequest(qp httputil.QueryParams) (*ViewQueryRequest, erro
 		return nil, fmt.Errorf("error parsing 'sortBy': %w", err)
 	}
 
+	// includeCount controls whether the (potentially very expensive) NumResults
+	// count is computed alongside the combined cost. Defaults to true; callers
+	// pass includeCount=false to skip it.
+	includeCount := qp.GetBool("includeCount", true)
+
 	return &ViewQueryRequest{
 		QueryRequest:     *qr,
 		CostMetricName:   costMetricName,
@@ -141,6 +109,7 @@ func ParseCloudCostViewRequest(qp httputil.QueryParams) (*ViewQueryRequest, erro
 		Offset:           offset,
 		SortDirection:    order,
 		SortColumn:       sortColumn,
+		SkipCount:        !includeCount,
 	}, nil
 }
 

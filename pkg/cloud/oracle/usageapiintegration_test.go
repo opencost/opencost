@@ -9,6 +9,34 @@ import (
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 )
 
+func TestParseAttributedCost(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+
+	cases := map[string]struct {
+		input   *string
+		want    float64
+		wantErr bool
+	}{
+		"nil":        {nil, 0, false},
+		"empty":      {strPtr(""), 0, false},
+		"zero":       {strPtr("0"), 0, false},
+		"valid":      {strPtr("1.23"), 1.23, false},
+		"negative":   {strPtr("-0.5"), -0.5, false},
+		"unparsable": {strPtr("abc"), 0, true},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			got, err := parseAttributedCost(c.input)
+			if (err != nil) != c.wantErr {
+				t.Fatalf("err = %v, wantErr = %v", err, c.wantErr)
+			}
+			if got != c.want {
+				t.Errorf("got %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
 func TestUsageAPIIntegration_GetCloudCost(t *testing.T) {
 	usageApiConfigPath := os.Getenv("USAGEAPI_CONFIGURATION")
 	if usageApiConfigPath == "" {

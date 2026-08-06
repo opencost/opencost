@@ -390,3 +390,8 @@ func TestMemoryStorage_ReadStream(t *testing.T) {
 	store := NewMemoryStorage()
 	TestStorageReadStream(t, store)
 }
+
+func TestMemoryStorage_WriteStream(t *testing.T) {
+	store := NewMemoryStorage()
+	TestStorageWriteStream(t, store)
+}
