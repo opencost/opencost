@@ -313,6 +313,13 @@ const pricingRefreshCooldown = 10 * time.Minute
 // before returning (the caller's deferred RUnlock stays balanced). This mirrors
 // pkg/cloud/otc's NodePricing.
 func (h *Huawei) tryRefreshPricing() bool {
+	if h.Config == nil {
+		// Config is a required dependency for DownloadPricingData; a Huawei
+		// value without one (e.g. not yet fully constructed) should still
+		// degrade to base pricing rather than panic on a nil interface call.
+		return false
+	}
+
 	last := h.lastPricingRefresh.Load()
 	now := time.Now().UnixNano()
 	if last != 0 && time.Duration(now-last) < pricingRefreshCooldown {
