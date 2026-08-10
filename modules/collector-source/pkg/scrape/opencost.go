@@ -25,6 +25,8 @@ func newOpencostTargetScraper(provider target.TargetProvider) *TargetScraper {
 			metric.KubecostNetworkZoneEgressCost,
 			metric.KubecostNetworkRegionEgressCost,
 			metric.KubecostNetworkInternetEgressCost,
+			metric.KubecostNetworkNatGatewayEgressCost,
+			metric.KubecostNetworkNatGatewayIngressCost,
 			metric.PVHourlyCost,
 			metric.KubecostLoadBalancerCost,
 			metric.NodeTotalHourlyCost,

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/external"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
@@ -180,6 +181,202 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
+			var scrapeResults []metric.Update
+			for _, s := range tt.scrapes {
+				res := ks.scrapeNodes(s.Nodes)
+				scrapeResults = append(scrapeResults, res...)
+			}
+
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
+			}
+
+			for i, expected := range tt.expected {
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
+				}
+			}
+		})
+	}
+}
+
+func Test_kubernetesScraper_scrapeNodesWithExternalLabels(t *testing.T) {
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+
+	const (
+		testSource             = "mock"
+		testExternalLabelKey   = "externalLabelKey"
+		testExternalLabelValue = "externalLabelValue"
+	)
+	mockLabelProvider := external.NewNodeLabelProvider()
+	err := mockLabelProvider.Update(testSource, map[string]string{testExternalLabelKey: testExternalLabelValue})
+	if err != nil {
+		t.Fatalf("failed to get test node labels: %s", err)
+	}
+	type scrape struct {
+		Nodes     []*clustercache.Node
+		Timestamp time.Time
+	}
+	tests := []struct {
+		name     string
+		scrapes  []scrape
+		expected []metric.Update
+	}{
+		{
+			name: "simple",
+			scrapes: []scrape{
+				{
+					Nodes: []*clustercache.Node{
+						{
+							Name:           "node1",
+							UID:            "uuid1",
+							SpecProviderID: "i-1",
+							Status: v1.NodeStatus{
+								Capacity: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse("2"),
+									v1.ResourceMemory: resource.MustParse("2048"),
+								},
+								Allocatable: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse("1"),
+									v1.ResourceMemory: resource.MustParse("1024"),
+								},
+							},
+							Labels: map[string]string{
+								"test1": "blah",
+								"test2": "blah2",
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.NodeInfo,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+				},
+				{
+					Name: metric.NodeResourceCapacities,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "cpu",
+						source.UnitLabel:       "core",
+					},
+					Value:          2.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.NodeResourceCapacities,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "memory",
+						source.UnitLabel:       "byte",
+					},
+					Value:          2048.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeNodeStatusCapacityCPUCores,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value:          2.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeNodeStatusCapacityMemoryBytes,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value:          2048.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.NodeResourcesAllocatable,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "cpu",
+						source.UnitLabel:       "core",
+					},
+					Value:          1.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.NodeResourcesAllocatable,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "memory",
+						source.UnitLabel:       "byte",
+					},
+					Value:          1024.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeNodeStatusAllocatableCPUCores,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value:          1.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeNodeStatusAllocatableMemoryBytes,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value:          1024.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeNodeLabels,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						"label_test1": "blah",
+						"label_test2": "blah2",
+						// need label key with prefix label_ so the decoder does not exclude.
+						"label_" + testExternalLabelKey: testExternalLabelValue,
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ks := &ClusterCacheScraper{
+				externalLabelProvider: mockLabelProvider,
+			}
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
 				res := ks.scrapeNodes(s.Nodes)

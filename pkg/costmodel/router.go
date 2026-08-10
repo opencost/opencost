@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/external"
 	"github.com/opencost/opencost/core/pkg/kubeconfig"
 	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/protocol"
@@ -131,15 +132,16 @@ func ParsePercentString(percentStr string) (float64, error) {
 	return discount, nil
 }
 
-// adminAuthMiddleware wraps a handler and requires a Bearer token matching ADMIN_TOKEN env var when set.
-// When ADMIN_TOKEN is not set, logs a deduped warning and allows the request through.
-// When ADMIN_TOKEN is set, returns 401 if the Bearer token is missing or 403 if it does not match.
+// adminAuthMiddleware wraps a handler and requires a Bearer token matching ADMIN_TOKEN.
+// When ADMIN_TOKEN is not set, returns 503 with Cache-Control: no-store — the endpoint is
+// disabled until configured. When ADMIN_TOKEN is set, returns 401 if the Bearer token is
+// missing or 403 if it does not match.
 func adminAuthMiddleware(next httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		adminToken := env.GetAdminToken()
 		if adminToken == "" {
-			log.DedupedWarningf(5, "Admin token (ADMIN_TOKEN) not configured; write operations are unauthenticated")
-			next(w, r, ps)
+			w.Header().Set("Cache-Control", "no-store")
+			http.Error(w, "Admin token is required to activate this endpoint; set the ADMIN_TOKEN environment variable", http.StatusServiceUnavailable)
 			return
 		}
 		authHeader := r.Header.Get("Authorization")
@@ -483,6 +485,49 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 
 		return ds, e
 	}
+
+	// Append the pricing config watcher
+	installNamespace := env.GetOpencostNamespace()
+
+	configWatchers := watcher.NewConfigMapWatchers(kubeClientset, installNamespace, additionalConfigWatchers...)
+	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
+	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
+
+	// Assign external label provider spec to opencost
+	var elProvider external.LabelProvider
+	var cfg *external.Config
+	externalNodeLabelsCM := env.GetExternalNodeLabelsConfigMapName()
+	if externalNodeLabelsCM != "" {
+		nodeLabelsCfg := external.NewNodeLabelConfig(
+			externalNodeLabelsCM,
+			env.GetExternalNodeLabelsNamespace(),
+			env.GetExternalNodeLabelsKey(),
+			env.GetExternalNodeLabelsRoute(),
+		)
+		cfg = external.NewConfig(nodeLabelsCfg)
+	}
+
+	if cfg != nil {
+		elProvider = external.NewNodeLabelProvider()
+		elSource, err := external.NewLabelSource(cfg)
+		if err != nil {
+			log.Errorf("Failed to create an external Source: %s", err)
+		}
+
+		nlCfg := cfg.NodeLabelConfig()
+		elNamespace := nlCfg.Namespace()
+		// If configmap is in the same namespace as the finops agent we can just use the same configmap watcher.
+		if elNamespace == "" {
+			configWatchers.Add(nlCfg.ConfigMapName(), external.WatchFunc(elSource, elProvider))
+		} else {
+			elWatchers := watcher.NewConfigMapWatchers(kubeClientset, elNamespace)
+			elWatchers.Add(nlCfg.ConfigMapName(), external.WatchFunc(elSource, elProvider))
+			elWatchers.Watch()
+		}
+	}
+
+	configWatchers.Watch()
+
 	if env.IsCollectorDataSourceEnabled() {
 		fn = func() (source.OpenCostDataSource, error) {
 			nodeStatConf, err := NewNodeClientConfigFromEnv()
@@ -500,6 +545,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 				clusterInfoProvider,
 				k8sCache,
 				nodeStatClient,
+				elProvider,
 			)
 			return ds, nil
 		}
@@ -516,14 +562,6 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 		log.Fatalf("Failed to create Prometheus data source: %s", fatalErr)
 		panic(fatalErr)
 	}
-
-	// Append the pricing config watcher
-	installNamespace := env.GetOpencostNamespace()
-
-	configWatchers := watcher.NewConfigMapWatchers(kubeClientset, installNamespace, additionalConfigWatchers...)
-	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
-	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
-	configWatchers.Watch()
 
 	clusterMap := dataSource.ClusterMap()
 	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
@@ -591,7 +629,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/installNamespace", a.GetInstallNamespace)
 	router.GET("/installInfo", a.GetInstallInfo)
 	router.POST("/serviceKey", adminAuthMiddleware(a.AddServiceKey))
-	router.GET("/helmValues", a.GetHelmValues)
+	router.GET("/helmValues", adminAuthMiddleware(a.GetHelmValues))
 
 	return a
 }

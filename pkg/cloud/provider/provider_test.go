@@ -9,6 +9,12 @@ import (
 
 	"github.com/digitalocean/godo"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/core/pkg/clustercache"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/storage"
+	"github.com/opencost/opencost/pkg/config"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func newTestProviderWithFile(t *testing.T, filename string) (*DOKS, func() int) {
@@ -950,5 +956,90 @@ func TestNewDOKSProvider_NoToken(t *testing.T) {
 
 	if err := provider.DownloadPricingData(); err == nil {
 		t.Fatal("expected an error from DownloadPricingData when no access token is configured")
+	}
+}
+func TestCustomProviderClusterInfoUsesStaticDefaultName(t *testing.T) {
+	t.Setenv(coreenv.ClusterIDEnvVar, "")
+
+	customProvider := newTestCustomProvider(t, nil)
+
+	info, err := customProvider.ClusterInfo()
+	if err != nil {
+		t.Fatalf("ClusterInfo returned error: %v", err)
+	}
+
+	if info["name"] != "Custom Cluster" {
+		t.Errorf("name = %q, want %q", info["name"], "Custom Cluster")
+	}
+	if info["id"] != "default-cluster" {
+		t.Errorf("id = %q, want %q", info["id"], "default-cluster")
+	}
+}
+
+func TestCustomProviderLoadBalancerPricingEmptyConfig(t *testing.T) {
+	customProvider := newTestCustomProvider(t, nil)
+
+	lb, err := customProvider.LoadBalancerPricing()
+	if err != nil {
+		t.Fatalf("LoadBalancerPricing returned error: %v", err)
+	}
+	if lb.Cost != 0 {
+		t.Errorf("Cost = %f, want 0", lb.Cost)
+	}
+}
+
+func TestCustomProviderLoadBalancerPricingUsesDefaultLBPriceFallback(t *testing.T) {
+	customProvider := newTestCustomProvider(t, map[string]string{
+		"defaultLBPrice": "0.025",
+	})
+
+	lb, err := customProvider.LoadBalancerPricing()
+	if err != nil {
+		t.Fatalf("LoadBalancerPricing returned error: %v", err)
+	}
+	if lb.Cost != 0.025 {
+		t.Errorf("Cost = %f, want 0.025", lb.Cost)
+	}
+}
+
+func TestCustomProviderLoadBalancerPricingUsesForwardingRulePrice(t *testing.T) {
+	customProvider := newTestCustomProvider(t, map[string]string{
+		"firstFiveForwardingRulesCost": "0.02",
+		"defaultLBPrice":               "0.025",
+	})
+
+	lb, err := customProvider.LoadBalancerPricing()
+	if err != nil {
+		t.Fatalf("LoadBalancerPricing returned error: %v", err)
+	}
+	if lb.Cost != 0.02 {
+		t.Errorf("Cost = %f, want 0.02", lb.Cost)
+	}
+}
+
+func TestCustomProviderLoadBalancerPricingInvalidValue(t *testing.T) {
+	customProvider := newTestCustomProvider(t, map[string]string{
+		"firstFiveForwardingRulesCost": "not-a-price",
+	})
+
+	_, err := customProvider.LoadBalancerPricing()
+	if err == nil {
+		t.Fatal("LoadBalancerPricing returned nil error, want invalid pricing error")
+	}
+}
+
+func newTestCustomProvider(t *testing.T, pricing map[string]string) *CustomProvider {
+	t.Helper()
+
+	confMan := config.NewConfigFileManager(storage.NewMemoryStorage())
+	providerConfig := NewProviderConfig(confMan, "default.json")
+	if pricing != nil {
+		if _, err := providerConfig.UpdateFromMap(pricing); err != nil {
+			t.Fatalf("UpdateFromMap returned error: %v", err)
+		}
+	}
+
+	return &CustomProvider{
+		Config: providerConfig,
 	}
 }
