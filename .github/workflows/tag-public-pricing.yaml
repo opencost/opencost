@@ -7,6 +7,10 @@ on:
     paths:
       - 'modules/pricing/public/**'
 
+concurrency:
+  group: tag-public-pricing
+  cancel-in-progress: false
+
 jobs:
   tag:
     name: Auto-increment and push tag
