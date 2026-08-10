@@ -3,7 +3,7 @@ name: Tag public pricing module
 on:
   push:
     branches:
-      - main
+      - develop
     paths:
       - 'modules/pricing/public/**'
 
