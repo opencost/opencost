@@ -11,6 +11,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/stretchr/testify/require"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/mathutil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 )
@@ -1126,4 +1128,91 @@ func Test_extractAzureVMRetailAndSpotPrices_bodyReadError(t *testing.T) {
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "error getting response")
+}
+
+// fakeProviderConfig serves fixed pricing config, standing in for the file- and
+// ConfigMap-backed provider config.
+type fakeProviderConfig struct {
+	models.ProviderConfig
+	pricing *models.CustomPricing
+}
+
+func (f *fakeProviderConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	return f.pricing, nil
+}
+
+func TestAzure_ClusterManagementPricing(t *testing.T) {
+	aksNode := &clustercache.Node{Labels: map[string]string{opencost.AKSNodepoolLabel: "nodepool1"}}
+	vmNode := &clustercache.Node{Labels: map[string]string{"kubernetes.io/os": "linux"}}
+	aksProviderIDNode := &clustercache.Node{SpecProviderID: "azure:///subscriptions/sub/resourceGroups/MC_rg_cluster_eastus/providers/Microsoft.Compute/virtualMachineScaleSets/aks-nodepool1-1234-vmss/virtualMachines/0"}
+
+	cases := []struct {
+		name                string
+		tier                string
+		nodes               []*clustercache.Node
+		expectedProvisioner string
+		expectedPrice       float64
+	}{
+		{
+			name:                "standard tier",
+			tier:                "standard",
+			nodes:               []*clustercache.Node{vmNode, aksNode},
+			expectedProvisioner: managementPlatformAKS,
+			expectedPrice:       0.10,
+		},
+		{
+			name:                "detected from the provider ID when the label is absent",
+			tier:                "standard",
+			nodes:               []*clustercache.Node{aksProviderIDNode},
+			expectedProvisioner: managementPlatformAKS,
+			expectedPrice:       0.10,
+		},
+		{
+			name:  "provider ID heuristic considers only the first node, as before",
+			tier:  "standard",
+			nodes: []*clustercache.Node{vmNode, aksProviderIDNode},
+		},
+		{
+			name:                "free tier is not charged",
+			tier:                "Free",
+			nodes:               []*clustercache.Node{aksNode},
+			expectedProvisioner: managementPlatformAKS,
+		},
+		{
+			name:                "premium tier",
+			tier:                "premium",
+			nodes:               []*clustercache.Node{aksNode},
+			expectedProvisioner: managementPlatformAKS,
+			expectedPrice:       0.60,
+		},
+		{
+			name:                "unrecognized tier falls back to the default",
+			tier:                "uptime-sla",
+			nodes:               []*clustercache.Node{aksNode},
+			expectedProvisioner: managementPlatformAKS,
+			expectedPrice:       0.10,
+		},
+		{
+			name:  "self-managed cluster on Azure VMs is not charged",
+			tier:  "standard",
+			nodes: []*clustercache.Node{vmNode},
+		},
+		{
+			name: "cluster with no nodes is not charged",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			az := &Azure{
+				Clientset: &clustercache.MockClusterCache{Nodes: tc.nodes},
+				Config:    &fakeProviderConfig{pricing: &models.CustomPricing{AzureAKSPricingTier: tc.tier}},
+			}
+
+			provisioner, price, err := az.ClusterManagementPricing()
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedProvisioner, provisioner)
+			require.Equal(t, tc.expectedPrice, price)
+		})
+	}
 }
