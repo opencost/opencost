@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2020-09-01/commerce/mgmt/commerce"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -56,21 +55,7 @@ func (d *PriceSheetDownloader) getDownloadURL(ctx context.Context) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("creating credential: %w", err)
 	}
-	client, err := NewPriceSheetClient(d.BillingAccount, cred, nil)
-	if err != nil {
-		return "", fmt.Errorf("creating pricesheet client: %w", err)
-	}
-	poller, err := client.BeginDownloadByBillingPeriod(ctx, currentBillingPeriod())
-	if err != nil {
-		return "", fmt.Errorf("beginning pricesheet download: %w", err)
-	}
-	resp, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 30 * time.Second,
-	})
-	if err != nil {
-		return "", fmt.Errorf("polling for pricesheet: %w", err)
-	}
-	return resp.Properties.DownloadURL, nil
+	return priceSheetDownloadURL(ctx, cred, nil, d.BillingAccount, currentBillingPeriod())
 }
 
 func (d PriceSheetDownloader) saveData(ctx context.Context, url, tempName string) (io.ReadCloser, error) {
