@@ -2,11 +2,13 @@ package azure
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -217,6 +219,64 @@ func TestReadPriceSheetEmptyFile(t *testing.T) {
 	require.ErrorContains(t, err, "no header row found in price sheet")
 }
 
+// Diagnostics should quote the real line in the file, so a preamble must not
+// shift the numbering.
+func TestReadPricesheetHeaderReportsLinesConsumed(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     string
+		expected int
+	}{
+		{
+			name:     "current schema starts at the header",
+			data:     currentHeader + "\nrow\n",
+			expected: 1,
+		},
+		{
+			name:     "legacy schema has a title and a blank line first",
+			data:     legacyPricesheetData,
+			expected: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, consumed, err := readPricesheetHeader(bufio.NewReader(strings.NewReader(tt.data)))
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, consumed)
+		})
+	}
+}
+
+// A bad row in a legacy sheet sits at line 4 (title, blank, header, then data),
+// so that is what the warning has to say.
+func TestParsePricesheetLineNumbersMatchTheFile(t *testing.T) {
+	d := testDownloader()
+
+	// An unparseable unit price on the first data row.
+	data := legacyHeader + "\nid,VM,Virtual Machines,Series,US East,1 Hour,1 Hour,PN,not-a-number,USD,0,my-offer-id,,Consumption\n"
+	_, _, err := d.parsePricesheet(context.Background(), "", strings.NewReader(data))
+	require.NoError(t, err, "a bad price is skipped, not fatal")
+
+	// A malformed row (too few fields) is fatal, and reports its line.
+	broken := legacyHeader + "\nonly,three,fields\n"
+	_, _, err = d.parsePricesheet(context.Background(), "", strings.NewReader(broken))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "line 2", "header is line 1, so the first data row is line 2")
+
+	// The same row inside a zip part names the part it came from.
+	_, _, err = d.parsePricesheet(context.Background(), "part_2.csv", strings.NewReader(broken))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "part_2.csv line 2")
+
+	// With a legacy preamble the same row is physically on line 4: title,
+	// blank, header, data. Counting data rows instead would report 1 here.
+	withPreamble := "Price Sheet Report for billing period - 202304\n\n" + broken
+	_, _, err = d.parsePricesheet(context.Background(), "", strings.NewReader(withPreamble))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "line 4", "the preamble must count towards the line number")
+}
+
 func TestNewPriceSheetColumns(t *testing.T) {
 	t.Run("legacy schema", func(t *testing.T) {
 		cols, err := newPriceSheetColumns(strings.Split(legacyHeader, ","))
@@ -280,11 +340,12 @@ func buildZip(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	w := zip.NewWriter(&buf)
-	// Sort for a deterministic archive.
+	// Sort so the archive's entry order is deterministic across runs.
 	names := make([]string, 0, len(files))
 	for name := range files {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	for _, name := range names {
 		f, err := w.Create(name)
 		require.NoError(t, err)

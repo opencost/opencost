@@ -193,12 +193,12 @@ func (d *PriceSheetDownloader) readPricesheetZipEntry(ctx context.Context, entry
 		return nil, pricesheetStats{}, fmt.Errorf("opening: %w", err)
 	}
 	defer contents.Close()
-	return d.parsePricesheet(ctx, contents)
+	return d.parsePricesheet(ctx, entry.Name, contents)
 }
 
 // readPricesheet parses a single price sheet CSV.
 func (d *PriceSheetDownloader) readPricesheet(ctx context.Context, data io.Reader) (map[string]*AzurePricing, error) {
-	results, stats, err := d.parsePricesheet(ctx, data)
+	results, stats, err := d.parsePricesheet(ctx, "", data)
 	if err != nil {
 		return nil, err
 	}
@@ -234,14 +234,14 @@ func (s *pricesheetStats) add(other pricesheetStats) {
 
 // parsePricesheet reads a price sheet CSV without judging whether the result is
 // usable, so that zipped sheets can be assessed across all their parts.
-func (d *PriceSheetDownloader) parsePricesheet(ctx context.Context, data io.Reader) (map[string]*AzurePricing, pricesheetStats, error) {
+func (d *PriceSheetDownloader) parsePricesheet(ctx context.Context, source string, data io.Reader) (map[string]*AzurePricing, pricesheetStats, error) {
 	// Avoid double-buffering.
 	buf, ok := (data).(*bufio.Reader)
 	if !ok {
 		buf = bufio.NewReader(data)
 	}
 
-	cols, header, err := readPricesheetHeader(buf)
+	cols, header, headerLines, err := readPricesheetHeader(buf)
 	if err != nil {
 		return nil, pricesheetStats{}, err
 	}
@@ -257,7 +257,9 @@ func (d *PriceSheetDownloader) parsePricesheet(ctx context.Context, data io.Read
 		units:          make(map[string]bool),
 	}
 	results := make(map[string]*AzurePricing)
-	lines := 1
+	// Continue numbering from the header so these match the line numbers a
+	// reader would see opening the CSV.
+	lines := headerLines
 	for {
 		row, err := reader.Read()
 		if err == io.EOF {
@@ -265,7 +267,7 @@ func (d *PriceSheetDownloader) parsePricesheet(ctx context.Context, data io.Read
 		}
 		lines++
 		if err != nil {
-			return nil, stats, fmt.Errorf("reading line %d: %w", lines, err)
+			return nil, stats, fmt.Errorf("reading %s: %w", describeLine(source, lines), err)
 		}
 
 		// Only consumption prices are useful here. Savings plan and reserved
@@ -290,13 +292,13 @@ func (d *PriceSheetDownloader) parsePricesheet(ctx context.Context, data io.Read
 		// lot of GC churn - is it worth reusing one meter info instead?
 		meterInfo, err := makeMeterInfo(cols, row)
 		if err != nil {
-			log.Warnf("making meter info (line %d): %v", lines, err)
+			log.Warnf("making meter info (%s): %v", describeLine(source, lines), err)
 			continue
 		}
 
 		pricings, err := d.ConvertMeterInfo(meterInfo)
 		if err != nil {
-			log.Warnf("converting meter to pricings (line %d): %v", lines, err)
+			log.Warnf("converting meter to pricings (%s): %v", describeLine(source, lines), err)
 			continue
 		}
 
@@ -310,6 +312,15 @@ func (d *PriceSheetDownloader) parsePricesheet(ctx context.Context, data io.Read
 	}
 
 	return results, stats, nil
+}
+
+// describeLine names a position in the sheet. A zipped sheet is split across
+// several CSV parts, so a bare line number wouldn't say which one to look at.
+func describeLine(source string, line int) string {
+	if source == "" {
+		return fmt.Sprintf("line %d", line)
+	}
+	return fmt.Sprintf("%s line %d", source, line)
 }
 
 // logPricesheetUnits records the units seen so we can detect any that still need
@@ -361,32 +372,39 @@ func isConsumptionPriceType(priceType string) bool {
 const maxPreambleLines = 4
 
 // readPricesheetHeader consumes everything up to and including the header row,
-// leaving buf positioned at the first data row.
-func readPricesheetHeader(buf *bufio.Reader) (priceSheetColumns, []string, error) {
+// leaving buf positioned at the first data row. It also reports how many lines
+// it consumed, so that row numbers in later diagnostics line up with the file
+// whether or not the sheet had a preamble.
+func readPricesheetHeader(buf *bufio.Reader) (priceSheetColumns, []string, int, error) {
 	var headerErr error
+	consumed := 0
 	for i := 0; i < maxPreambleLines; i++ {
 		line, err := buf.ReadString('\n')
 		if line == "" {
+			break
+		}
+		consumed++
+
+		line = strings.TrimRight(line, "\r\n")
+		if strings.TrimSpace(line) == "" {
 			if err != nil {
 				break
 			}
 			continue
 		}
 
-		line = strings.TrimRight(line, "\r\n")
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-
 		fields, parseErr := parseCSVLine(line)
 		if parseErr != nil {
 			headerErr = fmt.Errorf("reading header: %w", parseErr)
+			if err != nil {
+				break
+			}
 			continue
 		}
 
 		cols, colsErr := newPriceSheetColumns(fields)
 		if colsErr == nil {
-			return cols, fields, nil
+			return cols, fields, consumed, nil
 		}
 		headerErr = colsErr
 
@@ -397,7 +415,7 @@ func readPricesheetHeader(buf *bufio.Reader) (priceSheetColumns, []string, error
 	if headerErr == nil {
 		headerErr = errors.New("no header row found in price sheet")
 	}
-	return priceSheetColumns{}, nil, headerErr
+	return priceSheetColumns{}, nil, consumed, headerErr
 }
 
 func parseCSVLine(line string) ([]string, error) {

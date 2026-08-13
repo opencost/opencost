@@ -34,9 +34,10 @@ import (
 // pointing at an operationResults URL that eventually answers 200 with the
 // generated download link.
 
-// pollFrequency is how often we poll the operationResults URL. Generating the
-// sheet can take several minutes, and the service asks for 60s in Retry-After,
-// so there is no point polling aggressively.
+// pollFrequency is how long to wait between polls of the operationResults URL
+// when the service doesn't tell us. Cost Management normally answers with
+// Retry-After (60s at the time of writing), which azcore honours in preference
+// to this, so it only applies if that header is ever missing.
 const pollFrequency = 30 * time.Second
 
 // priceSheetDownloadURL asks Cost Management to generate the price sheet for the

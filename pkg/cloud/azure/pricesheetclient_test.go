@@ -93,7 +93,7 @@ func (ps *priceSheetServer) downloadRequest() *http.Request {
 // TestPriceSheetDownloadURL_UsesCostManagementAPI checks that we call the current
 // Cost Management endpoint. The Microsoft.Consumption pricesheets/download API
 // this replaced was retired on 01 June 2026 and had already started rejecting
-// EnrollmentReader service principals with AuthorizationFailed (issue #4003).
+// EnrollmentReader service principals with AuthorizationFailed (issue #3993).
 func TestPriceSheetDownloadURL_UsesCostManagementAPI(t *testing.T) {
 	const downloadURL = "https://example.blob.core.windows.net/pricesheet.zip?sig=abc"
 	server := newPriceSheetServer(t, fmt.Sprintf(`{"status":"Completed","properties":{"reportUrl":%q,"validUntil":"2026-09-30T17:32:28Z"}}`, downloadURL))
