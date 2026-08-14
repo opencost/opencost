@@ -17,10 +17,10 @@ const (
 
 // retryTransport is an http.RoundTripper that retries requests on 429 and 503s
 type retryTransport struct {
-	wrapped     http.RoundTripper
-	maxRetries  int
-	baseWait    time.Duration
-	maxWait     time.Duration
+	wrapped    http.RoundTripper
+	maxRetries int
+	baseWait   time.Duration
+	maxWait    time.Duration
 }
 
 func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
