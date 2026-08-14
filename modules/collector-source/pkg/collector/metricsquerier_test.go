@@ -163,30 +163,68 @@ func GetMockCollectorProvider() StoreProvider {
 	collector.Update(metric.VLLMNumPreemptionsTotal, inference1Info, 2, start, nil)
 	collector.Update(metric.VLLMNumPreemptionsTotal, inference1Info, 6, end, nil)
 
-	// Inference cost counters roll up by (model_name, namespace) rather than
-	// by pod, so their label set is the name pair.
+	// Inference cost counters are measured per model-server pod and rolled up
+	// to (model_name, namespace) in the querier, so their label set carries
+	// pod identity. TWO replicas of the same model are seeded deliberately: a
+	// single replica produces identical results under per-pod and per-model
+	// grouping, so a one-replica fixture certifies nothing about either.
 	inferenceCost1Info := map[string]string{
 		source.InferenceModelNameLabel: "Qwen3-32B",
+		source.PodUIDLabel:             "pod1-uid",
 		source.NamespaceLabel:          "namespace1",
+		source.NamespaceUIDLabel:       "namespace1-uid",
 	}
+	inferenceCost2Info := map[string]string{
+		source.InferenceModelNameLabel: "Qwen3-32B",
+		source.PodUIDLabel:             "pod2-uid",
+		source.NamespaceLabel:          "namespace1",
+		source.NamespaceUIDLabel:       "namespace1-uid",
+	}
+	// Ordered by scrape cycle, not by pod. The scrape controller applies a
+	// whole cycle as one UpdateSet sharing a timestamp, so interleaving a
+	// second replica's start sample after the first replica's end sample would
+	// be an artifact of the fixture and would make these tests pass for the
+	// wrong reason.
 	collector.Update(metric.VLLMPromptTokensTotal, inferenceCost1Info, 1000, start, nil)
+	collector.Update(metric.VLLMPromptTokensTotal, inferenceCost2Info, 300, start, nil)
 	collector.Update(metric.VLLMPromptTokensTotal, inferenceCost1Info, 5000, end, nil)
+	collector.Update(metric.VLLMPromptTokensTotal, inferenceCost2Info, 800, end, nil)
 	collector.Update(metric.VLLMGenerationTokensTotal, inferenceCost1Info, 200, start, nil)
+	collector.Update(metric.VLLMGenerationTokensTotal, inferenceCost2Info, 50, start, nil)
 	collector.Update(metric.VLLMGenerationTokensTotal, inferenceCost1Info, 900, end, nil)
+	collector.Update(metric.VLLMGenerationTokensTotal, inferenceCost2Info, 150, end, nil)
 	collector.Update(metric.VLLMPrefixCacheHitsTotal, inferenceCost1Info, 10, start, nil)
+	collector.Update(metric.VLLMPrefixCacheHitsTotal, inferenceCost2Info, 5, start, nil)
 	collector.Update(metric.VLLMPrefixCacheHitsTotal, inferenceCost1Info, 60, end, nil)
+	collector.Update(metric.VLLMPrefixCacheHitsTotal, inferenceCost2Info, 25, end, nil)
 	collector.Update(metric.VLLMRequestPrefillTimeSecondsSum, inferenceCost1Info, 2, start, nil)
+	collector.Update(metric.VLLMRequestPrefillTimeSecondsSum, inferenceCost2Info, 1, start, nil)
 	collector.Update(metric.VLLMRequestPrefillTimeSecondsSum, inferenceCost1Info, 8, end, nil)
+	collector.Update(metric.VLLMRequestPrefillTimeSecondsSum, inferenceCost2Info, 4, end, nil)
 	collector.Update(metric.VLLMRequestTimePerOutputTokenSecondsSum, inferenceCost1Info, 5, start, nil)
+	collector.Update(metric.VLLMRequestTimePerOutputTokenSecondsSum, inferenceCost2Info, 3, start, nil)
 	collector.Update(metric.VLLMRequestTimePerOutputTokenSecondsSum, inferenceCost1Info, 20, end, nil)
+	collector.Update(metric.VLLMRequestTimePerOutputTokenSecondsSum, inferenceCost2Info, 9, end, nil)
 
 	// cache_config_info is an info metric: the payload rides on AdditionalInfo.
+	// Both replicas report the same setting here; disagreement is covered by a
+	// dedicated test.
 	cacheConfig1Info := map[string]string{
 		source.InferenceModelNameLabel:  "Qwen3-32B",
+		source.PodUIDLabel:              "pod1-uid",
 		source.NamespaceLabel:           "namespace1",
+		source.NamespaceUIDLabel:        "namespace1-uid",
+		source.EnablePrefixCachingLabel: "true",
+	}
+	cacheConfig2Info := map[string]string{
+		source.InferenceModelNameLabel:  "Qwen3-32B",
+		source.PodUIDLabel:              "pod2-uid",
+		source.NamespaceLabel:           "namespace1",
+		source.NamespaceUIDLabel:        "namespace1-uid",
 		source.EnablePrefixCachingLabel: "true",
 	}
 	collector.Update(metric.VLLMCacheConfigInfo, cacheConfig1Info, 1, start, cacheConfig1Info)
+	collector.Update(metric.VLLMCacheConfigInfo, cacheConfig2Info, 1, start, cacheConfig2Info)
 
 	collector.Update(metric.KubecostNetworkZoneEgressCost, nil, 1, start, nil)
 	collector.Update(metric.KubecostNetworkRegionEgressCost, nil, 2, start, nil)
@@ -1125,11 +1163,11 @@ func TestCollectorMetricsQuerier_QueryInferenceCost(t *testing.T) {
 			want  float64
 		}{
 			// seeded 1000 -> 5000 over the window
-			"prompt tokens": {query: c.QueryInferencePromptTokens, want: 4000},
+			"prompt tokens": {query: c.QueryInferencePromptTokens, want: 4500},
 			// seeded 200 -> 900
-			"generation tokens": {query: c.QueryInferenceGenerationTokens, want: 700},
+			"generation tokens": {query: c.QueryInferenceGenerationTokens, want: 800},
 			// seeded 10 -> 60
-			"cached tokens": {query: c.QueryInferenceCachedTokens, want: 50},
+			"cached tokens": {query: c.QueryInferenceCachedTokens, want: 70},
 		}
 
 		for name, tt := range tests {
@@ -1154,9 +1192,9 @@ func TestCollectorMetricsQuerier_QueryInferenceCost(t *testing.T) {
 			want  float64
 		}{
 			// seeded 2 -> 8
-			"input processing time": {query: c.QueryInferenceInputProcessingTime, want: 6},
+			"input processing time": {query: c.QueryInferenceInputProcessingTime, want: 9},
 			// seeded 5 -> 20
-			"output processing time": {query: c.QueryInferenceOutputProcessingTime, want: 15},
+			"output processing time": {query: c.QueryInferenceOutputProcessingTime, want: 21},
 		}
 
 		for name, tt := range tests {
@@ -1191,4 +1229,70 @@ func TestCollectorMetricsQuerier_QueryInferenceCost(t *testing.T) {
 			t.Errorf("PrefixCachingEnabled = false, want true")
 		}
 	})
+}
+
+// TestCollectorInferenceCost_ReplicaResetDoesNotEraseOtherReplicas is the test
+// that actually distinguishes per-pod measurement from per-model measurement.
+// A two-replica fixture with no reset returns the same total either way, so it
+// certifies nothing on its own; only a reset separates them.
+//
+// The Increase aggregator credits an increase only when the pooled total rises
+// (aggregator/increase.go). With both replicas in one aggregator, replica A
+// restarting drags the pooled total below its previous value and the whole
+// cycle's increase is discarded, including replica B's growth, which never
+// reset.
+//
+// Scrape cycles, one timestamp each, both replicas per cycle:
+//
+//	          t0     t1            t2
+//	pod A    1000   1500   200 (restarted)
+//	pod B     100    200   300
+//
+// Per replica: A contributes 500 across t0 to t1, then its post-reset 200 is
+// not credited as growth because 200 < 1500, so A totals 500. B rises
+// 100 -> 200 -> 300, so B totals 200. The model total is 700.
+func TestCollectorInferenceCost_ReplicaResetDoesNotEraseOtherReplicas(t *testing.T) {
+	t0, _ := time.Parse(time.RFC3339, Start1Str)
+	t1 := t0.Add(20 * time.Minute)
+	t2 := t0.Add(40 * time.Minute)
+
+	store := NewOpenCostMetricStore()
+
+	podA := map[string]string{
+		source.InferenceModelNameLabel: "Qwen3-32B",
+		source.PodUIDLabel:             "pod-a-uid",
+		source.NamespaceLabel:          "llm-d",
+		source.NamespaceUIDLabel:       "llm-d-uid",
+	}
+	podB := map[string]string{
+		source.InferenceModelNameLabel: "Qwen3-32B",
+		source.PodUIDLabel:             "pod-b-uid",
+		source.NamespaceLabel:          "llm-d",
+		source.NamespaceUIDLabel:       "llm-d-uid",
+	}
+
+	store.Update(metric.VLLMPromptTokensTotal, podA, 1000, t0, nil)
+	store.Update(metric.VLLMPromptTokensTotal, podB, 100, t0, nil)
+	store.Update(metric.VLLMPromptTokensTotal, podA, 1500, t1, nil)
+	store.Update(metric.VLLMPromptTokensTotal, podB, 200, t1, nil)
+	// pod A restarts: its counter drops to 200.
+	store.Update(metric.VLLMPromptTokensTotal, podA, 200, t2, nil)
+	store.Update(metric.VLLMPromptTokensTotal, podB, 300, t2, nil)
+
+	c := &collectorMetricsQuerier{collectorProvider: &MockStoreProvider{metricsCollector: store}}
+
+	res, err := c.QueryInferencePromptTokens(t0, t2).Await()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err.Error())
+	}
+	if len(res) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(res))
+	}
+
+	const key = "Qwen3-32B:llm-d"
+	const want = 700.0
+	if got := res[0].Values[key]; got != want {
+		t.Errorf("prompt tokens = %v, want %v (500 from the replica that reset plus 200 from the one that did not); "+
+			"a lower value means one replica's reset erased the other's growth", got, want)
+	}
 }

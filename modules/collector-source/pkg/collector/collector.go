@@ -1851,13 +1851,22 @@ func NewInferenceRunningRequestsP95MetricCollector() *metric.MetricCollector {
 // Inference Cost Metric Collectors
 //
 // These back the token and timing queries the inference cost feature reads.
-// Unlike the saturation collectors above, they group by (model_name,
-// namespace) rather than by pod, because their result types are keyed
-// "model_name:namespace" and the cost collector merges per-pod rows by
-// overwrite; the Prometheus source computes the same rollup with
-// `sum by (model_name, namespace)`. Summing across replicas inside a single
-// aggregator reproduces that, because these are additive counters and every
-// scrape cycle carries one timestamp.
+// Like the saturation collectors above, they measure per model-server pod;
+// the rollup to (model_name, namespace) happens in the querier
+// (queryCollectorInferenceRollup), because that is the key the result types
+// and the inference cost API publish.
+//
+// Measuring per pod is a correctness requirement, not consistency. The
+// Increase aggregator pools every same-timestamp sample into one running
+// total and credits an increase only when that total rises, so several
+// replicas sharing one aggregator produce two errors: one replica restarting
+// drags the pooled total down and discards the whole group's increase for
+// that cycle, and a replica discovered mid-window folds its entire cumulative
+// counter in as a single cycle's growth. Per-pod aggregators remove both.
+//
+// The cost is one scrape interval of tokens per newly created pod, since a
+// fresh aggregator does not credit its first sample. That is far smaller than
+// the errors above, and it is pinned by test.
 
 //	increase(
 //		vllm:prompt_tokens_total[1h]
@@ -1908,7 +1917,12 @@ func newInferenceCostCounterCollector(id metric.MetricCollectorID, metricName st
 		metricName,
 		[]string{
 			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			// The namespace name stays in the grouping because the querier
+			// rebuilds the "model_name:namespace" key from it. Dropping it
+			// would make every rolled-up key "model_name:".
 			source.NamespaceLabel,
+			source.NamespaceUIDLabel,
 		},
 		aggregator.Increase,
 		func(labels map[string]string) bool {
@@ -1935,7 +1949,11 @@ func NewInferenceCacheConfigMetricCollector() *metric.MetricCollector {
 		metric.VLLMCacheConfigInfo,
 		[]string{
 			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
 			source.NamespaceLabel,
+			source.NamespaceUIDLabel,
+			// Carried so the querier can OR it across a model's replicas.
+			source.EnablePrefixCachingLabel,
 		},
 		aggregator.Info,
 		func(labels map[string]string) bool {
