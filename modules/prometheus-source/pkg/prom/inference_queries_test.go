@@ -14,10 +14,18 @@ import (
 
 // fakePromClient implements the prometheus api.Client interface, dispatching
 // canned vector responses keyed by substrings of the PromQL query.
+type promRule struct {
+	substr string
+	res    string
+}
+
 type fakePromClient struct {
 	// responses maps a query substring to the JSON "result" array content.
 	responses map[string]string
-	queries   []string
+	// ordered is checked first, in order, for cases where several substrings
+	// match one query and the choice must be deterministic.
+	ordered []promRule
+	queries []string
 }
 
 func (f *fakePromClient) URL(ep string, args map[string]string) *url.URL {
@@ -30,6 +38,17 @@ func (f *fakePromClient) Do(_ context.Context, req *http.Request) (*http.Respons
 	f.queries = append(f.queries, query)
 
 	result := "[]"
+	// Ordered rules take precedence over the map, because more than one
+	// substring can match a single query: the counter-delta path pins both its
+	// end query and its window-max query to the same timestamp, so a map
+	// keyed on "@ <unix>" alone would dispatch nondeterministically by Go map
+	// iteration order.
+	for _, rule := range f.ordered {
+		if strings.Contains(query, rule.substr) {
+			body := fmt.Sprintf(`{"status":"success","data":{"resultType":"vector","result":%s}}`, rule.res)
+			return &http.Response{StatusCode: http.StatusOK}, []byte(body), nil
+		}
+	}
 	for substr, res := range f.responses {
 		if strings.Contains(query, substr) {
 			result = res
@@ -251,20 +270,69 @@ func TestQueryInferencePreemptions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(client.queries) != 2 {
-			t.Fatalf("expected 2 queries, got %d", len(client.queries))
+		// End, start, and the window maximum used to correct a reset.
+		if len(client.queries) != 3 {
+			t.Fatalf("expected 3 queries, got %d", len(client.queries))
 		}
 		if !strings.Contains(client.queries[0], "sum by (model_name, pod_uid, namespace_uid, engine, cluster_id) (((last_over_time(vllm:num_preemptions_total[") {
 			t.Errorf("unexpected end-of-window query: %q", client.queries[0])
 		}
+		var sawMax bool
+		for _, q := range client.queries {
+			if strings.Contains(q, "max_over_time(vllm:num_preemptions_total[") {
+				sawMax = true
+			}
+		}
+		if !sawMax {
+			t.Errorf("no window-maximum query issued; reset correction cannot recover pre-reset progress: %q", client.queries)
+		}
 		requireSingleResult(t, results, 25)
 	})
 
-	t.Run("counter reset falls back to the end value", func(t *testing.T) {
-		q, _ := newFakeQuerier(map[string]string{
-			fmt.Sprintf("@ %d", end.Unix()):   "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 4) + "]",
-			fmt.Sprintf("@ %d", start.Unix()): "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 100) + "]",
-		})
+	// A counter that restarts mid-window has made progress the two endpoints
+	// cannot see. The window maximum recovers it: the counter climbed from the
+	// start value to its peak, then restarted and climbed to the end value.
+	//
+	// Worked example, matching Prometheus' own increase() on the same samples:
+	// 100, 110, restart, 5, 15, 25. The pre-reset progress is 110 - 100 = 10,
+	// the post-reset progress is 25, and the reported increase is 35. Falling
+	// back to the end value alone reports 25 and silently drops everything
+	// before the restart.
+	t.Run("counter reset recovers pre-reset progress from the window maximum", func(t *testing.T) {
+		client := &fakePromClient{ordered: []promRule{
+			{substr: "max_over_time(", res: "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 110) + "]"},
+			{substr: fmt.Sprintf("@ %d", start.Unix()), res: "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 100) + "]"},
+			{substr: "last_over_time(", res: "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 25) + "]"},
+		}}
+		config := &OpenCostPrometheusConfig{ClusterLabel: "cluster_id"}
+		q := &PrometheusMetricsQuerier{
+			promConfig:   config,
+			promClient:   client,
+			promContexts: NewContextFactory(client, config),
+		}
+
+		results, err := q.QueryInferencePreemptions(start, end).Await()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// (110 - 100) + 25
+		requireSingleResult(t, results, 35)
+	})
+
+	// If the window maximum is not available, the end value remains the lower
+	// bound rather than the delta going negative.
+	t.Run("counter reset without a window maximum falls back to the end value", func(t *testing.T) {
+		client := &fakePromClient{ordered: []promRule{
+			{substr: "max_over_time(", res: "[]"},
+			{substr: fmt.Sprintf("@ %d", start.Unix()), res: "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 100) + "]"},
+			{substr: "last_over_time(", res: "[" + vectorSample("Qwen3-32B", "ns-uid", "pod-uid-0", 4) + "]"},
+		}}
+		config := &OpenCostPrometheusConfig{ClusterLabel: "cluster_id"}
+		q := &PrometheusMetricsQuerier{
+			promConfig:   config,
+			promClient:   client,
+			promContexts: NewContextFactory(client, config),
+		}
 
 		results, err := q.QueryInferencePreemptions(start, end).Await()
 		if err != nil {

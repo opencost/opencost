@@ -361,15 +361,44 @@ func queryCounterDeltaByReplica(ctx *Context, metric string, start, end time.Tim
 		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
 	}
 
+	// The window maximum is only needed to correct a reset, but it has to be
+	// fetched before the loop because Prometheus is queried per expression
+	// rather than per series. It is cheap: one more instant query per metric.
+	maxInner := fmt.Sprintf(`max_over_time(%s[%dm] @ %d)`, selector, windowMinutes, endUnix)
+	maxQuery := fmt.Sprintf(`sum by (%s) (%s)`, groupBy, joinNamespaceUID(maxInner, ctx.config.ClusterLabel))
+	maxVals, err := queryInstantMetricByReplica(ctx, maxQuery, effectiveEnd)
+	if err != nil {
+		return nil, fmt.Errorf("window-max query for %s: %w", metric, err)
+	}
+
 	results := make([]*source.QueryResult, 0, len(endVals))
 	for key, endVal := range endVals {
 		delta := endVal.value
 		if startVal, ok := startVals[key]; ok {
 			delta = endVal.value - startVal.value
 			if delta < 0 {
-				// Counter reset detected: use the end value to capture
-				// post-reset activity rather than reporting 0.
-				delta = endVal.value
+				// Counter reset. The progress made before the reset is lost
+				// from the endpoints alone, so recover it from the window
+				// maximum: the counter climbed from the start value to its
+				// peak, then restarted and climbed to the end value. This is
+				// what Prometheus' own increase() reports, where using the end
+				// value alone silently drops everything before the restart.
+				//
+				// Exact for one reset in the window. With two or more, the
+				// peak of the second cycle is not observable from an instant
+				// query, so this is a lower bound rather than a guess in the
+				// wrong direction.
+				//
+				// This is only correct because the group isolates a single
+				// series: sum by (...) (max_over_time(...)) is the sum of
+				// per-series maxima, not the maximum of the summed series. The
+				// engine index is in the grouping precisely so that a
+				// data-parallel pod does not break this.
+				if maxVal, ok := maxVals[key]; ok && maxVal.value >= startVal.value {
+					delta = (maxVal.value - startVal.value) + endVal.value
+				} else {
+					delta = endVal.value
+				}
 			}
 		}
 		results = append(results, source.NewQueryResult(
