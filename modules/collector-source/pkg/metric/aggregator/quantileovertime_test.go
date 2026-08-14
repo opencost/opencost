@@ -175,3 +175,53 @@ func TestQuantileOverTimeAggregator_PoolsAcrossSeries(t *testing.T) {
 		t.Errorf("single-series p95 = %v, want %v", got, wantSingleSeries)
 	}
 }
+
+// TestQuantileOverTimeAggregator_WarnsOnCoarseGrouping pins the guard on the
+// series-granularity precondition. A documented precondition alone is not
+// enforcement: a future collector registered with a grouping coarser than one
+// series compiles, runs, passes every test in this package, and silently
+// returns a quantile over pooled series. Within one series each scrape
+// timestamp appears once, so a repeated timestamp is direct evidence of
+// pooling and is the cheapest available signal.
+func TestQuantileOverTimeAggregator_WarnsOnCoarseGrouping(t *testing.T) {
+	time1 := time.Now()
+	time2 := time1.Add(30 * time.Minute)
+
+	t.Run("repeated timestamp trips the guard once", func(t *testing.T) {
+		agg := QuantileOverTime(0.95)(nil).(*quantileOverTimeAggregator)
+
+		agg.Update(2, time1, nil)
+		if agg.warned {
+			t.Fatal("guard tripped on the first sample of a timestamp")
+		}
+
+		agg.Update(3, time1, nil)
+		if !agg.warned {
+			t.Error("guard did not trip on a repeated timestamp, so coarse grouping stays silent")
+		}
+
+		// Warning is one-shot: the grouping is a static property of the
+		// collector, so every later sample would repeat the same fault.
+		agg.Update(5, time2, nil)
+		agg.Update(6, time2, nil)
+		if agg.seenTimestamps != nil {
+			t.Error("timestamp set retained after warning; it should be released")
+		}
+
+		// The guard must not change the computed value.
+		if got := agg.Value()[0].Value; got != 5.85 {
+			t.Errorf("pooled p95 = %v, want 5.85; the guard must observe, not alter", got)
+		}
+	})
+
+	t.Run("one sample per timestamp stays silent", func(t *testing.T) {
+		agg := QuantileOverTime(0.95)(nil).(*quantileOverTimeAggregator)
+		agg.Update(2, time1, nil)
+		agg.Update(4, time2, nil)
+		agg.Update(1, time1.Add(time.Hour), nil)
+
+		if agg.warned {
+			t.Error("guard tripped on a well-formed single series")
+		}
+	})
+}

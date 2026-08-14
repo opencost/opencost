@@ -5,6 +5,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/opencost/opencost/core/pkg/log"
 )
 
 // quantileOverTimeAggregator retains the values observed in the window and
@@ -39,6 +41,16 @@ type quantileOverTimeAggregator struct {
 	labelValues []string
 	phi         float64
 	values      []float64
+
+	// seenTimestamps detects a violation of the series-granularity
+	// precondition. Within one series a scrape timestamp appears exactly once,
+	// so a repeat is direct evidence that the owning MetricCollector groups
+	// coarser than one series and that several series are pooling here. That
+	// silently returns a quantile of the pooled samples instead of a quantile
+	// of the series, which is a plausible number rather than an obviously
+	// wrong one, so it warrants a warning rather than a silent result.
+	seenTimestamps map[int64]struct{}
+	warned         bool
 }
 
 // QuantileOverTime returns a MetricAggregatorFactory that computes the
@@ -71,6 +83,25 @@ func (a *quantileOverTimeAggregator) LabelValues() []string {
 func (a *quantileOverTimeAggregator) Update(value float64, timestamp time.Time, additionalInfo map[string]string) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
+
+	if !a.warned {
+		unix := timestamp.Unix()
+		if a.seenTimestamps == nil {
+			a.seenTimestamps = make(map[int64]struct{})
+		}
+		if _, repeat := a.seenTimestamps[unix]; repeat {
+			// Warn once per aggregator: the grouping is a static property of
+			// the collector, so every subsequent sample repeats the same fault.
+			log.Warnf("QuantileOverTime: multiple samples share timestamp %d for label values %v; "+
+				"the owning MetricCollector is grouping coarser than one series, so this quantile is "+
+				"computed over pooled series rather than over one series", unix, a.labelValues)
+			a.warned = true
+			a.seenTimestamps = nil
+		} else {
+			a.seenTimestamps[unix] = struct{}{}
+		}
+	}
+
 	a.values = append(a.values, value)
 }
 
