@@ -102,8 +102,13 @@ func NewQueryResults(query string, queryResult interface{}, resultKeys *source.R
 	}
 	resultsData, ok := resultData.([]interface{})
 	if !ok {
-		qrs.Error = ResultFieldFormatErr(query, resultData)
-		return qrs
+		// Google Managed Prometheus returns "result": null instead of an empty array
+		// for empty matrix results, e.g. for subqueries over ranges without samples.
+		// Treat it like an empty result instead of failing.
+		if resultData != nil {
+			qrs.Error = ResultFieldFormatErr(query, resultData)
+			return qrs
+		}
 	}
 
 	// Result vectors from the query
