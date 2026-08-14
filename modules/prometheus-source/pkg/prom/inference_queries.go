@@ -332,7 +332,23 @@ func queryCounterDeltaByReplica(ctx *Context, metric string, start, end time.Tim
 		return nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
 	}
 
-	startInner := fmt.Sprintf(`last_over_time(%s[2m] @ %d)`, selector, startUnix)
+	// The start lookback spans the whole window, matching the end query rather
+	// than using a narrow fixed one. A narrow lookback leaves a replica that
+	// gapped for longer than it with no baseline at all, and a missing
+	// baseline reads as zero, so the counter's entire lifetime value is
+	// reported as this window's delta. Two minutes is a single missed scrape
+	// at a 60s interval, and downsampled blocks may carry no raw sample that
+	// close to an arbitrary timestamp.
+	//
+	// Widening it is safe here specifically because the pairing is per
+	// (model_name, pod_uid) and the delta loop iterates the end values only: a
+	// longer lookback can supply an older baseline for a pod present at the
+	// end, but a pod that terminated before the window is never summed in. The
+	// same widening over a sum-by-model rollup would not be safe.
+	//
+	// Residual: a replica that gapped for longer than the whole window still
+	// has no baseline and still reports its lifetime value.
+	startInner := fmt.Sprintf(`last_over_time(%s[%dm] @ %d)`, selector, windowMinutes, startUnix)
 	startQuery := fmt.Sprintf(`sum by (%s) (%s)`, groupBy, joinNamespaceUID(startInner, ctx.config.ClusterLabel))
 	startVals, err := queryInstantMetricByReplica(ctx, startQuery, effectiveEnd)
 	if err != nil {

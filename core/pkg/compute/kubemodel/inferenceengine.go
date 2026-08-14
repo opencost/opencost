@@ -54,6 +54,18 @@ func (km *KubeModel) computeInferenceEngines(kms *kubemodel.KubeModelSet, start,
 					Engine: kubemodel.EngineVLLM,
 				}
 				serverMap[res.PodUID] = server
+			} else if server.ModelName != res.ModelName {
+				// Identity comes from the first row seen for a pod UID while
+				// the value is taken from every row, so a pod emitting more
+				// than one model name would stamp one model's measurement with
+				// another model's identity, and collector results iterate a Go
+				// map, so which one wins is not stable. One engine per pod
+				// makes this unreachable today; say so loudly rather than
+				// silently corrupting if that ever stops holding (data
+				// parallelism is the known candidate).
+				log.Warnf("InferenceEngine: pod %s reported model %q and %q; keeping %q. "+
+					"Measurements for this pod may be attributed to the wrong model.",
+					res.PodUID, server.ModelName, res.ModelName, server.ModelName)
 			}
 
 			set(server, res.Value)
