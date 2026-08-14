@@ -19,10 +19,17 @@ option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
 // rollup by served model is a view a consumer computes from modelName. The
 // measurement window is the KubeModelSet's window and is not repeated here.
 message InferenceEngine {
-  // Identification
-  string podUid = 1;        // UID of the model-server pod (the entry's key)
+  // Identification. The entry's key is (podUid, engineIndex): one pod can run
+  // several engine cores, so the pod alone does not identify an engine.
+  string podUid = 1;        // UID of the model-server pod
   string namespaceUid = 2;  // UID of the pod's namespace
   string modelName = 3;     // Served model name (vLLM model_name metric label)
+
+  // Index of the engine core within the pod (vLLM's "engine" metric label,
+  // the stringified core index). A single-engine deployment reports "0"; a
+  // data-parallel deployment reports one series per rank from one pod. Not to
+  // be confused with the engine field below, which is the metric mapping.
+  string engineIndex = 15;
 
   // Serving engine whose metrics populated this entry ("vllm" today). Field
   // semantics are normalized per the Model Server Protocol; engine preserves

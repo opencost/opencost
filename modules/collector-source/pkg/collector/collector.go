@@ -1642,6 +1642,7 @@ func NewInferenceKVCacheUsageAvgMetricCollector() *metric.MetricCollector {
 			source.InferenceModelNameLabel,
 			source.PodUIDLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -1664,6 +1665,7 @@ func NewInferenceKVCacheUsageMaxMetricCollector() *metric.MetricCollector {
 			source.InferenceModelNameLabel,
 			source.PodUIDLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
@@ -1686,6 +1688,7 @@ func NewInferenceQueueDepthAvgMetricCollector() *metric.MetricCollector {
 			source.InferenceModelNameLabel,
 			source.PodUIDLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -1708,6 +1711,7 @@ func NewInferenceQueueDepthMaxMetricCollector() *metric.MetricCollector {
 			source.InferenceModelNameLabel,
 			source.PodUIDLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
@@ -1730,6 +1734,7 @@ func NewInferenceRunningRequestsAvgMetricCollector() *metric.MetricCollector {
 			source.InferenceModelNameLabel,
 			source.PodUIDLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
@@ -1750,6 +1755,7 @@ func NewInferencePreemptionsMetricCollector() *metric.MetricCollector {
 			source.InferenceModelNameLabel,
 			source.PodUIDLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 		},
 		aggregator.Increase,
 		func(labels map[string]string) bool {
@@ -1771,6 +1777,7 @@ func NewInferenceKVCacheUsageP95MetricCollector() *metric.MetricCollector {
 			source.InferenceModelNameLabel,
 			source.PodUIDLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 		},
 		aggregator.QuantileOverTime(0.95),
 		func(labels map[string]string) bool {
@@ -1792,6 +1799,7 @@ func NewInferenceQueueDepthP95MetricCollector() *metric.MetricCollector {
 			source.InferenceModelNameLabel,
 			source.PodUIDLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 		},
 		aggregator.QuantileOverTime(0.95),
 		func(labels map[string]string) bool {
@@ -1819,6 +1827,7 @@ func NewInferenceRunningRequestsMaxMetricCollector() *metric.MetricCollector {
 			source.InferenceModelNameLabel,
 			source.PodUIDLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 		},
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
@@ -1840,6 +1849,7 @@ func NewInferenceRunningRequestsP95MetricCollector() *metric.MetricCollector {
 			source.InferenceModelNameLabel,
 			source.PodUIDLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 		},
 		aggregator.QuantileOverTime(0.95),
 		func(labels map[string]string) bool {
@@ -1923,6 +1933,7 @@ func newInferenceCostCounterCollector(id metric.MetricCollectorID, metricName st
 			// would make every rolled-up key "model_name:".
 			source.NamespaceLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 		},
 		aggregator.Increase,
 		func(labels map[string]string) bool {
@@ -1952,6 +1963,7 @@ func NewInferenceCacheConfigMetricCollector() *metric.MetricCollector {
 			source.PodUIDLabel,
 			source.NamespaceLabel,
 			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
 			// Carried so the querier can OR it across a model's replicas.
 			source.EnablePrefixCachingLabel,
 		},

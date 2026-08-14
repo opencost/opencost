@@ -37,12 +37,11 @@ import (
 // consumer computes from ModelName; what the KubeModel stores is the
 // measurement attached to the Kubernetes object it was measured on.
 //
-// One engine instance is one pod today, but that is contingent rather than
-// essential: under vLLM data parallelism each DP rank runs as its own core
-// engine process inside the same pod, with its own scheduler and its own
-// engine label. Keyed by pod UID, such a deployment collapses to one entry per
-// pod. Extending identity to (pod UID, engine) is the shape that fixes it, and
-// it is deliberately out of scope here rather than guessed at.
+// Identity is (pod UID, engine index) rather than the pod alone, because one
+// pod can run several engine cores: under vLLM data parallelism each DP rank
+// is its own engine process with its own scheduler. vLLM labels every metric
+// with ["model_name", "engine"], where engine is the stringified core index,
+// so a single-engine deployment reports "0" and the key is stable either way.
 //
 // Design note (kubemodel device direction): this follows the same shape as
 // the planned per-source device types rather than introducing a generic
@@ -68,9 +67,18 @@ import (
 // on each entry.
 // @bingen:generate:InferenceEngine
 type InferenceEngine struct {
-	// PodUID is the UID of the model-server pod these measurements describe,
-	// and the key this entry is stored under.
+	// PodUID is the UID of the model-server pod these measurements describe.
 	PodUID string `json:"podUid"`
+	// EngineIndex distinguishes engine cores within one pod. vLLM labels
+	// every metric it emits with ["model_name", "engine"], where engine is
+	// the stringified index of the engine core, so a single-engine
+	// deployment reports "0" and a data-parallel deployment reports one
+	// series per rank from the same pod. Together with PodUID it forms the
+	// key this entry is stored under; see Key.
+	//
+	// This is not the same thing as Engine below: this is which core, that
+	// is which engine's metric mapping produced the values.
+	EngineIndex string `json:"engineIndex"`
 	// NamespaceUID is the UID of the pod's namespace.
 	NamespaceUID string `json:"namespaceUid"`
 	// ModelName is the model the engine reports serving (vLLM's model_name).
@@ -125,8 +133,22 @@ func (is *InferenceEngine) ValidateInferenceEngine() error {
 	return nil
 }
 
+// Key returns the identity this entry is stored under: the pod UID paired
+// with the engine index, since one pod can run several engine cores.
+//
+// A single-engine pod reports engine "0", so the key is stable and does not
+// depend on whether the deployment happens to use data parallelism. An empty
+// engine index (a data source that does not carry the label) degrades to the
+// pod UID alone rather than producing a dangling separator.
+func (is *InferenceEngine) Key() string {
+	if is.EngineIndex == "" {
+		return is.PodUID
+	}
+	return is.PodUID + "/" + is.EngineIndex
+}
+
 // RegisterInferenceEngine validates and adds an InferenceEngine to the set,
-// keyed by the model-server pod's UID.
+// keyed by the engine's identity within its model-server pod.
 func (kms *KubeModelSet) RegisterInferenceEngine(server *InferenceEngine) error {
 	if err := server.ValidateInferenceEngine(); err != nil {
 		err = fmt.Errorf("RegisterInferenceEngine: invalid inference server: %w", err)
@@ -134,12 +156,13 @@ func (kms *KubeModelSet) RegisterInferenceEngine(server *InferenceEngine) error 
 		return err
 	}
 
-	if _, ok := kms.InferenceEngines[server.PodUID]; !ok {
+	key := server.Key()
+	if _, ok := kms.InferenceEngines[key]; !ok {
 		if kms.Cluster == nil {
 			kms.Warnf("RegisterInferenceEngine: Cluster is nil")
 		}
 
-		kms.InferenceEngines[server.PodUID] = server
+		kms.InferenceEngines[key] = server
 
 		kms.Metadata.ObjectCount++
 	}

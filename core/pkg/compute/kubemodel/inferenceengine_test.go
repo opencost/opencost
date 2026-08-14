@@ -185,3 +185,76 @@ func TestComputeInferenceEngines(t *testing.T) {
 		})
 	}
 }
+
+// TestComputeInferenceEngines_DataParallelPod pins that two engine cores in one
+// pod produce two entries rather than collapsing into one.
+//
+// vLLM labels every metric it emits with ["model_name", "engine"], where engine
+// is the stringified core index, so a data-parallel deployment emits one series
+// per rank from a single pod. Keyed on pod UID alone, the second rank would
+// overwrite the first's values while keeping the first's identity, and which
+// one survived would depend on result ordering.
+func TestComputeInferenceEngines_DataParallelPod(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(time.Hour)
+
+	ds := source.NewMockOpenCostDataSource()
+	ds.ResolutionValue = 5 * time.Minute
+	seedCluster(ds, start, end)
+
+	// One pod, two engine cores, different KV-cache utilization each.
+	ds.Querier.SetOverride(source.QueryInferenceKVCacheUsageAvg, []*source.InferenceEngineMetricResult{
+		{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", EngineIndex: "0", Value: 0.40},
+		{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", EngineIndex: "1", Value: 0.50},
+	})
+
+	km, err := NewKubeModel(testClusterUID, false, ds)
+	require.NoError(t, err)
+
+	kms := kubemodel.NewKubeModelSet(start, end)
+	require.NoError(t, km.computeInferenceEngines(kms, start, end))
+
+	require.Len(t, kms.InferenceEngines, 2,
+		"a two-rank data-parallel pod must produce two entries; one means the engine index is not part of identity")
+
+	e0, ok := kms.InferenceEngines["pod-uid-0/0"]
+	require.True(t, ok, "missing entry for engine 0")
+	e1, ok := kms.InferenceEngines["pod-uid-0/1"]
+	require.True(t, ok, "missing entry for engine 1")
+
+	assert.Equal(t, 0.40, e0.KVCacheUsageAvg)
+	assert.Equal(t, 0.50, e1.KVCacheUsageAvg)
+	assert.Equal(t, "0", e0.EngineIndex)
+	assert.Equal(t, "1", e1.EngineIndex)
+	// Both still point at the same pod, so a consumer can roll up to it.
+	assert.Equal(t, "pod-uid-0", e0.PodUID)
+	assert.Equal(t, "pod-uid-0", e1.PodUID)
+
+	// The ratio must not have been summed: KV utilization is a fraction, so
+	// 0.4 and 0.5 must never become 0.9.
+	assert.NotEqual(t, 0.9, e0.KVCacheUsageAvg+0.0)
+}
+
+// TestComputeInferenceEngines_SingleEngineKeyIsStable pins that the common case
+// still keys cleanly. vLLM reports engine "0" for a single-engine deployment,
+// so the key carries the suffix rather than varying by deployment shape.
+func TestComputeInferenceEngines_SingleEngineKeyIsStable(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(time.Hour)
+
+	ds := source.NewMockOpenCostDataSource()
+	ds.ResolutionValue = 5 * time.Minute
+	seedCluster(ds, start, end)
+	ds.Querier.SetOverride(source.QueryInferenceKVCacheUsageAvg, []*source.InferenceEngineMetricResult{
+		{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", EngineIndex: "0", Value: 0.42},
+	})
+
+	km, err := NewKubeModel(testClusterUID, false, ds)
+	require.NoError(t, err)
+	kms := kubemodel.NewKubeModelSet(start, end)
+	require.NoError(t, km.computeInferenceEngines(kms, start, end))
+
+	require.Len(t, kms.InferenceEngines, 1)
+	_, ok := kms.InferenceEngines["pod-uid-0/0"]
+	assert.True(t, ok, "single-engine pod should key as pod-uid/0")
+}

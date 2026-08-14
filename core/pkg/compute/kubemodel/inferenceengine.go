@@ -12,7 +12,7 @@ import (
 // scheduler telemetry queries (Gateway API Inference Extension Model Server
 // Protocol signals: KV-cache utilization, queue depth, running requests, and
 // preemptions, with avg/p95/max summaries for the capacity gauges). Entries
-// are keyed by the model-server pod's UID, so they join the rest of the
+// are keyed by (pod UID, engine index), so they join the rest of the
 // KubeModel the same way every other entity does. Every query degrades
 // gracefully: a data source with no model-server telemetry produces an empty
 // map.
@@ -34,38 +34,46 @@ func (km *KubeModel) computeInferenceEngines(kms *kubemodel.KubeModelSet, start,
 	serverMap := make(map[string]*kubemodel.InferenceEngine)
 
 	// apply merges one metric result into the server map, creating the entry
-	// on first sight of a pod UID.
+	// on first sight of an engine identity.
 	apply := func(results []*source.InferenceEngineMetricResult, set func(s *kubemodel.InferenceEngine, value float64)) {
 		for _, res := range results {
 			if res.PodUID == "" || res.ModelName == "" {
 				continue
 			}
 
-			server, ok := serverMap[res.PodUID]
+			// Identity is (pod UID, engine index): one pod can run several
+			// engine cores under data parallelism, each with its own
+			// scheduler, so the pod alone does not identify an engine.
+			key := res.PodUID
+			if res.EngineIndex != "" {
+				key = res.PodUID + "/" + res.EngineIndex
+			}
+
+			server, ok := serverMap[key]
 			if !ok {
 				server = &kubemodel.InferenceEngine{
 					PodUID:       res.PodUID,
 					NamespaceUID: res.NamespaceUID,
 					ModelName:    res.ModelName,
+					EngineIndex:  res.EngineIndex,
 					// The querier contract is currently implemented with the
 					// vLLM metric mapping in both data sources; when further
 					// Model Server Protocol mappings are added, engine
 					// provenance must ride the query results instead.
 					Engine: kubemodel.EngineVLLM,
 				}
-				serverMap[res.PodUID] = server
+				serverMap[key] = server
 			} else if server.ModelName != res.ModelName {
-				// Identity comes from the first row seen for a pod UID while
-				// the value is taken from every row, so a pod emitting more
-				// than one model name would stamp one model's measurement with
-				// another model's identity, and collector results iterate a Go
-				// map, so which one wins is not stable. One engine per pod
-				// makes this unreachable today; say so loudly rather than
-				// silently corrupting if that ever stops holding (data
-				// parallelism is the known candidate).
-				log.Warnf("InferenceEngine: pod %s reported model %q and %q; keeping %q. "+
-					"Measurements for this pod may be attributed to the wrong model.",
-					res.PodUID, server.ModelName, res.ModelName, server.ModelName)
+				// Identity comes from the first row seen for a key while the
+				// value is taken from every row, so one engine reporting two
+				// model names would stamp one model's measurement with the
+				// other's identity, and collector results iterate a Go map, so
+				// which one wins is not stable. One engine serves one model, so
+				// this should be unreachable; say so loudly rather than
+				// silently mis-attributing if that ever stops holding.
+				log.Warnf("InferenceEngine: engine %s reported model %q and %q; keeping %q. "+
+					"Measurements for this engine may be attributed to the wrong model.",
+					key, server.ModelName, res.ModelName, server.ModelName)
 			}
 
 			set(server, res.Value)

@@ -84,63 +84,63 @@ func TestQueryInferenceGauges(t *testing.T) {
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceKVCacheUsageAvg(start, end)
 			},
-			wantSubstring: `avg by (model_name, pod_uid, namespace_uid, cluster_id) (((avg_over_time(vllm:kv_cache_usage_perc[`,
+			wantSubstring: `avg by (model_name, pod_uid, namespace_uid, engine, cluster_id) (((avg_over_time(vllm:kv_cache_usage_perc[`,
 		},
 		{
 			name: "kv cache usage max",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceKVCacheUsageMax(start, end)
 			},
-			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((max_over_time(vllm:kv_cache_usage_perc[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid, engine, cluster_id) (((max_over_time(vllm:kv_cache_usage_perc[`,
 		},
 		{
 			name: "queue depth avg",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceQueueDepthAvg(start, end)
 			},
-			wantSubstring: `avg by (model_name, pod_uid, namespace_uid, cluster_id) (((avg_over_time(vllm:num_requests_waiting[`,
+			wantSubstring: `avg by (model_name, pod_uid, namespace_uid, engine, cluster_id) (((avg_over_time(vllm:num_requests_waiting[`,
 		},
 		{
 			name: "queue depth max",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceQueueDepthMax(start, end)
 			},
-			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((max_over_time(vllm:num_requests_waiting[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid, engine, cluster_id) (((max_over_time(vllm:num_requests_waiting[`,
 		},
 		{
 			name: "running requests avg",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceRunningRequestsAvg(start, end)
 			},
-			wantSubstring: `avg by (model_name, pod_uid, namespace_uid, cluster_id) (((avg_over_time(vllm:num_requests_running[`,
+			wantSubstring: `avg by (model_name, pod_uid, namespace_uid, engine, cluster_id) (((avg_over_time(vllm:num_requests_running[`,
 		},
 		{
 			name: "running requests max",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceRunningRequestsMax(start, end)
 			},
-			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((max_over_time(vllm:num_requests_running[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid, engine, cluster_id) (((max_over_time(vllm:num_requests_running[`,
 		},
 		{
 			name: "kv cache usage p95",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceKVCacheUsageP95(start, end)
 			},
-			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((quantile_over_time(0.95, vllm:kv_cache_usage_perc[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid, engine, cluster_id) (((quantile_over_time(0.95, vllm:kv_cache_usage_perc[`,
 		},
 		{
 			name: "queue depth p95",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceQueueDepthP95(start, end)
 			},
-			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((quantile_over_time(0.95, vllm:num_requests_waiting[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid, engine, cluster_id) (((quantile_over_time(0.95, vllm:num_requests_waiting[`,
 		},
 		{
 			name: "running requests p95",
 			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceRunningRequestsP95(start, end)
 			},
-			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((quantile_over_time(0.95, vllm:num_requests_running[`,
+			wantSubstring: `max by (model_name, pod_uid, namespace_uid, engine, cluster_id) (((quantile_over_time(0.95, vllm:num_requests_running[`,
 		},
 	}
 
@@ -254,7 +254,7 @@ func TestQueryInferencePreemptions(t *testing.T) {
 		if len(client.queries) != 2 {
 			t.Fatalf("expected 2 queries, got %d", len(client.queries))
 		}
-		if !strings.Contains(client.queries[0], "sum by (model_name, pod_uid, namespace_uid, cluster_id) (((last_over_time(vllm:num_preemptions_total[") {
+		if !strings.Contains(client.queries[0], "sum by (model_name, pod_uid, namespace_uid, engine, cluster_id) (((last_over_time(vllm:num_preemptions_total[") {
 			t.Errorf("unexpected end-of-window query: %q", client.queries[0])
 		}
 		requireSingleResult(t, results, 25)

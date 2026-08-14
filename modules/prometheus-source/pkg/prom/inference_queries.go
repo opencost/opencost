@@ -139,7 +139,12 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceCachedTokens(start, end time.
 // rides along so a multi-cluster Prometheus keeps clusters separate, the same
 // way the DCGM queries append it to their own by-clause.
 func inferenceGroupBy(clusterLabel string) string {
-	return fmt.Sprintf(`model_name, pod_uid, namespace_uid, %s`, clusterLabel)
+	// engine is vLLM's own label (the stringified engine core index), present
+	// on every series it emits. It is in the grouping because one pod can run
+	// several engine cores under data parallelism, and summing their gauges
+	// together is meaningless: KV-cache utilization is a ratio, so two cores
+	// at 0.4 and 0.5 must not become 0.9.
+	return fmt.Sprintf(`model_name, pod_uid, namespace_uid, %s, %s`, source.InferenceEngineIndexLabel, clusterLabel)
 }
 
 // joinNamespaceUID grafts namespace_uid onto a model-server expression from
@@ -299,6 +304,7 @@ type replicaMetricValue struct {
 	modelName    string
 	podUID       string
 	namespaceUID string
+	engineIndex  string
 	value        float64
 }
 
@@ -368,9 +374,10 @@ func queryCounterDeltaByReplica(ctx *Context, metric string, start, end time.Tim
 		}
 		results = append(results, source.NewQueryResult(
 			map[string]any{
-				source.InferenceModelNameLabel: endVal.modelName,
-				source.PodUIDLabel:             endVal.podUID,
-				source.NamespaceUIDLabel:       endVal.namespaceUID,
+				source.InferenceModelNameLabel:   endVal.modelName,
+				source.PodUIDLabel:               endVal.podUID,
+				source.NamespaceUIDLabel:         endVal.namespaceUID,
+				source.InferenceEngineIndexLabel: endVal.engineIndex,
 			},
 			[]*util.Vector{{Value: delta}},
 			nil,
@@ -406,11 +413,13 @@ func queryInstantMetricByReplica(ctx *Context, query string, t time.Time) (map[s
 		if len(result.Values) == 0 {
 			continue
 		}
-		key := modelName + "|" + podUID
+		engineIndex, _ := result.GetString(source.InferenceEngineIndexLabel)
+		key := modelName + "|" + podUID + "|" + engineIndex
 		out[key] = replicaMetricValue{
 			modelName:    modelName,
 			podUID:       podUID,
 			namespaceUID: namespaceUID,
+			engineIndex:  engineIndex,
 			value:        result.Values[0].Value,
 		}
 	}

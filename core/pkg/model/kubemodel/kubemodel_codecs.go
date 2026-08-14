@@ -3047,22 +3047,29 @@ func (target *InferenceEngine) MarshalBinaryWithContext(ctx *EncodingContext) (e
 	}
 
 	if ctx.IsStringTable() {
-		b := ctx.Table.AddOrGet(target.NamespaceUID)
+		b := ctx.Table.AddOrGet(target.EngineIndex)
 		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.EngineIndex) // write string
+	}
+
+	if ctx.IsStringTable() {
+		c := ctx.Table.AddOrGet(target.NamespaceUID)
+		buff.WriteInt(c) // write table index
 	} else {
 		buff.WriteString(target.NamespaceUID) // write string
 	}
 
 	if ctx.IsStringTable() {
-		c := ctx.Table.AddOrGet(target.ModelName)
-		buff.WriteInt(c) // write table index
+		d := ctx.Table.AddOrGet(target.ModelName)
+		buff.WriteInt(d) // write table index
 	} else {
 		buff.WriteString(target.ModelName) // write string
 	}
 
 	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.Engine)
-		buff.WriteInt(d) // write table index
+		e := ctx.Table.AddOrGet(target.Engine)
+		buff.WriteInt(e) // write table index
 	} else {
 		buff.WriteString(target.Engine) // write string
 	}
@@ -3159,7 +3166,7 @@ func (target *InferenceEngine) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		e = buff.ReadString() // read string
 	}
 	d := e
-	target.NamespaceUID = d
+	target.EngineIndex = d
 
 	var h string
 	if ctx.IsStringTable() {
@@ -3169,7 +3176,7 @@ func (target *InferenceEngine) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		h = buff.ReadString() // read string
 	}
 	g := h
-	target.ModelName = g
+	target.NamespaceUID = g
 
 	var n string
 	if ctx.IsStringTable() {
@@ -3179,37 +3186,47 @@ func (target *InferenceEngine) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		n = buff.ReadString() // read string
 	}
 	m := n
-	target.Engine = m
+	target.ModelName = m
 
-	p := buff.ReadFloat64() // read float64
-	target.KVCacheUsageAvg = p
-
-	q := buff.ReadFloat64() // read float64
-	target.KVCacheUsageP95 = q
-
-	r := buff.ReadFloat64() // read float64
-	target.KVCacheUsageMax = r
+	var q string
+	if ctx.IsStringTable() {
+		r := buff.ReadInt() // read string index
+		q = ctx.Table.At(r)
+	} else {
+		q = buff.ReadString() // read string
+	}
+	p := q
+	target.Engine = p
 
 	s := buff.ReadFloat64() // read float64
-	target.QueueDepthAvg = s
+	target.KVCacheUsageAvg = s
 
 	t := buff.ReadFloat64() // read float64
-	target.QueueDepthP95 = t
+	target.KVCacheUsageP95 = t
 
 	u := buff.ReadFloat64() // read float64
-	target.QueueDepthMax = u
+	target.KVCacheUsageMax = u
 
 	w := buff.ReadFloat64() // read float64
-	target.RunningRequestsAvg = w
+	target.QueueDepthAvg = w
 
 	x := buff.ReadFloat64() // read float64
-	target.RunningRequestsP95 = x
+	target.QueueDepthP95 = x
 
 	y := buff.ReadFloat64() // read float64
-	target.RunningRequestsMax = y
+	target.QueueDepthMax = y
 
 	aa := buff.ReadFloat64() // read float64
-	target.Preemptions = aa
+	target.RunningRequestsAvg = aa
+
+	bb := buff.ReadFloat64() // read float64
+	target.RunningRequestsP95 = bb
+
+	cc := buff.ReadFloat64() // read float64
+	target.RunningRequestsMax = cc
+
+	dd := buff.ReadFloat64() // read float64
+	target.Preemptions = dd
 
 	return nil
 }
