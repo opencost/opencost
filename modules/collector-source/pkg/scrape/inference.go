@@ -63,6 +63,9 @@ type inferenceTarget struct {
 	namespaceUID string
 	pod          string
 	podUID       string
+	// modelName is the value of the model label that selected this pod. It is
+	// the fallback for series the engine does not label with model_name.
+	modelName string
 }
 
 // InferenceScraper discovers model-server pods by pod label and scrapes their
@@ -93,7 +96,8 @@ func (s *InferenceScraper) getTargets() []inferenceTarget {
 		if pod.Status.Phase != v1.PodRunning || pod.Status.PodIP == "" {
 			continue
 		}
-		if _, ok := pod.Labels[s.modelLabel]; !ok {
+		modelName, ok := pod.Labels[s.modelLabel]
+		if !ok {
 			continue
 		}
 
@@ -118,6 +122,7 @@ func (s *InferenceScraper) getTargets() []inferenceTarget {
 			namespaceUID: string(nsUID),
 			pod:          pod.Name,
 			podUID:       string(pod.UID),
+			modelName:    modelName,
 		})
 	}
 
@@ -173,6 +178,19 @@ func (s *InferenceScraper) Scrape() []metric.Update {
 				labels[source.NamespaceUIDLabel] = t.namespaceUID
 				labels[source.PodLabel] = t.pod
 				labels[source.PodUIDLabel] = t.podUID
+
+				// Not every series the engine exposes carries model_name:
+				// vllm:cache_config_info is labelled with the cache
+				// configuration itself, which is why the Prometheus source has
+				// to join it against a token metric to recover the model. The
+				// collector needs no join because the pod label that selected
+				// this target is the served model name, so fill it in when the
+				// engine omits it. The engine's own value always wins: the pod
+				// label is a routing label and may be an alias for the real
+				// model identity.
+				if labels[source.InferenceModelNameLabel] == "" {
+					labels[source.InferenceModelNameLabel] = t.modelName
+				}
 
 				update := metric.Update{
 					Name:   result.Name,

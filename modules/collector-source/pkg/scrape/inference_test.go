@@ -111,7 +111,7 @@ vllm:generation_tokens_total{model_name="Qwen3-32B"} 123456
 # TYPE vllm:prompt_tokens_total counter
 vllm:prompt_tokens_total{model_name="Qwen3-32B"} 654321
 # TYPE vllm:cache_config_info gauge
-vllm:cache_config_info{model_name="Qwen3-32B",enable_prefix_caching="true"} 1
+vllm:cache_config_info{enable_prefix_caching="true"} 1
 # TYPE vllm:not_collected gauge
 vllm:not_collected{model_name="Qwen3-32B"} 99
 `
@@ -173,4 +173,96 @@ vllm:not_collected{model_name="Qwen3-32B"} 99
 	}
 	require.NotNil(t, cacheConfig)
 	require.Equal(t, "true", cacheConfig.AdditionalInfo[source.EnablePrefixCachingLabel])
+}
+
+// TestInferenceScraperAttachesModelNameWhenEngineOmitsIt pins the model_name
+// label onto series the engine does not put it on. vLLM emits model_name on
+// its gauges and counters but not on vllm:cache_config_info, whose labels are
+// the cache configuration itself; that is exactly why the Prometheus source
+// has to join cache_config_info against a token metric to recover model_name.
+// The collector source claims to need no such join because the scraper
+// attaches identity, so the scraper has to actually supply model_name here,
+// or NewInferenceCacheConfigMetricCollector's model_name != "" filter drops
+// every real sample and prefix-caching detection silently reports nothing.
+//
+// The exposition below deliberately omits model_name from cache_config_info,
+// which is what a real engine emits.
+func TestInferenceScraperAttachesModelNameWhenEngineOmitsIt(t *testing.T) {
+	exposition := `# TYPE vllm:kv_cache_usage_perc gauge
+vllm:kv_cache_usage_perc{model_name="Qwen3-32B"} 0.42
+# TYPE vllm:cache_config_info gauge
+vllm:cache_config_info{enable_prefix_caching="true",block_size="16"} 1
+`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, exposition)
+	}))
+	defer server.Close()
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	host, portStr, err := net.SplitHostPort(u.Host)
+	require.NoError(t, err)
+
+	modelLabels := map[string]string{"llm-d.ai/model": "Qwen3-32B"}
+	cache := &clustercache.MockClusterCache{
+		Namespaces: inferenceNamespaces(),
+		Pods: []*clustercache.Pod{
+			inferencePod("vllm-0", "llm-d", host, modelLabels, map[string]string{"prometheus.io/port": portStr}, v1.PodRunning),
+		},
+	}
+
+	updates := newInferenceScraper(cache).Scrape()
+	require.Len(t, updates, 2)
+
+	var cacheConfig *metric.Update
+	for i := range updates {
+		if updates[i].Name == metric.VLLMCacheConfigInfo {
+			cacheConfig = &updates[i]
+		}
+	}
+	require.NotNil(t, cacheConfig)
+
+	// The pod label that selected this target carries the served model name,
+	// so it is the value to fall back to when the engine omits the label.
+	require.Equal(t, "Qwen3-32B", cacheConfig.Labels[source.InferenceModelNameLabel],
+		"cache_config_info must carry model_name or the collector's filter drops it")
+	require.Equal(t, "Qwen3-32B", cacheConfig.AdditionalInfo[source.InferenceModelNameLabel],
+		"the Info aggregator reads from AdditionalInfo, so model_name must be there too")
+	require.Equal(t, "true", cacheConfig.AdditionalInfo[source.EnablePrefixCachingLabel])
+}
+
+// TestInferenceScraperPrefersEngineModelName pins that the pod-label fallback
+// never overwrites the model name the engine reports. The pod label is a
+// routing label chosen by whoever deployed the workload; the engine's
+// model_name is the served model's real identity, and the two can differ (a
+// short routing alias versus a full HuggingFace repo path). Overwriting would
+// silently re-key every cost metric that already carries model_name.
+func TestInferenceScraperPrefersEngineModelName(t *testing.T) {
+	exposition := `# TYPE vllm:kv_cache_usage_perc gauge
+vllm:kv_cache_usage_perc{model_name="Qwen/Qwen3-32B-Instruct"} 0.42
+`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, exposition)
+	}))
+	defer server.Close()
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	host, portStr, err := net.SplitHostPort(u.Host)
+	require.NoError(t, err)
+
+	cache := &clustercache.MockClusterCache{
+		Namespaces: inferenceNamespaces(),
+		Pods: []*clustercache.Pod{
+			inferencePod("vllm-0", "llm-d", host, map[string]string{"llm-d.ai/model": "qwen-short-alias"},
+				map[string]string{"prometheus.io/port": portStr}, v1.PodRunning),
+		},
+	}
+
+	updates := newInferenceScraper(cache).Scrape()
+	require.Len(t, updates, 1)
+	require.Equal(t, "Qwen/Qwen3-32B-Instruct", updates[0].Labels[source.InferenceModelNameLabel],
+		"the engine's own model_name must win over the pod routing label")
 }
