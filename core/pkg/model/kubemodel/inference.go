@@ -43,17 +43,28 @@ import (
 // with ["model_name", "engine"], where engine is the stringified core index,
 // so a single-engine deployment reports "0" and the key is stable either way.
 //
-// Design note (kubemodel device direction): this follows the same shape as
-// the planned per-source device types rather than introducing a generic
-// paradigm. A model server is not a device; it is the capacity manager that
-// sits between the workload and the device(s). The type is concrete and
-// source-scoped: field semantics are normalized to the Model Server Protocol
-// (an upstream contract that defines the per-engine metric mapping), and the
-// Engine field preserves which engine's metrics populated the entry, so no
-// per-engine meaning is erased by the normalization. The replica-to-device
-// linkage (the GetParent analog of a MIG instance pointing at its physical
-// device) is deliberately not collected here; it belongs to the DRA/device
-// plugin requests join, which also relates replicas to MIG instances.
+// Design note (kubemodel device direction): an engine is not a device. It is
+// the capacity manager that sits between the workload and the device(s), so
+// this is a sibling of the per-source device types rather than a
+// generalization of them.
+//
+// It does depart from the device direction in one respect, and the departure
+// is deliberate rather than incidental. Device modeling avoids a normalized
+// cross-vendor type because there is no external contract fixing what a field
+// means: "power" is not the same measurement on AMD and NVIDIA, so only
+// per-vendor concrete types are safe. Model servers do have such a contract.
+// The Model Server Protocol defines the per-engine metric mapping and its
+// semantics upstream, so a shared concrete type normalizes to a published
+// spec rather than to a lowest common denominator. The Engine field preserves
+// which mapping populated an entry, so no per-engine meaning is erased.
+//
+// That contract is the whole justification. If a future signal has no
+// Model Server Protocol mapping, it does not belong on this type.
+//
+// The engine-to-device linkage (the GetParent analog of a MIG instance
+// pointing at its physical device) is deliberately not collected here; it
+// belongs to the DRA/device plugin requests join, which also relates engines
+// to MIG instances.
 //
 // Each gauge carries a window distribution summary (avg, p95, max) rather
 // than per-bucket histograms, since quantiles compute identically from both
