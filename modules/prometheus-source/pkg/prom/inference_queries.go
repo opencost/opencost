@@ -135,17 +135,52 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceCachedTokens(start, end time.
 //   - namespace_uid has no equivalent meta-label, so it is joined in from
 //     OpenCost's own namespace_info series on the namespace name.
 
-// inferenceNamespaceUIDJoin enriches a model-server series with namespace_uid
-// by joining OpenCost's namespace_info (which carries the namespace UID in
-// its "uid" label) on the namespace name. namespace_info is an info metric
-// with a constant value of 1, so multiplying by it preserves the sample value
-// while grafting the label on. label_replace renames "uid" so it does not
-// collide with any other UID label in the expression.
-const inferenceNamespaceUIDJoin = ` * on (namespace) group_left(namespace_uid) ` +
-	`max by (namespace, namespace_uid) (label_replace(namespace_info, "namespace_uid", "$1", "uid", "(.+)"))`
+// inferenceGroupBy is the identity these queries reduce to. The cluster label
+// rides along so a multi-cluster Prometheus keeps clusters separate, the same
+// way the DCGM queries append it to their own by-clause.
+func inferenceGroupBy(clusterLabel string) string {
+	return fmt.Sprintf(`model_name, pod_uid, namespace_uid, %s`, clusterLabel)
+}
 
-// inferenceGroupBy is the identity these queries reduce to.
-const inferenceGroupBy = `model_name, pod_uid, namespace_uid`
+// joinNamespaceUID grafts namespace_uid onto a model-server expression from
+// OpenCost's own namespace_info series, which carries the namespace UID in its
+// "uid" label. namespace_info is an info metric with a constant value of 1, so
+// multiplying by it preserves the sample value while adding the label.
+// label_replace renames "uid" so it cannot collide with another UID label.
+//
+// Two properties this deliberately has:
+//
+// The match includes the cluster label. namespace_info is emitted by every
+// OpenCost in a federated Prometheus, so matching on the namespace name alone
+// makes two clusters that both have a namespace called "prod" a many-to-one
+// duplicate match, which fails the whole query rather than mismatching quietly.
+//
+// The join is non-fatal. A bare `*` is an inner join, so a deployment that does
+// not scrape OpenCost's own /metrics, or that has namespace_info disabled,
+// would lose every model-server series rather than lose one label. The second
+// branch keeps those series with namespace_uid unset, which matches the
+// collector source and ValidateInferenceServer, neither of which requires it.
+//
+// The fallback is `unless`, not a bare `or`. The joined series carries an extra
+// label, so its label set never matches the unjoined one and `or` would emit
+// both copies, splitting one pod across two result rows. `unless on (...)`
+// selects only the series the join would have dropped.
+func joinNamespaceUID(expr, clusterLabel string) string {
+	nsInfo := fmt.Sprintf(
+		`max by (namespace, namespace_uid, %s) (label_replace(namespace_info, "namespace_uid", "$1", "uid", "(.+)"))`,
+		clusterLabel)
+	return fmt.Sprintf(`((%[1]s) * on (namespace, %[2]s) group_left(namespace_uid) %[3]s or (%[1]s) unless on (namespace, %[2]s) %[3]s)`,
+		expr, clusterLabel, nsInfo)
+}
+
+// inferenceSelector applies the configured cluster filter to a metric selector,
+// matching how every DCGM query scopes its own metric.
+func inferenceSelector(metric, clusterFilter string) string {
+	if clusterFilter == "" {
+		return metric
+	}
+	return fmt.Sprintf(`%s{%s}`, metric, clusterFilter)
+}
 
 // QueryInferenceKVCacheUsageAvg implements MetricsQuerier.QueryInferenceKVCacheUsageAvg
 func (pds *PrometheusMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
@@ -217,8 +252,10 @@ func (pds *PrometheusMetricsQuerier) queryInferenceGaugeQuantile(metric string, 
 			windowMinutes = 2
 		}
 
-		query := fmt.Sprintf(`max by (%s) (quantile_over_time(%g, %s[%dm] @ %d)%s)`,
-			inferenceGroupBy, phi, metric, windowMinutes, effectiveEnd.Unix(), inferenceNamespaceUIDJoin)
+		inner := fmt.Sprintf(`quantile_over_time(%g, %s[%dm] @ %d)`,
+			phi, inferenceSelector(metric, ctx.config.ClusterFilter), windowMinutes, effectiveEnd.Unix())
+		query := fmt.Sprintf(`max by (%s) (%s)`,
+			inferenceGroupBy(ctx.config.ClusterLabel), joinNamespaceUID(inner, ctx.config.ClusterLabel))
 
 		raw, _, err := ctx.query(query, effectiveEnd)
 		if err != nil {
@@ -285,13 +322,18 @@ func queryCounterDeltaByReplica(ctx *Context, metric string, start, end time.Tim
 		windowMinutes = 2
 	}
 
-	endQuery := fmt.Sprintf(`sum by (%s) (last_over_time(%s[%dm] @ %d)%s)`, inferenceGroupBy, metric, windowMinutes, endUnix, inferenceNamespaceUIDJoin)
+	selector := inferenceSelector(metric, ctx.config.ClusterFilter)
+	groupBy := inferenceGroupBy(ctx.config.ClusterLabel)
+
+	endInner := fmt.Sprintf(`last_over_time(%s[%dm] @ %d)`, selector, windowMinutes, endUnix)
+	endQuery := fmt.Sprintf(`sum by (%s) (%s)`, groupBy, joinNamespaceUID(endInner, ctx.config.ClusterLabel))
 	endVals, err := queryInstantMetricByReplica(ctx, endQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
 	}
 
-	startQuery := fmt.Sprintf(`sum by (%s) (last_over_time(%s[2m] @ %d)%s)`, inferenceGroupBy, metric, startUnix, inferenceNamespaceUIDJoin)
+	startInner := fmt.Sprintf(`last_over_time(%s[2m] @ %d)`, selector, startUnix)
+	startQuery := fmt.Sprintf(`sum by (%s) (%s)`, groupBy, joinNamespaceUID(startInner, ctx.config.ClusterLabel))
 	startVals, err := queryInstantMetricByReplica(ctx, startQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
@@ -395,8 +437,10 @@ func queryGaugeOverTime(ctx *Context, metric, agg string, start, end time.Time) 
 		windowMinutes = 2
 	}
 
-	query := fmt.Sprintf(`%s by (%s) (%s_over_time(%s[%dm] @ %d)%s)`,
-		agg, inferenceGroupBy, agg, metric, windowMinutes, effectiveEnd.Unix(), inferenceNamespaceUIDJoin)
+	inner := fmt.Sprintf(`%s_over_time(%s[%dm] @ %d)`,
+		agg, inferenceSelector(metric, ctx.config.ClusterFilter), windowMinutes, effectiveEnd.Unix())
+	query := fmt.Sprintf(`%s by (%s) (%s)`,
+		agg, inferenceGroupBy(ctx.config.ClusterLabel), joinNamespaceUID(inner, ctx.config.ClusterLabel))
 
 	raw, _, err := ctx.query(query, effectiveEnd)
 	if err != nil {
