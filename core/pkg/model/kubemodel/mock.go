@@ -252,11 +252,11 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 		End:   end,
 	})
 
-	// --- InferenceServer ---
+	// --- InferenceEngine ---
 	// Keyed on the same pod/namespace UIDs the mock registers above, so the
 	// entry resolves against kms.Pods and kms.Namespaces the way DCGMDevice's
 	// PodUsages does.
-	kms.RegisterInferenceServer(&InferenceServer{
+	kms.RegisterInferenceEngine(&InferenceEngine{
 		PodUID:             "pod-uid",
 		NamespaceUID:       "ns-uid",
 		ModelName:          "Qwen3-32B",

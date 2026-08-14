@@ -880,52 +880,52 @@ func (m *RecordMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[In
 	return m.Querier.QueryInferenceCacheConfig(t)
 }
 
-func (m *RecordMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
+func (m *RecordMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *Future[InferenceEngineMetricResult] {
 	m.recordCall(QueryInferenceKVCacheUsageAvg)
 	return m.Querier.QueryInferenceKVCacheUsageAvg(start, end)
 }
 
-func (m *RecordMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *Future[InferenceServerMetricResult] {
+func (m *RecordMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *Future[InferenceEngineMetricResult] {
 	m.recordCall(QueryInferenceKVCacheUsageMax)
 	return m.Querier.QueryInferenceKVCacheUsageMax(start, end)
 }
 
-func (m *RecordMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
+func (m *RecordMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *Future[InferenceEngineMetricResult] {
 	m.recordCall(QueryInferenceQueueDepthAvg)
 	return m.Querier.QueryInferenceQueueDepthAvg(start, end)
 }
 
-func (m *RecordMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *Future[InferenceServerMetricResult] {
+func (m *RecordMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *Future[InferenceEngineMetricResult] {
 	m.recordCall(QueryInferenceQueueDepthMax)
 	return m.Querier.QueryInferenceQueueDepthMax(start, end)
 }
 
-func (m *RecordMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
+func (m *RecordMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceEngineMetricResult] {
 	m.recordCall(QueryInferenceRunningRequestsAvg)
 	return m.Querier.QueryInferenceRunningRequestsAvg(start, end)
 }
 
-func (m *RecordMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *Future[InferenceServerMetricResult] {
+func (m *RecordMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *Future[InferenceEngineMetricResult] {
 	m.recordCall(QueryInferencePreemptions)
 	return m.Querier.QueryInferencePreemptions(start, end)
 }
 
-func (m *RecordMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *Future[InferenceServerMetricResult] {
+func (m *RecordMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *Future[InferenceEngineMetricResult] {
 	m.recordCall(QueryInferenceKVCacheUsageP95)
 	return m.Querier.QueryInferenceKVCacheUsageP95(start, end)
 }
 
-func (m *RecordMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceServerMetricResult] {
+func (m *RecordMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceEngineMetricResult] {
 	m.recordCall(QueryInferenceQueueDepthP95)
 	return m.Querier.QueryInferenceQueueDepthP95(start, end)
 }
 
-func (m *RecordMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceServerMetricResult] {
+func (m *RecordMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceEngineMetricResult] {
 	m.recordCall(QueryInferenceRunningRequestsMax)
 	return m.Querier.QueryInferenceRunningRequestsMax(start, end)
 }
 
-func (m *RecordMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceServerMetricResult] {
+func (m *RecordMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceEngineMetricResult] {
 	m.recordCall(QueryInferenceRunningRequestsP95)
 	return m.Querier.QueryInferenceRunningRequestsP95(start, end)
 }

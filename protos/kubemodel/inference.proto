@@ -5,7 +5,7 @@ import "kubemodel/diagnostic.proto";
 package kubemodel;
 option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
 
-// InferenceServer represents window-aggregated model-server scheduler
+// InferenceEngine represents window-aggregated model-server scheduler
 // telemetry for one model-server pod. The signals are those standardized by
 // the Gateway API Inference Extension Model Server Protocol (queue depth,
 // running requests, KV-cache utilization), as reported by serving engines
@@ -18,7 +18,7 @@ option go_package = "github.com/opencost/opencost/core/pkg/model/pb/kubemodel";
 // way every other entity does. There is no model-level grouping message: a
 // rollup by served model is a view a consumer computes from modelName. The
 // measurement window is the KubeModelSet's window and is not repeated here.
-message InferenceServer {
+message InferenceEngine {
   // Identification
   string podUid = 1;        // UID of the model-server pod (the entry's key)
   string namespaceUid = 2;  // UID of the pod's namespace

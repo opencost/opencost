@@ -122,7 +122,7 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"Deployment":              reflect.TypeFor[Deployment](),
 	"Diagnostic":              reflect.TypeFor[Diagnostic](),
 	"FileSystem":              reflect.TypeFor[FileSystem](),
-	"InferenceServer":         reflect.TypeFor[InferenceServer](),
+	"InferenceEngine":         reflect.TypeFor[InferenceEngine](),
 	"Job":                     reflect.TypeFor[Job](),
 	"KubeModelSet":            reflect.TypeFor[KubeModelSet](),
 	"Metadata":                reflect.TypeFor[Metadata](),
@@ -2993,12 +2993,12 @@ func (target *FileSystem) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 }
 
 //--------------------------------------------------------------------------
-//  InferenceServer
+//  InferenceEngine
 //--------------------------------------------------------------------------
 
-// MarshalBinary serializes the internal properties of this InferenceServer instance
+// MarshalBinary serializes the internal properties of this InferenceEngine instance
 // into a byte array
-func (target *InferenceServer) MarshalBinary() (data []byte, err error) {
+func (target *InferenceEngine) MarshalBinary() (data []byte, err error) {
 	ctx := NewEncodingContext(nil)
 
 	e := target.MarshalBinaryWithContext(ctx)
@@ -3009,9 +3009,9 @@ func (target *InferenceServer) MarshalBinary() (data []byte, err error) {
 	return ctx.ToBytes(), nil
 }
 
-// MarshalBinary serializes the internal properties of this InferenceServer instance
+// MarshalBinary serializes the internal properties of this InferenceEngine instance
 // into an io.Writer.
-func (target *InferenceServer) MarshalBinaryTo(writer io.Writer) error {
+func (target *InferenceEngine) MarshalBinaryTo(writer io.Writer) error {
 	buff := util.NewBufferFromWriter(writer)
 	defer buff.Flush()
 
@@ -3020,9 +3020,9 @@ func (target *InferenceServer) MarshalBinaryTo(writer io.Writer) error {
 	return target.MarshalBinaryWithContext(ctx)
 }
 
-// MarshalBinaryWithContext serializes the internal properties of this InferenceServer instance
+// MarshalBinaryWithContext serializes the internal properties of this InferenceEngine instance
 // into a byte array leveraging a predefined context.
-func (target *InferenceServer) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+func (target *InferenceEngine) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -3091,8 +3091,8 @@ func (target *InferenceServer) MarshalBinaryWithContext(ctx *EncodingContext) (e
 }
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the InferenceServer type
-func (target *InferenceServer) UnmarshalBinary(data []byte) error {
+// the InferenceEngine type
+func (target *InferenceEngine) UnmarshalBinary(data []byte) error {
 	ctx := NewDecodingContextFromBytes(data)
 	defer ctx.Close()
 
@@ -3105,8 +3105,8 @@ func (target *InferenceServer) UnmarshalBinary(data []byte) error {
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
-// the InferenceServer type
-func (target *InferenceServer) UnmarshalBinaryFromReader(reader io.Reader) error {
+// the InferenceEngine type
+func (target *InferenceEngine) UnmarshalBinaryFromReader(reader io.Reader) error {
 	ctx := NewDecodingContextFromReader(reader)
 	defer ctx.Close()
 
@@ -3119,8 +3119,8 @@ func (target *InferenceServer) UnmarshalBinaryFromReader(reader io.Reader) error
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the InferenceServer type
-func (target *InferenceServer) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+// the InferenceEngine type
+func (target *InferenceEngine) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -3138,7 +3138,7 @@ func (target *InferenceServer) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 	version := buff.ReadUInt8()
 
 	if version > DefaultCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshalling InferenceServer. Expected %d or less, got %d", DefaultCodecVersion, version)
+		return fmt.Errorf("Invalid Version Unmarshalling InferenceEngine. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
 	var b string
@@ -4110,14 +4110,14 @@ func (target *KubeModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 		// --- [end][write][map](map[string]*DCGMDevice) ---
 
 	}
-	if target.InferenceServers == nil {
+	if target.InferenceEngines == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
-		// --- [begin][write][map](map[string]*InferenceServer) ---
-		buff.WriteInt(len(target.InferenceServers)) // map length
-		for vvvvvvvvvvvvvvvv, zzzzzzzzzzzzzzzz := range target.InferenceServers {
+		// --- [begin][write][map](map[string]*InferenceEngine) ---
+		buff.WriteInt(len(target.InferenceEngines)) // map length
+		for vvvvvvvvvvvvvvvv, zzzzzzzzzzzzzzzz := range target.InferenceEngines {
 			if ctx.IsStringTable() {
 				s := ctx.Table.AddOrGet(vvvvvvvvvvvvvvvv)
 				buff.WriteInt(s) // write table index
@@ -4129,17 +4129,17 @@ func (target *KubeModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 			} else {
 				buff.WriteUInt8(uint8(1)) // write non-nil byte
 
-				// --- [begin][write][struct](InferenceServer) ---
+				// --- [begin][write][struct](InferenceEngine) ---
 				buff.WriteInt(0) // [compatibility, unused]
 				errS := zzzzzzzzzzzzzzzz.MarshalBinaryWithContext(ctx)
 				if errS != nil {
 					return errS
 				}
-				// --- [end][write][struct](InferenceServer) ---
+				// --- [end][write][struct](InferenceEngine) ---
 
 			}
 		}
-		// --- [end][write][map](map[string]*InferenceServer) ---
+		// --- [end][write][map](map[string]*InferenceEngine) ---
 
 	}
 
@@ -4940,11 +4940,11 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	// field version check
 	if uint8(3) <= version {
 		if buff.ReadUInt8() == uint8(0) {
-			target.InferenceServers = nil
+			target.InferenceEngines = nil
 		} else {
-			// --- [begin][read][map](map[string]*InferenceServer) ---
+			// --- [begin][read][map](map[string]*InferenceEngine) ---
 			nnnnn := buff.ReadInt() // map len
-			mmmmm := make(map[string]*InferenceServer, nnnnn)
+			mmmmm := make(map[string]*InferenceEngine, nnnnn)
 			for range nnnnn {
 				var vvvvvvvvvvvvvvvv string
 				var ppppp string
@@ -4957,30 +4957,30 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				ooooo := ppppp
 				vvvvvvvvvvvvvvvv = ooooo
 
-				var zzzzzzzzzzzzzzzz *InferenceServer
+				var zzzzzzzzzzzzzzzz *InferenceEngine
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzzzzzzz = nil
 				} else {
-					// --- [begin][read][struct](InferenceServer) ---
-					rrrrr := new(InferenceServer)
+					// --- [begin][read][struct](InferenceEngine) ---
+					rrrrr := new(InferenceEngine)
 					buff.ReadInt() // [compatibility, unused]
 					errS := rrrrr.UnmarshalBinaryWithContext(ctx)
 					if errS != nil {
 						return errS
 					}
 					zzzzzzzzzzzzzzzz = rrrrr
-					// --- [end][read][struct](InferenceServer) ---
+					// --- [end][read][struct](InferenceEngine) ---
 
 				}
 				mmmmm[vvvvvvvvvvvvvvvv] = zzzzzzzzzzzzzzzz
 			}
-			target.InferenceServers = mmmmm
-			// --- [end][read][map](map[string]*InferenceServer) ---
+			target.InferenceEngines = mmmmm
+			// --- [end][read][map](map[string]*InferenceEngine) ---
 
 		}
 
 	} else {
-		target.InferenceServers = nil
+		target.InferenceEngines = nil
 	}
 
 	return nil
@@ -6033,8 +6033,8 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *b
 		}
 
 		fi = bstream.BingenFieldInfo{
-			Type: reflect.TypeFor[map[string]*InferenceServer](),
-			Name: "InferenceServers",
+			Type: reflect.TypeFor[map[string]*InferenceEngine](),
+			Name: "InferenceEngines",
 		}
 		// field version check
 		if uint8(3) <= version {
@@ -6044,7 +6044,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *b
 					return
 				}
 			} else {
-				// --- [begin][read][streaming-map](map[string]*InferenceServer) ---
+				// --- [begin][read][streaming-map](map[string]*InferenceEngine) ---
 				wwww := buff.ReadInt() // map len
 				for range wwww {
 					var vvvvvvvvvvvvvvvv string
@@ -6058,12 +6058,12 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *b
 					xxxx := yyyy
 					vvvvvvvvvvvvvvvv = xxxx
 
-					var zzzzzzzzzzzzzzzz *InferenceServer
+					var zzzzzzzzzzzzzzzz *InferenceEngine
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzzzzzzz = nil
 					} else {
-						// --- [begin][read][struct](InferenceServer) ---
-						bbbbb := new(InferenceServer)
+						// --- [begin][read][struct](InferenceEngine) ---
+						bbbbb := new(InferenceEngine)
 						buff.ReadInt() // [compatibility, unused]
 						errS := bbbbb.UnmarshalBinaryWithContext(ctx)
 						if errS != nil {
@@ -6072,7 +6072,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *b
 
 						}
 						zzzzzzzzzzzzzzzz = bbbbb
-						// --- [end][read][struct](InferenceServer) ---
+						// --- [end][read][struct](InferenceEngine) ---
 
 					}
 
@@ -6080,7 +6080,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *b
 						return
 					}
 				}
-				// --- [end][read][streaming-map](map[string]*InferenceServer) ---
+				// --- [end][read][streaming-map](map[string]*InferenceEngine) ---
 
 			}
 

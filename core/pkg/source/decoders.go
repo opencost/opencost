@@ -2236,10 +2236,10 @@ func DecodeInferenceCacheConfigResult(result *QueryResult) *InferenceCacheConfig
 	}
 }
 
-// DecodeInferenceServerMetricResult decodes one window-aggregated model-server
+// DecodeInferenceEngineMetricResult decodes one window-aggregated model-server
 // scheduler metric sample (KV cache usage, queue depth, running requests) keyed
 // by pod UID, carrying the served model name and the pod's namespace UID.
-func DecodeInferenceServerMetricResult(result *QueryResult) *InferenceServerMetricResult {
+func DecodeInferenceEngineMetricResult(result *QueryResult) *InferenceEngineMetricResult {
 	modelName, _ := result.GetString(InferenceModelNameLabel)
 	podUID, _ := result.GetString(PodUIDLabel)
 	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
@@ -2250,7 +2250,7 @@ func DecodeInferenceServerMetricResult(result *QueryResult) *InferenceServerMetr
 		value = result.Values[len(result.Values)-1].Value
 	}
 
-	return &InferenceServerMetricResult{
+	return &InferenceEngineMetricResult{
 		ModelName:    modelName,
 		PodUID:       podUID,
 		NamespaceUID: namespaceUID,

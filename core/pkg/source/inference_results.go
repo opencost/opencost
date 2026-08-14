@@ -25,7 +25,7 @@ type InferenceCacheConfigResult struct {
 	Configs map[string]*InferenceCacheConfig
 }
 
-// InferenceServerMetricResult holds one window-aggregated scheduler metric
+// InferenceEngineMetricResult holds one window-aggregated scheduler metric
 // value for a single model-server pod. These are the saturation signals
 // standardized by the Gateway API Inference Extension Model Server Protocol
 // (queue depth, running requests, KV-cache utilization).
@@ -34,7 +34,7 @@ type InferenceCacheConfigResult struct {
 // reused across a pod's lifetime, and every other entity in the KubeModel
 // joins by UID. ModelName is a dimension of the measurement rather than part
 // of the identity, since it names what the pod is serving.
-type InferenceServerMetricResult struct {
+type InferenceEngineMetricResult struct {
 	ModelName    string
 	PodUID       string
 	NamespaceUID string

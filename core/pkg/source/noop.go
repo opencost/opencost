@@ -711,44 +711,44 @@ func (m *NoOpMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[Infe
 	return newEmptyResult(DecodeInferenceCacheConfigResult)
 }
 
-func (m *NoOpMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
-	return newEmptyResult(DecodeInferenceServerMetricResult)
+func (m *NoOpMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return newEmptyResult(DecodeInferenceEngineMetricResult)
 }
 
-func (m *NoOpMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *Future[InferenceServerMetricResult] {
-	return newEmptyResult(DecodeInferenceServerMetricResult)
+func (m *NoOpMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return newEmptyResult(DecodeInferenceEngineMetricResult)
 }
 
-func (m *NoOpMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
-	return newEmptyResult(DecodeInferenceServerMetricResult)
+func (m *NoOpMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return newEmptyResult(DecodeInferenceEngineMetricResult)
 }
 
-func (m *NoOpMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *Future[InferenceServerMetricResult] {
-	return newEmptyResult(DecodeInferenceServerMetricResult)
+func (m *NoOpMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return newEmptyResult(DecodeInferenceEngineMetricResult)
 }
 
-func (m *NoOpMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceServerMetricResult] {
-	return newEmptyResult(DecodeInferenceServerMetricResult)
+func (m *NoOpMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return newEmptyResult(DecodeInferenceEngineMetricResult)
 }
 
-func (m *NoOpMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *Future[InferenceServerMetricResult] {
-	return newEmptyResult(DecodeInferenceServerMetricResult)
+func (m *NoOpMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return newEmptyResult(DecodeInferenceEngineMetricResult)
 }
 
-func (m *NoOpMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *Future[InferenceServerMetricResult] {
-	return newEmptyResult(DecodeInferenceServerMetricResult)
+func (m *NoOpMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return newEmptyResult(DecodeInferenceEngineMetricResult)
 }
 
-func (m *NoOpMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceServerMetricResult] {
-	return newEmptyResult(DecodeInferenceServerMetricResult)
+func (m *NoOpMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return newEmptyResult(DecodeInferenceEngineMetricResult)
 }
 
-func (m *NoOpMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceServerMetricResult] {
-	return newEmptyResult(DecodeInferenceServerMetricResult)
+func (m *NoOpMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return newEmptyResult(DecodeInferenceEngineMetricResult)
 }
 
-func (m *NoOpMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceServerMetricResult] {
-	return newEmptyResult(DecodeInferenceServerMetricResult)
+func (m *NoOpMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return newEmptyResult(DecodeInferenceEngineMetricResult)
 }
 
 // Data Coverage Query

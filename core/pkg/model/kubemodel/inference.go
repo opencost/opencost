@@ -4,10 +4,22 @@ import (
 	"fmt"
 )
 
-// InferenceServer holds window-aggregated model-server scheduler telemetry for
-// one model-server pod. The signals are those standardized by the Gateway API
-// Inference Extension Model Server Protocol (queue depth, running requests,
-// KV-cache utilization) and are reported by serving engines such as vLLM.
+// InferenceEngine holds window-aggregated scheduler telemetry for one
+// inference engine instance: the process that admits requests, batches them,
+// and manages the KV-cache budget. The signals are those standardized by the
+// Gateway API Inference Extension Model Server Protocol (queue depth, running
+// requests, KV-cache utilization).
+//
+// The engine is vLLM today. Field semantics are normalized to the Model Server
+// Protocol, which defines the per-engine metric mapping externally, so SGLang
+// and Triton TensorRT-LLM are additive mappings rather than new types. The
+// Engine field records which mapping produced an entry, so no per-engine
+// meaning is erased by the normalization.
+//
+// These are decode-stage signals. An engine serving pooling models (embedding,
+// classification, reward) runs no decode loop, so it reports these gauges as
+// absent or degenerate. That is a property of the workload's mode, not a
+// collection failure.
 //
 // These metrics measure how much of a model server's serving capacity the
 // workload actually consumes, which host-level GPU metrics (SM utilization,
@@ -24,6 +36,13 @@ import (
 // model-level grouping entity here. A rollup by served model is a view a
 // consumer computes from ModelName; what the KubeModel stores is the
 // measurement attached to the Kubernetes object it was measured on.
+//
+// One engine instance is one pod today, but that is contingent rather than
+// essential: under vLLM data parallelism each DP rank runs as its own core
+// engine process inside the same pod, with its own scheduler and its own
+// engine label. Keyed by pod UID, such a deployment collapses to one entry per
+// pod. Extending identity to (pod UID, engine) is the shape that fixes it, and
+// it is deliberately out of scope here rather than guessed at.
 //
 // Design note (kubemodel device direction): this follows the same shape as
 // the planned per-source device types rather than introducing a generic
@@ -47,8 +66,8 @@ import (
 //
 // The measurement window is the KubeModelSet's window, so it is not repeated
 // on each entry.
-// @bingen:generate:InferenceServer
-type InferenceServer struct {
+// @bingen:generate:InferenceEngine
+type InferenceEngine struct {
 	// PodUID is the UID of the model-server pod these measurements describe,
 	// and the key this entry is stored under.
 	PodUID string `json:"podUid"`
@@ -89,38 +108,38 @@ type InferenceServer struct {
 }
 
 // EngineVLLM identifies vLLM as the serving engine that produced an
-// InferenceServer entry. Additional engines (per the Model Server Protocol
+// InferenceEngine entry. Additional engines (per the Model Server Protocol
 // mappings, e.g. SGLang, Triton TensorRT-LLM) get constants as their metric
 // mappings are implemented in the data sources.
 const EngineVLLM = "vllm"
 
-func (is *InferenceServer) ValidateInferenceServer() error {
+func (is *InferenceEngine) ValidateInferenceEngine() error {
 	if is.PodUID == "" {
-		return fmt.Errorf("PodUID is missing for InferenceServer with model '%s'", is.ModelName)
+		return fmt.Errorf("PodUID is missing for InferenceEngine with model '%s'", is.ModelName)
 	}
 
 	if is.ModelName == "" {
-		return fmt.Errorf("ModelName is missing for InferenceServer on pod '%s'", is.PodUID)
+		return fmt.Errorf("ModelName is missing for InferenceEngine on pod '%s'", is.PodUID)
 	}
 
 	return nil
 }
 
-// RegisterInferenceServer validates and adds an InferenceServer to the set,
+// RegisterInferenceEngine validates and adds an InferenceEngine to the set,
 // keyed by the model-server pod's UID.
-func (kms *KubeModelSet) RegisterInferenceServer(server *InferenceServer) error {
-	if err := server.ValidateInferenceServer(); err != nil {
-		err = fmt.Errorf("RegisterInferenceServer: invalid inference server: %w", err)
+func (kms *KubeModelSet) RegisterInferenceEngine(server *InferenceEngine) error {
+	if err := server.ValidateInferenceEngine(); err != nil {
+		err = fmt.Errorf("RegisterInferenceEngine: invalid inference server: %w", err)
 		kms.Error(err)
 		return err
 	}
 
-	if _, ok := kms.InferenceServers[server.PodUID]; !ok {
+	if _, ok := kms.InferenceEngines[server.PodUID]; !ok {
 		if kms.Cluster == nil {
-			kms.Warnf("RegisterInferenceServer: Cluster is nil")
+			kms.Warnf("RegisterInferenceEngine: Cluster is nil")
 		}
 
-		kms.InferenceServers[server.PodUID] = server
+		kms.InferenceEngines[server.PodUID] = server
 
 		kms.Metadata.ObjectCount++
 	}

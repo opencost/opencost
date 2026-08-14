@@ -8,7 +8,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/source"
 )
 
-// computeInferenceServers builds InferenceServer entries from the model-server
+// computeInferenceEngines builds InferenceEngine entries from the model-server
 // scheduler telemetry queries (Gateway API Inference Extension Model Server
 // Protocol signals: KV-cache utilization, queue depth, running requests, and
 // preemptions, with avg/p95/max summaries for the capacity gauges). Entries
@@ -16,7 +16,7 @@ import (
 // KubeModel the same way every other entity does. Every query degrades
 // gracefully: a data source with no model-server telemetry produces an empty
 // map.
-func (km *KubeModel) computeInferenceServers(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+func (km *KubeModel) computeInferenceEngines(kms *kubemodel.KubeModelSet, start, end time.Time) error {
 	grp := source.NewQueryGroup()
 	metrics := km.ds.Metrics()
 
@@ -31,11 +31,11 @@ func (km *KubeModel) computeInferenceServers(kms *kubemodel.KubeModelSet, start,
 	runningMaxFuture := source.WithGroup(grp, metrics.QueryInferenceRunningRequestsMax(start, end))
 	runningP95Future := source.WithGroup(grp, metrics.QueryInferenceRunningRequestsP95(start, end))
 
-	serverMap := make(map[string]*kubemodel.InferenceServer)
+	serverMap := make(map[string]*kubemodel.InferenceEngine)
 
 	// apply merges one metric result into the server map, creating the entry
 	// on first sight of a pod UID.
-	apply := func(results []*source.InferenceServerMetricResult, set func(s *kubemodel.InferenceServer, value float64)) {
+	apply := func(results []*source.InferenceEngineMetricResult, set func(s *kubemodel.InferenceEngine, value float64)) {
 		for _, res := range results {
 			if res.PodUID == "" || res.ModelName == "" {
 				continue
@@ -43,7 +43,7 @@ func (km *KubeModel) computeInferenceServers(kms *kubemodel.KubeModelSet, start,
 
 			server, ok := serverMap[res.PodUID]
 			if !ok {
-				server = &kubemodel.InferenceServer{
+				server = &kubemodel.InferenceEngine{
 					PodUID:       res.PodUID,
 					NamespaceUID: res.NamespaceUID,
 					ModelName:    res.ModelName,
@@ -61,37 +61,37 @@ func (km *KubeModel) computeInferenceServers(kms *kubemodel.KubeModelSet, start,
 	}
 
 	kvUsageAvgResult, _ := kvUsageAvgFuture.Await()
-	apply(kvUsageAvgResult, func(s *kubemodel.InferenceServer, v float64) { s.KVCacheUsageAvg = v })
+	apply(kvUsageAvgResult, func(s *kubemodel.InferenceEngine, v float64) { s.KVCacheUsageAvg = v })
 
 	kvUsageMaxResult, _ := kvUsageMaxFuture.Await()
-	apply(kvUsageMaxResult, func(s *kubemodel.InferenceServer, v float64) { s.KVCacheUsageMax = v })
+	apply(kvUsageMaxResult, func(s *kubemodel.InferenceEngine, v float64) { s.KVCacheUsageMax = v })
 
 	queueDepthAvgResult, _ := queueDepthAvgFuture.Await()
-	apply(queueDepthAvgResult, func(s *kubemodel.InferenceServer, v float64) { s.QueueDepthAvg = v })
+	apply(queueDepthAvgResult, func(s *kubemodel.InferenceEngine, v float64) { s.QueueDepthAvg = v })
 
 	queueDepthMaxResult, _ := queueDepthMaxFuture.Await()
-	apply(queueDepthMaxResult, func(s *kubemodel.InferenceServer, v float64) { s.QueueDepthMax = v })
+	apply(queueDepthMaxResult, func(s *kubemodel.InferenceEngine, v float64) { s.QueueDepthMax = v })
 
 	runningAvgResult, _ := runningAvgFuture.Await()
-	apply(runningAvgResult, func(s *kubemodel.InferenceServer, v float64) { s.RunningRequestsAvg = v })
+	apply(runningAvgResult, func(s *kubemodel.InferenceEngine, v float64) { s.RunningRequestsAvg = v })
 
 	preemptionsResult, _ := preemptionsFuture.Await()
-	apply(preemptionsResult, func(s *kubemodel.InferenceServer, v float64) { s.Preemptions = v })
+	apply(preemptionsResult, func(s *kubemodel.InferenceEngine, v float64) { s.Preemptions = v })
 
 	kvUsageP95Result, _ := kvUsageP95Future.Await()
-	apply(kvUsageP95Result, func(s *kubemodel.InferenceServer, v float64) { s.KVCacheUsageP95 = v })
+	apply(kvUsageP95Result, func(s *kubemodel.InferenceEngine, v float64) { s.KVCacheUsageP95 = v })
 
 	queueDepthP95Result, _ := queueDepthP95Future.Await()
-	apply(queueDepthP95Result, func(s *kubemodel.InferenceServer, v float64) { s.QueueDepthP95 = v })
+	apply(queueDepthP95Result, func(s *kubemodel.InferenceEngine, v float64) { s.QueueDepthP95 = v })
 
 	runningMaxResult, _ := runningMaxFuture.Await()
-	apply(runningMaxResult, func(s *kubemodel.InferenceServer, v float64) { s.RunningRequestsMax = v })
+	apply(runningMaxResult, func(s *kubemodel.InferenceEngine, v float64) { s.RunningRequestsMax = v })
 
 	runningP95Result, _ := runningP95Future.Await()
-	apply(runningP95Result, func(s *kubemodel.InferenceServer, v float64) { s.RunningRequestsP95 = v })
+	apply(runningP95Result, func(s *kubemodel.InferenceEngine, v float64) { s.RunningRequestsP95 = v })
 
 	for _, server := range serverMap {
-		if err := kms.RegisterInferenceServer(server); err != nil {
+		if err := kms.RegisterInferenceEngine(server); err != nil {
 			log.Warnf("Failed to register inference server: %s", err.Error())
 		}
 	}

@@ -790,42 +790,42 @@ func (c *collectorMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *source
 // collects the Gateway API Inference Extension Model Server Protocol gauges
 // directly from model-server pods.
 
-func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
-	return queryCollector(c, start, end, metric.InferenceKVCacheUsageAvgID, source.DecodeInferenceServerMetricResult)
+func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceKVCacheUsageAvgID, source.DecodeInferenceEngineMetricResult)
 }
 
-func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
-	return queryCollector(c, start, end, metric.InferenceKVCacheUsageMaxID, source.DecodeInferenceServerMetricResult)
+func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceKVCacheUsageMaxID, source.DecodeInferenceEngineMetricResult)
 }
 
-func (c *collectorMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
-	return queryCollector(c, start, end, metric.InferenceQueueDepthAvgID, source.DecodeInferenceServerMetricResult)
+func (c *collectorMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceQueueDepthAvgID, source.DecodeInferenceEngineMetricResult)
 }
 
-func (c *collectorMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
-	return queryCollector(c, start, end, metric.InferenceQueueDepthMaxID, source.DecodeInferenceServerMetricResult)
+func (c *collectorMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceQueueDepthMaxID, source.DecodeInferenceEngineMetricResult)
 }
 
-func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
-	return queryCollector(c, start, end, metric.InferenceRunningRequestsAvgID, source.DecodeInferenceServerMetricResult)
+func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceRunningRequestsAvgID, source.DecodeInferenceEngineMetricResult)
 }
 
-func (c *collectorMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
-	return queryCollector(c, start, end, metric.InferencePreemptionsID, source.DecodeInferenceServerMetricResult)
+func (c *collectorMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferencePreemptionsID, source.DecodeInferenceEngineMetricResult)
 }
 
-func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
-	return queryCollector(c, start, end, metric.InferenceKVCacheUsageP95ID, source.DecodeInferenceServerMetricResult)
+func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceKVCacheUsageP95ID, source.DecodeInferenceEngineMetricResult)
 }
 
-func (c *collectorMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
-	return queryCollector(c, start, end, metric.InferenceQueueDepthP95ID, source.DecodeInferenceServerMetricResult)
+func (c *collectorMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceQueueDepthP95ID, source.DecodeInferenceEngineMetricResult)
 }
 
-func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
-	return queryCollector(c, start, end, metric.InferenceRunningRequestsMaxID, source.DecodeInferenceServerMetricResult)
+func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceRunningRequestsMaxID, source.DecodeInferenceEngineMetricResult)
 }
 
-func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *source.Future[source.InferenceServerMetricResult] {
-	return queryCollector(c, start, end, metric.InferenceRunningRequestsP95ID, source.DecodeInferenceServerMetricResult)
+func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceRunningRequestsP95ID, source.DecodeInferenceEngineMetricResult)
 }

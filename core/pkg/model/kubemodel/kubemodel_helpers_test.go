@@ -60,5 +60,5 @@ func KubeModelSetEquals(t *testing.T, this, that *KubeModelSet) {
 	require.Equal(t, this.Services, that.Services)
 	require.Equal(t, this.PersistentVolumes, that.PersistentVolumes)
 	require.Equal(t, this.DCGMDevices, that.DCGMDevices)
-	require.Equal(t, this.InferenceServers, that.InferenceServers)
+	require.Equal(t, this.InferenceEngines, that.InferenceEngines)
 }

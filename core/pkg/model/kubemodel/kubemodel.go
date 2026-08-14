@@ -25,7 +25,7 @@ type KubeModelSet struct {
 	Pods                   map[string]*Pod                   `json:"pods"`              // @bingen:field[version=2]
 	Containers             map[string]*Container             `json:"containers"`        // @bingen:field[version=2]
 	DCGMDevices            map[string]*DCGMDevice            `json:"dcgmDevices"`       // @bingen:field[version=3]
-	InferenceServers       map[string]*InferenceServer       `json:"inferenceServers"`  // @bingen:field[version=3]
+	InferenceEngines       map[string]*InferenceEngine       `json:"inferenceEngines"`  // @bingen:field[version=3]
 }
 
 func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
@@ -41,7 +41,7 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 			End:   end,
 		},
 		Containers:             map[string]*Container{},
-		InferenceServers:       map[string]*InferenceServer{},
+		InferenceEngines:       map[string]*InferenceEngine{},
 		Deployments:            map[string]*Deployment{},
 		StatefulSets:           map[string]*StatefulSet{},
 		DaemonSets:             map[string]*DaemonSet{},
@@ -77,7 +77,7 @@ func (kms *KubeModelSet) IsEmpty() bool {
 		len(kms.Namespaces) == 0 &&
 		len(kms.Nodes) == 0 &&
 		len(kms.DCGMDevices) == 0 &&
-		len(kms.InferenceServers) == 0 &&
+		len(kms.InferenceEngines) == 0 &&
 		len(kms.Pods) == 0 &&
 		len(kms.PersistentVolumeClaims) == 0 &&
 		len(kms.ResourceQuotas) == 0 &&

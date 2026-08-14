@@ -56,7 +56,7 @@ func newFakeQuerier(responses map[string]string) (*PrometheusMetricsQuerier, *fa
 	}, client
 }
 
-func requireSingleResult(t *testing.T, results []*source.InferenceServerMetricResult, wantValue float64) {
+func requireSingleResult(t *testing.T, results []*source.InferenceEngineMetricResult, wantValue float64) {
 	t.Helper()
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -76,68 +76,68 @@ func TestQueryInferenceGauges(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		query         func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult]
+		query         func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult]
 		wantSubstring string
 	}{
 		{
 			name: "kv cache usage avg",
-			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
+			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceKVCacheUsageAvg(start, end)
 			},
 			wantSubstring: `avg by (model_name, pod_uid, namespace_uid, cluster_id) (((avg_over_time(vllm:kv_cache_usage_perc[`,
 		},
 		{
 			name: "kv cache usage max",
-			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
+			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceKVCacheUsageMax(start, end)
 			},
 			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((max_over_time(vllm:kv_cache_usage_perc[`,
 		},
 		{
 			name: "queue depth avg",
-			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
+			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceQueueDepthAvg(start, end)
 			},
 			wantSubstring: `avg by (model_name, pod_uid, namespace_uid, cluster_id) (((avg_over_time(vllm:num_requests_waiting[`,
 		},
 		{
 			name: "queue depth max",
-			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
+			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceQueueDepthMax(start, end)
 			},
 			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((max_over_time(vllm:num_requests_waiting[`,
 		},
 		{
 			name: "running requests avg",
-			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
+			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceRunningRequestsAvg(start, end)
 			},
 			wantSubstring: `avg by (model_name, pod_uid, namespace_uid, cluster_id) (((avg_over_time(vllm:num_requests_running[`,
 		},
 		{
 			name: "running requests max",
-			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
+			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceRunningRequestsMax(start, end)
 			},
 			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((max_over_time(vllm:num_requests_running[`,
 		},
 		{
 			name: "kv cache usage p95",
-			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
+			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceKVCacheUsageP95(start, end)
 			},
 			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((quantile_over_time(0.95, vllm:kv_cache_usage_perc[`,
 		},
 		{
 			name: "queue depth p95",
-			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
+			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceQueueDepthP95(start, end)
 			},
 			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((quantile_over_time(0.95, vllm:num_requests_waiting[`,
 		},
 		{
 			name: "running requests p95",
-			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceServerMetricResult] {
+			query: func(q *PrometheusMetricsQuerier) *source.Future[source.InferenceEngineMetricResult] {
 				return q.QueryInferenceRunningRequestsP95(start, end)
 			},
 			wantSubstring: `max by (model_name, pod_uid, namespace_uid, cluster_id) (((quantile_over_time(0.95, vllm:num_requests_running[`,

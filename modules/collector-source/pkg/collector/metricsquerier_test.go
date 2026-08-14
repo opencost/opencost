@@ -1035,7 +1035,7 @@ func TestCollectorMetricsQuerier_QueryInferenceSaturation(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		query func(start, end time.Time) *source.Future[source.InferenceServerMetricResult]
+		query func(start, end time.Time) *source.Future[source.InferenceEngineMetricResult]
 		want  float64
 	}{
 		"kv cache usage avg": {

@@ -482,41 +482,41 @@ type MetricsQuerier interface {
 
 	// QueryInferenceKVCacheUsageAvg returns the window-averaged KV-cache
 	// utilization (0-1) by model_name, namespace, and pod
-	QueryInferenceKVCacheUsageAvg(start, end time.Time) *Future[InferenceServerMetricResult]
+	QueryInferenceKVCacheUsageAvg(start, end time.Time) *Future[InferenceEngineMetricResult]
 
 	// QueryInferenceKVCacheUsageMax returns the window-max KV-cache
 	// utilization (0-1) by model_name, namespace, and pod
-	QueryInferenceKVCacheUsageMax(start, end time.Time) *Future[InferenceServerMetricResult]
+	QueryInferenceKVCacheUsageMax(start, end time.Time) *Future[InferenceEngineMetricResult]
 
 	// QueryInferenceQueueDepthAvg returns the window-averaged count of
 	// requests waiting for scheduler capacity by model_name, namespace, and pod
-	QueryInferenceQueueDepthAvg(start, end time.Time) *Future[InferenceServerMetricResult]
+	QueryInferenceQueueDepthAvg(start, end time.Time) *Future[InferenceEngineMetricResult]
 
 	// QueryInferenceQueueDepthMax returns the window-max count of requests
 	// waiting for scheduler capacity by model_name, namespace, and pod
-	QueryInferenceQueueDepthMax(start, end time.Time) *Future[InferenceServerMetricResult]
+	QueryInferenceQueueDepthMax(start, end time.Time) *Future[InferenceEngineMetricResult]
 
 	// QueryInferenceRunningRequestsAvg returns the window-averaged count of
 	// requests in the running batch by model_name, namespace, and pod
-	QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceServerMetricResult]
+	QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceEngineMetricResult]
 
 	// QueryInferencePreemptions returns the count of scheduler preemptions
 	// (requests evicted from the running batch and recomputed) over the
 	// window by model_name, namespace, and pod. A pressure and instability
 	// signal: sustained preemptions mean the engine is thrashing its KV
 	// budget.
-	QueryInferencePreemptions(start, end time.Time) *Future[InferenceServerMetricResult]
+	QueryInferencePreemptions(start, end time.Time) *Future[InferenceEngineMetricResult]
 
 	// QueryInferenceKVCacheUsageP95 returns the 95th-percentile KV-cache
 	// utilization (0-1) over the window by model_name, namespace, and pod.
 	// Together with avg and max this gives a distribution summary that is
 	// computable identically from Prometheus (quantile_over_time) and from
 	// the collector's sample store.
-	QueryInferenceKVCacheUsageP95(start, end time.Time) *Future[InferenceServerMetricResult]
+	QueryInferenceKVCacheUsageP95(start, end time.Time) *Future[InferenceEngineMetricResult]
 
 	// QueryInferenceQueueDepthP95 returns the 95th-percentile count of
 	// waiting requests over the window by model_name, namespace, and pod.
-	QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceServerMetricResult]
+	QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceEngineMetricResult]
 
 	// QueryInferenceRunningRequestsMax returns the window-max count of
 	// requests in the running batch by model_name, namespace, and pod. The
@@ -525,12 +525,12 @@ type MetricsQuerier interface {
 	// exposes that limit; while the queue is non-empty the running gauge sits
 	// pinned at it, so the window maximum recovers the ceiling that makes the
 	// average interpretable.
-	QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceServerMetricResult]
+	QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceEngineMetricResult]
 
 	// QueryInferenceRunningRequestsP95 returns the 95th-percentile count of
 	// requests in the running batch over the window by model_name, namespace,
 	// and pod.
-	QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceServerMetricResult]
+	QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceEngineMetricResult]
 }
 
 type OpenCostDataSource interface {

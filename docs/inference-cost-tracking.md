@@ -502,13 +502,32 @@ simply be absent rather than wrong.
 
 ### KubeModel
 
-The aggregated signals land in the KubeModel as `InferenceServer` entries,
-one per model-server pod and keyed by pod UID, alongside the DCGM device
-model. Each entry carries `podUid` and `namespaceUid`, which index
+The aggregated signals land in the KubeModel as `InferenceEngine` entries,
+one per inference engine instance and keyed by pod UID, alongside the DCGM
+device model. Each entry carries `podUid` and `namespaceUid`, which index
 `KubeModelSet.Pods` and `KubeModelSet.Namespaces` directly; a rollup by served
 model is a view a consumer computes by grouping on `modelName`. See
 `core/pkg/model/kubemodel/inference.go` and
 `protos/kubemodel/inference.proto`.
+
+The entity is named for the engine rather than for the pod because the engine
+is what these signals describe: the process that admits requests, batches them,
+and manages the KV-cache budget. A pod has no queue depth of its own. The
+engine is vLLM today, and the field semantics are normalized to the Model
+Server Protocol, so additional engines are additive mappings rather than new
+entity types.
+
+Two scoping notes follow from that:
+
+- **These are decode-stage signals.** An engine serving pooling models
+  (embedding, classification, reward) runs no decode loop and will report
+  these gauges as absent or degenerate. That reflects the workload's mode
+  rather than a collection failure.
+- **One engine per pod is the common case, not a guarantee.** Under vLLM data
+  parallelism each DP rank runs as its own core engine process inside the same
+  pod. Keyed by pod UID, such a deployment collapses to a single entry per pod.
+  Extending identity to `(pod UID, engine)` is the shape that addresses it and
+  is not yet implemented.
 
 ## Troubleshooting
 

@@ -9,11 +9,11 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 )
 
-func TestDecodeInferenceServerMetricResult(t *testing.T) {
+func TestDecodeInferenceEngineMetricResult(t *testing.T) {
 	tests := []struct {
 		name   string
 		result *QueryResult
-		want   *InferenceServerMetricResult
+		want   *InferenceEngineMetricResult
 	}{
 		{
 			name: "full labels and value",
@@ -26,7 +26,7 @@ func TestDecodeInferenceServerMetricResult(t *testing.T) {
 				[]*util.Vector{{Value: 0.42}},
 				nil,
 			),
-			want: &InferenceServerMetricResult{ModelName: "Qwen3-32B", PodUID: "pod-uid-0", NamespaceUID: "ns-uid", Value: 0.42},
+			want: &InferenceEngineMetricResult{ModelName: "Qwen3-32B", PodUID: "pod-uid-0", NamespaceUID: "ns-uid", Value: 0.42},
 		},
 		{
 			name: "last vector value wins",
@@ -39,18 +39,18 @@ func TestDecodeInferenceServerMetricResult(t *testing.T) {
 				[]*util.Vector{{Value: 0.1}, {Value: 0.9}},
 				nil,
 			),
-			want: &InferenceServerMetricResult{ModelName: "Qwen3-32B", PodUID: "pod-uid-0", NamespaceUID: "ns-uid", Value: 0.9},
+			want: &InferenceEngineMetricResult{ModelName: "Qwen3-32B", PodUID: "pod-uid-0", NamespaceUID: "ns-uid", Value: 0.9},
 		},
 		{
 			name:   "missing labels and values decode to zero values",
 			result: NewQueryResult(map[string]any{}, nil, nil),
-			want:   &InferenceServerMetricResult{},
+			want:   &InferenceEngineMetricResult{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, DecodeInferenceServerMetricResult(tt.result))
+			require.Equal(t, tt.want, DecodeInferenceEngineMetricResult(tt.result))
 		})
 	}
 }
@@ -58,8 +58,8 @@ func TestDecodeInferenceServerMetricResult(t *testing.T) {
 // inferenceSaturationQueries enumerates every saturation query on the
 // MetricsQuerier interface so the noop/mock/record plumbing is exercised
 // uniformly.
-func inferenceSaturationQueries(q MetricsQuerier) map[string]func(start, end time.Time) *Future[InferenceServerMetricResult] {
-	return map[string]func(start, end time.Time) *Future[InferenceServerMetricResult]{
+func inferenceSaturationQueries(q MetricsQuerier) map[string]func(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return map[string]func(start, end time.Time) *Future[InferenceEngineMetricResult]{
 		QueryInferenceKVCacheUsageAvg:    q.QueryInferenceKVCacheUsageAvg,
 		QueryInferenceKVCacheUsageMax:    q.QueryInferenceKVCacheUsageMax,
 		QueryInferenceKVCacheUsageP95:    q.QueryInferenceKVCacheUsageP95,
@@ -101,7 +101,7 @@ func TestMockInferenceSaturationQueries(t *testing.T) {
 
 	t.Run("override returns the typed results", func(t *testing.T) {
 		ds := NewMockOpenCostDataSource()
-		expected := []*InferenceServerMetricResult{
+		expected := []*InferenceEngineMetricResult{
 			{ModelName: "Qwen3-32B", PodUID: "pod-uid-0", NamespaceUID: "ns-uid", Value: 0.42},
 		}
 		for name := range inferenceSaturationQueries(ds.Querier) {

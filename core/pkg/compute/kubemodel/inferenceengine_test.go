@@ -11,55 +11,55 @@ import (
 	"github.com/opencost/opencost/core/pkg/source"
 )
 
-func TestComputeInferenceServers(t *testing.T) {
+func TestComputeInferenceEngines(t *testing.T) {
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(time.Hour)
 
 	tests := []struct {
 		name      string
 		overrides map[string]any
-		want      map[string]*kubemodel.InferenceServer
+		want      map[string]*kubemodel.InferenceEngine
 	}{
 		{
 			name:      "no data returns empty inference server map",
 			overrides: map[string]any{},
-			want:      map[string]*kubemodel.InferenceServer{},
+			want:      map[string]*kubemodel.InferenceEngine{},
 		},
 		{
 			name: "all gauges and counters populate a single pod entry",
 			overrides: map[string]any{
-				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
+				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.42},
 				},
-				source.QueryInferenceKVCacheUsageMax: []*source.InferenceServerMetricResult{
+				source.QueryInferenceKVCacheUsageMax: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.97},
 				},
-				source.QueryInferenceQueueDepthAvg: []*source.InferenceServerMetricResult{
+				source.QueryInferenceQueueDepthAvg: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.5},
 				},
-				source.QueryInferenceQueueDepthMax: []*source.InferenceServerMetricResult{
+				source.QueryInferenceQueueDepthMax: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 12},
 				},
-				source.QueryInferenceRunningRequestsAvg: []*source.InferenceServerMetricResult{
+				source.QueryInferenceRunningRequestsAvg: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 33},
 				},
-				source.QueryInferencePreemptions: []*source.InferenceServerMetricResult{
+				source.QueryInferencePreemptions: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 7},
 				},
-				source.QueryInferenceKVCacheUsageP95: []*source.InferenceServerMetricResult{
+				source.QueryInferenceKVCacheUsageP95: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.91},
 				},
-				source.QueryInferenceQueueDepthP95: []*source.InferenceServerMetricResult{
+				source.QueryInferenceQueueDepthP95: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 8},
 				},
-				source.QueryInferenceRunningRequestsMax: []*source.InferenceServerMetricResult{
+				source.QueryInferenceRunningRequestsMax: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 48},
 				},
-				source.QueryInferenceRunningRequestsP95: []*source.InferenceServerMetricResult{
+				source.QueryInferenceRunningRequestsP95: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 46},
 				},
 			},
-			want: map[string]*kubemodel.InferenceServer{
+			want: map[string]*kubemodel.InferenceEngine{
 				"pod-uid-0": {
 					PodUID:             "pod-uid-0",
 					NamespaceUID:       "ns-uid",
@@ -81,12 +81,12 @@ func TestComputeInferenceServers(t *testing.T) {
 		{
 			name: "replicas of the same model are separate pod entries",
 			overrides: map[string]any{
-				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
+				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.9},
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "pod-uid-1", Value: 0.017},
 				},
 			},
-			want: map[string]*kubemodel.InferenceServer{
+			want: map[string]*kubemodel.InferenceEngine{
 				"pod-uid-0": {
 					PodUID: "pod-uid-0", NamespaceUID: "ns-uid", ModelName: "Qwen3-32B",
 					Engine: kubemodel.EngineVLLM, KVCacheUsageAvg: 0.9,
@@ -100,12 +100,12 @@ func TestComputeInferenceServers(t *testing.T) {
 		{
 			name: "same model in different namespaces stays separate by pod uid",
 			overrides: map[string]any{
-				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
+				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid-a", PodUID: "pod-uid-a", Value: 0.5},
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid-b", PodUID: "pod-uid-b", Value: 0.6},
 				},
 			},
-			want: map[string]*kubemodel.InferenceServer{
+			want: map[string]*kubemodel.InferenceEngine{
 				"pod-uid-a": {
 					PodUID: "pod-uid-a", NamespaceUID: "ns-uid-a", ModelName: "Qwen3-32B",
 					Engine: kubemodel.EngineVLLM, KVCacheUsageAvg: 0.5,
@@ -120,12 +120,12 @@ func TestComputeInferenceServers(t *testing.T) {
 			name: "pods reusing a name in different namespaces no longer collide",
 			overrides: map[string]any{
 				// Both replicas are named "vllm-0"; only the UID separates them.
-				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
+				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid-a", PodUID: "pod-uid-a", Value: 0.5},
 					{ModelName: "Llama-3-70B", NamespaceUID: "ns-uid-b", PodUID: "pod-uid-b", Value: 0.6},
 				},
 			},
-			want: map[string]*kubemodel.InferenceServer{
+			want: map[string]*kubemodel.InferenceEngine{
 				"pod-uid-a": {
 					PodUID: "pod-uid-a", NamespaceUID: "ns-uid-a", ModelName: "Qwen3-32B",
 					Engine: kubemodel.EngineVLLM, KVCacheUsageAvg: 0.5,
@@ -139,23 +139,23 @@ func TestComputeInferenceServers(t *testing.T) {
 		{
 			name: "results with missing identity labels are skipped",
 			overrides: map[string]any{
-				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
+				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceEngineMetricResult{
 					{ModelName: "", NamespaceUID: "ns-uid", PodUID: "pod-uid-0", Value: 0.5},
 					{ModelName: "Qwen3-32B", NamespaceUID: "ns-uid", PodUID: "", Value: 0.5},
 				},
 			},
-			want: map[string]*kubemodel.InferenceServer{},
+			want: map[string]*kubemodel.InferenceEngine{},
 		},
 		{
 			name: "a missing namespace uid still yields an entry",
 			overrides: map[string]any{
 				// namespace_uid is a convenience: it is derivable from
 				// kms.Pods[PodUID], so its absence must not drop the sample.
-				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceServerMetricResult{
+				source.QueryInferenceKVCacheUsageAvg: []*source.InferenceEngineMetricResult{
 					{ModelName: "Qwen3-32B", NamespaceUID: "", PodUID: "pod-uid-0", Value: 0.5},
 				},
 			},
-			want: map[string]*kubemodel.InferenceServer{
+			want: map[string]*kubemodel.InferenceEngine{
 				"pod-uid-0": {
 					PodUID: "pod-uid-0", ModelName: "Qwen3-32B",
 					Engine: kubemodel.EngineVLLM, KVCacheUsageAvg: 0.5,
@@ -178,10 +178,10 @@ func TestComputeInferenceServers(t *testing.T) {
 
 			kms := kubemodel.NewKubeModelSet(start, end)
 
-			err = km.computeInferenceServers(kms, start, end)
+			err = km.computeInferenceEngines(kms, start, end)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.want, kms.InferenceServers)
+			assert.Equal(t, tt.want, kms.InferenceEngines)
 		})
 	}
 }
