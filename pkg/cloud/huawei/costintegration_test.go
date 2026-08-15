@@ -117,53 +117,74 @@ func TestSelectHuaweiCategory(t *testing.T) {
 // returns, taken from a live query against the account.
 func TestDescribeResource(t *testing.T) {
 	cases := []struct {
-		name         string
-		resourceID   string
-		wantType     string
-		wantResource string
+		name       string
+		resourceID string
+		want       bssResource
 	}{
 		{
-			name:         "database instance",
-			resourceID:   "hws.service.type.rds:hws.resource.type.rds.instance:57907bc454e441b38159555ba73b7e20in01:rds-mlops-mysql",
-			wantType:     "rds.instance",
-			wantResource: "rds-mlops-mysql",
+			name:       "database instance",
+			resourceID: "hws.service.type.rds:hws.resource.type.rds.instance:57907bc4in01:rds-mlops-mysql",
+			want: bssResource{
+				ID:   "hws.service.type.rds:hws.resource.type.rds.instance:57907bc4in01:rds-mlops-mysql",
+				Type: "rds.instance",
+				Name: "rds-mlops-mysql",
+			},
 		},
 		{
-			name:         "cluster node",
-			resourceID:   "hws.service.type.ec2:hws.resource.type.vm:08099e97-4178-4e28-a6f0-848b1792cd9b:cce-mlops-np-training-cpu-52qrp",
-			wantType:     "vm",
-			wantResource: "cce-mlops-np-training-cpu-52qrp",
+			name:       "cluster node",
+			resourceID: "hws.service.type.ec2:hws.resource.type.vm:08099e97-4178:cce-mlops-np-training-cpu-52qrp",
+			want: bssResource{
+				ID:   "hws.service.type.ec2:hws.resource.type.vm:08099e97-4178:cce-mlops-np-training-cpu-52qrp",
+				Type: "vm",
+				Name: "cce-mlops-np-training-cpu-52qrp",
+			},
 		},
 		{
-			name:         "unnamed resource reported as the string null",
-			resourceID:   "hws.service.type.lts:hws.resource.type.lts.logindex:019e890db7f37ca69dd3a8820d2cfcfd.lts.logindex:null",
-			wantType:     "lts.logindex",
-			wantResource: "",
+			// A bucket has no name of its own: its ID is what it is called.
+			name:       "unnamed resource, name field empty",
+			resourceID: "hws.service.type.obs:hws.resource.type.obs:obs-mlops-build-29074b:",
+			want: bssResource{
+				ID:   "hws.service.type.obs:hws.resource.type.obs:obs-mlops-build-29074b:",
+				Type: "obs",
+				Name: "obs-mlops-build-29074b",
+			},
 		},
 		{
-			name:         "empty resource id field",
-			resourceID:   "hws.service.type.obs:hws.resource.type.obs::ListAllMyBucketsOperation",
-			wantType:     "obs",
-			wantResource: "ListAllMyBucketsOperation",
+			// The same resource as above, as BSS also spells it. Both must
+			// describe one resource under one ID, or its cost is split in two.
+			name:       "unnamed resource, name field null",
+			resourceID: "hws.service.type.obs:hws.resource.type.obs:obs-mlops-build-29074b:null",
+			want: bssResource{
+				ID:   "hws.service.type.obs:hws.resource.type.obs:obs-mlops-build-29074b:",
+				Type: "obs",
+				Name: "obs-mlops-build-29074b",
+			},
+		},
+		{
+			name:       "no resource id, named",
+			resourceID: "hws.service.type.obs:hws.resource.type.obs::ListAllMyBucketsOperation",
+			want: bssResource{
+				ID:   "hws.service.type.obs:hws.resource.type.obs::ListAllMyBucketsOperation",
+				Type: "obs",
+				Name: "ListAllMyBucketsOperation",
+			},
 		},
 		{
 			name:       "not in composite form",
 			resourceID: "res-1",
+			want:       bssResource{ID: "res-1"},
 		},
 		{
 			name:       "empty",
 			resourceID: "",
+			want:       bssResource{},
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			resourceType, name := describeResource(c.resourceID)
-			if resourceType != c.wantType {
-				t.Errorf("resource type = %q, want %q", resourceType, c.wantType)
-			}
-			if name != c.wantResource {
-				t.Errorf("name = %q, want %q", name, c.wantResource)
+			if got := describeResource(c.resourceID); got != c.want {
+				t.Errorf("describeResource(%q) = %+v, want %+v", c.resourceID, got, c.want)
 			}
 		})
 	}

@@ -73,18 +73,18 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		// it by. Both come out of RESOURCE_ID itself (see describeResource):
 		// BSS caps the group-by at three dimensions, which the identifying ones
 		// already use up, so they can't be requested as dimensions of their own.
+		resource := describeResource(resourceID)
+
 		labels := opencost.CloudCostLabels{}
-		if resourceType, name := describeResource(resourceID); resourceType != "" || name != "" {
-			if resourceType != "" {
-				labels[opencost.AssetResourceTypeLabel] = resourceType
-			}
-			if name != "" {
-				labels[opencost.AssetResourceNameLabel] = name
-			}
+		if resource.Type != "" {
+			labels[opencost.AssetResourceTypeLabel] = resource.Type
+		}
+		if resource.Name != "" {
+			labels[opencost.AssetResourceNameLabel] = resource.Name
 		}
 
 		properties := &opencost.CloudCostProperties{
-			ProviderID: resourceID,
+			ProviderID: resource.ID,
 			Provider:   opencost.HuaweiProvider,
 			AccountID:  ci.ProjectID,
 			RegionID:   region,
@@ -164,23 +164,57 @@ const huaweiResourceTypeCodePrefix = "hws.resource.type."
 //	hws.service.type.rds:hws.resource.type.rds.instance:57907bc4...in01:rds-mlops-mysql
 const bssResourceIDFields = 4
 
-// describeResource extracts what a billed resource is and what it is called
-// from a BSS RESOURCE_ID. Returns empty strings for a value that isn't in the
-// composite form, and for the fields BSS leaves empty (or reports as the string
-// "null", as it does for the name of resources that have none). The raw value
-// stays the resource's identifier either way.
-func describeResource(resourceID string) (resourceType, name string) {
+// bssNullField is the placeholder BSS puts in a composite RESOURCE_ID field it
+// has no value for. It also, inconsistently and for the same resource, just
+// leaves the field empty: an unnamed bucket arrives both as
+// "...:obs-mlops-build-29074b:" and "...:obs-mlops-build-29074b:null", which
+// unless normalized spells one resource as two assets splitting its cost.
+const bssNullField = "null"
+
+// bssResource is what a composite RESOURCE_ID says about a billed resource.
+type bssResource struct {
+	// ID is the RESOURCE_ID with its absent fields spelled consistently, so
+	// that the spellings of one resource agree on one identifier.
+	ID string
+
+	// Type is the resource type code without its prefix: "vm", "volume",
+	// "rds.instance". Empty when BSS reports none.
+	Type string
+
+	// Name is what the resource is called in the console, falling back to its
+	// ID within the service -- a bucket name, a log stream ID -- for the
+	// resources BSS reports no name for. Empty when it reports neither.
+	Name string
+}
+
+// describeResource reads a BSS RESOURCE_ID, which is not a bare ID but
+// "<service code>:<resource type code>:<resource id>:<resource name>", e.g.
+//
+//	hws.service.type.rds:hws.resource.type.rds.instance:57907bc4...in01:rds-mlops-mysql
+//
+// A value not in that form is passed through as the resource's ID, undescribed.
+func describeResource(resourceID string) bssResource {
 	fields := strings.Split(resourceID, ":")
 	if len(fields) != bssResourceIDFields {
-		return "", ""
+		return bssResource{ID: resourceID}
 	}
 
-	resourceType = strings.TrimPrefix(fields[1], huaweiResourceTypeCodePrefix)
-	name = fields[3]
-	if name == "null" {
-		name = ""
+	for i, field := range fields {
+		if field == bssNullField {
+			fields[i] = ""
+		}
 	}
-	return resourceType, name
+
+	name := fields[3]
+	if name == "" {
+		name = fields[2]
+	}
+
+	return bssResource{
+		ID:   strings.Join(fields, ":"),
+		Type: strings.TrimPrefix(fields[1], huaweiResourceTypeCodePrefix),
+		Name: name,
+	}
 }
 
 // dimensionValue looks up a dimension's value by key from a BSS DimensionGroup
