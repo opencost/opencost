@@ -34,6 +34,7 @@ func TestHuaweiServiceAssetType(t *testing.T) {
 		{"Simple Message Notification", SMNCloudAssetType},
 		{"CodeArts", CodeArtsCloudAssetType},
 		{"SupportPlan", SupportPlanCloudAssetType},
+		{"ModelArts", ModelArtsCloudAssetType},
 
 		// Service Type Codes, as they appear in a bill export.
 		{"hws.service.type.ec2", ECSCloudAssetType},
@@ -46,6 +47,8 @@ func TestHuaweiServiceAssetType(t *testing.T) {
 		{"hws.service.type.natgateway", NATCloudAssetType},
 		{"hws.service.type.devcloud", CodeArtsCloudAssetType},
 		{"hws.service.type.supportplan", SupportPlanCloudAssetType},
+		{"hws.service.type.modelarts", ModelArtsCloudAssetType},
+		{"hws.service.type.rms", RMSCloudAssetType},
 
 		// Bare abbreviations and names carrying a qualifier.
 		{"RDS", RDSCloudAssetType},
@@ -98,7 +101,7 @@ func TestHuaweiServiceCategory(t *testing.T) {
 // enum drifting out of sync with it: String() indexes the table by ordinal, so
 // an entry inserted in the wrong place renames every type after it.
 func TestAssetTypeStringsMatchParse(t *testing.T) {
-	for at := AnyAssetType; at <= SupportPlanCloudAssetType; at++ {
+	for at := AnyAssetType; at <= RMSCloudAssetType; at++ {
 		name := at.String()
 		if name == "" {
 			t.Errorf("AssetType %d has no string", at)

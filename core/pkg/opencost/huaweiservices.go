@@ -17,8 +17,14 @@ const (
 	AssetRegionLabel = "topology_kubernetes_io_region"
 
 	// AssetResourceTypeLabel carries the provider's own resource type for the
-	// billed resource, e.g. "RDS DB Instance VM" or "Volume".
+	// billed resource, e.g. "rds.instance" or "volume".
 	AssetResourceTypeLabel = "resource_type"
+
+	// AssetResourceNameLabel carries the name the billed resource has in the
+	// provider's console, e.g. "rds-mlops-mysql". Billing APIs identify a
+	// resource by ID, so this is the only human-readable handle an asset built
+	// from billing data has.
+	AssetResourceNameLabel = "resource_name"
 
 	// AssetResourceSpecLabel carries the provider's spec/SKU code for the
 	// billed resource, e.g. "rds.mysql.n1.large.2.ha" -- the cloud-service
@@ -65,6 +71,7 @@ var huaweiServices = []huaweiService{
 	{FGSCloudAssetType, ComputeCategory, []string{"functionstage", "functiongraph", "fgs"}, []string{"functiongraph"}},
 	{DCSCloudAssetType, ComputeCategory, []string{"dcs"}, []string{"distributed cache service"}},
 	{DMSCloudAssetType, ComputeCategory, []string{"dms"}, []string{"distributed message service"}},
+	{ModelArtsCloudAssetType, ComputeCategory, []string{"modelarts"}, []string{"modelarts"}},
 
 	// Storage
 	{EVSCloudAssetType, StorageCategory, []string{"ebs", "evs"}, []string{"elastic volume service"}},
@@ -89,6 +96,7 @@ var huaweiServices = []huaweiService{
 	{CESCloudAssetType, ManagementCategory, []string{"ces"}, []string{"cloud eye"}},
 	{AOMCloudAssetType, ManagementCategory, []string{"aom"}, []string{"application operations management"}},
 	{SMNCloudAssetType, ManagementCategory, []string{"smn"}, []string{"simple message notification"}},
+	{RMSCloudAssetType, ManagementCategory, []string{"rms"}, []string{"config", "resource management service"}},
 	{CodeArtsCloudAssetType, ManagementCategory, []string{"devcloud", "codearts"}, []string{"codearts"}},
 	{SupportPlanCloudAssetType, ManagementCategory, []string{"supportplan"}, []string{"supportplan", "support plan"}},
 }

@@ -248,10 +248,9 @@ func (cm *CostModel) ClusterCloudCosts(start, end time.Time) ([]*opencost.Cloud,
 			cloudAsset.Properties.Service = cc.Properties.Service
 			cloudAsset.Properties.Account = cc.Properties.AccountID
 			// Name is what consumers of the assets API display for an asset.
-			// Billing APIs report a resource ID rather than a name, so without
-			// this every Cloud asset of a service renders identically (as the
-			// service itself) and the rows can't be told apart.
-			cloudAsset.Properties.Name = cc.Properties.ProviderID
+			// Without it every Cloud asset of a service renders identically (as
+			// the service itself) and the rows can't be told apart.
+			cloudAsset.Properties.Name = cloudAssetName(cc.Properties)
 			cloudAsset.SetLabels(cloudAssetLabels(cc.Properties))
 			cloudAsset.Cost = cc.NetCost.Cost
 
@@ -311,6 +310,17 @@ func cloudCostServiceToAssetType(provider, service string) opencost.AssetType {
 		return opencost.HuaweiServiceAssetType(service)
 	}
 	return opencost.CloudAssetType
+}
+
+// cloudAssetName is the resource's name in the provider's console when the
+// billing data reports one, and its ID otherwise -- an ID is still far better
+// than nothing, which is what an asset with no name falls back to displaying:
+// the name of its service, identically for every resource of that service.
+func cloudAssetName(props *opencost.CloudCostProperties) string {
+	if name := props.Labels[opencost.AssetResourceNameLabel]; name != "" {
+		return name
+	}
+	return props.ProviderID
 }
 
 // cloudAssetLabels carries the parts of a CloudCost that an Asset has no

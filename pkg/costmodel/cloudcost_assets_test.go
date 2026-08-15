@@ -174,7 +174,8 @@ func TestClusterCloudCosts_DescribesResources(t *testing.T) {
 		Service:    "Relational Database Service",
 		Category:   opencost.StorageCategory,
 		Labels: opencost.CloudCostLabels{
-			opencost.AssetResourceTypeLabel: "RDS DB Instance VM",
+			opencost.AssetResourceTypeLabel: "rds.instance",
+			opencost.AssetResourceNameLabel: "rds-mlops-mysql",
 			opencost.AssetResourceSpecLabel: "rds.mysql.n1.large.2.ha",
 			"owner":                         "mlops",
 		},
@@ -209,13 +210,13 @@ func TestClusterCloudCosts_DescribesResources(t *testing.T) {
 	if asset.Type() != opencost.RDSCloudAssetType {
 		t.Errorf("expected asset type %s, got %s", opencost.RDSCloudAssetType, asset.Type())
 	}
-	if asset.Properties.Name != "rds-instance-1" {
-		t.Errorf("expected the resource ID as the asset name, got %q", asset.Properties.Name)
+	if asset.Properties.Name != "rds-mlops-mysql" {
+		t.Errorf("expected the resource's name as the asset name, got %q", asset.Properties.Name)
 	}
 	if got := asset.Labels[opencost.AssetRegionLabel]; got != "la-south-2" {
 		t.Errorf("expected region label %q, got %q", "la-south-2", got)
 	}
-	if got := asset.Labels[opencost.AssetResourceTypeLabel]; got != "RDS DB Instance VM" {
+	if got := asset.Labels[opencost.AssetResourceTypeLabel]; got != "rds.instance" {
 		t.Errorf("expected resource type label to carry over, got %q", got)
 	}
 	if got := asset.Labels[opencost.AssetResourceSpecLabel]; got != "rds.mysql.n1.large.2.ha" {
@@ -223,6 +224,47 @@ func TestClusterCloudCosts_DescribesResources(t *testing.T) {
 	}
 	if got := asset.Labels["owner"]; got != "mlops" {
 		t.Errorf("expected billing labels to carry over, got %q", got)
+	}
+}
+
+// TestClusterCloudCosts_FallsBackToResourceID checks the naming of a resource
+// the billing data reports no name for: the ID is a poor label but a unique
+// one, which is what keeps rows of the same service distinguishable.
+func TestClusterCloudCosts_FallsBackToResourceID(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 1)
+
+	ccs := opencost.NewCloudCostSet(start, end,
+		&opencost.CloudCost{
+			Properties: &opencost.CloudCostProperties{
+				ProviderID: "obs-bucket-1",
+				Provider:   opencost.HuaweiProvider,
+				Service:    "Object Storage Service",
+				Category:   opencost.StorageCategory,
+			},
+			Window:  opencost.NewClosedWindow(start, end),
+			NetCost: opencost.CostMetric{Cost: 1},
+		},
+	)
+
+	cm := &CostModel{
+		CloudCostQuerier: &fakeCloudCostQuerier{
+			result: &opencost.CloudCostSetRange{
+				CloudCostSets: []*opencost.CloudCostSet{ccs},
+				Window:        opencost.NewClosedWindow(start, end),
+			},
+		},
+	}
+
+	assets, err := cm.ClusterCloudCosts(start, end)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(assets) != 1 {
+		t.Fatalf("expected 1 Cloud asset, got %d", len(assets))
+	}
+	if assets[0].Properties.Name != "obs-bucket-1" {
+		t.Errorf("expected the resource ID as the asset name, got %q", assets[0].Properties.Name)
 	}
 }
 

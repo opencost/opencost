@@ -3,6 +3,7 @@ package huawei
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	bssintlmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2/model"
@@ -68,16 +69,18 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		region := dimensionValue(row.Dimensions, "REGION_CODE")
 
 		// A billed resource has no CPU/RAM figures to report the way a Node
-		// does, so its resource type ("RDS DB Instance VM") and spec code
-		// ("rds.mysql.n1.large.2.ha") are what identifies what was paid for.
-		// Both are optional: they are absent from the response whenever the
-		// enriched group-by was rejected (see fetchCostAnalysedBills).
+		// does, so what it is and what it's called is all there is to identify
+		// it by. Both come out of RESOURCE_ID itself (see describeResource):
+		// BSS caps the group-by at three dimensions, which the identifying ones
+		// already use up, so they can't be requested as dimensions of their own.
 		labels := opencost.CloudCostLabels{}
-		if resourceType := dimensionValue(row.Dimensions, "RESOURCE_TYPE"); resourceType != "" {
-			labels[opencost.AssetResourceTypeLabel] = resourceType
-		}
-		if specCode := dimensionValue(row.Dimensions, "RES_SPEC_CODE"); specCode != "" {
-			labels[opencost.AssetResourceSpecLabel] = specCode
+		if resourceType, name := describeResource(resourceID); resourceType != "" || name != "" {
+			if resourceType != "" {
+				labels[opencost.AssetResourceTypeLabel] = resourceType
+			}
+			if name != "" {
+				labels[opencost.AssetResourceNameLabel] = name
+			}
 		}
 
 		properties := &opencost.CloudCostProperties{
@@ -148,6 +151,36 @@ func (ci *CostIntegration) GetStatus() cloud.ConnectionStatus {
 func (ci *CostIntegration) RefreshStatus() cloud.ConnectionStatus {
 	log.Warn("status refresh is not supported for the Huawei Cloud provider")
 	return ci.ConnectionStatus
+}
+
+// huaweiResourceTypeCodePrefix prefixes every Huawei Cloud "Resource Type Code"
+// (hws.resource.type.vm, hws.resource.type.rds.instance, ...).
+const huaweiResourceTypeCodePrefix = "hws.resource.type."
+
+// bssResourceIDFields is the number of colon-separated fields BSS packs into the
+// RESOURCE_ID dimension: service type code, resource type code, resource ID and
+// resource name, e.g.
+//
+//	hws.service.type.rds:hws.resource.type.rds.instance:57907bc4...in01:rds-mlops-mysql
+const bssResourceIDFields = 4
+
+// describeResource extracts what a billed resource is and what it is called
+// from a BSS RESOURCE_ID. Returns empty strings for a value that isn't in the
+// composite form, and for the fields BSS leaves empty (or reports as the string
+// "null", as it does for the name of resources that have none). The raw value
+// stays the resource's identifier either way.
+func describeResource(resourceID string) (resourceType, name string) {
+	fields := strings.Split(resourceID, ":")
+	if len(fields) != bssResourceIDFields {
+		return "", ""
+	}
+
+	resourceType = strings.TrimPrefix(fields[1], huaweiResourceTypeCodePrefix)
+	name = fields[3]
+	if name == "null" {
+		name = ""
+	}
+	return resourceType, name
 }
 
 // dimensionValue looks up a dimension's value by key from a BSS DimensionGroup

@@ -113,6 +113,153 @@ func TestSelectHuaweiCategory(t *testing.T) {
 	}
 }
 
+// TestDescribeResource covers the composite RESOURCE_ID values BSS actually
+// returns, taken from a live query against the account.
+func TestDescribeResource(t *testing.T) {
+	cases := []struct {
+		name         string
+		resourceID   string
+		wantType     string
+		wantResource string
+	}{
+		{
+			name:         "database instance",
+			resourceID:   "hws.service.type.rds:hws.resource.type.rds.instance:57907bc454e441b38159555ba73b7e20in01:rds-mlops-mysql",
+			wantType:     "rds.instance",
+			wantResource: "rds-mlops-mysql",
+		},
+		{
+			name:         "cluster node",
+			resourceID:   "hws.service.type.ec2:hws.resource.type.vm:08099e97-4178-4e28-a6f0-848b1792cd9b:cce-mlops-np-training-cpu-52qrp",
+			wantType:     "vm",
+			wantResource: "cce-mlops-np-training-cpu-52qrp",
+		},
+		{
+			name:         "unnamed resource reported as the string null",
+			resourceID:   "hws.service.type.lts:hws.resource.type.lts.logindex:019e890db7f37ca69dd3a8820d2cfcfd.lts.logindex:null",
+			wantType:     "lts.logindex",
+			wantResource: "",
+		},
+		{
+			name:         "empty resource id field",
+			resourceID:   "hws.service.type.obs:hws.resource.type.obs::ListAllMyBucketsOperation",
+			wantType:     "obs",
+			wantResource: "ListAllMyBucketsOperation",
+		},
+		{
+			name:       "not in composite form",
+			resourceID: "res-1",
+		},
+		{
+			name:       "empty",
+			resourceID: "",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			resourceType, name := describeResource(c.resourceID)
+			if resourceType != c.wantType {
+				t.Errorf("resource type = %q, want %q", resourceType, c.wantType)
+			}
+			if name != c.wantResource {
+				t.Errorf("name = %q, want %q", name, c.wantResource)
+			}
+		})
+	}
+}
+
+// TestCostIntegration_GetCloudCost_ResourceDetails checks that what a resource
+// is and what it is called reach the CloudCost, and that the group-by stays
+// within the three dimensions BSS allows.
+func TestCostIntegration_GetCloudCost_ResourceDetails(t *testing.T) {
+	var requestedGroupby []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Groupby []struct {
+				Key string `json:"key"`
+			} `json:"groupby"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("unexpected error decoding request: %v", err)
+		}
+		requestedGroupby = nil
+		for _, g := range body.Groupby {
+			requestedGroupby = append(requestedGroupby, g.Key)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"total_count": 1,
+			"cost_data": [
+				{
+					"dimensions": [
+						{"key": "RESOURCE_ID", "value": "hws.service.type.rds:hws.resource.type.rds.instance:57907bc4in01:rds-mlops-mysql"},
+						{"key": "CLOUD_SERVICE_TYPE", "value": "hws.service.type.rds"},
+						{"key": "REGION_CODE", "value": "la-south-2"}
+					],
+					"costs": [
+						{
+							"time_dimension_value": "2026-01-15",
+							"time_measure_id": 1,
+							"amount": "1.230000",
+							"official_amount": "2.000000"
+						}
+					]
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	bssEndpointOverride = server.URL
+	defer func() { bssEndpointOverride = "" }()
+
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+	ci := &CostIntegration{
+		CostConfiguration: CostConfiguration{ProjectID: "test-project", Region: "la-south-2"},
+	}
+
+	start := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
+	ccsr, err := ci.GetCloudCost(start, start.AddDate(0, 0, 1))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// BSS rejects a group-by of more than three dimensions with CBC.0100.
+	if len(requestedGroupby) > 3 {
+		t.Errorf("group-by exceeds the three dimensions BSS allows: %v", requestedGroupby)
+	}
+	if !slices.Equal(requestedGroupby, costQueryDimensions) {
+		t.Errorf("group-by = %v, want %v", requestedGroupby, costQueryDimensions)
+	}
+
+	found := false
+	for _, ccs := range ccsr.CloudCostSets {
+		for _, cc := range ccs.CloudCosts {
+			if cc.Properties == nil || cc.Properties.Service != "hws.service.type.rds" {
+				continue
+			}
+			found = true
+			if cc.Properties.Category != opencost.StorageCategory {
+				t.Errorf("expected category %q, got %q", opencost.StorageCategory, cc.Properties.Category)
+			}
+			if got := cc.Properties.Labels[opencost.AssetResourceTypeLabel]; got != "rds.instance" {
+				t.Errorf("expected resource type label %q, got %q", "rds.instance", got)
+			}
+			if got := cc.Properties.Labels[opencost.AssetResourceNameLabel]; got != "rds-mlops-mysql" {
+				t.Errorf("expected resource name label %q, got %q", "rds-mlops-mysql", got)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected a CloudCost entry for the RDS resource, got none in %+v", ccsr)
+	}
+}
+
 // TestCostIntegration_GetCloudCost_LiveBSS drives GetCloudCost end-to-end against an
 // httptest server standing in for the Huawei Cloud BSS cost-analysed-bills endpoint.
 func TestCostIntegration_GetCloudCost_LiveBSS(t *testing.T) {
@@ -188,180 +335,6 @@ func TestCostIntegration_GetCloudCost_LiveBSS(t *testing.T) {
 			}
 			if cc.ListCost.Cost != 2.0 {
 				t.Fatalf("expected list cost 2.0, got %v", cc.ListCost.Cost)
-			}
-		}
-	}
-	if !found {
-		t.Fatalf("expected a CloudCost entry for res-1, got none in %+v", ccsr)
-	}
-}
-
-// TestCostIntegration_GetCloudCost_ResourceDetails checks that the descriptive
-// dimensions are requested, and that the resource type and spec code they return
-// reach the CloudCost as labels.
-func TestCostIntegration_GetCloudCost_ResourceDetails(t *testing.T) {
-	var requestedGroupby []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var body struct {
-			Groupby []struct {
-				Key string `json:"key"`
-			} `json:"groupby"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("unexpected error decoding request: %v", err)
-		}
-		requestedGroupby = nil
-		for _, g := range body.Groupby {
-			requestedGroupby = append(requestedGroupby, g.Key)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
-			"total_count": 1,
-			"cost_data": [
-				{
-					"dimensions": [
-						{"key": "RESOURCE_ID", "value": "res-1"},
-						{"key": "CLOUD_SERVICE_TYPE", "value": "Relational Database Service"},
-						{"key": "REGION_CODE", "value": "la-south-2"},
-						{"key": "RESOURCE_TYPE", "value": "RDS DB Instance VM"},
-						{"key": "RES_SPEC_CODE", "value": "rds.mysql.n1.large.2.ha"}
-					],
-					"costs": [
-						{
-							"time_dimension_value": "2026-01-15",
-							"time_measure_id": 1,
-							"amount": "1.230000",
-							"official_amount": "2.000000"
-						}
-					]
-				}
-			]
-		}`))
-	}))
-	defer server.Close()
-
-	bssEndpointOverride = server.URL
-	defer func() { bssEndpointOverride = "" }()
-
-	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
-	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
-	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
-
-	ci := &CostIntegration{
-		CostConfiguration: CostConfiguration{ProjectID: "test-project", Region: "la-south-2"},
-	}
-
-	start := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
-	ccsr, err := ci.GetCloudCost(start, start.AddDate(0, 0, 1))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	for _, want := range append(costQueryDimensions, costQueryDetailDimensions...) {
-		if !slices.Contains(requestedGroupby, want) {
-			t.Errorf("expected group-by to include %q, got %v", want, requestedGroupby)
-		}
-	}
-
-	found := false
-	for _, ccs := range ccsr.CloudCostSets {
-		for _, cc := range ccs.CloudCosts {
-			if cc.Properties == nil || cc.Properties.ProviderID != "res-1" {
-				continue
-			}
-			found = true
-			if cc.Properties.Category != opencost.StorageCategory {
-				t.Errorf("expected category %q, got %q", opencost.StorageCategory, cc.Properties.Category)
-			}
-			if got := cc.Properties.Labels[opencost.AssetResourceTypeLabel]; got != "RDS DB Instance VM" {
-				t.Errorf("expected resource type label, got %q", got)
-			}
-			if got := cc.Properties.Labels[opencost.AssetResourceSpecLabel]; got != "rds.mysql.n1.large.2.ha" {
-				t.Errorf("expected resource spec label, got %q", got)
-			}
-		}
-	}
-	if !found {
-		t.Fatalf("expected a CloudCost entry for res-1, got none in %+v", ccsr)
-	}
-}
-
-// TestCostIntegration_GetCloudCost_DetailDimensionsRejected checks that costs
-// still come back when BSS refuses to group by the descriptive dimensions: the
-// query is retried with the identifying dimensions alone.
-func TestCostIntegration_GetCloudCost_DetailDimensionsRejected(t *testing.T) {
-	var attempts int
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts++
-		var body struct {
-			Groupby []struct {
-				Key string `json:"key"`
-			} `json:"groupby"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("unexpected error decoding request: %v", err)
-		}
-		for _, g := range body.Groupby {
-			if slices.Contains(costQueryDetailDimensions, g.Key) {
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte(`{"error_code": "CBC.0100", "error_msg": "invalid groupby"}`))
-				return
-			}
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
-			"total_count": 1,
-			"cost_data": [
-				{
-					"dimensions": [
-						{"key": "RESOURCE_ID", "value": "res-1"},
-						{"key": "CLOUD_SERVICE_TYPE", "value": "Object Storage Service"},
-						{"key": "REGION_CODE", "value": "la-south-2"}
-					],
-					"costs": [
-						{
-							"time_dimension_value": "2026-01-15",
-							"time_measure_id": 1,
-							"amount": "1.230000",
-							"official_amount": "2.000000"
-						}
-					]
-				}
-			]
-		}`))
-	}))
-	defer server.Close()
-
-	bssEndpointOverride = server.URL
-	defer func() { bssEndpointOverride = "" }()
-
-	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
-	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
-	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
-
-	ci := &CostIntegration{
-		CostConfiguration: CostConfiguration{ProjectID: "test-project", Region: "la-south-2"},
-	}
-
-	start := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
-	ccsr, err := ci.GetCloudCost(start, start.AddDate(0, 0, 1))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if attempts < 2 {
-		t.Fatalf("expected a retry without the descriptive dimensions, got %d request(s)", attempts)
-	}
-	if ci.GetStatus() != cloud.SuccessfulConnection {
-		t.Fatalf("expected SuccessfulConnection status, got %v", ci.GetStatus())
-	}
-
-	found := false
-	for _, ccs := range ccsr.CloudCostSets {
-		for _, cc := range ccs.CloudCosts {
-			if cc.Properties != nil && cc.Properties.ProviderID == "res-1" {
-				found = true
 			}
 		}
 	}

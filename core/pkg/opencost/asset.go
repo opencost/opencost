@@ -303,6 +303,8 @@ const (
 	WAFCloudAssetType
 	CodeArtsCloudAssetType
 	SupportPlanCloudAssetType
+	ModelArtsCloudAssetType
+	RMSCloudAssetType
 )
 
 // ParseAssetType attempts to parse the given string into an AssetType
@@ -374,6 +376,10 @@ func ParseAssetType(text string) (AssetType, error) {
 		return CodeArtsCloudAssetType, nil
 	case "supportplan":
 		return SupportPlanCloudAssetType, nil
+	case "modelarts":
+		return ModelArtsCloudAssetType, nil
+	case "rms":
+		return RMSCloudAssetType, nil
 	}
 	return AnyAssetType, fmt.Errorf("invalid asset type: %s", text)
 }
@@ -415,6 +421,8 @@ func (at AssetType) String() string {
 		"WAF",
 		"CodeArts",
 		"SupportPlan",
+		"ModelArts",
+		"RMS",
 	}[at]
 }
 
