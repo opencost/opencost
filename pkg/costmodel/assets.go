@@ -3,6 +3,7 @@ package costmodel
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -192,11 +193,62 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*opencost.AssetSet, er
 		assetSet.Insert(node, nil)
 	}
 
+	// The billing data covers the whole account, including the machines and
+	// volumes this cluster runs on -- which the loops above have already
+	// reported, priced from metrics. Inserting both would count those twice.
+	nodePools := clusterNodePools(nodeMap)
 	for _, ca := range cloudAssets {
+		if isClusterCloudAsset(ca, nodePools) {
+			log.Debugf("ComputeAssets: skipping %s asset %q: already reported as a cluster asset", ca.Type(), ca.Properties.Name)
+			continue
+		}
 		assetSet.Insert(ca, nil)
 	}
 
 	return assetSet, nil
+}
+
+// clusterNodePools collects the names of the node pools the cluster's nodes
+// belong to.
+func clusterNodePools(nodeMap map[NodeIdentifier]*Node) map[string]struct{} {
+	pools := map[string]struct{}{}
+	for _, n := range nodeMap {
+		if pool := n.Labels[opencost.HuaweiNodePoolLabel]; pool != "" {
+			pools[pool] = struct{}{}
+		}
+	}
+	return pools
+}
+
+// isClusterCloudAsset reports whether a billed resource is one the cost model
+// already reports as a cluster asset, and so must not be inserted a second time
+// from the billing side.
+//
+// The two sides identify a machine differently -- billing by its ECS instance
+// ID, Kubernetes by its CCE node ID, which are unrelated -- so the match is by
+// name: CCE names a node after the pool it belongs to
+// ("cce-mlops-np-training-cpu-52qrp") and its disks after the node
+// ("cce-mlops-np-training-cpu-52qrp-volume-0000"). A machine of the account
+// that isn't in one of the cluster's pools (a standalone VM, say) has no
+// cluster asset shadowing it and is kept.
+//
+// Only the resources the cost model actually prices are considered: the pools
+// are known only when node metrics carry the CCE labels, so an empty pool set
+// keeps everything, double-counting rather than dropping real costs.
+func isClusterCloudAsset(ca *opencost.Cloud, nodePools map[string]struct{}) bool {
+	switch ca.Type() {
+	case opencost.ECSCloudAssetType, opencost.EVSCloudAssetType:
+	default:
+		return false
+	}
+
+	name := ca.Properties.Name
+	for pool := range nodePools {
+		if strings.HasPrefix(name, pool+"-") {
+			return true
+		}
+	}
+	return false
 }
 
 // ClusterCloudCosts converts CloudCost data already ingested via a registered

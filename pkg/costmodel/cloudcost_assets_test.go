@@ -309,6 +309,76 @@ func TestClusterCloudCosts_OtherProvidersStayGeneric(t *testing.T) {
 	}
 }
 
+// TestIsClusterCloudAsset covers which billed resources are dropped as already
+// reported from cluster metrics -- the machines and disks of the cluster's own
+// node pools -- and which are kept because nothing else reports them.
+func TestIsClusterCloudAsset(t *testing.T) {
+	nodePools := map[string]struct{}{
+		"cce-mlops-np-training-cpu": {},
+		"cce-mlops-np-management":   {},
+	}
+
+	cloudAsset := func(typ opencost.AssetType, name string) *opencost.Cloud {
+		ca := opencost.NewCloud("Compute", name, time.Time{}, time.Time{}, opencost.NewClosedWindow(time.Time{}, time.Time{}))
+		ca.SetCloudType(typ)
+		ca.Properties.Name = name
+		return ca
+	}
+
+	cases := []struct {
+		name  string
+		asset *opencost.Cloud
+		want  bool
+	}{
+		{
+			name:  "node of a cluster pool",
+			asset: cloudAsset(opencost.ECSCloudAssetType, "cce-mlops-np-training-cpu-52qrp"),
+			want:  true,
+		},
+		{
+			name:  "disk of a node of a cluster pool",
+			asset: cloudAsset(opencost.EVSCloudAssetType, "cce-mlops-np-management-lho9s-volume-0000"),
+			want:  true,
+		},
+		{
+			name:  "machine outside the cluster",
+			asset: cloudAsset(opencost.ECSCloudAssetType, "ecs-tdp-jenkins"),
+			want:  false,
+		},
+		{
+			name:  "pool name is not a prefix of another pool's node",
+			asset: cloudAsset(opencost.ECSCloudAssetType, "cce-mlops-np-inference-ebli4"),
+			want:  false,
+		},
+		{
+			// Only ECS and EVS have a cluster-side counterpart. A database is
+			// nobody else's to report, whatever it is called.
+			name:  "service the cost model does not price",
+			asset: cloudAsset(opencost.RDSCloudAssetType, "cce-mlops-np-training-cpu-db"),
+			want:  false,
+		},
+		{
+			name:  "unnamed resource",
+			asset: cloudAsset(opencost.ECSCloudAssetType, ""),
+			want:  false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := isClusterCloudAsset(c.asset, nodePools); got != c.want {
+				t.Errorf("isClusterCloudAsset(%q) = %v, want %v", c.asset.Properties.Name, got, c.want)
+			}
+		})
+	}
+
+	// Without node labels there are no pools to match, and dropping a real
+	// cost is worse than reporting it twice.
+	if isClusterCloudAsset(cloudAsset(opencost.ECSCloudAssetType, "cce-mlops-np-training-cpu-52qrp"), nil) {
+		t.Error("expected nothing to be dropped when the cluster's node pools are unknown")
+	}
+}
+
 func TestClusterCloudCosts_ClampsWindowToRequestedRange(t *testing.T) {
 	start := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
 	end := start.AddDate(0, 0, 1)

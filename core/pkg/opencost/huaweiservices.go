@@ -36,6 +36,13 @@ const (
 // (hws.service.type.ec2, hws.service.type.obs, ...).
 const huaweiServiceTypeCodePrefix = "hws.service.type."
 
+// HuaweiNodePoolLabel is the label CCE puts on every node naming the pool it
+// belongs to ("cce-mlops-np-training-cpu"). Node labels reach assets with the
+// "label_" prefix stripped and their punctuation sanitized (see
+// source.QueryResult.GetLabels), so this is the sanitized form of
+// cce.cloud.com/cce-nodepool.
+const HuaweiNodePoolLabel = "cce_cloud_com_cce_nodepool"
+
 // huaweiService describes how one Huawei Cloud service is reported by OpenCost.
 type huaweiService struct {
 	assetType AssetType
