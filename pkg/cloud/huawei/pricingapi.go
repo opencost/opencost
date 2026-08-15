@@ -1,6 +1,7 @@
 package huawei
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -8,11 +9,13 @@ import (
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/global"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/provider"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/config"
+	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/sdkerr"
 	bssintl "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2"
 	bssintlmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2/model"
 	bssintlregion "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2/region"
 	"github.com/shopspring/decimal"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/env"
 )
@@ -220,16 +223,59 @@ func fetchOnDemandRatings(projectID string, products []bssintlmodel.DemandProduc
 // per page rather than the number of underlying billing line items.
 const costQueryPageSize = 200
 
+// costQueryDimensions identifies a billed resource: which resource, of which
+// service, in which region.
+var costQueryDimensions = []string{"RESOURCE_ID", "CLOUD_SERVICE_TYPE", "REGION_CODE"}
+
+// costQueryDetailDimensions describe what the resource is -- its product type
+// and its spec/SKU code -- which OpenCost surfaces as the asset's spec, the
+// cloud-service counterpart of a node's instance type. They are grouped
+// separately from costQueryDimensions because they are a nice-to-have: a
+// response missing them still yields correct costs, so a BSS rejection of these
+// dimensions must not cost us the whole query (see fetchCostAnalysedBills).
+var costQueryDetailDimensions = []string{"RESOURCE_TYPE", "RES_SPEC_CODE"}
+
 // fetchCostAnalysedBills queries the BSS historical cost API (POST
 // /v4/costs/cost-analysed-bills/query) for the given time range, grouped by
-// resource, cloud service type, and region, paginating through all result pages.
-// costType/amountType select which cost figure comes back in Cost.Amount (see
-// costintegration.go for how the two are combined with Cost.OfficialAmount to
-// populate OpenCost's CloudCost fields).
+// resource, cloud service type, region, resource type and spec code,
+// paginating through all result pages. costType/amountType select which cost
+// figure comes back in Cost.Amount (see costintegration.go for how the two are
+// combined with Cost.OfficialAmount to populate OpenCost's CloudCost fields).
+//
+// If BSS rejects the request itself, the query is retried with the identifying
+// dimensions alone -- those are what the costs are keyed by, and an account
+// whose bill can't be broken down by spec should still get its costs. Failures
+// that aren't about the request (credentials, connectivity, a server-side
+// error) are returned as they are: retrying them only doubles the wait.
 func fetchCostAnalysedBills(projectID string, beginTime, endTime string, costType, amountType string) ([]bssintlmodel.CostDataByDimension, error) {
+	rows, err := fetchCostAnalysedBillsBy(append(costQueryDimensions, costQueryDetailDimensions...), beginTime, endTime, costType, amountType)
+	if err == nil || !isRequestRejection(err) {
+		return rows, err
+	}
+
+	log.Warnf("huawei cloud cost: grouping by %v was rejected, retrying without it: %v", costQueryDetailDimensions, err)
+	return fetchCostAnalysedBillsBy(costQueryDimensions, beginTime, endTime, costType, amountType)
+}
+
+// isRequestRejection reports whether BSS answered with a 4xx, i.e. it took issue
+// with what was asked rather than failing to answer.
+func isRequestRejection(err error) bool {
+	var respErr *sdkerr.ServiceResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	return respErr.StatusCode >= 400 && respErr.StatusCode < 500
+}
+
+func fetchCostAnalysedBillsBy(dimensions []string, beginTime, endTime string, costType, amountType string) ([]bssintlmodel.CostDataByDimension, error) {
 	client, err := newBssClient()
 	if err != nil {
 		return nil, err
+	}
+
+	groupby := make([]bssintlmodel.GroupBy, 0, len(dimensions))
+	for _, dimension := range dimensions {
+		groupby = append(groupby, bssintlmodel.GroupBy{Type: "dimension", Key: dimension})
 	}
 
 	xLanguage := "en_us"
@@ -246,11 +292,7 @@ func fetchCostAnalysedBills(projectID string, beginTime, endTime string, costTyp
 					BeginTime:     beginTime,
 					EndTime:       endTime,
 				},
-				Groupby: []bssintlmodel.GroupBy{
-					{Type: "dimension", Key: "RESOURCE_ID"},
-					{Type: "dimension", Key: "CLOUD_SERVICE_TYPE"},
-					{Type: "dimension", Key: "REGION_CODE"},
-				},
+				Groupby:    groupby,
 				CostType:   costType,
 				AmountType: amountType,
 				Offset:     &offset,

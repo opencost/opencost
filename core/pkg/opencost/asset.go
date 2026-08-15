@@ -282,6 +282,27 @@ const (
 	EIPCloudAssetType
 	DEWCloudAssetType
 	OtherCloudAssetType
+
+	// More Huawei Cloud service sub-types. These are appended after
+	// OtherCloudAssetType, rather than grouped with the block above, so that
+	// every pre-existing AssetType keeps its ordinal: an AssetType is encoded
+	// as its numeric value (see MarshalBinary), so renumbering would make
+	// already-persisted AssetSets decode as the wrong type.
+	CCECloudAssetType
+	SWRCloudAssetType
+	SFSCloudAssetType
+	CBRCloudAssetType
+	FGSCloudAssetType
+	LTSCloudAssetType
+	CESCloudAssetType
+	AOMCloudAssetType
+	SMNCloudAssetType
+	DNSCloudAssetType
+	DMSCloudAssetType
+	APIGCloudAssetType
+	WAFCloudAssetType
+	CodeArtsCloudAssetType
+	SupportPlanCloudAssetType
 )
 
 // ParseAssetType attempts to parse the given string into an AssetType
@@ -323,6 +344,36 @@ func ParseAssetType(text string) (AssetType, error) {
 		return DEWCloudAssetType, nil
 	case "othercloud":
 		return OtherCloudAssetType, nil
+	case "cce":
+		return CCECloudAssetType, nil
+	case "swr":
+		return SWRCloudAssetType, nil
+	case "sfs":
+		return SFSCloudAssetType, nil
+	case "cbr":
+		return CBRCloudAssetType, nil
+	case "functiongraph":
+		return FGSCloudAssetType, nil
+	case "lts":
+		return LTSCloudAssetType, nil
+	case "ces":
+		return CESCloudAssetType, nil
+	case "aom":
+		return AOMCloudAssetType, nil
+	case "smn":
+		return SMNCloudAssetType, nil
+	case "dns":
+		return DNSCloudAssetType, nil
+	case "dms":
+		return DMSCloudAssetType, nil
+	case "apig":
+		return APIGCloudAssetType, nil
+	case "waf":
+		return WAFCloudAssetType, nil
+	case "codearts":
+		return CodeArtsCloudAssetType, nil
+	case "supportplan":
+		return SupportPlanCloudAssetType, nil
 	}
 	return AnyAssetType, fmt.Errorf("invalid asset type: %s", text)
 }
@@ -349,6 +400,21 @@ func (at AssetType) String() string {
 		"EIP",
 		"DEW",
 		"OtherCloud",
+		"CCE",
+		"SWR",
+		"SFS",
+		"CBR",
+		"FunctionGraph",
+		"LTS",
+		"CES",
+		"AOM",
+		"SMN",
+		"DNS",
+		"DMS",
+		"APIG",
+		"WAF",
+		"CodeArts",
+		"SupportPlan",
 	}[at]
 }
 
@@ -600,6 +666,15 @@ func NewCloud(category, providerID string, start, end time.Time, window Window) 
 // Type returns the AssetType
 func (ca *Cloud) Type() AssetType {
 	return ca.typ
+}
+
+// resourceSpec returns the provider spec/SKU code of the billed resource,
+// falling back to its resource type, or "" when neither label is present.
+func (ca *Cloud) resourceSpec() string {
+	if spec := ca.Labels[AssetResourceSpecLabel]; spec != "" {
+		return spec
+	}
+	return ca.Labels[AssetResourceTypeLabel]
 }
 
 // SetCloudType sets the AssetType for this Cloud asset. Used by ClusterCloudCosts

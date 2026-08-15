@@ -3,7 +3,6 @@ package costmodel
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -244,10 +243,16 @@ func (cm *CostModel) ClusterCloudCosts(start, end time.Time) ([]*opencost.Cloud,
 			}
 
 			cloudAsset := opencost.NewCloud(cc.Properties.Category, cc.Properties.ProviderID, s, e, opencost.NewWindow(&start, &end))
-			cloudAsset.SetCloudType(cloudCostServiceToAssetType(cc.Properties.Service))
+			cloudAsset.SetCloudType(cloudCostServiceToAssetType(cc.Properties.Provider, cc.Properties.Service))
 			cloudAsset.Properties.Provider = cc.Properties.Provider
 			cloudAsset.Properties.Service = cc.Properties.Service
 			cloudAsset.Properties.Account = cc.Properties.AccountID
+			// Name is what consumers of the assets API display for an asset.
+			// Billing APIs report a resource ID rather than a name, so without
+			// this every Cloud asset of a service renders identically (as the
+			// service itself) and the rows can't be told apart.
+			cloudAsset.Properties.Name = cc.Properties.ProviderID
+			cloudAsset.SetLabels(cloudAssetLabels(cc.Properties))
 			cloudAsset.Cost = cc.NetCost.Cost
 
 			cloudAssets = append(cloudAssets, cloudAsset)
@@ -296,30 +301,28 @@ func (cm *CostModel) PropertiesFromCluster(props *opencost.AssetProperties) {
 // CLOUD_SERVICE_TYPE dimension value) to a specific AssetType for Cloud assets.
 // This allows the Infra Assets dashboard to show RDS, DCS, OBS, etc. as
 // separate categories instead of a single "Cloud" catch-all.
-func cloudCostServiceToAssetType(service string) opencost.AssetType {
-	lower := strings.ToLower(service)
-	switch {
-	case strings.Contains(lower, "elastic cloud server") || strings.Contains(lower, "ecs") || strings.Contains(lower, "bare metal"):
-		return opencost.ECSCloudAssetType
-	case strings.Contains(lower, "elastic volume") || strings.Contains(lower, "evs"):
-		return opencost.EVSCloudAssetType
-	case strings.Contains(lower, "object storage") || strings.Contains(lower, "obs"):
-		return opencost.OBSCloudAssetType
-	case strings.Contains(lower, "relational database") || strings.Contains(lower, "rds"):
-		return opencost.RDSCloudAssetType
-	case strings.Contains(lower, "distributed cache") || strings.Contains(lower, "dcs"):
-		return opencost.DCSCloudAssetType
-	case strings.Contains(lower, "elastic load balance") || strings.Contains(lower, "elb"):
-		return opencost.ELBCloudAssetType
-	case strings.Contains(lower, "nat gateway") || strings.Contains(lower, "nat"):
-		return opencost.NATCloudAssetType
-	case strings.Contains(lower, "virtual private cloud") || strings.Contains(lower, "vpc"):
-		return opencost.VPCCloudAssetType
-	case strings.Contains(lower, "elastic ip") || strings.Contains(lower, "eip"):
-		return opencost.EIPCloudAssetType
-	case strings.Contains(lower, "data encryption") || strings.Contains(lower, "dew") || strings.Contains(lower, "kms") || strings.Contains(lower, "csms"):
-		return opencost.DEWCloudAssetType
-	default:
-		return opencost.OtherCloudAssetType
+//
+// The service naming is provider-specific, so only providers with a known
+// mapping are sub-typed; every other provider keeps the generic Cloud type
+// rather than risking a service name that coincidentally resembles a Huawei
+// Cloud one being filed under the wrong type.
+func cloudCostServiceToAssetType(provider, service string) opencost.AssetType {
+	if provider == opencost.HuaweiProvider {
+		return opencost.HuaweiServiceAssetType(service)
 	}
+	return opencost.CloudAssetType
+}
+
+// cloudAssetLabels carries the parts of a CloudCost that an Asset has no
+// property for -- region, resource type and spec code -- over to the Cloud
+// asset as labels, alongside whatever labels the billing data already had.
+func cloudAssetLabels(props *opencost.CloudCostProperties) opencost.AssetLabels {
+	labels := opencost.AssetLabels{}
+	for k, v := range props.Labels {
+		labels[k] = v
+	}
+	if props.RegionID != "" {
+		labels[opencost.AssetRegionLabel] = props.RegionID
+	}
+	return labels
 }

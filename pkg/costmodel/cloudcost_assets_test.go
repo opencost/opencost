@@ -158,6 +158,115 @@ func TestClusterCloudCosts_ConvertsCategorizedCloudCosts(t *testing.T) {
 	}
 }
 
+// TestClusterCloudCosts_DescribesResources verifies that the details a billing
+// API reports about a resource -- which service it belongs to, where it runs,
+// what it is -- reach the Cloud asset, since an asset without them renders as an
+// anonymous row indistinguishable from every other row of the same service.
+func TestClusterCloudCosts_DescribesResources(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 1)
+
+	props := &opencost.CloudCostProperties{
+		ProviderID: "rds-instance-1",
+		Provider:   opencost.HuaweiProvider,
+		AccountID:  "project-1",
+		RegionID:   "la-south-2",
+		Service:    "Relational Database Service",
+		Category:   opencost.StorageCategory,
+		Labels: opencost.CloudCostLabels{
+			opencost.AssetResourceTypeLabel: "RDS DB Instance VM",
+			opencost.AssetResourceSpecLabel: "rds.mysql.n1.large.2.ha",
+			"owner":                         "mlops",
+		},
+	}
+
+	ccs := opencost.NewCloudCostSet(start, end,
+		&opencost.CloudCost{
+			Properties: props,
+			Window:     opencost.NewClosedWindow(start, end),
+			NetCost:    opencost.CostMetric{Cost: 12.5},
+		},
+	)
+
+	cm := &CostModel{
+		CloudCostQuerier: &fakeCloudCostQuerier{
+			result: &opencost.CloudCostSetRange{
+				CloudCostSets: []*opencost.CloudCostSet{ccs},
+				Window:        opencost.NewClosedWindow(start, end),
+			},
+		},
+	}
+
+	assets, err := cm.ClusterCloudCosts(start, end)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(assets) != 1 {
+		t.Fatalf("expected 1 Cloud asset, got %d", len(assets))
+	}
+
+	asset := assets[0]
+	if asset.Type() != opencost.RDSCloudAssetType {
+		t.Errorf("expected asset type %s, got %s", opencost.RDSCloudAssetType, asset.Type())
+	}
+	if asset.Properties.Name != "rds-instance-1" {
+		t.Errorf("expected the resource ID as the asset name, got %q", asset.Properties.Name)
+	}
+	if got := asset.Labels[opencost.AssetRegionLabel]; got != "la-south-2" {
+		t.Errorf("expected region label %q, got %q", "la-south-2", got)
+	}
+	if got := asset.Labels[opencost.AssetResourceTypeLabel]; got != "RDS DB Instance VM" {
+		t.Errorf("expected resource type label to carry over, got %q", got)
+	}
+	if got := asset.Labels[opencost.AssetResourceSpecLabel]; got != "rds.mysql.n1.large.2.ha" {
+		t.Errorf("expected resource spec label to carry over, got %q", got)
+	}
+	if got := asset.Labels["owner"]; got != "mlops" {
+		t.Errorf("expected billing labels to carry over, got %q", got)
+	}
+}
+
+// TestClusterCloudCosts_OtherProvidersStayGeneric verifies that only providers
+// with a known service catalogue get sub-typed: another provider's service name
+// must not be forced into a Huawei Cloud service's asset type.
+func TestClusterCloudCosts_OtherProvidersStayGeneric(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 1)
+
+	ccs := opencost.NewCloudCostSet(start, end,
+		&opencost.CloudCost{
+			Properties: &opencost.CloudCostProperties{
+				ProviderID: "arn:aws:rds:us-east-1:1234:db:db-1",
+				Provider:   opencost.AWSProvider,
+				Service:    "Amazon Relational Database Service",
+				Category:   opencost.StorageCategory,
+			},
+			Window:  opencost.NewClosedWindow(start, end),
+			NetCost: opencost.CostMetric{Cost: 3},
+		},
+	)
+
+	cm := &CostModel{
+		CloudCostQuerier: &fakeCloudCostQuerier{
+			result: &opencost.CloudCostSetRange{
+				CloudCostSets: []*opencost.CloudCostSet{ccs},
+				Window:        opencost.NewClosedWindow(start, end),
+			},
+		},
+	}
+
+	assets, err := cm.ClusterCloudCosts(start, end)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(assets) != 1 {
+		t.Fatalf("expected 1 Cloud asset, got %d", len(assets))
+	}
+	if assets[0].Type() != opencost.CloudAssetType {
+		t.Errorf("expected a generic Cloud asset, got %s", assets[0].Type())
+	}
+}
+
 func TestClusterCloudCosts_ClampsWindowToRequestedRange(t *testing.T) {
 	start := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
 	end := start.AddDate(0, 0, 1)

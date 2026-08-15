@@ -3,7 +3,6 @@ package huawei
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	bssintlmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2/model"
@@ -68,6 +67,19 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		serviceType := dimensionValue(row.Dimensions, "CLOUD_SERVICE_TYPE")
 		region := dimensionValue(row.Dimensions, "REGION_CODE")
 
+		// A billed resource has no CPU/RAM figures to report the way a Node
+		// does, so its resource type ("RDS DB Instance VM") and spec code
+		// ("rds.mysql.n1.large.2.ha") are what identifies what was paid for.
+		// Both are optional: they are absent from the response whenever the
+		// enriched group-by was rejected (see fetchCostAnalysedBills).
+		labels := opencost.CloudCostLabels{}
+		if resourceType := dimensionValue(row.Dimensions, "RESOURCE_TYPE"); resourceType != "" {
+			labels[opencost.AssetResourceTypeLabel] = resourceType
+		}
+		if specCode := dimensionValue(row.Dimensions, "RES_SPEC_CODE"); specCode != "" {
+			labels[opencost.AssetResourceSpecLabel] = specCode
+		}
+
 		properties := &opencost.CloudCostProperties{
 			ProviderID: resourceID,
 			Provider:   opencost.HuaweiProvider,
@@ -75,7 +87,7 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 			RegionID:   region,
 			Service:    serviceType,
 			Category:   selectHuaweiCategory(serviceType),
-			Labels:     opencost.CloudCostLabels{},
+			Labels:     labels,
 		}
 
 		if row.Costs == nil {
@@ -180,39 +192,10 @@ func parseCostAmount(s *string) (float64, error) {
 }
 
 // selectHuaweiCategory maps a BSS CLOUD_SERVICE_TYPE dimension value (an
-// English-language service name, since GetCloudCost requests X-Language: en_us) to
-// an OpenCost asset category. The "Service Type" strings for ECS, CCE, EVS, OBS,
-// ELB, VPC (EIP bandwidth is billed under this service type as a "Fixed Bandwidth"
-// resource, not its own "Elastic IP" service type), NAT Gateway, RDS and Data
-// Encryption Workshop (DEW/KMS; note the account's Service Type Code is
-// hws.service.type.kms, not dew/csms) are confirmed against a real Huawei Cloud
-// bill export. DCS (Distributed Cache Service) did not appear in that export and
-// remains unconfirmed; its case matches the documented Huawei Cloud display name.
+// English-language service name, since GetCloudCost requests X-Language: en_us)
+// to an OpenCost asset category. The service catalogue itself lives in
+// core/pkg/opencost, next to the AssetType each service is reported as, so that
+// a service is described in exactly one place.
 func selectHuaweiCategory(serviceType string) string {
-	lower := strings.ToLower(serviceType)
-	switch {
-	case containsAny(lower, "elastic cloud server", "ecs", "bare metal server", "cloud container engine", "cce"):
-		return opencost.ComputeCategory
-	case containsAny(lower, "elastic volume", "evs", "object storage", "obs", "scalable file", "sfs"):
-		return opencost.StorageCategory
-	case containsAny(lower, "elastic load balance", "elb", "elastic ip", "eip", "virtual private cloud", "vpc", "nat gateway"):
-		return opencost.NetworkCategory
-	case containsAny(lower, "relational database", "rds"):
-		return opencost.StorageCategory
-	case containsAny(lower, "distributed cache", "dcs"):
-		return opencost.ComputeCategory
-	case containsAny(lower, "data encryption workshop", "dew", "csms"):
-		return opencost.StorageCategory
-	default:
-		return opencost.OtherCategory
-	}
-}
-
-func containsAny(s string, substrs ...string) bool {
-	for _, sub := range substrs {
-		if strings.Contains(s, sub) {
-			return true
-		}
-	}
-	return false
+	return opencost.HuaweiServiceCategory(serviceType)
 }

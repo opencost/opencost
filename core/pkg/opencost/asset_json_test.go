@@ -120,6 +120,64 @@ func TestCloud_Unmarshal(t *testing.T) {
 
 }
 
+// TestCloud_MarshalSpec covers the spec a Cloud asset reports under "nodeType":
+// it comes from the resource spec label, falls back to the resource type, and is
+// left out entirely when neither is known.
+func TestCloud_MarshalSpec(t *testing.T) {
+	marshalSpec := func(labels map[string]string) string {
+		cloud := NewCloud("Storage", "rds-instance-1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
+		cloud.SetLabels(labels)
+
+		bytes, err := json.Marshal(cloud)
+		if err != nil {
+			t.Fatalf("Cloud Marshal: unexpected error: %s", err)
+		}
+
+		var decoded map[string]any
+		if err := json.Unmarshal(bytes, &decoded); err != nil {
+			t.Fatalf("Cloud Marshal: unexpected error: %s", err)
+		}
+		spec, ok := decoded["nodeType"]
+		if !ok {
+			return ""
+		}
+		return spec.(string)
+	}
+
+	cases := []struct {
+		name   string
+		labels map[string]string
+		want   string
+	}{
+		{
+			name: "spec code preferred",
+			labels: map[string]string{
+				AssetResourceSpecLabel: "rds.mysql.n1.large.2.ha",
+				AssetResourceTypeLabel: "RDS DB Instance VM",
+			},
+			want: "rds.mysql.n1.large.2.ha",
+		},
+		{
+			name:   "resource type as fallback",
+			labels: map[string]string{AssetResourceTypeLabel: "RDS DB Instance VM"},
+			want:   "RDS DB Instance VM",
+		},
+		{
+			name:   "omitted when unknown",
+			labels: map[string]string{"env": "env1"},
+			want:   "",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := marshalSpec(c.labels); got != c.want {
+				t.Errorf("Cloud Marshal: nodeType = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
 func TestClusterManagement_Unmarshal(t *testing.T) {
 
 	cm1 := NewClusterManagement(GCPProvider, "cluster1", unmarshalWindow)
