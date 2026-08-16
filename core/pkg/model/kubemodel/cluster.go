@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/core/pkg/model/shared"
+	"github.com/opencost/opencost/core/pkg/cloud"
 )
 
 // @bingen:generate:Cluster
 type Cluster struct {
-	UID      string          `json:"uid"`      // @bingen:field[version=1]
-	Provider shared.Provider `json:"provider"` // @bingen:field[version=1]
-	Account  string          `json:"account"`  // @bingen:field[version=1]
-	Name     string          `json:"name"`     // @bingen:field[version=1]
-	Region   string          `json:"region"`   // @bingen:field[version=2]
-	Start    time.Time       `json:"start"`    // @bingen:field[version=1]
-	End      time.Time       `json:"end"`      // @bingen:field[version=1]
+	UID      string         `json:"uid"`      // @bingen:field[version=1]
+	Provider cloud.Provider `json:"provider"` // @bingen:field[version=1]
+	Account  string         `json:"account"`  // @bingen:field[version=1]
+	Name     string         `json:"name"`     // @bingen:field[version=1]
+	Region   string         `json:"region"`   // @bingen:field[version=2]
+	Start    time.Time      `json:"start"`    // @bingen:field[version=1]
+	End      time.Time      `json:"end"`      // @bingen:field[version=1]
 }
 
 func (c *Cluster) ValidateCluster(window Window) error {
