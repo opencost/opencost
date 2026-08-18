@@ -103,6 +103,16 @@ func TestIncludeItem(t *testing.T) {
 			expected: false,
 		},
 		{
+			name: "Spot - excluded",
+			item: AzurePricingAttributes{
+				ArmSkuName:    "Standard_D2s_v3",
+				ArmRegionName: "eastus",
+				ProductName:   "Virtual Machines Dsv3 Series",
+				SkuName:       "D2s v3 Spot",
+			},
+			expected: false,
+		},
+		{
 			name: "Low priority - excluded",
 			item: AzurePricingAttributes{
 				ArmSkuName:    "Standard_D2s_v3",
