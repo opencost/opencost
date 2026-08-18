@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 // StorageConnection provides access to Azure Storage
@@ -139,7 +140,7 @@ func (sc *StorageConnection) DownloadBlobToFile(localFilePath string, blob conta
 func (sc *StorageConnection) deleteFilesOlderThan2d(localPath string) ([]string, error) {
 	sc.lock.Lock()
 	defer sc.lock.Unlock()
-	duration := 2 * 24 * time.Hour
+	duration := time.Duration(env.GetCloudCostPvcRetention()) * 24 * time.Hour
 	cleaned := []string{}
 	errs := []string{}
 
