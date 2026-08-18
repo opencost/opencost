@@ -133,13 +133,13 @@ func (sc *StorageConnection) DownloadBlobToFile(localFilePath string, blob conta
 	return nil
 }
 
-// deleteFilesOlderThan7d recursively walks the directory specified and deletes
-// files which have not been modified in the last 7 days. Returns a list of
+// deleteFilesOlderThan2d recursively walks the directory specified and deletes
+// files which have not been modified in the last 2 days. Returns a list of
 // files deleted.
-func (sc *StorageConnection) deleteFilesOlderThan7d(localPath string) ([]string, error) {
+func (sc *StorageConnection) deleteFilesOlderThan2d(localPath string) ([]string, error) {
 	sc.lock.Lock()
 	defer sc.lock.Unlock()
-	duration := 7 * 24 * time.Hour
+	duration := 2 * 24 * time.Hour
 	cleaned := []string{}
 	errs := []string{}
 
@@ -166,6 +166,6 @@ func (sc *StorageConnection) deleteFilesOlderThan7d(localPath string) ([]string,
 	if len(errs) == 0 {
 		return cleaned, nil
 	} else {
-		return cleaned, fmt.Errorf("deleteFilesOlderThan7d: %v", errs)
+		return cleaned, fmt.Errorf("deleteFilesOlderThan2d: %v", errs)
 	}
 }
