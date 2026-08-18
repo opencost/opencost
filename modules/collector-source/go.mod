@@ -9,7 +9,7 @@ require (
 	github.com/kubecost/events v0.0.8
 	github.com/opencost/bingen v0.2.0
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.3
@@ -88,7 +88,6 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/rs/xid v1.6.0 // indirect
