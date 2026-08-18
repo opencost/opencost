@@ -51,6 +51,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 	// Fetch VM pricing
 	url := a.buildVMURL()
 	pageCount := 0
+	seenNodes := make(map[nodeKey]struct{})
 
 	for url != "" {
 		resp, err := azureHTTPClient.Get(url)
@@ -67,7 +68,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 			return nil, fmt.Errorf("PricingSource (Azure): unexpected status %d on VM page %d: %s", resp.StatusCode, pageCount, string(body))
 		}
 
-		next, err := a.parseVMPage(resp.Body, ps)
+		next, err := a.parseVMPage(resp.Body, ps, seenNodes)
 		closeErr := resp.Body.Close()
 		if closeErr != nil {
 			log.Warnf("failed to close response body: %v", closeErr)
@@ -138,7 +139,7 @@ func (a *AzurePricingSource) buildDiskURL() string {
 	return u
 }
 
-func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet) (nextURL string, err error) {
+func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet, seen map[nodeKey]struct{}) (nextURL string, err error) {
 	data, err := io.ReadAll(body)
 	if err != nil {
 		return "", fmt.Errorf("reading response body: %w", err)
@@ -153,6 +154,12 @@ func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet)
 		if !a.includeItem(item) {
 			continue
 		}
+
+		nk := nodeKey{Region: item.ArmRegionName, InstanceType: item.ArmSkuName}
+		if _, ok := seen[nk]; ok {
+			continue
+		}
+		seen[nk] = struct{}{}
 
 		nodePricing := &pricing.NodePricing{
 			Properties: pricing.NodePricingProperties{
@@ -232,8 +239,13 @@ func (a *AzurePricingSource) includeItem(item AzurePricingAttributes) bool {
 		return false
 	}
 
+	// The Azure API appends an exact suffix to SkuName for non-on-demand rows.
+	// We only want on-demand Linux pricing, so reject Spot and Low Priority.
 	skuLower := strings.ToLower(item.SkuName)
-	return !strings.Contains(skuLower, "low priority")
+	if strings.HasSuffix(skuLower, " spot") {
+		return false
+	}
+	return !strings.HasSuffix(skuLower, " low priority")
 }
 
 // includeDiskItem filters disk items to include only managed disks.

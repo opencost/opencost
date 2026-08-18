@@ -33,7 +33,9 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
 	}
 	skuToNodeKey := make(map[string]nodeKey)
+	seenNodeKeys := make(map[nodeKey]struct{})
 	skuToVolumeKey := make(map[string]volumeKey)
+	seenVolumeKeys := make(map[volumeKey]struct{})
 
 	var productCount, termCount int
 	const logInterval = 50000
@@ -55,12 +57,32 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 			return
 		}
 
-		// Handle EC2 instances
+		// Handle EC2 instances.
+		// We only want the base Linux on-demand price:
+		//   - UsageType must be a BoxUsage (compute hour charge)
+		//   - CapacityStatus must be "Used" (not a capacity reservation)
+		//   - MarketOption must be "OnDemand" (not Spot)
+		//   - OperatingSystem must be Linux (or not returned by API)
+		//   - PreInstalledSw must be "NA" (no paid software bundle)
+		// All of these can appear empty when the API omits the field, so we
+		// treat empty as "unknown" and require the affirmative value where it
+		// matters, except OperatingSystem where empty/NA is acceptable.
 		if (strings.HasPrefix(attr.UsageType, "BoxUsage") || strings.Contains(attr.UsageType, "-BoxUsage")) &&
 			(attr.CapacityStatus == "Used" || attr.CapacityStatus == "") &&
 			(attr.MarketOption == "OnDemand" || attr.MarketOption == "") {
 
+			// Skip non-Linux operating systems; allow empty/NA (field may not be returned).
 			if attr.OperatingSystem != "" && attr.OperatingSystem != "NA" && attr.OperatingSystem != "Linux" {
+				return
+			}
+
+			// Skip software bundles (SQL Server, etc.); allow empty (field may not be returned).
+			if attr.PreInstalledSw != "" && attr.PreInstalledSw != "NA" {
+				return
+			}
+
+			// Skip capacity reservations; allow empty (field may not be returned).
+			if attr.CapacityStatus != "" && attr.CapacityStatus != "Used" {
 				return
 			}
 
@@ -68,10 +90,15 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 				return
 			}
 
-			skuToNodeKey[product.Sku] = nodeKey{
+			nk := nodeKey{
 				Region:       attr.RegionCode,
 				InstanceType: attr.InstanceType,
 			}
+			if _, seen := seenNodeKeys[nk]; seen {
+				return
+			}
+			seenNodeKeys[nk] = struct{}{}
+			skuToNodeKey[product.Sku] = nk
 			return
 		}
 
@@ -94,11 +121,16 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 				return
 			}
 
-			skuToVolumeKey[product.Sku] = volumeKey{
+			vk := volumeKey{
 				Region:     attr.RegionCode,
 				VolumeType: volumeType,
 				UsageType:  usageTypeNoRegion,
 			}
+			if _, seen := seenVolumeKeys[vk]; seen {
+				return
+			}
+			seenVolumeKeys[vk] = struct{}{}
+			skuToVolumeKey[product.Sku] = vk
 		}
 	}
 
