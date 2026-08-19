@@ -168,6 +168,6 @@ func (sc *StorageConnection) deleteFilesOlderThanRetention(localPath string) ([]
 	if len(errs) == 0 {
 		return cleaned, nil
 	} else {
-		return cleaned, fmt.Errorf("deleteFilesOlderThan2d: %v", errs)
+		return cleaned, fmt.Errorf("deleteFilesOlderThanRetention: %v", errs)
 	}
 }
