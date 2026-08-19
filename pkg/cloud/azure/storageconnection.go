@@ -134,13 +134,14 @@ func (sc *StorageConnection) DownloadBlobToFile(localFilePath string, blob conta
 	return nil
 }
 
-// deleteFilesOlderThan2d recursively walks the directory specified and deletes
-// files which have not been modified in the last 2 days. Returns a list of
+// deleteFilesOlderThanRetention recursively walks the directory specified and deletes
+// files which have not been modified in the last N days. Returns a list of
 // files deleted.
-func (sc *StorageConnection) deleteFilesOlderThan2d(localPath string) ([]string, error) {
+// Retention period is determined by the CLOUD_COST_PV_RETENTION environment variable, which defaults to 2 days.
+func (sc *StorageConnection) deleteFilesOlderThanRetention(localPath string) ([]string, error) {
 	sc.lock.Lock()
 	defer sc.lock.Unlock()
-	duration := time.Duration(env.GetCloudCostPvcRetention()) * 24 * time.Hour
+	duration := time.Duration(env.GetCloudCostPvRetention()) * 24 * time.Hour
 	cleaned := []string{}
 	errs := []string{}
 
