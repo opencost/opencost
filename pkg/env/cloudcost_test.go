@@ -37,7 +37,7 @@ func TestGetCloudCostConfigPath(t *testing.T) {
 
 }
 
-func TestGetCloudCostPvcRetention(t *testing.T) {
+func TestGetCloudCostPvRetention(t *testing.T) {
 	tests := []struct {
 		name string
 		want int
@@ -51,7 +51,7 @@ func TestGetCloudCostPvcRetention(t *testing.T) {
 			name: "Ensure the value is 7 when CLOUD_COST_PVC_RETENTION is set to '7'",
 			want: 7,
 			pre: func() {
-				env.Set(CloudCostPvcRetentionEnvVar, "7")
+				env.Set(CloudCostPvRetentionEnvVar, "7")
 			},
 		},
 	}
@@ -60,8 +60,8 @@ func TestGetCloudCostPvcRetention(t *testing.T) {
 			tt.pre()
 		}
 		t.Run(tt.name, func(t *testing.T) {
-			if got := GetCloudCostPvcRetention(); got != tt.want {
-				t.Errorf("GetCloudCostPvcRetention() = %v, want %v", got, tt.want)
+			if got := GetCloudCostPvRetention(); got != tt.want {
+				t.Errorf("GetCloudCostPvRetention() = %v, want %v", got, tt.want)
 			}
 		})
 	}

@@ -10,7 +10,7 @@ import (
 	pkgenv "github.com/opencost/opencost/pkg/env"
 )
 
-func TestDeleteFilesOlderThan2d(t *testing.T) {
+func TestDeleteFilesOlderThanRetention(t *testing.T) {
 	testCases := []struct {
 		name     string
 		pre      func()
@@ -22,7 +22,7 @@ func TestDeleteFilesOlderThan2d(t *testing.T) {
 			name: "Ensure the default value of '2' works",
 			files: map[string]time.Duration{
 				"today.gz":        1 * 24 * time.Hour,
-				"yesterday.gz":    36 * time.Hour,
+				"yesterday.gz":    1.5 * 24 * time.Hour,
 				"two_days_ago.gz": 3 * 24 * time.Hour,
 			},
 			deleted:  1,
@@ -31,7 +31,7 @@ func TestDeleteFilesOlderThan2d(t *testing.T) {
 		{
 			name: "Ensure the a value of 7 works",
 			pre: func() {
-				env.Set(pkgenv.CloudCostPvcRetentionEnvVar, "7")
+				env.Set(pkgenv.CloudCostPvRetentionEnvVar, "7")
 			},
 			files: map[string]time.Duration{
 				"today.gz":        1 * 24 * time.Hour,
@@ -44,7 +44,7 @@ func TestDeleteFilesOlderThan2d(t *testing.T) {
 		{
 			name: "Ensure the a value of 7 works",
 			pre: func() {
-				env.Set(pkgenv.CloudCostPvcRetentionEnvVar, "7")
+				env.Set(pkgenv.CloudCostPvRetentionEnvVar, "7")
 			},
 			files: map[string]time.Duration{
 				"today.gz":        1 * 24 * time.Hour,
@@ -64,6 +64,7 @@ func TestDeleteFilesOlderThan2d(t *testing.T) {
 		if err != nil {
 			t.Errorf("Failed to make temp directory: %v", err)
 		}
+		defer os.RemoveAll(tmpDir)
 		for name, days := range tt.files {
 			confPath := filepath.Join(tmpDir, name)
 			err = os.WriteFile(confPath, []byte(`{"status": "ok"}`), 0644)
@@ -78,12 +79,12 @@ func TestDeleteFilesOlderThan2d(t *testing.T) {
 		}
 
 		sc := &StorageConnection{}
-		cleaned, err := sc.deleteFilesOlderThan2d(tmpDir)
+		cleaned, err := sc.deleteFilesOlderThanRetention(tmpDir)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if len(cleaned) != tt.deleted {
-			t.Errorf("deleteFilesOlderThan2d() cleaned %d files, want %d", len(cleaned), tt.deleted)
+			t.Errorf("deleteFilesOlderThanRetention() cleaned %d files, want %d", len(cleaned), tt.deleted)
 		}
 	}
 }
