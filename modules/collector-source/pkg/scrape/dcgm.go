@@ -6,6 +6,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/event"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
@@ -16,10 +17,10 @@ var dcgmRegex = regexp.MustCompile("(?i)(.*dcgm-exporter.*)")
 
 func newDCGMScrapper(clusterCache clustercache.ClusterCache) Scraper {
 	tp := newDCGMTargetProvider(clusterCache)
-	return newDCGMTargetScraper(tp)
+	return newDCGMTargetScraper(tp, podUIDEnricher(clusterCache))
 }
 
-func newDCGMTargetScraper(provider target.TargetProvider) *TargetScraper {
+func newDCGMTargetScraper(provider target.TargetProvider, enrich UpdateEnricher) *TargetScraper {
 	return newTargetScrapper(
 		event.DCGMScraperName,
 		provider,
@@ -27,7 +28,29 @@ func newDCGMTargetScraper(provider target.TargetProvider) *TargetScraper {
 			metric.DCGMFIPROFGRENGINEACTIVE,
 			metric.DCGMFIDEVDECUTIL,
 		},
-		true)
+		true,
+		enrich)
+}
+
+// podUIDEnricher backfills pod_uid on a DCGM update using its own namespace/pod name labels,
+// resolved against a freshly built index of the cluster's current pods. Left unset if pod_uid
+// is already present, or if namespace/pod can't be resolved to a known pod.
+func podUIDEnricher(clusterCache clustercache.ClusterCache) UpdateEnricher {
+	index := buildPodIndex(clusterCache.GetAllPods())
+	return func(update metric.Update) metric.Update {
+		if update.Labels[source.PodUIDLabel] != "" {
+			return update
+		}
+		namespace, pod := update.Labels[source.NamespaceLabel], update.Labels[source.PodLabel]
+		if namespace == "" || pod == "" {
+			return update
+		}
+
+		if uid, ok := index[podKey{namespace: namespace, name: pod}]; ok {
+			update.Labels[source.PodUIDLabel] = string(uid)
+		}
+		return update
+	}
 }
 
 type DCGMTargetProvider struct {

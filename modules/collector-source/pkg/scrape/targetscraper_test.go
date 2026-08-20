@@ -95,6 +95,13 @@ pod_pvc_allocation{namespace="namespace1",persistentvolume="pvc-1",persistentvol
 pod_pvc_allocation{namespace="namespace1",persistentvolume="pvc-2",persistentvolumeclaim="pvc2",pod="pod2"} 3.4359738368e+10
 `
 
+const enrichScrape = `
+# HELP test_metric test metric
+# TYPE test_metric gauge
+test_metric{name="a"} 1
+test_metric{name="b",extra="already-set"} 2
+`
+
 const dcgmScrape = `
 # HELP DCGM_FI_PROF_GR_ENGINE_ACTIVE Ratio of time the graphics engine is active.
 # TYPE DCGM_FI_PROF_GR_ENGINE_ACTIVE gauge
@@ -411,9 +418,11 @@ func TestTargetScraper_Scrape(t *testing.T) {
 			},
 		},
 		{
-			name:                 "GPU Metric",
-			scrapeText:           dcgmScrape,
-			targetScraperFactory: newDCGMTargetScraper,
+			name:       "GPU Metric",
+			scrapeText: dcgmScrape,
+			targetScraperFactory: func(provider target.TargetProvider) *TargetScraper {
+				return newDCGMTargetScraper(provider, nil)
+			},
 			expected: []metric.Update{
 				{
 					Name: metric.DCGMFIPROFGRENGINEACTIVE,
@@ -438,6 +447,38 @@ func TestTargetScraper_Scrape(t *testing.T) {
 						"Hostname":   "localhost",
 					},
 					Value: 0,
+				},
+			},
+		},
+		{
+			name:       "Enrichment",
+			scrapeText: enrichScrape,
+			targetScraperFactory: func(provider target.TargetProvider) *TargetScraper {
+				enrich := func(update metric.Update) metric.Update {
+					if update.Labels["extra"] != "" {
+						return update
+					}
+					update.Labels["extra"] = "enriched"
+					return update
+				}
+				return newTargetScrapper("test-enrich", provider, nil, false, enrich)
+			},
+			expected: []metric.Update{
+				{
+					Name: "test_metric",
+					Labels: map[string]string{
+						"name":  "a",
+						"extra": "enriched",
+					},
+					Value: 1,
+				},
+				{
+					Name: "test_metric",
+					Labels: map[string]string{
+						"name":  "b",
+						"extra": "already-set",
+					},
+					Value: 2,
 				},
 			},
 		},
