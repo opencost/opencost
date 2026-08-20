@@ -185,7 +185,7 @@ func TestComputeKubeModelSet(t *testing.T) {
 				assert.NotEmpty(t, kms.Services)
 				assert.NotEmpty(t, kms.PersistentVolumes)
 				assert.NotEmpty(t, kms.PersistentVolumeClaims)
-				//assert.NotEmpty(t, kms.DCGMDevices)
+				assert.NotEmpty(t, kms.Devices)
 			},
 		},
 	}

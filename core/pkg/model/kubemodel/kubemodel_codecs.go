@@ -38,7 +38,7 @@ const (
 	BinaryTagStringTable string = "BGST"
 
 	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 2
+	DefaultCodecVersion uint8 = 3
 )
 
 //--------------------------------------------------------------------------
@@ -120,11 +120,10 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"Cluster":                 reflect.TypeFor[Cluster](),
 	"Container":               reflect.TypeFor[Container](),
 	"CronJob":                 reflect.TypeFor[CronJob](),
-	"DCGMContainer":           reflect.TypeFor[DCGMContainer](),
-	"DCGMDevice":              reflect.TypeFor[DCGMDevice](),
-	"DCGMPod":                 reflect.TypeFor[DCGMPod](),
 	"DaemonSet":               reflect.TypeFor[DaemonSet](),
 	"Deployment":              reflect.TypeFor[Deployment](),
+	"Device":                  reflect.TypeFor[Device](),
+	"DeviceUsage":             reflect.TypeFor[DeviceUsage](),
 	"Diagnostic":              reflect.TypeFor[Diagnostic](),
 	"FileSystem":              reflect.TypeFor[FileSystem](),
 	"Job":                     reflect.TypeFor[Job](),
@@ -1218,22 +1217,50 @@ func (target *Container) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 
 	buff.WriteFloat64(target.RAMBytesUsageMax) // write float64
 
-	// --- [begin][write][reference](time.Time) ---
-	e, errC := target.Start.MarshalBinary()
-	if errC != nil {
-		return errC
+	if target.DeviceUsages == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]DeviceUsage) ---
+		buff.WriteInt(len(target.DeviceUsages)) // map length
+		for vvv, zzz := range target.DeviceUsages {
+			if ctx.IsStringTable() {
+				e := ctx.Table.AddOrGet(vvv)
+				buff.WriteInt(e) // write table index
+			} else {
+				buff.WriteString(vvv) // write string
+			}
+
+			// --- [begin][write][struct](DeviceUsage) ---
+			buff.WriteInt(0) // [compatibility, unused]
+			errC := zzz.MarshalBinaryWithContext(ctx)
+			if errC != nil {
+				return errC
+			}
+			// --- [end][write][struct](DeviceUsage) ---
+
+		}
+		// --- [end][write][map](map[string]DeviceUsage) ---
+
 	}
-	buff.WriteInt(len(e))
-	buff.WriteBytes(e)
-	// --- [end][write][reference](time.Time) ---
 
 	// --- [begin][write][reference](time.Time) ---
-	f, errD := target.End.MarshalBinary()
+	f, errD := target.Start.MarshalBinary()
 	if errD != nil {
 		return errD
 	}
 	buff.WriteInt(len(f))
 	buff.WriteBytes(f)
+	// --- [end][write][reference](time.Time) ---
+
+	// --- [begin][write][reference](time.Time) ---
+	g, errE := target.End.MarshalBinary()
+	if errE != nil {
+		return errE
+	}
+	buff.WriteInt(len(g))
+	buff.WriteBytes(g)
 	// --- [end][write][reference](time.Time) ---
 
 	return nil
@@ -1416,26 +1443,67 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	gg := buff.ReadFloat64() // read float64
 	target.RAMBytesUsageMax = gg
 
-	// --- [begin][read][reference](time.Time) ---
-	hh := new(time.Time)
-	ll := buff.ReadInt() // byte array length
-	mm := buff.ReadBytes(ll)
-	errC := hh.UnmarshalBinary(mm)
-	if errC != nil {
-		return errC
+	// field version check
+	if uint8(3) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.DeviceUsages = nil
+		} else {
+			// --- [begin][read][map](map[string]DeviceUsage) ---
+			ll := buff.ReadInt() // map len
+			hh := make(map[string]DeviceUsage, ll)
+			for range ll {
+				var vvv string
+				var nn string
+				if ctx.IsStringTable() {
+					oo := buff.ReadInt() // read string index
+					nn = ctx.Table.At(oo)
+				} else {
+					nn = buff.ReadString() // read string
+				}
+				mm := nn
+				vvv = mm
+
+				// --- [begin][read][struct](DeviceUsage) ---
+				pp := new(DeviceUsage)
+				buff.ReadInt() // [compatibility, unused]
+				errC := pp.UnmarshalBinaryWithContext(ctx)
+				if errC != nil {
+					return errC
+				}
+				zzz := *pp
+				// --- [end][read][struct](DeviceUsage) ---
+
+				hh[vvv] = zzz
+			}
+			target.DeviceUsages = hh
+			// --- [end][read][map](map[string]DeviceUsage) ---
+
+		}
+
+	} else {
+		target.DeviceUsages = nil
 	}
-	target.Start = *hh
-	// --- [end][read][reference](time.Time) ---
 
 	// --- [begin][read][reference](time.Time) ---
-	nn := new(time.Time)
-	oo := buff.ReadInt() // byte array length
-	pp := buff.ReadBytes(oo)
-	errD := nn.UnmarshalBinary(pp)
+	qq := new(time.Time)
+	rr := buff.ReadInt() // byte array length
+	ss := buff.ReadBytes(rr)
+	errD := qq.UnmarshalBinary(ss)
 	if errD != nil {
 		return errD
 	}
-	target.End = *nn
+	target.Start = *qq
+	// --- [end][read][reference](time.Time) ---
+
+	// --- [begin][read][reference](time.Time) ---
+	tt := new(time.Time)
+	uu := buff.ReadInt() // byte array length
+	ww := buff.ReadBytes(uu)
+	errE := tt.UnmarshalBinary(ww)
+	if errE != nil {
+		return errE
+	}
+	target.End = *tt
 	// --- [end][read][reference](time.Time) ---
 
 	return nil
@@ -1757,545 +1825,6 @@ func (target *CronJob) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	}
 	target.End = *hh
 	// --- [end][read][reference](time.Time) ---
-
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  DCGMContainer
-//--------------------------------------------------------------------------
-
-// MarshalBinary serializes the internal properties of this DCGMContainer instance
-// into a byte array
-func (target *DCGMContainer) MarshalBinary() (data []byte, err error) {
-	ctx := NewEncodingContext(nil)
-
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
-
-	return ctx.ToBytes(), nil
-}
-
-// MarshalBinary serializes the internal properties of this DCGMContainer instance
-// into an io.Writer.
-func (target *DCGMContainer) MarshalBinaryTo(writer io.Writer) error {
-	buff := util.NewBufferFromWriter(writer)
-	defer buff.Flush()
-
-	ctx := NewEncodingContextFromBuffer(buff, nil)
-
-	return target.MarshalBinaryWithContext(ctx)
-}
-
-// MarshalBinaryWithContext serializes the internal properties of this DCGMContainer instance
-// into a byte array leveraging a predefined context.
-func (target *DCGMContainer) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	buff.WriteUInt8(DefaultCodecVersion) // version
-
-	buff.WriteFloat64(target.UsageAvg) // write float64
-
-	buff.WriteFloat64(target.UsageMax) // write float64
-
-	return nil
-}
-
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the DCGMContainer type
-func (target *DCGMContainer) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
-// the DCGMContainer type
-func (target *DCGMContainer) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the DCGMContainer type
-func (target *DCGMContainer) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > DefaultCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshalling DCGMContainer. Expected %d or less, got %d", DefaultCodecVersion, version)
-	}
-
-	a := buff.ReadFloat64() // read float64
-	target.UsageAvg = a
-
-	b := buff.ReadFloat64() // read float64
-	target.UsageMax = b
-
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  DCGMDevice
-//--------------------------------------------------------------------------
-
-// MarshalBinary serializes the internal properties of this DCGMDevice instance
-// into a byte array
-func (target *DCGMDevice) MarshalBinary() (data []byte, err error) {
-	ctx := NewEncodingContext(nil)
-
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
-
-	return ctx.ToBytes(), nil
-}
-
-// MarshalBinary serializes the internal properties of this DCGMDevice instance
-// into an io.Writer.
-func (target *DCGMDevice) MarshalBinaryTo(writer io.Writer) error {
-	buff := util.NewBufferFromWriter(writer)
-	defer buff.Flush()
-
-	ctx := NewEncodingContextFromBuffer(buff, nil)
-
-	return target.MarshalBinaryWithContext(ctx)
-}
-
-// MarshalBinaryWithContext serializes the internal properties of this DCGMDevice instance
-// into a byte array leveraging a predefined context.
-func (target *DCGMDevice) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	buff.WriteUInt8(DefaultCodecVersion) // version
-
-	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.UUID)
-		buff.WriteInt(a) // write table index
-	} else {
-		buff.WriteString(target.UUID) // write string
-	}
-
-	// --- [begin][write][reference](time.Time) ---
-	b, errA := target.Start.MarshalBinary()
-	if errA != nil {
-		return errA
-	}
-	buff.WriteInt(len(b))
-	buff.WriteBytes(b)
-	// --- [end][write][reference](time.Time) ---
-
-	// --- [begin][write][reference](time.Time) ---
-	c, errB := target.End.MarshalBinary()
-	if errB != nil {
-		return errB
-	}
-	buff.WriteInt(len(c))
-	buff.WriteBytes(c)
-	// --- [end][write][reference](time.Time) ---
-
-	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.Device)
-		buff.WriteInt(d) // write table index
-	} else {
-		buff.WriteString(target.Device) // write string
-	}
-
-	if ctx.IsStringTable() {
-		e := ctx.Table.AddOrGet(target.ModelName)
-		buff.WriteInt(e) // write table index
-	} else {
-		buff.WriteString(target.ModelName) // write string
-	}
-
-	if target.PodUsages == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		// --- [begin][write][map](map[string]DCGMPod) ---
-		buff.WriteInt(len(target.PodUsages)) // map length
-		for v, z := range target.PodUsages {
-			if ctx.IsStringTable() {
-				f := ctx.Table.AddOrGet(v)
-				buff.WriteInt(f) // write table index
-			} else {
-				buff.WriteString(v) // write string
-			}
-
-			// --- [begin][write][struct](DCGMPod) ---
-			buff.WriteInt(0) // [compatibility, unused]
-			errC := z.MarshalBinaryWithContext(ctx)
-			if errC != nil {
-				return errC
-			}
-			// --- [end][write][struct](DCGMPod) ---
-
-		}
-		// --- [end][write][map](map[string]DCGMPod) ---
-
-	}
-
-	return nil
-}
-
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the DCGMDevice type
-func (target *DCGMDevice) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
-// the DCGMDevice type
-func (target *DCGMDevice) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the DCGMDevice type
-func (target *DCGMDevice) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > DefaultCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshalling DCGMDevice. Expected %d or less, got %d", DefaultCodecVersion, version)
-	}
-
-	var b string
-	if ctx.IsStringTable() {
-		c := buff.ReadInt() // read string index
-		b = ctx.Table.At(c)
-	} else {
-		b = buff.ReadString() // read string
-	}
-	a := b
-	target.UUID = a
-
-	// --- [begin][read][reference](time.Time) ---
-	d := new(time.Time)
-	e := buff.ReadInt() // byte array length
-	f := buff.ReadBytes(e)
-	errA := d.UnmarshalBinary(f)
-	if errA != nil {
-		return errA
-	}
-	target.Start = *d
-	// --- [end][read][reference](time.Time) ---
-
-	// --- [begin][read][reference](time.Time) ---
-	g := new(time.Time)
-	h := buff.ReadInt() // byte array length
-	l := buff.ReadBytes(h)
-	errB := g.UnmarshalBinary(l)
-	if errB != nil {
-		return errB
-	}
-	target.End = *g
-	// --- [end][read][reference](time.Time) ---
-
-	var n string
-	if ctx.IsStringTable() {
-		o := buff.ReadInt() // read string index
-		n = ctx.Table.At(o)
-	} else {
-		n = buff.ReadString() // read string
-	}
-	m := n
-	target.Device = m
-
-	var q string
-	if ctx.IsStringTable() {
-		r := buff.ReadInt() // read string index
-		q = ctx.Table.At(r)
-	} else {
-		q = buff.ReadString() // read string
-	}
-	p := q
-	target.ModelName = p
-
-	if buff.ReadUInt8() == uint8(0) {
-		target.PodUsages = nil
-	} else {
-		// --- [begin][read][map](map[string]DCGMPod) ---
-		t := buff.ReadInt() // map len
-		s := make(map[string]DCGMPod, t)
-		for range t {
-			var v string
-			var w string
-			if ctx.IsStringTable() {
-				x := buff.ReadInt() // read string index
-				w = ctx.Table.At(x)
-			} else {
-				w = buff.ReadString() // read string
-			}
-			u := w
-			v = u
-
-			// --- [begin][read][struct](DCGMPod) ---
-			y := new(DCGMPod)
-			buff.ReadInt() // [compatibility, unused]
-			errC := y.UnmarshalBinaryWithContext(ctx)
-			if errC != nil {
-				return errC
-			}
-			z := *y
-			// --- [end][read][struct](DCGMPod) ---
-
-			s[v] = z
-		}
-		target.PodUsages = s
-		// --- [end][read][map](map[string]DCGMPod) ---
-
-	}
-
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  DCGMPod
-//--------------------------------------------------------------------------
-
-// MarshalBinary serializes the internal properties of this DCGMPod instance
-// into a byte array
-func (target *DCGMPod) MarshalBinary() (data []byte, err error) {
-	ctx := NewEncodingContext(nil)
-
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
-
-	return ctx.ToBytes(), nil
-}
-
-// MarshalBinary serializes the internal properties of this DCGMPod instance
-// into an io.Writer.
-func (target *DCGMPod) MarshalBinaryTo(writer io.Writer) error {
-	buff := util.NewBufferFromWriter(writer)
-	defer buff.Flush()
-
-	ctx := NewEncodingContextFromBuffer(buff, nil)
-
-	return target.MarshalBinaryWithContext(ctx)
-}
-
-// MarshalBinaryWithContext serializes the internal properties of this DCGMPod instance
-// into a byte array leveraging a predefined context.
-func (target *DCGMPod) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	buff.WriteUInt8(DefaultCodecVersion) // version
-
-	if target.ContainerUsages == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		// --- [begin][write][map](map[string]DCGMContainer) ---
-		buff.WriteInt(len(target.ContainerUsages)) // map length
-		for v, z := range target.ContainerUsages {
-			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(v)
-				buff.WriteInt(a) // write table index
-			} else {
-				buff.WriteString(v) // write string
-			}
-
-			// --- [begin][write][struct](DCGMContainer) ---
-			buff.WriteInt(0) // [compatibility, unused]
-			errA := z.MarshalBinaryWithContext(ctx)
-			if errA != nil {
-				return errA
-			}
-			// --- [end][write][struct](DCGMContainer) ---
-
-		}
-		// --- [end][write][map](map[string]DCGMContainer) ---
-
-	}
-
-	return nil
-}
-
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the DCGMPod type
-func (target *DCGMPod) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
-// the DCGMPod type
-func (target *DCGMPod) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the DCGMPod type
-func (target *DCGMPod) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > DefaultCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshalling DCGMPod. Expected %d or less, got %d", DefaultCodecVersion, version)
-	}
-
-	if buff.ReadUInt8() == uint8(0) {
-		target.ContainerUsages = nil
-	} else {
-		// --- [begin][read][map](map[string]DCGMContainer) ---
-		b := buff.ReadInt() // map len
-		a := make(map[string]DCGMContainer, b)
-		for range b {
-			var v string
-			var d string
-			if ctx.IsStringTable() {
-				e := buff.ReadInt() // read string index
-				d = ctx.Table.At(e)
-			} else {
-				d = buff.ReadString() // read string
-			}
-			c := d
-			v = c
-
-			// --- [begin][read][struct](DCGMContainer) ---
-			f := new(DCGMContainer)
-			buff.ReadInt() // [compatibility, unused]
-			errA := f.UnmarshalBinaryWithContext(ctx)
-			if errA != nil {
-				return errA
-			}
-			z := *f
-			// --- [end][read][struct](DCGMContainer) ---
-
-			a[v] = z
-		}
-		target.ContainerUsages = a
-		// --- [end][read][map](map[string]DCGMContainer) ---
-
-	}
 
 	return nil
 }
@@ -3060,6 +2589,315 @@ func (target *Deployment) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	}
 	target.End = *ss
 	// --- [end][read][reference](time.Time) ---
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  Device
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this Device instance
+// into a byte array
+func (target *Device) MarshalBinary() (data []byte, err error) {
+	ctx := NewEncodingContext(nil)
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	return ctx.ToBytes(), nil
+}
+
+// MarshalBinary serializes the internal properties of this Device instance
+// into an io.Writer.
+func (target *Device) MarshalBinaryTo(writer io.Writer) error {
+	buff := util.NewBufferFromWriter(writer)
+	defer buff.Flush()
+
+	ctx := NewEncodingContextFromBuffer(buff, nil)
+
+	return target.MarshalBinaryWithContext(ctx)
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this Device instance
+// into a byte array leveraging a predefined context.
+func (target *Device) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	if ctx.IsStringTable() {
+		a := ctx.Table.AddOrGet(target.UUID)
+		buff.WriteInt(a) // write table index
+	} else {
+		buff.WriteString(target.UUID) // write string
+	}
+
+	// --- [begin][write][reference](time.Time) ---
+	b, errA := target.Start.MarshalBinary()
+	if errA != nil {
+		return errA
+	}
+	buff.WriteInt(len(b))
+	buff.WriteBytes(b)
+	// --- [end][write][reference](time.Time) ---
+
+	// --- [begin][write][reference](time.Time) ---
+	c, errB := target.End.MarshalBinary()
+	if errB != nil {
+		return errB
+	}
+	buff.WriteInt(len(c))
+	buff.WriteBytes(c)
+	// --- [end][write][reference](time.Time) ---
+
+	if ctx.IsStringTable() {
+		d := ctx.Table.AddOrGet(target.Device)
+		buff.WriteInt(d) // write table index
+	} else {
+		buff.WriteString(target.Device) // write string
+	}
+
+	if ctx.IsStringTable() {
+		e := ctx.Table.AddOrGet(target.ModelName)
+		buff.WriteInt(e) // write table index
+	} else {
+		buff.WriteString(target.ModelName) // write string
+	}
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the Device type
+func (target *Device) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the Device type
+func (target *Device) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the Device type
+func (target *Device) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshalling Device. Expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	var b string
+	if ctx.IsStringTable() {
+		c := buff.ReadInt() // read string index
+		b = ctx.Table.At(c)
+	} else {
+		b = buff.ReadString() // read string
+	}
+	a := b
+	target.UUID = a
+
+	// --- [begin][read][reference](time.Time) ---
+	d := new(time.Time)
+	e := buff.ReadInt() // byte array length
+	f := buff.ReadBytes(e)
+	errA := d.UnmarshalBinary(f)
+	if errA != nil {
+		return errA
+	}
+	target.Start = *d
+	// --- [end][read][reference](time.Time) ---
+
+	// --- [begin][read][reference](time.Time) ---
+	g := new(time.Time)
+	h := buff.ReadInt() // byte array length
+	l := buff.ReadBytes(h)
+	errB := g.UnmarshalBinary(l)
+	if errB != nil {
+		return errB
+	}
+	target.End = *g
+	// --- [end][read][reference](time.Time) ---
+
+	var n string
+	if ctx.IsStringTable() {
+		o := buff.ReadInt() // read string index
+		n = ctx.Table.At(o)
+	} else {
+		n = buff.ReadString() // read string
+	}
+	m := n
+	target.Device = m
+
+	var q string
+	if ctx.IsStringTable() {
+		r := buff.ReadInt() // read string index
+		q = ctx.Table.At(r)
+	} else {
+		q = buff.ReadString() // read string
+	}
+	p := q
+	target.ModelName = p
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  DeviceUsage
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this DeviceUsage instance
+// into a byte array
+func (target *DeviceUsage) MarshalBinary() (data []byte, err error) {
+	ctx := NewEncodingContext(nil)
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	return ctx.ToBytes(), nil
+}
+
+// MarshalBinary serializes the internal properties of this DeviceUsage instance
+// into an io.Writer.
+func (target *DeviceUsage) MarshalBinaryTo(writer io.Writer) error {
+	buff := util.NewBufferFromWriter(writer)
+	defer buff.Flush()
+
+	ctx := NewEncodingContextFromBuffer(buff, nil)
+
+	return target.MarshalBinaryWithContext(ctx)
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this DeviceUsage instance
+// into a byte array leveraging a predefined context.
+func (target *DeviceUsage) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	buff.WriteFloat64(target.UsageAvg) // write float64
+
+	buff.WriteFloat64(target.UsageMax) // write float64
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the DeviceUsage type
+func (target *DeviceUsage) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the DeviceUsage type
+func (target *DeviceUsage) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the DeviceUsage type
+func (target *DeviceUsage) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshalling DeviceUsage. Expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	a := buff.ReadFloat64() // read float64
+	target.UsageAvg = a
+
+	b := buff.ReadFloat64() // read float64
+	target.UsageMax = b
 
 	return nil
 }
@@ -4286,6 +4124,38 @@ func (target *KubeModelSet) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 		// --- [end][write][map](map[string]*Container) ---
 
 	}
+	if target.Devices == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]*Device) ---
+		buff.WriteInt(len(target.Devices)) // map length
+		for vvvvvvvvvvvvvvv, zzzzzzzzzzzzzzz := range target.Devices {
+			if ctx.IsStringTable() {
+				r := ctx.Table.AddOrGet(vvvvvvvvvvvvvvv)
+				buff.WriteInt(r) // write table index
+			} else {
+				buff.WriteString(vvvvvvvvvvvvvvv) // write string
+			}
+			if zzzzzzzzzzzzzzz == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][struct](Device) ---
+				buff.WriteInt(0) // [compatibility, unused]
+				errR := zzzzzzzzzzzzzzz.MarshalBinaryWithContext(ctx)
+				if errR != nil {
+					return errR
+				}
+				// --- [end][write][struct](Device) ---
+
+			}
+		}
+		// --- [end][write][map](map[string]*Device) ---
+
+	}
 
 	return nil
 }
@@ -4346,6 +4216,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		if buff.ReadUInt8() == uint8(0) {
 			target.Metadata = nil
 		} else {
+
 			// --- [begin][read][struct](Metadata) ---
 			a := new(Metadata)
 			buff.ReadInt() // [compatibility, unused]
@@ -4559,6 +4430,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzz = nil
 				} else {
+
 					// --- [begin][read][struct](Deployment) ---
 					ff := new(Deployment)
 					buff.ReadInt() // [compatibility, unused]
@@ -4650,6 +4522,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](DaemonSet) ---
 					uu := new(DaemonSet)
 					buff.ReadInt() // [compatibility, unused]
@@ -4741,6 +4614,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](CronJob) ---
 					lll := new(CronJob)
 					buff.ReadInt() // [compatibility, unused]
@@ -4832,6 +4706,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](Node) ---
 					yyy := new(Node)
 					buff.ReadInt() // [compatibility, unused]
@@ -4877,6 +4752,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](PersistentVolume) ---
 					ffff := new(PersistentVolume)
 					buff.ReadInt() // [compatibility, unused]
@@ -5014,6 +4890,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](Container) ---
 					ccccc := new(Container)
 					buff.ReadInt() // [compatibility, unused]
@@ -5034,6 +4911,51 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 
 	} else {
 		target.Containers = nil
+	}
+	// field version check
+	if uint8(3) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.Devices = nil
+		} else {
+			// --- [begin][read][map](map[string]*Device) ---
+			eeeee := buff.ReadInt() // map len
+			ddddd := make(map[string]*Device, eeeee)
+			for range eeeee {
+				var vvvvvvvvvvvvvvv string
+				var ggggg string
+				if ctx.IsStringTable() {
+					hhhhh := buff.ReadInt() // read string index
+					ggggg = ctx.Table.At(hhhhh)
+				} else {
+					ggggg = buff.ReadString() // read string
+				}
+				fffff := ggggg
+				vvvvvvvvvvvvvvv = fffff
+
+				var zzzzzzzzzzzzzzz *Device
+				if buff.ReadUInt8() == uint8(0) {
+					zzzzzzzzzzzzzzz = nil
+				} else {
+					// --- [begin][read][struct](Device) ---
+					lllll := new(Device)
+					buff.ReadInt() // [compatibility, unused]
+					errR := lllll.UnmarshalBinaryWithContext(ctx)
+					if errR != nil {
+						return errR
+					}
+					zzzzzzzzzzzzzzz = lllll
+					// --- [end][read][struct](Device) ---
+
+				}
+				ddddd[vvvvvvvvvvvvvvv] = zzzzzzzzzzzzzzz
+			}
+			target.Devices = ddddd
+			// --- [end][read][map](map[string]*Device) ---
+
+		}
+
+	} else {
+		target.Devices = nil
 	}
 
 	return nil
@@ -5401,6 +5323,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzz = nil
 					} else {
+
 						// --- [begin][read][struct](Deployment) ---
 						ee := new(Deployment)
 						buff.ReadInt() // [compatibility, unused]
@@ -5520,6 +5443,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](DaemonSet) ---
 						rr := new(DaemonSet)
 						buff.ReadInt() // [compatibility, unused]
@@ -5639,6 +5563,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](CronJob) ---
 						ddd := new(CronJob)
 						buff.ReadInt() // [compatibility, unused]
@@ -5758,6 +5683,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](Node) ---
 						qqq := new(Node)
 						buff.ReadInt() // [compatibility, unused]
@@ -5817,6 +5743,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](PersistentVolume) ---
 						www := new(PersistentVolume)
 						buff.ReadInt() // [compatibility, unused]
@@ -5996,6 +5923,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](Container) ---
 						pppp := new(Container)
 						buff.ReadInt() // [compatibility, unused]
@@ -6015,6 +5943,65 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					}
 				}
 				// --- [end][read][streaming-map](map[string]*Container) ---
+
+			}
+
+		} else {
+
+			if !yield(fi, nil) {
+				return
+			}
+		}
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[map[string]*Device](),
+			Name: "Devices",
+		}
+		// field version check
+		if uint8(3) <= version {
+
+			if buff.ReadUInt8() == uint8(0) {
+				if !yield(fi, nil) {
+					return
+				}
+			} else {
+				// --- [begin][read][streaming-map](map[string]*Device) ---
+				qqqq := buff.ReadInt() // map len
+				for range qqqq {
+					var vvvvvvvvvvvvvvv string
+					var ssss string
+					if ctx.IsStringTable() {
+						tttt := buff.ReadInt() // read string index
+						ssss = ctx.Table.At(tttt)
+					} else {
+						ssss = buff.ReadString() // read string
+					}
+					rrrr := ssss
+					vvvvvvvvvvvvvvv = rrrr
+
+					var zzzzzzzzzzzzzzz *Device
+					if buff.ReadUInt8() == uint8(0) {
+						zzzzzzzzzzzzzzz = nil
+					} else {
+						// --- [begin][read][struct](Device) ---
+						uuuu := new(Device)
+						buff.ReadInt() // [compatibility, unused]
+						errR := uuuu.UnmarshalBinaryWithContext(ctx)
+						if errR != nil {
+							stream.err = errR
+							return
+
+						}
+						zzzzzzzzzzzzzzz = uuuu
+						// --- [end][read][struct](Device) ---
+
+					}
+
+					if !yield(fi, pairV(vvvvvvvvvvvvvvv, zzzzzzzzzzzzzzz)) {
+						return
+					}
+				}
+				// --- [end][read][streaming-map](map[string]*Device) ---
 
 			}
 
@@ -8039,6 +8026,7 @@ func (target *Pod) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 		// --- [begin][write][slice]([]NetworkTrafficDetail) ---
 		buff.WriteInt(len(target.NetworkTrafficDetails)) // slice length
 		for ii := range target.NetworkTrafficDetails {
+
 			// --- [begin][write][struct](NetworkTrafficDetail) ---
 			buff.WriteInt(0) // [compatibility, unused]
 			errC := target.NetworkTrafficDetails[ii].MarshalBinaryWithContext(ctx)
@@ -8292,6 +8280,7 @@ func (target *Pod) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 		tt := buff.ReadInt() // slice len
 		ss := make([]NetworkTrafficDetail, tt)
 		for ii := range tt {
+
 			// --- [begin][read][struct](NetworkTrafficDetail) ---
 			ww := new(NetworkTrafficDetail)
 			buff.ReadInt() // [compatibility, unused]
@@ -9009,7 +8998,6 @@ func (target *ResourceQuantity) UnmarshalBinaryWithContext(ctx *DecodingContext)
 	}
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](Unit) ---
 		var e string
 		var g string
@@ -9029,7 +9017,6 @@ func (target *ResourceQuantity) UnmarshalBinaryWithContext(ctx *DecodingContext)
 	}
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](Stats) ---
 		var l map[StatType]float64
 		if buff.ReadUInt8() == uint8(0) {
@@ -9679,7 +9666,6 @@ func (target *ResourceQuotaSpecHard) UnmarshalBinaryWithContext(ctx *DecodingCon
 
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var a map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -9728,7 +9714,6 @@ func (target *ResourceQuotaSpecHard) UnmarshalBinaryWithContext(ctx *DecodingCon
 	}
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var l map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -10089,7 +10074,6 @@ func (target *ResourceQuotaStatusUsed) UnmarshalBinaryWithContext(ctx *DecodingC
 
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var a map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -10138,7 +10122,6 @@ func (target *ResourceQuotaStatusUsed) UnmarshalBinaryWithContext(ctx *DecodingC
 	}
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var l map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {

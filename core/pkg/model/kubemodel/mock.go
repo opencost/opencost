@@ -236,21 +236,19 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 		End:             end,
 	})
 
-	// --- DCGMDevice ---
-	kms.RegisterDCGMDevice(&DCGMDevice{
+	// --- Device ---
+	kms.RegisterDevice(&Device{
 		UUID:      "GPU-abc123def-456-789",
 		Device:    "0",
 		ModelName: "Tesla T4",
-		PodUsages: map[string]DCGMPod{
-			"pod-uid": {
-				ContainerUsages: map[string]DCGMContainer{
-					"app": {UsageAvg: 0.65, UsageMax: 0.92},
-				},
-			},
-		},
-		Start: start,
-		End:   end,
+		Start:     start,
+		End:       end,
 	})
+	if c, ok := kms.Containers["pod-uid/app"]; ok {
+		c.DeviceUsages = map[string]DeviceUsage{
+			"GPU-abc123def-456-789": {UsageAvg: 0.65, UsageMax: 0.92},
+		}
+	}
 
 	// --- Diagnostics ---
 	kms.Error(errMock("mock error"))
