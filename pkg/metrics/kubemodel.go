@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
@@ -381,13 +383,14 @@ func (c KubeModelCollector) scrapeDaemonSets(
 			out = append(out, kubeAnnotationsMetric("daemonset_annotations", string(ds.UID), ds.Annotations))
 		}
 		if emitArgs {
-			for arg, value := range coreutil.ParseContainerArgs(ds.SpecContainers) {
+			daemonSetArguments := coreutil.ParseContainerArgs(ds.SpecContainers)
+			for _, arg := range slices.Sorted(maps.Keys(daemonSetArguments)) {
 				out = append(out, newInfoMetric("daemonset_arguments", map[string]string{
 					"uid":           string(ds.UID),
 					"namespace_uid": string(nsUID),
 					"daemonset":     ds.Name,
 					"arg":           arg,
-					"value":         value,
+					"value":         daemonSetArguments[arg],
 				}))
 			}
 		}

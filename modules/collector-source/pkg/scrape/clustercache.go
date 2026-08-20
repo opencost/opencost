@@ -912,7 +912,11 @@ func (ccs *ClusterCacheScraper) scrapeDaemonSets(daemonSets []*clustercache.Daem
 		})
 
 		// daemonSet arguments
-		for arg, value := range coreutil.ParseContainerArgs(daemonSet.SpecContainers) {
+		daemonSetArguments := coreutil.ParseContainerArgs(daemonSet.SpecContainers)
+		argKeys := maps.Keys(daemonSetArguments)
+		slices.Sort(argKeys)
+		for _, arg := range argKeys {
+			value := daemonSetArguments[arg]
 			argLabels := map[string]string{
 				source.UIDLabel:          string(daemonSet.UID),
 				source.NamespaceUIDLabel: string(nsUID),
