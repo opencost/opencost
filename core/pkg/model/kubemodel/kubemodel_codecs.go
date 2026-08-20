@@ -14,7 +14,7 @@ package kubemodel
 import (
 	"cmp"
 	"fmt"
-	"github.com/opencost/opencost/core/pkg/model/shared"
+	"github.com/opencost/opencost/core/pkg/cloud"
 	"io"
 	"iter"
 	"os"
@@ -25,7 +25,7 @@ import (
 	"time"
 	"unsafe"
 
-	util "github.com/opencost/opencost/core/pkg/util"
+	util "github.com/opencost/bingen/pkg/util"
 )
 
 const (
@@ -856,7 +856,7 @@ func (target *Cluster) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 		buff.WriteString(target.UID) // write string
 	}
 
-	// --- [begin][write][alias](shared.Provider) ---
+	// --- [begin][write][alias](cloud.Provider) ---
 
 	if ctx.IsStringTable() {
 		b := ctx.Table.AddOrGet(string(target.Provider))
@@ -865,7 +865,7 @@ func (target *Cluster) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 		buff.WriteString(string(target.Provider)) // write string
 	}
 
-	// --- [end][write][alias](shared.Provider) ---
+	// --- [end][write][alias](cloud.Provider) ---
 
 	if ctx.IsStringTable() {
 		c := ctx.Table.AddOrGet(target.Account)
@@ -978,7 +978,7 @@ func (target *Cluster) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	}
 	// field version check
 	if uint8(1) <= version {
-		// --- [begin][read][alias](shared.Provider) ---
+		// --- [begin][read][alias](cloud.Provider) ---
 		var d string
 		var f string
 		if ctx.IsStringTable() {
@@ -990,8 +990,8 @@ func (target *Cluster) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 		e := f
 		d = e
 
-		target.Provider = shared.Provider(d)
-		// --- [end][read][alias](shared.Provider) ---
+		target.Provider = cloud.Provider(d)
+		// --- [end][read][alias](cloud.Provider) ---
 
 	} else {
 	}
@@ -4363,6 +4363,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	}
 	// field version check
 	if uint8(1) <= version {
+
 		// --- [begin][read][struct](Window) ---
 		b := new(Window)
 		buff.ReadInt() // [compatibility, unused]
@@ -4380,6 +4381,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		if buff.ReadUInt8() == uint8(0) {
 			target.Cluster = nil
 		} else {
+
 			// --- [begin][read][struct](Cluster) ---
 			c := new(Cluster)
 			buff.ReadInt() // [compatibility, unused]
@@ -4419,6 +4421,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					z = nil
 				} else {
+
 					// --- [begin][read][struct](Namespace) ---
 					l := new(Namespace)
 					buff.ReadInt() // [compatibility, unused]
@@ -4464,6 +4467,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zz = nil
 				} else {
+
 					// --- [begin][read][struct](ResourceQuota) ---
 					r := new(ResourceQuota)
 					buff.ReadInt() // [compatibility, unused]
@@ -4509,6 +4513,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzz = nil
 				} else {
+
 					// --- [begin][read][struct](Service) ---
 					y := new(Service)
 					buff.ReadInt() // [compatibility, unused]
@@ -4599,6 +4604,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](StatefulSet) ---
 					oo := new(StatefulSet)
 					buff.ReadInt() // [compatibility, unused]
@@ -4689,6 +4695,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](Job) ---
 					ccc := new(Job)
 					buff.ReadInt() // [compatibility, unused]
@@ -4779,6 +4786,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](ReplicaSet) ---
 					rrr := new(ReplicaSet)
 					buff.ReadInt() // [compatibility, unused]
@@ -4914,6 +4922,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](PersistentVolumeClaim) ---
 					oooo := new(PersistentVolumeClaim)
 					buff.ReadInt() // [compatibility, unused]
@@ -4959,6 +4968,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](Pod) ---
 					uuuu := new(Pod)
 					buff.ReadInt() // [compatibility, unused]
@@ -5211,6 +5221,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						z = nil
 					} else {
+
 						// --- [begin][read][struct](Namespace) ---
 						n := new(Namespace)
 						buff.ReadInt() // [compatibility, unused]
@@ -5270,6 +5281,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zz = nil
 					} else {
+
 						// --- [begin][read][struct](ResourceQuota) ---
 						s := new(ResourceQuota)
 						buff.ReadInt() // [compatibility, unused]
@@ -5329,6 +5341,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzz = nil
 					} else {
+
 						// --- [begin][read][struct](Service) ---
 						y := new(Service)
 						buff.ReadInt() // [compatibility, unused]
@@ -5447,6 +5460,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](StatefulSet) ---
 						mm := new(StatefulSet)
 						buff.ReadInt() // [compatibility, unused]
@@ -5565,6 +5579,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](Job) ---
 						xx := new(Job)
 						buff.ReadInt() // [compatibility, unused]
@@ -5683,6 +5698,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](ReplicaSet) ---
 						lll := new(ReplicaSet)
 						buff.ReadInt() // [compatibility, unused]
@@ -5860,6 +5876,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](PersistentVolumeClaim) ---
 						cccc := new(PersistentVolumeClaim)
 						buff.ReadInt() // [compatibility, unused]
@@ -5919,6 +5936,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](Pod) ---
 						hhhh := new(Pod)
 						buff.ReadInt() // [compatibility, unused]
@@ -7928,6 +7946,7 @@ func (target *Pod) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 		// --- [begin][write][slice]([]Owner) ---
 		buff.WriteInt(len(target.Owners)) // slice length
 		for i := range target.Owners {
+
 			// --- [begin][write][struct](Owner) ---
 			buff.WriteInt(0) // [compatibility, unused]
 			errA := target.Owners[i].MarshalBinaryWithContext(ctx)
@@ -8152,6 +8171,7 @@ func (target *Pod) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 		q := buff.ReadInt() // slice len
 		p := make([]Owner, q)
 		for i := range q {
+
 			// --- [begin][read][struct](Owner) ---
 			s := new(Owner)
 			buff.ReadInt() // [compatibility, unused]
@@ -8528,6 +8548,7 @@ func (target *ReplicaSet) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 		// --- [begin][write][slice]([]Owner) ---
 		buff.WriteInt(len(target.Owners)) // slice length
 		for i := range target.Owners {
+
 			// --- [begin][write][struct](Owner) ---
 			buff.WriteInt(0) // [compatibility, unused]
 			errA := target.Owners[i].MarshalBinaryWithContext(ctx)
@@ -8702,6 +8723,7 @@ func (target *ReplicaSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 		n := buff.ReadInt() // slice len
 		m := make([]Owner, n)
 		for i := range n {
+
 			// --- [begin][read][struct](Owner) ---
 			p := new(Owner)
 			buff.ReadInt() // [compatibility, unused]
@@ -8987,6 +9009,7 @@ func (target *ResourceQuantity) UnmarshalBinaryWithContext(ctx *DecodingContext)
 	}
 	// field version check
 	if uint8(1) <= version {
+
 		// --- [begin][read][alias](Unit) ---
 		var e string
 		var g string
