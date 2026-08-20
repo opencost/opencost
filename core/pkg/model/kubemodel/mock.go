@@ -162,6 +162,7 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 		Name:         "my-daemonset",
 		Labels:       map[string]string{"app": "my-daemonset"},
 		Annotations:  map[string]string{"note": "test"},
+		Arguments:    map[string]string{"vgpu": "2"},
 		Start:        start,
 		End:          end,
 	})

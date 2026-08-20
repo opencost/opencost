@@ -910,6 +910,23 @@ func (ccs *ClusterCacheScraper) scrapeDaemonSets(daemonSets []*clustercache.Daem
 			Value:          0,
 			AdditionalInfo: daemonSetAnnotations,
 		})
+
+		// daemonSet arguments
+		for arg, value := range coreutil.ParseContainerArgs(daemonSet.SpecContainers) {
+			argLabels := map[string]string{
+				source.UIDLabel:          string(daemonSet.UID),
+				source.NamespaceUIDLabel: string(nsUID),
+				source.DaemonSetLabel:    daemonSet.Name,
+				source.ArgLabel:          arg,
+				source.ValueLabel:        value,
+			}
+			scrapeResults = append(scrapeResults, metric.Update{
+				Name:           metric.DaemonSetArguments,
+				Labels:         argLabels,
+				Value:          0,
+				AdditionalInfo: argLabels,
+			})
+		}
 	}
 
 	events.Dispatch(event.ScrapeEvent{

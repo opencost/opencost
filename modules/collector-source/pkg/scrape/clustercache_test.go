@@ -2393,6 +2393,78 @@ func Test_kubernetesScraper_scrapeDaemonSets(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "with container arguments",
+			scrapes: []scrape{
+				{
+					DaemonSets: []*clustercache.DaemonSet{
+						{
+							Name:      "daemonSet1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+							SpecContainers: []v1.Container{
+								{Args: []string{"--vgpu=2", "--bare-flag"}},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.DaemonSetInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+				},
+				{
+					Name: metric.DaemonSetLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.DaemonSetAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.DaemonSetArguments,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+						source.ArgLabel:          "vgpu",
+						source.ValueLabel:        "2",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+						source.ArgLabel:          "vgpu",
+						source.ValueLabel:        "2",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
