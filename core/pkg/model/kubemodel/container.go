@@ -31,10 +31,6 @@ type DeviceUsage struct {
 	UsageMax float64 `json:"usageMax"`
 }
 
-func (c *Container) GetKey() string {
-	return fmt.Sprintf("%s/%s", c.PodUID, c.Name)
-}
-
 func (c *Container) ValidateContainer(window Window) error {
 	if c.PodUID == "" {
 		return fmt.Errorf("PodUID is missing for Container with name '%s'", c.Name)
@@ -65,4 +61,12 @@ func (kms *KubeModelSet) RegisterContainer(container *Container) error {
 	}
 
 	return nil
+}
+
+func (c *Container) GetKey() string {
+	return ContainerKey(c.PodUID, c.Name)
+}
+
+func ContainerKey(podUID, conatinerName string) string {
+	return fmt.Sprintf("%s/%s", podUID, conatinerName)
 }

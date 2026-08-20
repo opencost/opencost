@@ -14,8 +14,6 @@ func (km *KubeModel) computeDevices(kms *kubemodel.KubeModelSet, start, end time
 
 	infoFuture := source.WithGroup(grp, metrics.QueryDCGMDeviceInfo(start, end))
 	uptimeFuture := source.WithGroup(grp, metrics.QueryDCGMDeviceUptime(start, end))
-	usageAvgFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageAvg(start, end))
-	usageMaxFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageMax(start, end))
 
 	deviceMap := make(map[string]*kubemodel.Device)
 
@@ -50,33 +48,6 @@ func (km *KubeModel) computeDevices(kms *kubemodel.KubeModelSet, start, end time
 		if err := kms.RegisterDevice(device); err != nil {
 			log.Warnf("Failed to register device: %s", err.Error())
 		}
-	}
-
-	setUsage := func(res *source.DCGMDeviceContainerUsageResult, apply func(*kubemodel.DeviceUsage)) {
-		if res.PodUID == "" || res.Container == "" {
-			return
-		}
-		key := (&kubemodel.Container{PodUID: res.PodUID, Name: res.Container}).GetKey()
-		container, ok := kms.Containers[key]
-		if !ok {
-			return
-		}
-		if container.DeviceUsages == nil {
-			container.DeviceUsages = make(map[string]kubemodel.DeviceUsage)
-		}
-		usage := container.DeviceUsages[res.UUID]
-		apply(&usage)
-		container.DeviceUsages[res.UUID] = usage
-	}
-
-	usageAvgResult, _ := usageAvgFuture.Await()
-	for _, res := range usageAvgResult {
-		setUsage(res, func(u *kubemodel.DeviceUsage) { u.UsageAvg = res.Value })
-	}
-
-	usageMaxResult, _ := usageMaxFuture.Await()
-	for _, res := range usageMaxResult {
-		setUsage(res, func(u *kubemodel.DeviceUsage) { u.UsageMax = res.Value })
 	}
 
 	return nil
