@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/cloud"
@@ -233,14 +234,33 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	if strings.ToUpper(p.config.CurrencyCode) != "CNY" {
 		spotStart := time.Now()
 		ctx := context.Background()
-		var spotCount int
+
+		type regionResult struct {
+			prices []SpotPrice
+			err    error
+			region string
+		}
+
+		resultCh := make(chan regionResult, len(regions))
+		var wg sync.WaitGroup
 		for r := range regions {
-			spotPrices, err := QuerySpotPrices(ctx, r)
-			if err != nil {
-				log.Warnf("PricingSource (AWS): failed to fetch spot prices for region %s: %v", r, err)
+			wg.Add(1)
+			go func(r string) {
+				defer wg.Done()
+				prices, err := QuerySpotPrices(ctx, r)
+				resultCh <- regionResult{prices: prices, err: err, region: r}
+			}(r)
+		}
+		wg.Wait()
+		close(resultCh)
+
+		var spotCount int
+		for res := range resultCh {
+			if res.err != nil {
+				log.Warnf("PricingSource (AWS): failed to fetch spot prices for region %s: %v", res.region, res.err)
 				continue
 			}
-			for _, sp := range spotPrices {
+			for _, sp := range res.prices {
 				ps.NodePricing = append(ps.NodePricing, &pricing.NodePricing{
 					Properties: pricing.NodePricingProperties{
 						Provider:     cloud.ProviderAWS,
