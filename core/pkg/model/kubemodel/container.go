@@ -67,6 +67,6 @@ func (c *Container) GetKey() string {
 	return ContainerKey(c.PodUID, c.Name)
 }
 
-func ContainerKey(podUID, conatinerName string) string {
-	return fmt.Sprintf("%s/%s", podUID, conatinerName)
+func ContainerKey(podUID, containerName string) string {
+	return fmt.Sprintf("%s/%s", podUID, containerName)
 }
