@@ -1458,6 +1458,46 @@ func resToPodJobMap(resJobLabels []*source.PodsWithJobOwnerResult, podUIDKeyMap 
 	return jobLabels
 }
 
+// resToPodAnyOwnerMap maps every pod to its direct controller owner, whatever
+// the owner kind, from the generic kube_pod_owner data. This is the base layer
+// of controller resolution: it attributes pods owned by kinds OpenCost has no
+// dedicated query for (PyTorchJob, RayCluster, and any other workload CRD) that
+// would otherwise fall to __unallocated__. It is applied before the dedicated
+// per-kind maps, so those still win for the kinds they handle (a Deployment's
+// pod is resolved to the Deployment, not to its ReplicaSet).
+func resToPodAnyOwnerMap(resPodOwners []*source.OwnerResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
+	anyOwner := map[podKey]controllerKey{}
+
+	for _, res := range resPodOwners {
+		// Only the controlling owner reference names the workload.
+		if !res.Controller || res.OwnerName == "" || res.OwnerKind == "" {
+			continue
+		}
+
+		controllerKey, err := newResultControllerKey(res.Cluster, res.Namespace, res.OwnerName, strings.ToLower(res.OwnerKind))
+		if err != nil {
+			continue
+		}
+
+		key := newPodKey(controllerKey.Cluster, controllerKey.Namespace, res.Pod)
+
+		var keys []podKey
+		if ingestPodUID {
+			if uidKeys, ok := podUIDKeyMap[key]; ok {
+				keys = append(keys, uidKeys...)
+			}
+		} else {
+			keys = []podKey{key}
+		}
+
+		for _, key := range keys {
+			anyOwner[key] = controllerKey
+		}
+	}
+
+	return anyOwner
+}
+
 func resToPodReplicaSetMap(resPodsWithReplicaSetOwner []*source.PodsWithReplicaSetOwnerResult, resReplicaSetsWithoutOwners []*source.ReplicaSetsWithoutOwnersResult, resReplicaSetsWithRolloutOwner []*source.ReplicaSetsWithRolloutResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
 	// Build out set of ReplicaSets that have no owners, themselves, such that
 	// the ReplicaSet should be used as the owner of the Pods it controls.

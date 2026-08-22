@@ -352,6 +352,11 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 
 	resChPodsWithJobOwner := source.WithGroup(grp, ds.QueryPodsWithJobOwner(start, end))
 
+	// Generic owner resolution: every pod's direct controller, whatever the kind.
+	// Attributes workload CRDs (PyTorchJob, RayCluster, ...) that have no dedicated
+	// query and would otherwise fall to __unallocated__.
+	resChPodOwners := source.WithGroup(grp, ds.QueryPodOwners(start, end))
+
 	resChLBCostPerHr := source.WithGroup(grp, ds.QueryLBPricePerHr(start, end))
 	resChLBActiveMins := source.WithGroup(grp, ds.QueryLBActiveMinutes(start, end))
 
@@ -416,6 +421,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resReplicaSetsWithoutOwners, _ := resChReplicaSetsWithoutOwners.Await()
 	resReplicaSetsWithRolloutOwner, _ := resChReplicaSetsWithRolloutOwner.Await()
 	resPodsWithJobOwner, _ := resChPodsWithJobOwner.Await()
+	resPodOwners, _ := resChPodOwners.Await()
 	resLBCostPerHr, _ := resChLBCostPerHr.Await()
 	resLBActiveMins, _ := resChLBActiveMins.Await()
 
@@ -479,6 +485,10 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	podDaemonSetMap := resToPodDaemonSetMap(resPodsWithDaemonSetOwner, podUIDKeyMap, ingestPodUID)
 	podJobMap := resToPodJobMap(resPodsWithJobOwner, podUIDKeyMap, ingestPodUID)
 	podReplicaSetMap := resToPodReplicaSetMap(resPodsWithReplicaSetOwner, resReplicaSetsWithoutOwners, resReplicaSetsWithRolloutOwner, podUIDKeyMap, ingestPodUID)
+	// Base layer: generic owner for any kind. Applied first so the dedicated
+	// per-kind maps below override it for the kinds they handle.
+	podAnyOwnerMap := resToPodAnyOwnerMap(resPodOwners, podUIDKeyMap, ingestPodUID)
+	applyControllersToPods(podMap, podAnyOwnerMap)
 	applyControllersToPods(podMap, podDeploymentMap)
 	applyControllersToPods(podMap, podStatefulSetMap)
 	applyControllersToPods(podMap, podDaemonSetMap)

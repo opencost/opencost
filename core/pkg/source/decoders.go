@@ -57,12 +57,16 @@ const (
 	OwnerKindLabel       = "owner_kind"
 	OwnerUIDLabel        = "owner_uid"
 	ControllerLabel      = "controller"
-	UnitLabel            = "unit"
-	InternetLabel        = "internet"
-	SameZoneLabel        = "same_zone"
-	SameRegionLabel      = "same_region"
-	NatGatewayLabel      = "nat_gateway"
-	KubeModelVersion     = "kubemodel_version"
+	// OwnerIsControllerLabel is what kube-state-metrics emits on kube_pod_owner
+	// to mark the controlling owner reference (OpenCost's own emitter uses
+	// ControllerLabel instead).
+	OwnerIsControllerLabel = "owner_is_controller"
+	UnitLabel              = "unit"
+	InternetLabel          = "internet"
+	SameZoneLabel          = "same_zone"
+	SameRegionLabel        = "same_region"
+	NatGatewayLabel        = "nat_gateway"
+	KubeModelVersion       = "kubemodel_version"
 )
 
 const (
@@ -761,23 +765,37 @@ func DecodePodPVCVolumeResult(result *QueryResult) *PodPVCVolumeResult {
 type OwnerResult struct {
 	UID        string
 	Cluster    string
+	Namespace  string
+	Pod        string
 	OwnerUID   string
 	OwnerKind  string
+	OwnerName  string
 	Controller bool
 }
 
 func DecodeOwnerResult(result *QueryResult) *OwnerResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
+	namespace, _ := result.GetNamespace()
+	pod, _ := result.GetPod()
 	ownerUID, _ := result.GetString(OwnerUIDLabel)
 	ownerKind, _ := result.GetString(OwnerKindLabel)
+	ownerName, _ := result.GetString(OwnerNameLabel)
+	// The controlling owner reference is marked by "controller" (OpenCost's own
+	// metric emitter) or "owner_is_controller" (kube-state-metrics).
 	controller, _ := result.GetBool(ControllerLabel)
+	if ownerIsController, _ := result.GetBool(OwnerIsControllerLabel); ownerIsController {
+		controller = true
+	}
 
 	return &OwnerResult{
 		UID:        uid,
 		Cluster:    cluster,
+		Namespace:  namespace,
+		Pod:        pod,
 		OwnerUID:   ownerUID,
 		OwnerKind:  ownerKind,
+		OwnerName:  ownerName,
 		Controller: controller,
 	}
 }
