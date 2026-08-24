@@ -715,11 +715,11 @@ func TestBuildNodePricing_SpotProvisioning(t *testing.T) {
 	}
 
 	cpuCosts := map[nodeKey]float64{
-		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "ondemand"}:   0.031611,
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "ondemand"}:    0.031611,
 		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.007583,
 	}
 	ramCosts := map[nodeKey]float64{
-		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "ondemand"}:   0.004237,
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "ondemand"}:    0.004237,
 		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.001017,
 	}
 
