@@ -77,10 +77,14 @@ func (c *Configurations) UnmarshalJSON(bytes []byte) error {
 	// This has been tested for backwards compatability, and it works in both config formats.
 	// It also coincidentally works if you mix-and-match both the old format and the new
 	// format.
-	// Create inline type to gain access to default Unmarshalling
-	type ConfUnmarshaller *Configurations
-	var conf ConfUnmarshaller = c
-	err := json.Unmarshal(bytes, conf)
+	// Create a distinct defined type to gain access to default Unmarshalling. This must be
+	// defined over the struct rather than over the pointer: a defined pointer type such as
+	// `type ConfUnmarshaller *Configurations` still resolves to (*Configurations).UnmarshalJSON
+	// under the encoding/json v2 backend (Go 1.25+ GOEXPERIMENT=jsonv2, default in Go 1.27),
+	// which makes this method recurse into itself until the stack overflows. Converting the
+	// pointer to *confUnmarshaller sheds the method set under both backends.
+	type confUnmarshaller Configurations
+	err := json.Unmarshal(bytes, (*confUnmarshaller)(c))
 	// If unmarshal is successful, return
 	if err == nil {
 		return nil
