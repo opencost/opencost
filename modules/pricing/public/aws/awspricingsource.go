@@ -243,6 +243,7 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 
 		resultCh := make(chan regionResult, len(regions))
 		var wg sync.WaitGroup
+		// TODO: Add separate credential path for aws gov regions. Current AWS account cannot hit it
 		for r := range regions {
 			wg.Add(1)
 			go func(r string) {
