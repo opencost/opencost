@@ -155,7 +155,12 @@ func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet,
 			continue
 		}
 
-		nk := nodeKey{Region: item.ArmRegionName, InstanceType: item.ArmSkuName}
+		provisioning := pricing.ProvisioningOnDemand
+		if isSpotItem(item) {
+			provisioning = pricing.ProvisioningSpot
+		}
+
+		nk := nodeKey{Region: item.ArmRegionName, InstanceType: item.ArmSkuName, Provisioning: provisioning}
 		if _, ok := seen[nk]; ok {
 			continue
 		}
@@ -166,7 +171,7 @@ func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet,
 				Provider:     cloud.ProviderAzure,
 				Region:       item.ArmRegionName,
 				InstanceType: item.ArmSkuName,
-				Provisioning: pricing.ProvisioningOnDemand,
+				Provisioning: provisioning,
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceNode: pricing.Price{
@@ -240,12 +245,16 @@ func (a *AzurePricingSource) includeItem(item AzurePricingAttributes) bool {
 	}
 
 	// The Azure API appends an exact suffix to SkuName for non-on-demand rows.
-	// We only want on-demand Linux pricing, so reject Spot and Low Priority.
+	// We want on-demand and Spot Linux pricing, so only reject Low Priority
+	// (a deprecated pricing model with no corresponding ProvisioningType).
 	skuLower := strings.ToLower(item.SkuName)
-	if strings.HasSuffix(skuLower, " spot") {
-		return false
-	}
 	return !strings.HasSuffix(skuLower, " low priority")
+}
+
+// isSpotItem returns true if the pricing item represents Spot VM pricing.
+// The Azure Retail Prices API denotes Spot rows with a " Spot" suffix on SkuName.
+func isSpotItem(item AzurePricingAttributes) bool {
+	return strings.HasSuffix(strings.ToLower(item.SkuName), " spot")
 }
 
 // includeDiskItem filters disk items to include only managed disks.

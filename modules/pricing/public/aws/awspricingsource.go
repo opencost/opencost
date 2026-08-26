@@ -1,9 +1,11 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/cloud"
@@ -36,6 +38,9 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	seenNodeKeys := make(map[nodeKey]struct{})
 	skuToVolumeKey := make(map[string]volumeKey)
 	seenVolumeKeys := make(map[volumeKey]struct{})
+
+	// Regions is used by the spotAPI to know what to query
+	regions := make(map[string]struct{})
 
 	var productCount, termCount int
 	const logInterval = 50000
@@ -98,6 +103,7 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 				return
 			}
 			seenNodeKeys[nk] = struct{}{}
+			regions[attr.RegionCode] = struct{}{}
 			skuToNodeKey[product.Sku] = nk
 			return
 		}
@@ -221,8 +227,61 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 		return nil, fmt.Errorf("failed to query list pricing data %w", err)
 	}
 
-	log.Infof("PricingSource (AWS): completed in %s — %d products, %d terms, %d node pricing, %d volume pricing",
+	log.Infof("PricingSource (AWS): on-demand completed in %s — %d products, %d terms, %d node pricing, %d volume pricing",
 		time.Since(start).Round(time.Second), productCount, termCount, len(ps.NodePricing), len(ps.PersistentVolumePricing))
+
+	// China does not have the spotAPI endpoint
+	if strings.ToUpper(p.config.CurrencyCode) != "CNY" {
+		spotStart := time.Now()
+		ctx := context.Background()
+
+		type regionResult struct {
+			prices []SpotPrice
+			err    error
+			region string
+		}
+
+		resultCh := make(chan regionResult, len(regions))
+		var wg sync.WaitGroup
+		// TODO: Add separate credential path for aws gov regions. Current AWS account cannot hit it
+		for r := range regions {
+			wg.Add(1)
+			go func(r string) {
+				defer wg.Done()
+				prices, err := QuerySpotPrices(ctx, r)
+				resultCh <- regionResult{prices: prices, err: err, region: r}
+			}(r)
+		}
+		wg.Wait()
+		close(resultCh)
+
+		var spotCount int
+		for res := range resultCh {
+			if res.err != nil {
+				log.Warnf("PricingSource (AWS): failed to fetch spot prices for region %s: %v", res.region, res.err)
+				continue
+			}
+			for _, sp := range res.prices {
+				ps.NodePricing = append(ps.NodePricing, &pricing.NodePricing{
+					Properties: pricing.NodePricingProperties{
+						Provider:     cloud.ProviderAWS,
+						Region:       sp.Region,
+						InstanceType: sp.InstanceType,
+						Provisioning: pricing.ProvisioningSpot,
+					},
+					Prices: pricing.Prices{
+						pricing.ResourceNode: pricing.Price{
+							Unit:  unit.Hour,
+							Price: sp.Price,
+						},
+					},
+				})
+				spotCount++
+			}
+		}
+		log.Infof("PricingSource (AWS): spot pricing completed in %s — %d entries across %d regions",
+			time.Since(spotStart).Round(time.Second), spotCount, len(regions))
+	}
 
 	return ps, nil
 }
