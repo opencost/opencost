@@ -12,9 +12,9 @@ import (
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
-// UpdateEnricher optionally transforms a single scraped update before it's returned from
+// UpdateEnricher optionally batch transforms entire set of updates before they returned from
 // Scrape().
-type UpdateEnricher func(update metric.Update) metric.Update
+type UpdateEnricher func(update []metric.Update)
 
 type TargetScraper struct {
 	name           string // identifier for the scraper
@@ -81,9 +81,7 @@ func (s *TargetScraper) Scrape() []metric.Update {
 					Labels: result.Labels,
 					Value:  result.Value,
 				}
-				if s.enrich != nil {
-					update = s.enrich(update)
-				}
+
 				scrapeResults = append(scrapeResults, update)
 			}
 			return scrapeResults
@@ -92,6 +90,10 @@ func (s *TargetScraper) Scrape() []metric.Update {
 	}
 
 	updates := concurrentScrape(scrapeFuncs...)
+
+	if s.enrich != nil {
+		s.enrich(updates)
+	}
 
 	// dispatch a scrape event for this specific scrape
 	events.Dispatch(event.ScrapeEvent{

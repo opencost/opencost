@@ -454,12 +454,13 @@ func TestTargetScraper_Scrape(t *testing.T) {
 			name:       "Enrichment",
 			scrapeText: enrichScrape,
 			targetScraperFactory: func(provider target.TargetProvider) *TargetScraper {
-				enrich := func(update metric.Update) metric.Update {
-					if update.Labels["extra"] != "" {
-						return update
+				enrich := func(updates []metric.Update) {
+					for i := range updates {
+						if updates[i].Labels["extra"] != "" {
+							continue
+						}
+						updates[i].Labels["extra"] = "enriched"
 					}
-					update.Labels["extra"] = "enriched"
-					return update
 				}
 				return newTargetScrapper("test-enrich", provider, nil, false, enrich)
 			},

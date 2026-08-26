@@ -36,20 +36,21 @@ func newDCGMTargetScraper(provider target.TargetProvider, enrich UpdateEnricher)
 // resolved against a freshly built index of the cluster's current pods. Left unset if pod_uid
 // is already present, or if namespace/pod can't be resolved to a known pod.
 func podUIDEnricher(clusterCache clustercache.ClusterCache) UpdateEnricher {
-	index := buildPodIndex(clusterCache.GetAllPods())
-	return func(update metric.Update) metric.Update {
-		if update.Labels[source.PodUIDLabel] != "" {
-			return update
-		}
-		namespace, pod := update.Labels[source.NamespaceLabel], update.Labels[source.PodLabel]
-		if namespace == "" || pod == "" {
-			return update
-		}
+	return func(updates []metric.Update) {
+		index := buildPodIndex(clusterCache.GetAllPods())
+		for _, update := range updates {
+			if update.Labels[source.PodUIDLabel] != "" {
+				continue
+			}
+			namespace, pod := update.Labels[source.NamespaceLabel], update.Labels[source.PodLabel]
+			if namespace == "" || pod == "" {
+				continue
+			}
 
-		if uid, ok := index[podKey{namespace: namespace, name: pod}]; ok {
-			update.Labels[source.PodUIDLabel] = string(uid)
+			if uid, ok := index[podKey{namespace: namespace, name: pod}]; ok {
+				update.Labels[source.PodUIDLabel] = string(uid)
+			}
 		}
-		return update
 	}
 }
 
