@@ -1064,6 +1064,66 @@ func (m *MockMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[Infe
 	})
 }
 
+func (m *MockMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceKVCacheUsageAvg, func() *Future[InferenceEngineMetricResult] {
+		return m.noop.QueryInferenceKVCacheUsageAvg(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceKVCacheUsageMax, func() *Future[InferenceEngineMetricResult] {
+		return m.noop.QueryInferenceKVCacheUsageMax(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceQueueDepthAvg, func() *Future[InferenceEngineMetricResult] {
+		return m.noop.QueryInferenceQueueDepthAvg(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceQueueDepthMax, func() *Future[InferenceEngineMetricResult] {
+		return m.noop.QueryInferenceQueueDepthMax(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceRunningRequestsAvg, func() *Future[InferenceEngineMetricResult] {
+		return m.noop.QueryInferenceRunningRequestsAvg(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferencePreemptions, func() *Future[InferenceEngineMetricResult] {
+		return m.noop.QueryInferencePreemptions(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceKVCacheUsageP95, func() *Future[InferenceEngineMetricResult] {
+		return m.noop.QueryInferenceKVCacheUsageP95(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceQueueDepthP95, func() *Future[InferenceEngineMetricResult] {
+		return m.noop.QueryInferenceQueueDepthP95(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceRunningRequestsMax, func() *Future[InferenceEngineMetricResult] {
+		return m.noop.QueryInferenceRunningRequestsMax(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceEngineMetricResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceRunningRequestsP95, func() *Future[InferenceEngineMetricResult] {
+		return m.noop.QueryInferenceRunningRequestsP95(start, end)
+	})
+}
+
 // Data Coverage Query
 func (m *MockMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
 	if v, ok := m.overrides[QueryDataCoverage]; ok {

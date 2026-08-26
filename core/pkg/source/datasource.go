@@ -224,6 +224,18 @@ const (
 	QueryInferenceOutputProcessingTime = "QueryInferenceOutputProcessingTime"
 	QueryInferenceCachedTokens         = "QueryInferenceCachedTokens"
 	QueryInferenceCacheConfig          = "QueryInferenceCacheConfig"
+
+	// Inference Saturation Metrics (Gateway API Inference Extension Model Server Protocol)
+	QueryInferenceKVCacheUsageAvg    = "QueryInferenceKVCacheUsageAvg"
+	QueryInferenceKVCacheUsageMax    = "QueryInferenceKVCacheUsageMax"
+	QueryInferenceQueueDepthAvg      = "QueryInferenceQueueDepthAvg"
+	QueryInferenceQueueDepthMax      = "QueryInferenceQueueDepthMax"
+	QueryInferenceRunningRequestsAvg = "QueryInferenceRunningRequestsAvg"
+	QueryInferencePreemptions        = "QueryInferencePreemptions"
+	QueryInferenceKVCacheUsageP95    = "QueryInferenceKVCacheUsageP95"
+	QueryInferenceQueueDepthP95      = "QueryInferenceQueueDepthP95"
+	QueryInferenceRunningRequestsMax = "QueryInferenceRunningRequestsMax"
+	QueryInferenceRunningRequestsP95 = "QueryInferenceRunningRequestsP95"
 )
 
 type MetricsQuerier interface {
@@ -460,6 +472,65 @@ type MetricsQuerier interface {
 
 	// QueryInferenceCacheConfig returns cache configuration (prefix caching enabled) by model_name and namespace
 	QueryInferenceCacheConfig(t time.Time) *Future[InferenceCacheConfigResult]
+
+	// Inference Saturation Metrics. These are the model-server scheduler
+	// signals standardized by the Gateway API Inference Extension Model
+	// Server Protocol (queue depth, running requests, KV-cache utilization),
+	// reported per model_name, namespace, and pod. Unlike host-level GPU
+	// utilization, they measure how much of a model server's serving
+	// capacity the workload actually consumes.
+
+	// QueryInferenceKVCacheUsageAvg returns the window-averaged KV-cache
+	// utilization (0-1) by model_name, namespace, and pod
+	QueryInferenceKVCacheUsageAvg(start, end time.Time) *Future[InferenceEngineMetricResult]
+
+	// QueryInferenceKVCacheUsageMax returns the window-max KV-cache
+	// utilization (0-1) by model_name, namespace, and pod
+	QueryInferenceKVCacheUsageMax(start, end time.Time) *Future[InferenceEngineMetricResult]
+
+	// QueryInferenceQueueDepthAvg returns the window-averaged count of
+	// requests waiting for scheduler capacity by model_name, namespace, and pod
+	QueryInferenceQueueDepthAvg(start, end time.Time) *Future[InferenceEngineMetricResult]
+
+	// QueryInferenceQueueDepthMax returns the window-max count of requests
+	// waiting for scheduler capacity by model_name, namespace, and pod
+	QueryInferenceQueueDepthMax(start, end time.Time) *Future[InferenceEngineMetricResult]
+
+	// QueryInferenceRunningRequestsAvg returns the window-averaged count of
+	// requests in the running batch by model_name, namespace, and pod
+	QueryInferenceRunningRequestsAvg(start, end time.Time) *Future[InferenceEngineMetricResult]
+
+	// QueryInferencePreemptions returns the count of scheduler preemptions
+	// (requests evicted from the running batch and recomputed) over the
+	// window by model_name, namespace, and pod. A pressure and instability
+	// signal: sustained preemptions mean the engine is thrashing its KV
+	// budget.
+	QueryInferencePreemptions(start, end time.Time) *Future[InferenceEngineMetricResult]
+
+	// QueryInferenceKVCacheUsageP95 returns the 95th-percentile KV-cache
+	// utilization (0-1) over the window by model_name, namespace, and pod.
+	// Together with avg and max this gives a distribution summary that is
+	// computable identically from Prometheus (quantile_over_time) and from
+	// the collector's sample store.
+	QueryInferenceKVCacheUsageP95(start, end time.Time) *Future[InferenceEngineMetricResult]
+
+	// QueryInferenceQueueDepthP95 returns the 95th-percentile count of
+	// waiting requests over the window by model_name, namespace, and pod.
+	QueryInferenceQueueDepthP95(start, end time.Time) *Future[InferenceEngineMetricResult]
+
+	// QueryInferenceRunningRequestsMax returns the window-max count of
+	// requests in the running batch by model_name, namespace, and pod. The
+	// batch is bounded by the engine's concurrent-sequence limit (vLLM's
+	// max_num_seqs) independently of the KV-cache budget, and no vLLM metric
+	// exposes that limit; while the queue is non-empty the running gauge sits
+	// pinned at it, so the window maximum recovers the ceiling that makes the
+	// average interpretable.
+	QueryInferenceRunningRequestsMax(start, end time.Time) *Future[InferenceEngineMetricResult]
+
+	// QueryInferenceRunningRequestsP95 returns the 95th-percentile count of
+	// requests in the running batch over the window by model_name, namespace,
+	// and pod.
+	QueryInferenceRunningRequestsP95(start, end time.Time) *Future[InferenceEngineMetricResult]
 }
 
 type OpenCostDataSource interface {

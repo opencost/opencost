@@ -30,6 +30,7 @@ OpenCost reads `PROMETHEUS_SERVER_ENDPOINT` for both the core metrics and the [v
 | `INFERENCE_SHARED_INFRA_LABEL` | `llm-d.ai/inference-shared` | Pod label key identifying shared infra pods (EPP, gateway). See [Shared infrastructure label](#shared-infrastructure-label) for details. |
 | `INFERENCE_SHARED_INFRA_LABEL_VALUE` | `true` | Label value that marks a pod as shared infra. See [Shared infrastructure label](#shared-infrastructure-label) for details. |
 | `INFERENCE_COLLECTION_INTERVAL` | `2m` | Background collection interval |
+| `INFERENCE_SCRAPE_PORT` | `8000` | Collector source only. Metrics port used for a model-server pod that carries no `prometheus.io/port` annotation. Defaults to the vLLM OpenAI-compatible server port. |
 
 ### Kubernetes Deployment Example
 
@@ -389,6 +390,144 @@ All metrics must carry `model_name` and `namespace` labels. Verify availability:
 ```bash
 kubectl exec -n <namespace> <vllm-pod> -- curl -s localhost:8000/metrics | grep -E "prompt_tokens|generation_tokens|prefill_time|output_token"
 ```
+
+## Saturation Metrics (KV cache, queue depth, running requests)
+
+In addition to token and timing metrics, OpenCost collects the model-server
+**scheduler telemetry** standardized by the
+[Gateway API Inference Extension Model Server Protocol](https://github.com/kubernetes-sigs/gateway-api-inference-extension/tree/main/docs/proposals/003-model-server-protocol):
+
+| Signal | vLLM metric | Aggregations |
+|--------|-------------|--------------|
+| KV-cache utilization (0-1) | `vllm:kv_cache_usage_perc` | avg, p95, max |
+| Queue depth (requests waiting) | `vllm:num_requests_waiting` | avg, p95, max |
+| Running requests (achieved batch) | `vllm:num_requests_running` | avg, p95, max |
+| Preemptions (KV thrash / pressure) | `vllm:num_preemptions_total` | delta over window |
+
+The avg/p95/max triple summarizes each gauge's window distribution. Quantiles
+were chosen over bucketed histograms because they compute identically from
+both data sources (Prometheus `quantile_over_time` and the collector's sample
+store); bucketed histograms would require one subquery per bucket per metric
+on the Prometheus side.
+
+#### Why running requests are collected as a maximum too
+
+Two independent constraints bound a model server, and either can bind first.
+One is KV-cache memory, reported as a fraction by
+`vllm:kv_cache_usage_perc`. The other is the concurrent-sequence limit
+(vLLM's `max_num_seqs`), which caps how many requests can be in the running
+batch at once no matter how much KV memory is free. Short-context,
+high-concurrency serving exhausts batch slots while KV utilization stays low
+(each sequence holds few KV blocks); long-context serving does the reverse.
+KV utilization alone therefore cannot answer "is this replica at capacity",
+and a consumer that treats it as the only saturation signal will read a
+batch-saturated replica as nearly idle.
+
+vLLM exposes no Prometheus metric for `max_num_seqs`, and no scheduler-config
+or cache-config info metric carries it, so the denominator of batch occupancy
+cannot be collected directly. It can be observed, though: while the queue is
+non-empty (requests are waiting), the engine is admitting every sequence it
+can, so `vllm:num_requests_running` sits pinned at the effective
+concurrent-sequence limit. The window maximum is that ceiling. An average of
+30 running requests against an unknown ceiling is uninterpretable; a maximum
+that stays flat while queue depth is above zero is the ceiling itself.
+
+These measure how much of a model server's **serving capacity** the workload
+actually consumes. Host-level GPU metrics cannot: a serving engine
+preallocates its memory budget and keeps the device busy at any batch size,
+so SM utilization and VRAM occupancy read high for every healthy deployment
+regardless of load. KV-cache utilization together with queue depth is the
+honest capacity signal:
+
+- **KV-cache usage** under load approximates saturation when the queue is
+  empty (a replica at 90% KV usage is nearly full; a replica at 2% is nearly
+  idle no matter what `DCGM_FI_DEV_GPU_UTIL` says).
+- **Sustained queue depth above zero** means the replica is at or past
+  saturation and latency is growing.
+- The signals are engine-relative, so they remain valid per **MIG instance**:
+  each instance runs its own engine sized to its slice. (Under MIG,
+  `DCGM_FI_DEV_GPU_UTIL` is not supported at all, which makes engine-level
+  telemetry the only reliable capacity signal.)
+
+OpenCost ships these as raw materials, per model-server pod, and deliberately
+does not compute opinionated efficiency scores or consolidation
+recommendations from them.
+
+### Collection paths
+
+Both data sources collect the same signals:
+
+- **Prometheus source**: window aggregations over the vLLM gauges already
+  scraped by your Prometheus (same scrape configuration as the token metrics
+  above, plus the `pod_uid` relabel rule below).
+- **Collector source** (Prometheus-free): a dedicated scraper discovers
+  model-server pods by the `INFERENCE_MODEL_LABEL` pod label (default
+  `llm-d.ai/model`) and scrapes their metrics endpoints directly. The port is
+  taken from the pod's `prometheus.io/port` annotation when present,
+  otherwise `INFERENCE_SCRAPE_PORT` (default `8000`, the vLLM server port).
+  Because serving engines do not self-report their Kubernetes identity, the
+  scraper attaches `namespace`, `namespace_uid`, `pod` and `pod_uid` labels at
+  scrape time. This path also serves the token and timing counters above, so
+  the full inference querier surface works without Prometheus.
+
+#### Required scrape configuration (Prometheus source)
+
+These metrics are keyed by **pod UID**, because a pod name is reused across a
+pod's lifetime and every other entity in the KubeModel joins by UID. Serving
+engines emit only `model_name`, so the scrape job must attach the pod's
+identity, the same way the `dcgm-exporter` series carry `pod_uid`. Add the
+`pod_uid` relabel rule alongside the `namespace` and `pod` rules you already
+have for the token metrics:
+
+```yaml
+relabel_configs:
+  - source_labels: [__meta_kubernetes_namespace]
+    target_label: namespace
+  - source_labels: [__meta_kubernetes_pod_name]
+    target_label: pod
+  # Required for saturation metrics to join the KubeModel.
+  - source_labels: [__meta_kubernetes_pod_uid]
+    target_label: pod_uid
+```
+
+Kubernetes service discovery always provides `__meta_kubernetes_pod_uid`, so
+no extra exporter is needed. There is no equivalent meta-label for the
+namespace UID, so OpenCost joins `namespace_uid` in from its own
+`namespace_info` series on the namespace name; no configuration is required
+for that.
+
+If `pod_uid` is missing, the series still scrape but group under an empty pod
+UID and are dropped when the KubeModel entry is built, so saturation data will
+simply be absent rather than wrong.
+
+### KubeModel
+
+The aggregated signals land in the KubeModel as `InferenceEngine` entries,
+one per inference engine instance and keyed by pod UID, alongside the DCGM
+device model. Each entry carries `podUid` and `namespaceUid`, which index
+`KubeModelSet.Pods` and `KubeModelSet.Namespaces` directly; a rollup by served
+model is a view a consumer computes by grouping on `modelName`. See
+`core/pkg/model/kubemodel/inference.go` and
+`protos/kubemodel/inference.proto`.
+
+The entity is named for the engine rather than for the pod because the engine
+is what these signals describe: the process that admits requests, batches them,
+and manages the KV-cache budget. A pod has no queue depth of its own. The
+engine is vLLM today, and the field semantics are normalized to the Model
+Server Protocol, so additional engines are additive mappings rather than new
+entity types.
+
+Two scoping notes follow from that:
+
+- **These are decode-stage signals.** An engine serving pooling models
+  (embedding, classification, reward) runs no decode loop and will report
+  these gauges as absent or degenerate. That reflects the workload's mode
+  rather than a collection failure.
+- **One engine per pod is the common case, not a guarantee.** Under vLLM data
+  parallelism each DP rank runs as its own core engine process inside the same
+  pod. Keyed by pod UID, such a deployment collapses to a single entry per pod.
+  Extending identity to `(pod UID, engine)` is the shape that addresses it and
+  is not yet implemented.
 
 ## Troubleshooting
 

@@ -1,6 +1,7 @@
 package source
 
 import (
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -64,6 +65,25 @@ const (
 	NatGatewayLabel      = "nat_gateway"
 	KubeModelVersion     = "kubemodel_version"
 )
+
+// InferenceModelNameLabel is the label carrying the served model name on
+// model-server metrics (vLLM's model_name; see the Gateway API Inference
+// Extension Model Server Protocol). Distinct from ModelNameLabel, which is
+// the DCGM exporter's GPU hardware model name.
+const InferenceModelNameLabel = "model_name"
+
+// InferenceEngineIndexLabel is the label carrying the engine index within a
+// model-server pod. vLLM labels every metric it emits with
+// ["model_name", "engine"], where engine is the stringified index of the
+// engine core, so a single-engine deployment reports "0" and a data-parallel
+// deployment reports one series per rank from the same pod. It is part of the
+// measurement's identity for that reason: without it, several engine cores in
+// one pod collapse into a single entry.
+const InferenceEngineIndexLabel = "engine"
+
+// EnablePrefixCachingLabel is the label vLLM sets on its cache_config_info
+// info metric to report whether prefix caching is enabled.
+const EnablePrefixCachingLabel = "enable_prefix_caching"
 
 const (
 	NoneLabelValue = "<none>"
@@ -2195,6 +2215,21 @@ func DecodeInferenceCacheConfigResult(result *QueryResult) *InferenceCacheConfig
 	namespace, _ := result.GetString("namespace")
 	key := modelName + ":" + namespace
 
+	// vllm:cache_config_info is an info metric whose payload is the
+	// enable_prefix_caching label; its sample value is a constant 1. Prefer
+	// the label when the data source carries it through (the collector source
+	// does, via the Info aggregator), and fall back to the sample value for
+	// sources that fold the flag into the value instead.
+	if enabled, err := result.GetString(EnablePrefixCachingLabel); err == nil && enabled != "" {
+		return &InferenceCacheConfigResult{
+			Configs: map[string]*InferenceCacheConfig{
+				key: {
+					PrefixCachingEnabled: strings.EqualFold(enabled, "true"),
+				},
+			},
+		}
+	}
+
 	// Get the value from the last vector point if available
 	var prefixCachingEnabled float64
 	if len(result.Values) > 0 {
@@ -2207,6 +2242,30 @@ func DecodeInferenceCacheConfigResult(result *QueryResult) *InferenceCacheConfig
 				PrefixCachingEnabled: prefixCachingEnabled > 0,
 			},
 		},
+	}
+}
+
+// DecodeInferenceEngineMetricResult decodes one window-aggregated model-server
+// scheduler metric sample (KV cache usage, queue depth, running requests) keyed
+// by pod UID, carrying the served model name and the pod's namespace UID.
+func DecodeInferenceEngineMetricResult(result *QueryResult) *InferenceEngineMetricResult {
+	modelName, _ := result.GetString(InferenceModelNameLabel)
+	podUID, _ := result.GetString(PodUIDLabel)
+	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
+	engineIndex, _ := result.GetString(InferenceEngineIndexLabel)
+
+	// Get the value from the last vector point if available
+	var value float64
+	if len(result.Values) > 0 {
+		value = result.Values[len(result.Values)-1].Value
+	}
+
+	return &InferenceEngineMetricResult{
+		ModelName:    modelName,
+		PodUID:       podUID,
+		NamespaceUID: namespaceUID,
+		EngineIndex:  engineIndex,
+		Value:        value,
 	}
 }
 

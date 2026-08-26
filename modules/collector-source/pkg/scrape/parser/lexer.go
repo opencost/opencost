@@ -62,7 +62,11 @@ func (l *lexer) next() token {
 				continue
 			}
 
-			if unicode.IsLetter(ch) {
+			// Metric names may begin with a colon per the Prometheus
+			// exposition format ([a-zA-Z_:]). Leading underscores keep
+			// their historical skip behaviour (see the ___123 float
+			// resilience case in the parser tests).
+			if unicode.IsLetter(ch) || ch == ':' {
 				l.backup()
 
 				// special handling for NaN and Inf without leading sign
@@ -144,7 +148,10 @@ func (l *lexer) literal() string {
 			return sb.String()
 		}
 
-		if isAlphaNumericUnderscore(r) {
+		// Colons are valid in metric names ([a-zA-Z0-9_:], e.g. recording
+		// rules and vLLM's vllm:* metrics), though not in label names; the
+		// lexer accepts them for both and leaves validation to consumers.
+		if isAlphaNumericUnderscore(r) || r == ':' {
 			sb.WriteRune(r)
 		} else {
 			l.backup()

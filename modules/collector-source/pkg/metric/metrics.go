@@ -63,6 +63,23 @@ const (
 	DCGMFIPROFGRENGINEACTIVE = "DCGM_FI_PROF_GR_ENGINE_ACTIVE"
 	DCGMFIDEVDECUTIL         = "DCGM_FI_DEV_DEC_UTIL"
 
+	// Inference Model Server Metrics (Gateway API Inference Extension Model
+	// Server Protocol; vLLM metric names)
+	VLLMKVCacheUsagePerc    = "vllm:kv_cache_usage_perc"
+	VLLMNumRequestsWaiting  = "vllm:num_requests_waiting"
+	VLLMNumRequestsRunning  = "vllm:num_requests_running"
+	VLLMNumPreemptionsTotal = "vllm:num_preemptions_total"
+
+	// Inference cost metrics: the token and timing counters the inference
+	// cost feature consumes. Only the _sum child of the timing histograms is
+	// read, never the _bucket series, so no histogram support is required.
+	VLLMPromptTokensTotal                   = "vllm:prompt_tokens_total"
+	VLLMGenerationTokensTotal               = "vllm:generation_tokens_total"
+	VLLMRequestPrefillTimeSecondsSum        = "vllm:request_prefill_time_seconds_sum"
+	VLLMRequestTimePerOutputTokenSecondsSum = "vllm:request_time_per_output_token_seconds_sum"
+	VLLMPrefixCacheHitsTotal                = "vllm:prefix_cache_hits_total"
+	VLLMCacheConfigInfo                     = "vllm:cache_config_info"
+
 	// Network Metrics
 	KubecostPodNetworkEgressBytesTotal  = "kubecost_pod_network_egress_bytes_total"
 	KubecostPodNetworkIngressBytesTotal = "kubecost_pod_network_ingress_bytes_total"

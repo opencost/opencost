@@ -113,6 +113,402 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceCachedTokens(start, end time.
 	return source.NewFuture(decodeInferenceTokensResult, resultsChan)
 }
 
+// Inference Saturation Queries
+//
+// These query the model-server scheduler gauges standardized by the Gateway
+// API Inference Extension Model Server Protocol: KV-cache utilization, queue
+// depth (requests waiting), and running requests. Unlike host GPU utilization
+// (which reads high for any healthy deployment), these measure how much of a
+// model server's serving capacity the workload actually consumes. Results are
+// per pod so per-replica saturation is preserved.
+//
+// Identity is the pod UID, matching how the KubeModel joins every other
+// entity and how the DCGM queries already group (see queryFmtDCGMContainerUsageAvg
+// in metricsquerier.go, which groups by UUID and pod_uid). Two label sources
+// make that possible here:
+//
+//   - pod_uid comes from the scrape configuration. Model-server metrics are
+//     already scraped with a config that attaches namespace and pod; adding
+//     pod_uid is one more relabel rule from the __meta_kubernetes_pod_uid
+//     meta-label that Kubernetes service discovery always provides. This is
+//     the same way DCGM series carry pod_uid. See docs/inference-cost-tracking.md.
+//   - namespace_uid has no equivalent meta-label, so it is joined in from
+//     OpenCost's own namespace_info series on the namespace name.
+
+// inferenceGroupBy is the identity these queries reduce to. The cluster label
+// rides along so a multi-cluster Prometheus keeps clusters separate, the same
+// way the DCGM queries append it to their own by-clause.
+func inferenceGroupBy(clusterLabel string) string {
+	// engine is vLLM's own label (the stringified engine core index), present
+	// on every series it emits. It is in the grouping because one pod can run
+	// several engine cores under data parallelism, and summing their gauges
+	// together is meaningless: KV-cache utilization is a ratio, so two cores
+	// at 0.4 and 0.5 must not become 0.9.
+	return fmt.Sprintf(`model_name, pod_uid, namespace_uid, %s, %s`, source.InferenceEngineIndexLabel, clusterLabel)
+}
+
+// joinNamespaceUID grafts namespace_uid onto a model-server expression from
+// OpenCost's own namespace_info series, which carries the namespace UID in its
+// "uid" label. namespace_info is an info metric with a constant value of 1, so
+// multiplying by it preserves the sample value while adding the label.
+// label_replace renames "uid" so it cannot collide with another UID label.
+//
+// Two properties this deliberately has:
+//
+// The match includes the cluster label. namespace_info is emitted by every
+// OpenCost in a federated Prometheus, so matching on the namespace name alone
+// makes two clusters that both have a namespace called "prod" a many-to-one
+// duplicate match, which fails the whole query rather than mismatching quietly.
+//
+// The join is non-fatal. A bare `*` is an inner join, so a deployment that does
+// not scrape OpenCost's own /metrics, or that has namespace_info disabled,
+// would lose every model-server series rather than lose one label. The second
+// branch keeps those series with namespace_uid unset, which matches the
+// collector source and ValidateInferenceEngine, neither of which requires it.
+//
+// The fallback is `unless`, not a bare `or`. The joined series carries an extra
+// label, so its label set never matches the unjoined one and `or` would emit
+// both copies, splitting one pod across two result rows. `unless on (...)`
+// selects only the series the join would have dropped.
+func joinNamespaceUID(expr, clusterLabel string) string {
+	nsInfo := fmt.Sprintf(
+		`max by (namespace, namespace_uid, %s) (label_replace(namespace_info, "namespace_uid", "$1", "uid", "(.+)"))`,
+		clusterLabel)
+	return fmt.Sprintf(`((%[1]s) * on (namespace, %[2]s) group_left(namespace_uid) %[3]s or (%[1]s) unless on (namespace, %[2]s) %[3]s)`,
+		expr, clusterLabel, nsInfo)
+}
+
+// inferenceSelector applies the configured cluster filter to a metric selector,
+// matching how every DCGM query scopes its own metric.
+func inferenceSelector(metric, clusterFilter string) string {
+	if clusterFilter == "" {
+		return metric
+	}
+	return fmt.Sprintf(`%s{%s}`, metric, clusterFilter)
+}
+
+// QueryInferenceKVCacheUsageAvg implements MetricsQuerier.QueryInferenceKVCacheUsageAvg
+func (pds *PrometheusMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return pds.queryInferenceGauge("vllm:kv_cache_usage_perc", "avg", start, end)
+}
+
+// QueryInferenceKVCacheUsageMax implements MetricsQuerier.QueryInferenceKVCacheUsageMax
+func (pds *PrometheusMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return pds.queryInferenceGauge("vllm:kv_cache_usage_perc", "max", start, end)
+}
+
+// QueryInferenceQueueDepthAvg implements MetricsQuerier.QueryInferenceQueueDepthAvg
+func (pds *PrometheusMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return pds.queryInferenceGauge("vllm:num_requests_waiting", "avg", start, end)
+}
+
+// QueryInferenceQueueDepthMax implements MetricsQuerier.QueryInferenceQueueDepthMax
+func (pds *PrometheusMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return pds.queryInferenceGauge("vllm:num_requests_waiting", "max", start, end)
+}
+
+// QueryInferenceRunningRequestsAvg implements MetricsQuerier.QueryInferenceRunningRequestsAvg
+func (pds *PrometheusMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return pds.queryInferenceGauge("vllm:num_requests_running", "avg", start, end)
+}
+
+// QueryInferenceRunningRequestsMax implements MetricsQuerier.QueryInferenceRunningRequestsMax.
+// The running batch is bounded by the engine's concurrent-sequence limit
+// (vLLM's max_num_seqs) as well as by the KV budget, and vLLM publishes no
+// metric for that limit; the window max is what recovers it, since the gauge
+// pins there whenever requests are waiting.
+func (pds *PrometheusMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return pds.queryInferenceGauge("vllm:num_requests_running", "max", start, end)
+}
+
+// QueryInferenceKVCacheUsageP95 implements MetricsQuerier.QueryInferenceKVCacheUsageP95
+func (pds *PrometheusMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return pds.queryInferenceGaugeQuantile("vllm:kv_cache_usage_perc", 0.95, start, end)
+}
+
+// QueryInferenceQueueDepthP95 implements MetricsQuerier.QueryInferenceQueueDepthP95
+func (pds *PrometheusMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return pds.queryInferenceGaugeQuantile("vllm:num_requests_waiting", 0.95, start, end)
+}
+
+// QueryInferenceRunningRequestsP95 implements MetricsQuerier.QueryInferenceRunningRequestsP95
+func (pds *PrometheusMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return pds.queryInferenceGaugeQuantile("vllm:num_requests_running", 0.95, start, end)
+}
+
+// queryInferenceGaugeQuantile runs quantile_over_time for a model-server
+// scheduler gauge, grouped by (model_name, pod_uid, namespace_uid), pinned to
+// the window end like the other inference queries.
+func (pds *PrometheusMetricsQuerier) queryInferenceGaugeQuantile(metric string, phi float64, start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+
+	resultsChan := make(source.QueryResultsChan, 1)
+
+	go func() {
+		// Clamp end to now: range selectors pinned to a future @ timestamp return no results.
+		effectiveEnd := end
+		if now := time.Now(); end.After(now) {
+			effectiveEnd = now
+		}
+
+		windowDuration := effectiveEnd.Sub(start)
+		windowMinutes := int(windowDuration.Minutes())
+		if windowMinutes < 2 {
+			windowMinutes = 2
+		}
+
+		inner := fmt.Sprintf(`quantile_over_time(%g, %s[%dm] @ %d)`,
+			phi, inferenceSelector(metric, ctx.config.ClusterFilter), windowMinutes, effectiveEnd.Unix())
+		query := fmt.Sprintf(`max by (%s) (%s)`,
+			inferenceGroupBy(ctx.config.ClusterLabel), joinNamespaceUID(inner, ctx.config.ClusterLabel))
+
+		raw, _, err := ctx.query(query, effectiveEnd)
+		if err != nil {
+			resultsChan <- &source.QueryResults{Error: fmt.Errorf("quantile-over-time query for %s: %w", metric, err)}
+			return
+		}
+
+		results := NewQueryResults(query, raw, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+		if results.Error != nil {
+			resultsChan <- &source.QueryResults{Error: results.Error}
+			return
+		}
+
+		resultsChan <- &source.QueryResults{Results: results.Results}
+	}()
+
+	return source.NewFuture(source.DecodeInferenceEngineMetricResult, resultsChan)
+}
+
+// QueryInferencePreemptions implements MetricsQuerier.QueryInferencePreemptions
+func (pds *PrometheusMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+
+	resultsChan := make(source.QueryResultsChan, 1)
+
+	go func() {
+		results, err := queryCounterDeltaByReplica(ctx, "vllm:num_preemptions_total", start, end)
+		if err != nil {
+			resultsChan <- &source.QueryResults{Error: err}
+			return
+		}
+
+		resultsChan <- &source.QueryResults{Results: results}
+	}()
+
+	return source.NewFuture(source.DecodeInferenceEngineMetricResult, resultsChan)
+}
+
+// replicaMetricValue carries one instant sample keyed by replica identity.
+type replicaMetricValue struct {
+	modelName    string
+	podUID       string
+	namespaceUID string
+	engineIndex  string
+	value        float64
+}
+
+// queryCounterDeltaByReplica returns the net increase of a monotonic counter
+// metric over [start, end] per (model_name, pod_uid, namespace_uid). Same
+// @-pinned two-instant-query approach and counter-reset handling as
+// queryCounterDelta, but grouped per replica and returned as labeled
+// QueryResults for the shared InferenceEngineMetricResult decoder.
+func queryCounterDeltaByReplica(ctx *Context, metric string, start, end time.Time) ([]*source.QueryResult, error) {
+	startUnix := start.Unix()
+	// Clamp end to now: last_over_time with a future @ timestamp returns no results.
+	effectiveEnd := end
+	if now := time.Now(); end.After(now) {
+		effectiveEnd = now
+	}
+	endUnix := effectiveEnd.Unix()
+
+	windowDuration := effectiveEnd.Sub(start)
+	windowMinutes := int(windowDuration.Minutes())
+	if windowMinutes < 2 {
+		windowMinutes = 2
+	}
+
+	selector := inferenceSelector(metric, ctx.config.ClusterFilter)
+	groupBy := inferenceGroupBy(ctx.config.ClusterLabel)
+
+	endInner := fmt.Sprintf(`last_over_time(%s[%dm] @ %d)`, selector, windowMinutes, endUnix)
+	endQuery := fmt.Sprintf(`sum by (%s) (%s)`, groupBy, joinNamespaceUID(endInner, ctx.config.ClusterLabel))
+	endVals, err := queryInstantMetricByReplica(ctx, endQuery, effectiveEnd)
+	if err != nil {
+		return nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
+	}
+
+	// The start lookback spans the whole window, matching the end query rather
+	// than using a narrow fixed one. A narrow lookback leaves a replica that
+	// gapped for longer than it with no baseline at all, and a missing
+	// baseline reads as zero, so the counter's entire lifetime value is
+	// reported as this window's delta. Two minutes is a single missed scrape
+	// at a 60s interval, and downsampled blocks may carry no raw sample that
+	// close to an arbitrary timestamp.
+	//
+	// Widening it is safe here specifically because the pairing is per
+	// (model_name, pod_uid) and the delta loop iterates the end values only: a
+	// longer lookback can supply an older baseline for a pod present at the
+	// end, but a pod that terminated before the window is never summed in. The
+	// same widening over a sum-by-model rollup would not be safe.
+	//
+	// Residual: a replica that gapped for longer than the whole window still
+	// has no baseline and still reports its lifetime value.
+	startInner := fmt.Sprintf(`last_over_time(%s[%dm] @ %d)`, selector, windowMinutes, startUnix)
+	startQuery := fmt.Sprintf(`sum by (%s) (%s)`, groupBy, joinNamespaceUID(startInner, ctx.config.ClusterLabel))
+	startVals, err := queryInstantMetricByReplica(ctx, startQuery, effectiveEnd)
+	if err != nil {
+		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
+	}
+
+	// The window maximum is only needed to correct a reset, but it has to be
+	// fetched before the loop because Prometheus is queried per expression
+	// rather than per series. It is cheap: one more instant query per metric.
+	maxInner := fmt.Sprintf(`max_over_time(%s[%dm] @ %d)`, selector, windowMinutes, endUnix)
+	maxQuery := fmt.Sprintf(`sum by (%s) (%s)`, groupBy, joinNamespaceUID(maxInner, ctx.config.ClusterLabel))
+	maxVals, err := queryInstantMetricByReplica(ctx, maxQuery, effectiveEnd)
+	if err != nil {
+		return nil, fmt.Errorf("window-max query for %s: %w", metric, err)
+	}
+
+	results := make([]*source.QueryResult, 0, len(endVals))
+	for key, endVal := range endVals {
+		delta := endVal.value
+		if startVal, ok := startVals[key]; ok {
+			delta = endVal.value - startVal.value
+			if delta < 0 {
+				// Counter reset. The progress made before the reset is lost
+				// from the endpoints alone, so recover it from the window
+				// maximum: the counter climbed from the start value to its
+				// peak, then restarted and climbed to the end value. This is
+				// what Prometheus' own increase() reports, where using the end
+				// value alone silently drops everything before the restart.
+				//
+				// Exact for one reset in the window. With two or more, the
+				// peak of the second cycle is not observable from an instant
+				// query, so this is a lower bound rather than a guess in the
+				// wrong direction.
+				//
+				// This is only correct because the group isolates a single
+				// series: sum by (...) (max_over_time(...)) is the sum of
+				// per-series maxima, not the maximum of the summed series. The
+				// engine index is in the grouping precisely so that a
+				// data-parallel pod does not break this.
+				if maxVal, ok := maxVals[key]; ok && maxVal.value >= startVal.value {
+					delta = (maxVal.value - startVal.value) + endVal.value
+				} else {
+					delta = endVal.value
+				}
+			}
+		}
+		results = append(results, source.NewQueryResult(
+			map[string]any{
+				source.InferenceModelNameLabel:   endVal.modelName,
+				source.PodUIDLabel:               endVal.podUID,
+				source.NamespaceUIDLabel:         endVal.namespaceUID,
+				source.InferenceEngineIndexLabel: endVal.engineIndex,
+			},
+			[]*util.Vector{{Value: delta}},
+			nil,
+		))
+	}
+	return results, nil
+}
+
+// queryInstantMetricByReplica runs a Prometheus instant query evaluated at t
+// and returns samples keyed by "model_name|pod_uid".
+func queryInstantMetricByReplica(ctx *Context, query string, t time.Time) (map[string]replicaMetricValue, error) {
+	raw, _, err := ctx.query(query, t)
+	if err != nil {
+		return nil, err
+	}
+
+	results := NewQueryResults(query, raw, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+	if results.Error != nil {
+		return nil, results.Error
+	}
+
+	out := make(map[string]replicaMetricValue, len(results.Results))
+	for _, result := range results.Results {
+		modelName, err := result.GetString(source.InferenceModelNameLabel)
+		if err != nil || modelName == "" {
+			continue
+		}
+		podUID, _ := result.GetString(source.PodUIDLabel)
+		if podUID == "" {
+			continue
+		}
+		namespaceUID, _ := result.GetString(source.NamespaceUIDLabel)
+		if len(result.Values) == 0 {
+			continue
+		}
+		engineIndex, _ := result.GetString(source.InferenceEngineIndexLabel)
+		key := modelName + "|" + podUID + "|" + engineIndex
+		out[key] = replicaMetricValue{
+			modelName:    modelName,
+			podUID:       podUID,
+			namespaceUID: namespaceUID,
+			engineIndex:  engineIndex,
+			value:        result.Values[0].Value,
+		}
+	}
+	return out, nil
+}
+
+// queryInferenceGauge runs a window aggregation (avg or max) of a model-server
+// scheduler gauge, grouped by (model_name, pod_uid, namespace_uid).
+func (pds *PrometheusMetricsQuerier) queryInferenceGauge(metric, agg string, start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+
+	resultsChan := make(source.QueryResultsChan, 1)
+
+	go func() {
+		results, err := queryGaugeOverTime(ctx, metric, agg, start, end)
+		if err != nil {
+			resultsChan <- &source.QueryResults{Error: err}
+			return
+		}
+
+		resultsChan <- &source.QueryResults{Results: results}
+	}()
+
+	return source.NewFuture(source.DecodeInferenceEngineMetricResult, resultsChan)
+}
+
+// queryGaugeOverTime evaluates `agg by (model_name, pod_uid, namespace_uid)
+// (agg_over_time(metric[window] @ end))` as an instant query pinned to the end
+// of the window, mirroring the clamping behaviour of queryCounterDelta.
+func queryGaugeOverTime(ctx *Context, metric, agg string, start, end time.Time) ([]*source.QueryResult, error) {
+	// Clamp end to now: range selectors pinned to a future @ timestamp return no results.
+	effectiveEnd := end
+	if now := time.Now(); end.After(now) {
+		effectiveEnd = now
+	}
+
+	windowDuration := effectiveEnd.Sub(start)
+	windowMinutes := int(windowDuration.Minutes())
+	if windowMinutes < 2 {
+		windowMinutes = 2
+	}
+
+	inner := fmt.Sprintf(`%s_over_time(%s[%dm] @ %d)`,
+		agg, inferenceSelector(metric, ctx.config.ClusterFilter), windowMinutes, effectiveEnd.Unix())
+	query := fmt.Sprintf(`%s by (%s) (%s)`,
+		agg, inferenceGroupBy(ctx.config.ClusterLabel), joinNamespaceUID(inner, ctx.config.ClusterLabel))
+
+	raw, _, err := ctx.query(query, effectiveEnd)
+	if err != nil {
+		return nil, fmt.Errorf("gauge-over-time query for %s: %w", metric, err)
+	}
+
+	results := NewQueryResults(query, raw, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+	if results.Error != nil {
+		return nil, results.Error
+	}
+
+	return results.Results, nil
+}
+
 // QueryInferenceCacheConfig implements MetricsQuerier.QueryInferenceCacheConfig
 func (pds *PrometheusMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *source.Future[source.InferenceCacheConfigResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)

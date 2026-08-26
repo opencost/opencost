@@ -6,6 +6,7 @@ const (
 	NodeStatsScraperName         = "nodestats-metrics"
 	NetworkCostsScraperName      = "network-costs-metrics"
 	KubernetesClusterScraperName = "kubernetes-metrics"
+	InferenceScraperName         = "inference-metrics"
 )
 
 const (

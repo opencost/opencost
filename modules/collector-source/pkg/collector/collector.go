@@ -75,6 +75,22 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewDCGMUptimeMetricCollector())
 	memStore.Register(NewDCGMContainerUsageAvgMetricCollector())
 	memStore.Register(NewDCGMContainerUsageMaxMetricCollector())
+	memStore.Register(NewInferenceKVCacheUsageAvgMetricCollector())
+	memStore.Register(NewInferenceKVCacheUsageMaxMetricCollector())
+	memStore.Register(NewInferenceQueueDepthAvgMetricCollector())
+	memStore.Register(NewInferenceQueueDepthMaxMetricCollector())
+	memStore.Register(NewInferenceRunningRequestsAvgMetricCollector())
+	memStore.Register(NewInferencePreemptionsMetricCollector())
+	memStore.Register(NewInferenceKVCacheUsageP95MetricCollector())
+	memStore.Register(NewInferenceQueueDepthP95MetricCollector())
+	memStore.Register(NewInferenceRunningRequestsMaxMetricCollector())
+	memStore.Register(NewInferenceRunningRequestsP95MetricCollector())
+	memStore.Register(NewInferencePromptTokensMetricCollector())
+	memStore.Register(NewInferenceGenerationTokensMetricCollector())
+	memStore.Register(NewInferenceInputProcessingTimeMetricCollector())
+	memStore.Register(NewInferenceOutputProcessingTimeMetricCollector())
+	memStore.Register(NewInferenceCachedTokensMetricCollector())
+	memStore.Register(NewInferenceCacheConfigMetricCollector())
 	memStore.Register(NewNodeCPUPricePerHourMetricCollector())
 	memStore.Register(NewNodeRAMPricePerGiBHourMetricCollector())
 	memStore.Register(NewNodeGPUPricePerHourMetricCollector())
@@ -1597,6 +1613,363 @@ func NewDCGMContainerUsageMaxMetricCollector() *metric.MetricCollector {
 		aggregator.MaxOverTime,
 		func(labels map[string]string) bool {
 			return labels[source.ContainerLabel] != ""
+		},
+	)
+}
+
+// Inference Model Server Metric Collectors
+//
+// These aggregate the scheduler gauges scraped from model-server pods (see
+// scrape/inference.go): KV-cache utilization, queue depth, and running
+// requests, per the Gateway API Inference Extension Model Server Protocol.
+// The pod_uid and namespace_uid labels are attached by the inference
+// scraper at scrape time from the discovered pod; model_name is emitted by
+// the serving engine itself. Grouping is by pod_uid rather than by the
+// (namespace, pod) name pair so these series carry the same identity the
+// rest of the KubeModel joins on, matching the DCGM collectors above.
+
+//	avg(
+//		avg_over_time(
+//			vllm:kv_cache_usage_perc[1h]
+//		)
+//	) by (model_name, pod_uid, namespace_uid, cluster_id)
+
+func NewInferenceKVCacheUsageAvgMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceKVCacheUsageAvgID,
+		metric.VLLMKVCacheUsagePerc,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+		},
+		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	max(
+//		max_over_time(
+//			vllm:kv_cache_usage_perc[1h]
+//		)
+//	) by (model_name, pod_uid, namespace_uid, cluster_id)
+
+func NewInferenceKVCacheUsageMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceKVCacheUsageMaxID,
+		metric.VLLMKVCacheUsagePerc,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+		},
+		aggregator.MaxOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	avg(
+//		avg_over_time(
+//			vllm:num_requests_waiting[1h]
+//		)
+//	) by (model_name, pod_uid, namespace_uid, cluster_id)
+
+func NewInferenceQueueDepthAvgMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceQueueDepthAvgID,
+		metric.VLLMNumRequestsWaiting,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+		},
+		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	max(
+//		max_over_time(
+//			vllm:num_requests_waiting[1h]
+//		)
+//	) by (model_name, pod_uid, namespace_uid, cluster_id)
+
+func NewInferenceQueueDepthMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceQueueDepthMaxID,
+		metric.VLLMNumRequestsWaiting,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+		},
+		aggregator.MaxOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	avg(
+//		avg_over_time(
+//			vllm:num_requests_running[1h]
+//		)
+//	) by (model_name, pod_uid, namespace_uid, cluster_id)
+
+func NewInferenceRunningRequestsAvgMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceRunningRequestsAvgID,
+		metric.VLLMNumRequestsRunning,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+		},
+		aggregator.AverageOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	increase(
+//		vllm:num_preemptions_total[1h]
+//	) by (model_name, pod_uid, namespace_uid, cluster_id)
+
+func NewInferencePreemptionsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferencePreemptionsID,
+		metric.VLLMNumPreemptionsTotal,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	quantile_over_time(
+//		0.95,
+//		vllm:kv_cache_usage_perc[1h]
+//	) by (model_name, pod_uid, namespace_uid, cluster_id)
+
+func NewInferenceKVCacheUsageP95MetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceKVCacheUsageP95ID,
+		metric.VLLMKVCacheUsagePerc,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+		},
+		aggregator.QuantileOverTime(0.95),
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	quantile_over_time(
+//		0.95,
+//		vllm:num_requests_waiting[1h]
+//	) by (model_name, pod_uid, namespace_uid, cluster_id)
+
+func NewInferenceQueueDepthP95MetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceQueueDepthP95ID,
+		metric.VLLMNumRequestsWaiting,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+		},
+		aggregator.QuantileOverTime(0.95),
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	max(
+//		max_over_time(
+//			vllm:num_requests_running[1h]
+//		)
+//	) by (model_name, pod_uid, namespace_uid, cluster_id)
+
+// The running batch is bounded by the engine's concurrent-sequence limit
+// (vLLM's max_num_seqs) as well as by the KV budget, and vLLM exposes no
+// metric for that limit; the window max recovers it, because the gauge pins
+// there whenever requests are waiting.
+
+func NewInferenceRunningRequestsMaxMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceRunningRequestsMaxID,
+		metric.VLLMNumRequestsRunning,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+		},
+		aggregator.MaxOverTime,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	quantile_over_time(
+//		0.95,
+//		vllm:num_requests_running[1h]
+//	) by (model_name, pod_uid, namespace_uid, cluster_id)
+
+func NewInferenceRunningRequestsP95MetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceRunningRequestsP95ID,
+		metric.VLLMNumRequestsRunning,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+		},
+		aggregator.QuantileOverTime(0.95),
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+// Inference Cost Metric Collectors
+//
+// These back the token and timing queries the inference cost feature reads.
+// Like the saturation collectors above, they measure per model-server pod;
+// the rollup to (model_name, namespace) happens in the querier
+// (queryCollectorInferenceRollup), because that is the key the result types
+// and the inference cost API publish.
+//
+// Measuring per pod is a correctness requirement, not consistency. The
+// Increase aggregator pools every same-timestamp sample into one running
+// total and credits an increase only when that total rises, so several
+// replicas sharing one aggregator produce two errors: one replica restarting
+// drags the pooled total down and discards the whole group's increase for
+// that cycle, and a replica discovered mid-window folds its entire cumulative
+// counter in as a single cycle's growth. Per-pod aggregators remove both.
+//
+// The cost is one scrape interval of tokens per newly created pod, since a
+// fresh aggregator does not credit its first sample. That is far smaller than
+// the errors above, and it is pinned by test.
+
+//	increase(
+//		vllm:prompt_tokens_total[1h]
+//	) by (model_name, namespace, cluster_id)
+
+func NewInferencePromptTokensMetricCollector() *metric.MetricCollector {
+	return newInferenceCostCounterCollector(metric.InferencePromptTokensID, metric.VLLMPromptTokensTotal)
+}
+
+//	increase(
+//		vllm:generation_tokens_total[1h]
+//	) by (model_name, namespace, cluster_id)
+
+func NewInferenceGenerationTokensMetricCollector() *metric.MetricCollector {
+	return newInferenceCostCounterCollector(metric.InferenceGenerationTokensID, metric.VLLMGenerationTokensTotal)
+}
+
+//	increase(
+//		vllm:request_prefill_time_seconds_sum[1h]
+//	) by (model_name, namespace, cluster_id)
+
+func NewInferenceInputProcessingTimeMetricCollector() *metric.MetricCollector {
+	return newInferenceCostCounterCollector(metric.InferenceInputProcessingTimeID, metric.VLLMRequestPrefillTimeSecondsSum)
+}
+
+//	increase(
+//		vllm:request_time_per_output_token_seconds_sum[1h]
+//	) by (model_name, namespace, cluster_id)
+
+func NewInferenceOutputProcessingTimeMetricCollector() *metric.MetricCollector {
+	return newInferenceCostCounterCollector(metric.InferenceOutputProcessingTimeID, metric.VLLMRequestTimePerOutputTokenSecondsSum)
+}
+
+//	increase(
+//		vllm:prefix_cache_hits_total[1h]
+//	) by (model_name, namespace, cluster_id)
+
+func NewInferenceCachedTokensMetricCollector() *metric.MetricCollector {
+	return newInferenceCostCounterCollector(metric.InferenceCachedTokensID, metric.VLLMPrefixCacheHitsTotal)
+}
+
+// newInferenceCostCounterCollector builds the window-delta collector shared by
+// the inference cost counters. The vLLM engine emits model_name; the inference
+// scraper attaches the namespace.
+func newInferenceCostCounterCollector(id metric.MetricCollectorID, metricName string) *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		id,
+		metricName,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			// The namespace name stays in the grouping because the querier
+			// rebuilds the "model_name:namespace" key from it. Dropping it
+			// would make every rolled-up key "model_name:".
+			source.NamespaceLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+		},
+		aggregator.Increase,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
+		},
+	)
+}
+
+//	max(
+//		vllm:cache_config_info
+//	) by (model_name, namespace, enable_prefix_caching, cluster_id)
+//
+// cache_config_info is an info metric: the value is meaningless and the
+// payload is the enable_prefix_caching label, so this uses the Info
+// aggregator and reads the label out of the additional info. The Prometheus
+// source has to join this against a token metric to pick up model_name,
+// because cache_config_info carries only namespace and pod; the collector
+// needs no join, since the inference scraper attaches identity to every
+// series it scrapes from the same pod.
+
+func NewInferenceCacheConfigMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.InferenceCacheConfigID,
+		metric.VLLMCacheConfigInfo,
+		[]string{
+			source.InferenceModelNameLabel,
+			source.PodUIDLabel,
+			source.NamespaceLabel,
+			source.NamespaceUIDLabel,
+			source.InferenceEngineIndexLabel,
+			// Carried so the querier can OR it across a model's replicas.
+			source.EnablePrefixCachingLabel,
+		},
+		aggregator.Info,
+		func(labels map[string]string) bool {
+			return labels[source.InferenceModelNameLabel] != ""
 		},
 	)
 }

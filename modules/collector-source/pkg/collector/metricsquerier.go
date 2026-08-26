@@ -1,11 +1,12 @@
 package collector
 
 import (
-	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/metric/aggregator"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
 
@@ -37,6 +38,129 @@ func queryCollector[T any](c *collectorMetricsQuerier, start, end time.Time, id 
 	f := source.NewFuture[T](decoder, ch)
 	return f
 
+}
+
+// queryCollectorInferenceRollup answers an inference cost query that is
+// measured per model-server pod but reported per (model_name, namespace).
+//
+// The two grains are deliberate. Measurement has to be per pod because the
+// Increase aggregator pools every same-timestamp sample into one running total
+// and only credits an increase when the pooled total rises (see
+// metric/aggregator/increase.go). With several replicas in one aggregator, a
+// single replica restarting drags the pooled total down and discards that
+// cycle's increase for every replica, and a replica discovered mid-window
+// folds its whole cumulative counter in as one cycle's growth. Giving each pod
+// its own aggregator removes both, because a fresh aggregator's first sample
+// is not credited at all.
+//
+// Reporting stays per (model_name, namespace) because that is the key the
+// result types use, the key the Prometheus source produces, and the key
+// published on the inference cost API. Summing the per-pod increases here is
+// the rollup, and per-pod-delta-then-sum is strictly more accurate than the
+// sum-then-delta it replaces.
+func queryCollectorInferenceRollup[T any](c *collectorMetricsQuerier, start, end time.Time, id metric.MetricCollectorID, decoder source.ResultDecoder[T]) *source.Future[T] {
+	queryResults := source.NewQueryResults(string(id))
+	collector := c.collectorProvider.GetStore(start, end)
+	if collector != nil {
+		results, err := collector.Query(id)
+		queryResults.Error = err
+
+		totals := map[string]float64{}
+		labels := map[string]map[string]string{}
+		order := []string{}
+		for _, result := range results {
+			modelName := result.MetricLabels[source.InferenceModelNameLabel]
+			if modelName == "" {
+				continue
+			}
+			namespace := result.MetricLabels[source.NamespaceLabel]
+			if len(result.Values) == 0 {
+				continue
+			}
+			key := modelName + ":" + namespace
+			if _, seen := totals[key]; !seen {
+				order = append(order, key)
+				labels[key] = map[string]string{
+					source.InferenceModelNameLabel: modelName,
+					source.NamespaceLabel:          namespace,
+				}
+			}
+			// The decoder reads the last value, so roll up the same one.
+			totals[key] += result.Values[len(result.Values)-1].Value
+		}
+
+		for _, key := range order {
+			rolled := &aggregator.MetricResult{
+				MetricLabels: labels[key],
+				Values:       []aggregator.MetricValue{{Value: totals[key]}},
+			}
+			queryResults.Results = append(queryResults.Results, rolled.ToQueryResult())
+		}
+	}
+	ch := make(source.QueryResultsChan, 1)
+	ch <- queryResults
+	return source.NewFuture[T](decoder, ch)
+}
+
+// queryCollectorInferenceCacheConfig rolls per-pod cache_config_info rows up to
+// (model_name, namespace). It cannot share queryCollectorInferenceRollup
+// because the payload is a label rather than an additive value: the Info
+// aggregator's value is a constant 1, so summing replicas would report a count
+// rather than a configuration. Prefix caching is ORed across a model's
+// replicas, since one replica serving from cache means the model benefits.
+func queryCollectorInferenceCacheConfig(c *collectorMetricsQuerier, t time.Time, id metric.MetricCollectorID) *source.Future[source.InferenceCacheConfigResult] {
+	queryResults := source.NewQueryResults(string(id))
+	collector := c.collectorProvider.GetStore(t, t)
+	if collector != nil {
+		results, err := collector.Query(id)
+		queryResults.Error = err
+
+		enabled := map[string]bool{}
+		labels := map[string]map[string]string{}
+		order := []string{}
+		for _, result := range results {
+			modelName := result.MetricLabels[source.InferenceModelNameLabel]
+			if modelName == "" {
+				continue
+			}
+			namespace := result.MetricLabels[source.NamespaceLabel]
+			key := modelName + ":" + namespace
+			if _, seen := enabled[key]; !seen {
+				order = append(order, key)
+				labels[key] = map[string]string{
+					source.InferenceModelNameLabel: modelName,
+					source.NamespaceLabel:          namespace,
+				}
+			}
+			on := result.MetricLabels[source.EnablePrefixCachingLabel] == "true"
+			if prev, seen := enabled[key]; seen && prev != on {
+				log.Debugf("Inference: replicas of %s disagree on %s; reporting enabled",
+					key, source.EnablePrefixCachingLabel)
+			}
+			enabled[key] = enabled[key] || on
+		}
+
+		for _, key := range order {
+			// The decoder prefers the label and only falls back to the value,
+			// where any non-zero reads as enabled, so the label has to be set
+			// explicitly in both directions.
+			flag := "false"
+			value := 0.0
+			if enabled[key] {
+				flag = "true"
+				value = 1.0
+			}
+			labels[key][source.EnablePrefixCachingLabel] = flag
+			rolled := &aggregator.MetricResult{
+				MetricLabels: labels[key],
+				Values:       []aggregator.MetricValue{{Value: value}},
+			}
+			queryResults.Results = append(queryResults.Results, rolled.ToQueryResult())
+		}
+	}
+	ch := make(source.QueryResultsChan, 1)
+	ch <- queryResults
+	return source.NewFuture[source.InferenceCacheConfigResult](source.DecodeInferenceCacheConfigResult, ch)
 }
 
 func queryCollectorGiB[T any](c *collectorMetricsQuerier, start, end time.Time, id metric.MetricCollectorID, decoder source.ResultDecoder[T]) *source.Future[T] {
@@ -749,75 +873,84 @@ func (c *collectorMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, t
 	return c.collectorProvider.GetDailyDataCoverage(limitDays)
 }
 
-// Inference cost methods - not supported by collector source (only available via Prometheus)
+// Inference Cost Metrics
+//
+// Served from the same inference model-server scraper as the saturation
+// metrics (scrape/inference.go), which keeps the vLLM token and timing
+// counters from the pods it already scrapes. Results are rolled up per
+// (model_name, namespace) to match the Prometheus source's
+// `sum by (model_name, namespace)` shape and the "model_name:namespace"
+// keying of the result types.
 func (c *collectorMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferencePromptTokens",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
-		return &source.InferenceTokensResult{Values: make(map[string]float64)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollectorInferenceRollup(c, start, end, metric.InferencePromptTokensID, source.DecodeInferenceTokensResult)
 }
 
 func (c *collectorMetricsQuerier) QueryInferenceGenerationTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferenceGenerationTokens",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
-		return &source.InferenceTokensResult{Values: make(map[string]float64)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollectorInferenceRollup(c, start, end, metric.InferenceGenerationTokensID, source.DecodeInferenceTokensResult)
 }
 
 func (c *collectorMetricsQuerier) QueryInferenceInputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferenceInputProcessingTime",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceProcessingTimeResult {
-		return &source.InferenceProcessingTimeResult{Values: make(map[string]float64)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollectorInferenceRollup(c, start, end, metric.InferenceInputProcessingTimeID, source.DecodeInferenceProcessingTimeResult)
 }
 
 func (c *collectorMetricsQuerier) QueryInferenceOutputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferenceOutputProcessingTime",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceProcessingTimeResult {
-		return &source.InferenceProcessingTimeResult{Values: make(map[string]float64)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollectorInferenceRollup(c, start, end, metric.InferenceOutputProcessingTimeID, source.DecodeInferenceProcessingTimeResult)
 }
 
 func (c *collectorMetricsQuerier) QueryInferenceCachedTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferenceCachedTokens",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceTokensResult {
-		return &source.InferenceTokensResult{Values: make(map[string]float64)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollectorInferenceRollup(c, start, end, metric.InferenceCachedTokensID, source.DecodeInferenceTokensResult)
 }
 
+// QueryInferenceCacheConfig reads vllm:cache_config_info. It takes an instant
+// rather than a window, so the store is queried over a zero-length window
+// ending at t, matching how the other instant queries in this file resolve a
+// store.
 func (c *collectorMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *source.Future[source.InferenceCacheConfigResult] {
-	ch := make(source.QueryResultsChan, 1)
-	ch <- &source.QueryResults{
-		Query: "QueryInferenceCacheConfig",
-		Error: fmt.Errorf("inference metrics not supported by collector source"),
-	}
-	decoder := func(result *source.QueryResult) *source.InferenceCacheConfigResult {
-		return &source.InferenceCacheConfigResult{Configs: make(map[string]*source.InferenceCacheConfig)}
-	}
-	return source.NewFuture(decoder, ch)
+	return queryCollectorInferenceCacheConfig(c, t, metric.InferenceCacheConfigID)
+}
+
+// Inference Saturation Metrics
+//
+// Served from the inference model-server scraper (scrape/inference.go), which
+// collects the Gateway API Inference Extension Model Server Protocol gauges
+// directly from model-server pods.
+
+func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageAvg(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceKVCacheUsageAvgID, source.DecodeInferenceEngineMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageMax(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceKVCacheUsageMaxID, source.DecodeInferenceEngineMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceQueueDepthAvg(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceQueueDepthAvgID, source.DecodeInferenceEngineMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceQueueDepthMax(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceQueueDepthMaxID, source.DecodeInferenceEngineMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsAvg(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceRunningRequestsAvgID, source.DecodeInferenceEngineMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferencePreemptions(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferencePreemptionsID, source.DecodeInferenceEngineMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceKVCacheUsageP95(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceKVCacheUsageP95ID, source.DecodeInferenceEngineMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceQueueDepthP95(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceQueueDepthP95ID, source.DecodeInferenceEngineMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsMax(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceRunningRequestsMaxID, source.DecodeInferenceEngineMetricResult)
+}
+
+func (c *collectorMetricsQuerier) QueryInferenceRunningRequestsP95(start, end time.Time) *source.Future[source.InferenceEngineMetricResult] {
+	return queryCollector(c, start, end, metric.InferenceRunningRequestsP95ID, source.DecodeInferenceEngineMetricResult)
 }
