@@ -443,6 +443,18 @@ func (c *OVH) NodePricing(key models.Key) (*models.Node, models.PricingMetadata,
 		price = flavor.MonthlyPrice
 	}
 
+	// Ensure custom pricing monthly values are converted to hourly like catalog pricing
+	// Note: Custom pricing should be provided as hourly rates, but if monthly rates are
+	// provided (e.g., from OVH dashboard), they need to be divided by the number of hours
+	// in a month for consistency with how catalog pricing is handled.
+	if price > 0 && isMonthlyBilling(labels, c.monthlyNodepools) {
+		// Only divide if price looks like a monthly value (typically > 1, since hourly rates are fractional)
+		// Custom pricing paths may provide monthly rates from the OVH dashboard
+		if price > 1 {
+			price = price / hoursPerMonth
+		}
+	}
+
 	return &models.Node{
 		Cost:         fmt.Sprintf("%f", price),
 		VCPU:         fmt.Sprintf("%d", flavor.VCPU),
