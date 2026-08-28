@@ -300,3 +300,111 @@ func TestAthenaQuerier_Equals(t *testing.T) {
 		t.Errorf("Equals() should return false when comparing with different type")
 	}
 }
+
+func TestIsCUR20(t *testing.T) {
+	testCases := map[string]struct {
+		allColumns map[string]bool
+		expected   bool
+	}{
+		"nil map": {
+			allColumns: nil,
+			expected:   false,
+		},
+		"empty map": {
+			allColumns: map[string]bool{},
+			expected:   false,
+		},
+		"only legacy columns": {
+			allColumns: map[string]bool{"line_item_unblended_cost": true},
+			expected:   false,
+		},
+		"resource tags column": {
+			allColumns: map[string]bool{AthenaResourceTagsColumn: true},
+			expected:   true,
+		},
+		"account name column": {
+			allColumns: map[string]bool{AthenaAccountNameColumn: true},
+			expected:   true,
+		},
+		"invoice entity name column": {
+			allColumns: map[string]bool{AthenaInvoiceEntityNameColumn: true},
+			expected:   true,
+		},
+		"all CUR 2.0 markers": {
+			allColumns: map[string]bool{
+				AthenaResourceTagsColumn:      true,
+				AthenaAccountNameColumn:       true,
+				AthenaInvoiceEntityNameColumn: true,
+			},
+			expected: true,
+		},
+		"marker present but false": {
+			allColumns: map[string]bool{AthenaResourceTagsColumn: false},
+			expected:   false,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			if actual := isCUR20(tc.allColumns); actual != tc.expected {
+				t.Errorf("isCUR20(%v) = %v, want %v", tc.allColumns, actual, tc.expected)
+			}
+		})
+	}
+}
+
+// fakeEmptyChecker is a test double for cloud.EmptyChecker.
+type fakeEmptyChecker struct {
+	empty bool
+}
+
+func (f fakeEmptyChecker) IsEmpty() bool {
+	return f.empty
+}
+
+func TestAthenaIntegration_GetConnectionStatusFromResult(t *testing.T) {
+	ai := &AthenaIntegration{}
+
+	emptyResult := fakeEmptyChecker{empty: true}
+	nonEmptyResult := fakeEmptyChecker{empty: false}
+
+	testCases := map[string]struct {
+		result        cloud.EmptyChecker
+		currentStatus cloud.ConnectionStatus
+		expected      cloud.ConnectionStatus
+	}{
+		"empty result, no prior success": {
+			result:        emptyResult,
+			currentStatus: cloud.InitialStatus,
+			expected:      cloud.MissingData,
+		},
+		"empty result, prior failed connection": {
+			result:        emptyResult,
+			currentStatus: cloud.FailedConnection,
+			expected:      cloud.MissingData,
+		},
+		"empty result, prior success is preserved": {
+			result:        emptyResult,
+			currentStatus: cloud.SuccessfulConnection,
+			expected:      cloud.SuccessfulConnection,
+		},
+		"non-empty result with no prior success": {
+			result:        nonEmptyResult,
+			currentStatus: cloud.InitialStatus,
+			expected:      cloud.SuccessfulConnection,
+		},
+		"non-empty result with prior success": {
+			result:        nonEmptyResult,
+			currentStatus: cloud.SuccessfulConnection,
+			expected:      cloud.SuccessfulConnection,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			if actual := ai.GetConnectionStatusFromResult(tc.result, tc.currentStatus); actual != tc.expected {
+				t.Errorf("GetConnectionStatusFromResult() = %q, want %q", actual, tc.expected)
+			}
+		})
+	}
+}
