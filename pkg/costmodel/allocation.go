@@ -37,16 +37,27 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*opencost.Allocati
 		return as, err
 	}
 
-	// If the duration exceeds the configured MaxPrometheusQueryDuration, then
-	// query for maximum-sized AllocationSets, collect them, and accumulate.
+	// If the duration exceeds the configured BatchDuration, then
+	// query for maximum-sized AllocationSets, and accumulate as we go.
 
 	// s and e track the coverage of the entire given window over multiple
 	// internal queries.
 	s, e := start, start
 
-	// Collect AllocationSets in a range, then accumulate
-	// TODO optimize by collecting consecutive AllocationSets, accumulating as we go
-	asr := opencost.NewAllocationSetRange()
+	// result is the accumulating AllocationSet
+	var result *opencost.AllocationSet
+
+	// Populate annotations, labels, and services on each Allocation. This is
+	// necessary because AllocationSet.Merge does not propagate any values
+	// stored in maps or slices for performance reasons. In this case, however,
+	// it is both acceptable and necessary to do so.
+	allocationAnnotations := map[string]map[string]string{}
+	allocationLabels := map[string]map[string]string{}
+	allocationServices := map[string]map[string]bool{}
+
+	// Also record errors and warnings, then append them to the results later.
+	errors := []string{}
+	warnings := []string{}
 
 	for e.Before(end) {
 		// By default, query for the full remaining duration. But do not let
@@ -66,26 +77,22 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*opencost.Allocati
 			return opencost.NewAllocationSet(start, end), fmt.Errorf("error computing allocation for %s: %s", opencost.NewClosedWindow(s, e), err)
 		}
 
-		// Append to the range
-		asr.Append(as)
+		if as == nil {
+			s = e
+			continue
+		}
 
-		// Set s equal to e to set up the next query, if one exists.
-		s = e
-	}
+		// On the first successful computation, set the result, otherwise accumulate
+		if result == nil {
+			result = as
+		} else {
+			acc, err := result.Accumulate(as)
+			if err != nil {
+				return opencost.NewAllocationSet(start, end), fmt.Errorf("error accumulating allocation sets for %s: %w", opencost.NewClosedWindow(s, e), err)
+			}
+			result = acc
+		}
 
-	// Populate annotations, labels, and services on each Allocation. This is
-	// necessary because Properties.Intersection does not propagate any values
-	// stored in maps or slices for performance reasons. In this case, however,
-	// it is both acceptable and necessary to do so.
-	allocationAnnotations := map[string]map[string]string{}
-	allocationLabels := map[string]map[string]string{}
-	allocationServices := map[string]map[string]bool{}
-
-	// Also record errors and warnings, then append them to the results later.
-	errors := []string{}
-	warnings := []string{}
-
-	for _, as := range asr.Allocations {
 		for k, a := range as.Allocations {
 			if len(a.Properties.Annotations) > 0 {
 				if _, ok := allocationAnnotations[k]; !ok {
@@ -113,26 +120,55 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*opencost.Allocati
 					allocationServices[k][val] = true
 				}
 			}
+
+			// Maintain RAM and CPU max usage values by iterating over the range,
+			// computing maximums on a rolling basis, and setting on the result set.
+			// This is necessary because RawAllocationOnly data is cleared when
+			// allocations are added together.
+			resultAlloc := result.Get(k)
+			if resultAlloc == nil {
+				continue
+			}
+
+			if resultAlloc.RawAllocationOnly == nil {
+				resultAlloc.RawAllocationOnly = &opencost.RawAllocationOnlyData{}
+			}
+
+			if a.RawAllocationOnly == nil {
+				// This will happen inevitably for unmounted disks, but should
+				// ideally not happen for any allocation with CPU and RAM data.
+				if !a.IsUnmounted() {
+					log.DedupedWarningf(10, "ComputeAllocation: raw allocation data missing for %s", k)
+				}
+				continue
+			}
+
+			if a.RawAllocationOnly.CPUCoreUsageMax > resultAlloc.RawAllocationOnly.CPUCoreUsageMax {
+				resultAlloc.RawAllocationOnly.CPUCoreUsageMax = a.RawAllocationOnly.CPUCoreUsageMax
+			}
+
+			if a.RawAllocationOnly.RAMBytesUsageMax > resultAlloc.RawAllocationOnly.RAMBytesUsageMax {
+				resultAlloc.RawAllocationOnly.RAMBytesUsageMax = a.RawAllocationOnly.RAMBytesUsageMax
+			}
+
+			if a.RawAllocationOnly.GPUUsageMax != nil && resultAlloc.RawAllocationOnly.GPUUsageMax != nil {
+				if *a.RawAllocationOnly.GPUUsageMax > *resultAlloc.RawAllocationOnly.GPUUsageMax {
+					resultAlloc.RawAllocationOnly.GPUUsageMax = a.RawAllocationOnly.GPUUsageMax
+				}
+			}
 		}
 
 		errors = append(errors, as.Errors...)
 		warnings = append(warnings, as.Warnings...)
+
+		// Set s equal to e to set up the next query, if one exists.
+		s = e
 	}
 
-	// Accumulate to yield the result AllocationSet. After this step, we will
-	// be nearly complete, but without the raw allocation data, which must be
-	// recomputed.
-	resultASR, err := asr.Accumulate(opencost.AccumulateOptionAll)
-	if err != nil {
-		return opencost.NewAllocationSet(start, end), fmt.Errorf("error accumulating data for %s: %s", opencost.NewClosedWindow(s, e), err)
-	}
-	if resultASR != nil && len(resultASR.Allocations) == 0 {
+	// If there were no results, return an empty AllocationSet
+	if result == nil {
 		return opencost.NewAllocationSet(start, end), nil
 	}
-	if length := len(resultASR.Allocations); length != 1 {
-		return opencost.NewAllocationSet(start, end), fmt.Errorf("expected 1 accumulated allocation set, found %d sets", length)
-	}
-	result := resultASR.Allocations[0]
 
 	// Apply the annotations, labels, and services to the post-accumulation
 	// results. (See above for why this is necessary.)
@@ -156,45 +192,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*opencost.Allocati
 		// to match the Window of the AllocationSet, which gets expanded
 		// at the end of this function.
 		a.Window = a.Window.ExpandStart(start).ExpandEnd(end)
-	}
-
-	// Maintain RAM and CPU max usage values by iterating over the range,
-	// computing maximums on a rolling basis, and setting on the result set.
-	for _, as := range asr.Allocations {
-		for key, alloc := range as.Allocations {
-			resultAlloc := result.Get(key)
-			if resultAlloc == nil {
-				continue
-			}
-
-			if resultAlloc.RawAllocationOnly == nil {
-				resultAlloc.RawAllocationOnly = &opencost.RawAllocationOnlyData{}
-			}
-
-			if alloc.RawAllocationOnly == nil {
-				// This will happen inevitably for unmounted disks, but should
-				// ideally not happen for any allocation with CPU and RAM data.
-				if !alloc.IsUnmounted() {
-					log.DedupedWarningf(10, "ComputeAllocation: raw allocation data missing for %s", key)
-				}
-				continue
-			}
-
-			if alloc.RawAllocationOnly.CPUCoreUsageMax > resultAlloc.RawAllocationOnly.CPUCoreUsageMax {
-				resultAlloc.RawAllocationOnly.CPUCoreUsageMax = alloc.RawAllocationOnly.CPUCoreUsageMax
-			}
-
-			if alloc.RawAllocationOnly.RAMBytesUsageMax > resultAlloc.RawAllocationOnly.RAMBytesUsageMax {
-				resultAlloc.RawAllocationOnly.RAMBytesUsageMax = alloc.RawAllocationOnly.RAMBytesUsageMax
-			}
-
-			if alloc.RawAllocationOnly.GPUUsageMax != nil && resultAlloc.RawAllocationOnly.GPUUsageMax != nil {
-				if *alloc.RawAllocationOnly.GPUUsageMax > *resultAlloc.RawAllocationOnly.GPUUsageMax {
-					resultAlloc.RawAllocationOnly.GPUUsageMax = alloc.RawAllocationOnly.GPUUsageMax
-				}
-			}
-
-		}
 	}
 
 	// Expand the window to match the queried time range.
