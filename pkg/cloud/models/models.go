@@ -182,9 +182,15 @@ type CustomPricing struct {
 	CurrencyCode                 string `json:"currencyCode"`
 	Discount                     string `json:"discount"`
 	NegotiatedDiscount           string `json:"negotiatedDiscount"`
-	ClusterName                  string `json:"clusterName"`
-	ClusterAccountID             string `json:"clusterAccount,omitempty"`
-	DefaultLBPrice               string `json:"defaultLBPrice"`
+	// N2SustainedUseDiscount overrides the built-in sustained-use discount for the n2 and n2d
+	// machine families (GCP). Empty = built-in default (0.20). A bare number is a fraction
+	// ("0.2" = 20%); a percent string is also accepted ("20%" = 20%). Note this fraction
+	// interpretation differs from Discount/NegotiatedDiscount (ParsePercentString), which read a
+	// bare number as a percent — there "20" = 20% and "0.2" = 0.2%, not 20%.
+	N2SustainedUseDiscount string `json:"n2SustainedUseDiscount,omitempty"`
+	ClusterName            string `json:"clusterName"`
+	ClusterAccountID       string `json:"clusterAccount,omitempty"`
+	DefaultLBPrice         string `json:"defaultLBPrice"`
 }
 
 func sanitizeFloatString(number string, allowNaN bool) (string, error) {
