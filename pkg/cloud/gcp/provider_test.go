@@ -60,6 +60,10 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 			input:    "n4-highmem-16",
 			expected: "n4standard",
 		},
+		{
+			input:    "g2-standard-4",
+			expected: "g2standard",
+		},
 	}
 
 	for _, test := range cases {
@@ -257,6 +261,21 @@ func TestParsePage(t *testing.T) {
 						"topology.kubernetes.io/region":    "asia-southeast1",
 					},
 				},
+				"us-central1,g2standard,ondemand,gpu": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "g2-standard-4",
+						"cloud.google.com/gke-gpu":         "true",
+						"cloud.google.com/gke-accelerator": "nvidia-l4",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+				"us-central1,g2standard,preemptible": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "g2-standard-4",
+						"cloud.google.com/gke-spot":        "true",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
 			},
 			pvKeys: map[string]models.PVKey{},
 			expectedPrices: map[string]*GCPPricing{
@@ -363,6 +382,78 @@ func TestParsePage(t *testing.T) {
 						UsageType:        "ondemand",
 					},
 				},
+				// The L4 GPU SKU is priced via the family-agnostic accelerator
+				// path and attaches to the g2 ",gpu" key, carrying the L4 name
+				// and cost alongside the G2 vCPU/RAM rates.
+				"us-central1,g2standard,ondemand,gpu": {
+					Name:        "services/6F81-5844-456A/skus/G200-GPU0-0001",
+					SKUID:       "G200-GPU0-0001",
+					Description: "Nvidia L4 GPU running in Americas",
+					Category: &GCPResourceInfo{
+						ServiceDisplayName: "Compute Engine",
+						ResourceFamily:     "Compute",
+						ResourceGroup:      "GPU",
+						UsageType:          "OnDemand",
+					},
+					ServiceRegions: []string{"us-central1"},
+					PricingInfo: []*PricingInfo{
+						{
+							Summary: "",
+							PricingExpression: &PricingExpression{
+								UsageUnit:                "h",
+								UsageUnitDescription:     "hour",
+								BaseUnit:                 "s",
+								BaseUnitConversionFactor: 0,
+								DisplayQuantity:          1,
+								TieredRates: []*TieredRates{
+									{
+										StartUsageAmount: 0,
+										UnitPrice: &UnitPriceInfo{
+											CurrencyCode: "USD",
+											Units:        "0",
+											Nanos:        750000000,
+										},
+									},
+								},
+							},
+							CurrencyConversionRate: 1,
+							EffectiveTime:          "2024-01-01T00:00:00.000Z",
+						},
+					},
+					ServiceProviderName: "Google",
+					Node: &models.Node{
+						VCPUCost:         "0.04",
+						RAMCost:          "0.006",
+						UsesBaseCPUPrice: false,
+						GPU:              "1",
+						GPUName:          "nvidia-l4",
+						GPUCost:          "0.75",
+					},
+				},
+				"us-central1,g2standard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.04",
+						RAMCost:          "0.006",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,g2standard,preemptible": {
+					Node: &models.Node{
+						VCPUCost:         "0.02",
+						RAMCost:          "0.002",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
+				"us-central1,g2standard,preemptible,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.02",
+						RAMCost:          "0.002",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
 			},
 			expectedToken: "APKCS1HVa0YpwgyTFbqbJ1eGwzKZmsPwLqzMZPTSNia5ck1Hc54Tx_Kz3oBxwSnRIdGVxXoSPdf-XlDpyNBf4QuxKcIEgtrQ1LDLWAgZowI0ns7HjrGta2s=",
 			expectError:   false,
@@ -394,6 +485,16 @@ func TestParsePage(t *testing.T) {
 				act, _ := json.Marshal(actualPrices)
 				exp, _ := json.Marshal(tc.expectedPrices)
 				t.Errorf("error parsing GCP prices: parsed \n%s\n expected \n%s\n", string(act), string(exp))
+			}
+
+			// The L4 accelerator price must land on the g2 ",gpu" key.
+			if g2gpu, ok := actualPrices["us-central1,g2standard,ondemand,gpu"]; ok {
+				if g2gpu.Node.GPUName != "nvidia-l4" {
+					t.Errorf("expected g2 gpu key GPUName nvidia-l4, got %q", g2gpu.Node.GPUName)
+				}
+				if g2gpu.Node.GPUCost != "0.75" {
+					t.Errorf("expected g2 gpu key GPUCost 0.75, got %q", g2gpu.Node.GPUCost)
+				}
 			}
 		})
 	}
@@ -1036,6 +1137,13 @@ func TestSustainedUseDiscount(t *testing.T) {
 			defaultDiscount: 0.30,
 			isPreemptible:   false,
 			expected:        0.30,
+		},
+		{
+			name:            "G2 instance",
+			class:           "g2",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
 		},
 	}
 
