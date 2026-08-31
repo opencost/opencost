@@ -32,7 +32,8 @@ func newNetworkTargetScraper(provider target.TargetProvider) *TargetScraper {
 			metric.KubecostPodNetworkEgressBytesTotal,
 			metric.KubecostPodNetworkIngressBytesTotal,
 		},
-		true)
+		true,
+		nil)
 }
 
 type NetworkTargetProvider struct {

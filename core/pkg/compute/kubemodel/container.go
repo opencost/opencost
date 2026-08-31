@@ -38,6 +38,9 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 	ramUsageAvgFuture := source.WithGroup(grp, metrics.QueryRAMUsageAvg(start, end))
 	ramUsageMaxFuture := source.WithGroup(grp, metrics.QueryRAMUsageMax(start, end))
 
+	deviceUsageAvgFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageAvg(start, end))
+	deviceUsageMaxFuture := source.WithGroup(grp, metrics.QueryDCGMContainerUsageMax(start, end))
+
 	type containerKey struct {
 		podUID string
 		name   string
@@ -159,6 +162,44 @@ func (km *KubeModel) computeContainers(kms *kubemodel.KubeModelSet, start, end t
 		if len(res.Data) > 0 {
 			container.RAMBytesUsageMax = res.Data[0].Value
 		}
+	}
+
+	deviceUsageAvgResult, _ := deviceUsageAvgFuture.Await()
+	for _, res := range deviceUsageAvgResult {
+		if res.PodUID == "" || res.Container == "" {
+			continue
+		}
+		key := containerKey{podUID: res.PodUID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add device usage avg", res.PodUID, res.Container)
+			continue
+		}
+		if container.DeviceUsages == nil {
+			container.DeviceUsages = make(map[string]kubemodel.DeviceUsage)
+		}
+		usage := container.DeviceUsages[res.UUID]
+		usage.UsageAvg = res.Value
+		container.DeviceUsages[res.UUID] = usage
+	}
+
+	deviceUsageMaxResult, _ := deviceUsageMaxFuture.Await()
+	for _, res := range deviceUsageMaxResult {
+		if res.PodUID == "" || res.Container == "" {
+			continue
+		}
+		key := containerKey{podUID: res.PodUID, name: res.Container}
+		container, ok := containerMap[key]
+		if !ok {
+			log.Warnf("container %s/%s has not been initialized to add device usage max", res.PodUID, res.Container)
+			continue
+		}
+		if container.DeviceUsages == nil {
+			container.DeviceUsages = make(map[string]kubemodel.DeviceUsage)
+		}
+		usage := container.DeviceUsages[res.UUID]
+		usage.UsageMax = res.Value
+		container.DeviceUsages[res.UUID] = usage
 	}
 
 	for _, container := range containerMap {
