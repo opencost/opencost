@@ -4,7 +4,11 @@ replace github.com/opencost/opencost/core => ../../../core
 
 require github.com/opencost/opencost/core v0.0.0 // return to v1.120.2-0.20260514205745-aa41c03dc67a
 
-require github.com/spf13/cobra v1.10.2
+require (
+	github.com/aws/aws-sdk-go-v2/config v1.32.25
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.296.0
+	github.com/spf13/cobra v1.10.2
+)
 
 require (
 	cel.dev/expr v0.25.2 // indirect
@@ -24,7 +28,6 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.57.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.57.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.42.0 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.32.25 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.24 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.29 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.29 // indirect

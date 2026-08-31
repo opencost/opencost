@@ -601,6 +601,10 @@ func (c *collectorMetricsQuerier) QueryDaemonSetAnnotations(start, end time.Time
 	return queryCollector(c, start, end, metric.DaemonSetAnnotationsID, source.DecodeAnnotationsResult)
 }
 
+func (c *collectorMetricsQuerier) QueryDaemonSetArguments(start, end time.Time) *source.Future[source.DaemonSetArgumentResult] {
+	return queryCollector(c, start, end, metric.DaemonSetArgumentsID, source.DecodeDaemonSetArgumentResult)
+}
+
 func (c *collectorMetricsQuerier) QueryJobInfo(start, end time.Time) *source.Future[source.JobInfoResult] {
 	return queryCollector(c, start, end, metric.JobInfoID, source.DecodeJobInfoResult)
 }

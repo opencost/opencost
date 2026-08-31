@@ -79,10 +79,9 @@ func (c *Configurations) UnmarshalJSON(bytes []byte) error {
 	// This has been tested for backwards compatability, and it works in both config formats.
 	// It also coincidentally works if you mix-and-match both the old format and the new
 	// format.
-	// Create inline type to gain access to default Unmarshalling
-	type ConfUnmarshaller *Configurations
-	var conf ConfUnmarshaller = c
-	err := json.Unmarshal(bytes, conf)
+	// Create defined type to gain access to default Unmarshalling, then convert to pointer
+	type confUnmarshaller Configurations
+	err := json.Unmarshal(bytes, (*confUnmarshaller)(c))
 	// If unmarshal is successful, return
 	if err == nil {
 		return nil
