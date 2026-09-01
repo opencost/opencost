@@ -842,7 +842,6 @@ type MockNetworkInsightImportantKeys struct {
 	Controller string
 	Pod        string
 	Node       string
-	Account    string
 	Labels     map[string]string
 	Region     string
 	Zone       string
@@ -866,7 +865,7 @@ func createMockNetworkInsight(mockInsight MockNetworkInsightImportantKeys, detai
 	totalCost := internetCost + crossZoneCost + crossRegionCost
 	return NewNetworkInsight(
 		mockInsight.Cluster, mockInsight.Namespace, mockInsight.Controller,
-		mockInsight.Pod, mockInsight.Node, mockInsight.Account, mockInsight.Labels, mockInsight.Region,
+		mockInsight.Pod, mockInsight.Node, mockInsight.Labels, mockInsight.Region,
 		mockInsight.Zone, totalCost, crossZoneCost, crossRegionCost, internetCost, detailsSet)
 }
 

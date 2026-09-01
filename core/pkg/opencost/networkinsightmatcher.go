@@ -3,7 +3,7 @@ package opencost
 import (
 	"fmt"
 
-	ast "github.com/opencost/opencost/core/pkg/filter/ast"
+	"github.com/opencost/opencost/core/pkg/filter/ast"
 	"github.com/opencost/opencost/core/pkg/filter/matcher"
 	nfilter "github.com/opencost/opencost/core/pkg/filter/networkinsight"
 	"github.com/opencost/opencost/core/pkg/filter/transform"
@@ -52,8 +52,6 @@ func networkInsightFieldMap(ni *NetworkInsight, identifier ast.Identifier) (stri
 		return ni.Namespace, nil
 	case nfilter.FieldPod:
 		return ni.Pod, nil
-	case nfilter.FieldAccount:
-		return ni.Account, nil
 	}
 
 	return "", fmt.Errorf("Failed to find string identifier on Network Insight: %s", identifier.Field.Name)

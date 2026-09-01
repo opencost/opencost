@@ -19,7 +19,6 @@ const (
 	NetworkInsightsNamespace      = "namespace"
 	NetworkInsightsCluster        = "cluster"
 	NetworkInsightsPod            = "pod"
-	NetworkInsightsAccount        = "account"
 )
 
 type NetworkInsightProperty string
@@ -218,7 +217,6 @@ type NetworkInsight struct {
 	Controller             string            `json:"controller"`
 	Pod                    string            `json:"pod"`
 	Node                   string            `json:"node"`
-	Account                string            `json:"account"`
 	Labels                 map[string]string `json:"labels"`
 	Region                 string            `json:"region"`
 	Zone                   string            `json:"zone"`
@@ -229,8 +227,7 @@ type NetworkInsight struct {
 	NetworkDetails         NetworkDetailsSet `json:"networkDetails"`
 }
 
-func NewNetworkInsight(cluster string,
-	namespace string, controller string, pod string, node string, account string,
+func NewNetworkInsight(cluster string, namespace string, controller string, pod string, node string,
 	labels map[string]string, region string, zone string,
 	networkTotalCost, networkCrossZoneCost, networkCrossRegionCost, networkInternetCost float64,
 	networkDetails map[string]*NetworkDetail) *NetworkInsight {
@@ -245,7 +242,6 @@ func NewNetworkInsight(cluster string,
 		Controller:             controller,
 		Pod:                    pod,
 		Node:                   node,
-		Account:                account,
 		Labels:                 labels,
 		Region:                 region,
 		Zone:                   zone,
@@ -267,7 +263,6 @@ func (ni *NetworkInsight) Clone() *NetworkInsight {
 		Namespace:              ni.Namespace,
 		Pod:                    ni.Pod,
 		Node:                   ni.Node,
-		Account:                ni.Account,
 		Labels:                 ni.Labels,
 		Region:                 ni.Region,
 		Zone:                   ni.Zone,
@@ -295,10 +290,6 @@ func (ni *NetworkInsight) add(that *NetworkInsight) {
 
 	if ni.Pod != that.Pod {
 		ni.Pod = ""
-	}
-
-	if ni.Account != that.Account {
-		ni.Account = ""
 	}
 
 	if ni.Controller != that.Controller {
@@ -343,8 +334,6 @@ func (ni *NetworkInsight) Key(props []NetworkInsightProperty) (string, error) {
 			values[i] = ni.Pod
 		case NetworkInsightsCluster:
 			values[i] = ni.Cluster
-		case NetworkInsightsAccount:
-			values[i] = ni.Account
 		default:
 			return defaultString, nil
 		}
@@ -437,9 +426,6 @@ func (ni *NetworkInsight) SetWithNetworkInsightProperty(property NetworkInsightP
 		ni.Namespace = value.(string)
 	case NetworkInsightsPod:
 		ni.Pod = value.(string)
-	case NetworkInsightsAccount:
-		ni.Account = value.(string)
-		return nil
 	}
 	return fmt.Errorf("unsupported property: %s", string(property))
 }
