@@ -1,6 +1,7 @@
 package clustercache
 
 import (
+	"maps"
 	"sync"
 
 	cc "github.com/opencost/opencost/core/pkg/clustercache"
@@ -93,7 +94,18 @@ func (kcc *KubernetesClusterCacheV2) GetAllNamespaces() []*cc.Namespace {
 }
 
 func (kcc *KubernetesClusterCacheV2) GetAllNodes() []*cc.Node {
-	return kcc.nodeStore.GetAll()
+	nodes := kcc.nodeStore.GetAll()
+	isolated := make([]*cc.Node, len(nodes))
+	for i, node := range nodes {
+		if node == nil {
+			continue
+		}
+
+		clone := *node
+		clone.Labels = maps.Clone(node.Labels)
+		isolated[i] = &clone
+	}
+	return isolated
 }
 
 func (kcc *KubernetesClusterCacheV2) GetAllPods() []*cc.Pod {
