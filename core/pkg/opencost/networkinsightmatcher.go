@@ -3,7 +3,7 @@ package opencost
 import (
 	"fmt"
 
-	"github.com/opencost/opencost/core/pkg/filter/ast"
+	ast "github.com/opencost/opencost/core/pkg/filter/ast"
 	"github.com/opencost/opencost/core/pkg/filter/matcher"
 	nfilter "github.com/opencost/opencost/core/pkg/filter/networkinsight"
 	"github.com/opencost/opencost/core/pkg/filter/transform"

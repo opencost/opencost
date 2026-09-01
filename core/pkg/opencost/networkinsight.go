@@ -227,7 +227,8 @@ type NetworkInsight struct {
 	NetworkDetails         NetworkDetailsSet `json:"networkDetails"`
 }
 
-func NewNetworkInsight(cluster string, namespace string, controller string, pod string, node string,
+func NewNetworkInsight(cluster string,
+	namespace string, controller string, pod string, node string,
 	labels map[string]string, region string, zone string,
 	networkTotalCost, networkCrossZoneCost, networkCrossRegionCost, networkInternetCost float64,
 	networkDetails map[string]*NetworkDetail) *NetworkInsight {
