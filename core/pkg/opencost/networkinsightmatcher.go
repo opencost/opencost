@@ -52,6 +52,8 @@ func networkInsightFieldMap(ni *NetworkInsight, identifier ast.Identifier) (stri
 		return ni.Namespace, nil
 	case nfilter.FieldPod:
 		return ni.Pod, nil
+	case nfilter.FieldAccount:
+		return ni.Account, nil
 	}
 
 	return "", fmt.Errorf("Failed to find string identifier on Network Insight: %s", identifier.Field.Name)
