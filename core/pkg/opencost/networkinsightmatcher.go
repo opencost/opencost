@@ -52,6 +52,9 @@ func networkInsightFieldMap(ni *NetworkInsight, identifier ast.Identifier) (stri
 		return ni.Namespace, nil
 	case nfilter.FieldPod:
 		return ni.Pod, nil
+	case nfilter.FieldAccount:
+		// Resolved against storage, not in memory. Same as allocationFieldMap.
+		return "", fmt.Errorf("account property not implemented")
 	}
 
 	return "", fmt.Errorf("Failed to find string identifier on Network Insight: %s", identifier.Field.Name)
