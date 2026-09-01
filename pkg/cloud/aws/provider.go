@@ -214,6 +214,8 @@ type AWS struct {
 	FargatePricing              *FargatePricing
 	FargatePricingError         error
 	ValidPricingKeys            map[string]bool
+	recentPricingKeys           map[string]time.Time
+	recentPricingKeysLock       sync.Mutex
 	Clientset                   clustercache.ClusterCache
 	BaseCPUPrice                string
 	BaseRAMPrice                string
@@ -800,6 +802,60 @@ func (aws *AWS) GetKey(labels map[string]string, n *clustercache.Node) models.Ke
 	}
 }
 
+// pricingKeyMemory is how long an instance type's pricing keeps being populated after the
+// last node of that type went away. It only has to outlast a scale-down, and a day covers
+// a cluster that scales to zero overnight.
+const pricingKeyMemory = 24 * time.Hour
+
+// pricingKeysToPopulate records the instance types currently in the cluster and returns
+// them together with every type seen within pricingKeyMemory.
+//
+// populatePricing rebuilds aws.Pricing from scratch on every download and fills it only for
+// the keys it is handed, while ValidPricingKeys is written for every on-demand type in the
+// offer file. A type that scales to zero is therefore evicted from Pricing but stays valid,
+// so the next node of that type misses in NodePricing, passes the ValidPricingKeys check,
+// and pulls the whole several-hundred-MB file again. Under autoscaler churn that repeats
+// for as long as the cluster keeps cycling through the same handful of types.
+//
+// Remembering recently-seen types makes the returning node a hit. A type genuinely new to
+// this process still costs one download, which is the self-heal the retry branch is for.
+func (aws *AWS) pricingKeysToPopulate(current map[string]bool) map[string]bool {
+	now := time.Now()
+
+	aws.recentPricingKeysLock.Lock()
+	defer aws.recentPricingKeysLock.Unlock()
+
+	if aws.recentPricingKeys == nil {
+		aws.recentPricingKeys = make(map[string]time.Time, len(current))
+	}
+	for key := range current {
+		aws.recentPricingKeys[key] = now
+	}
+
+	keys := make(map[string]bool, len(aws.recentPricingKeys))
+	for key, seen := range aws.recentPricingKeys {
+		if now.Sub(seen) > pricingKeyMemory {
+			delete(aws.recentPricingKeys, key)
+			continue
+		}
+		keys[key] = true
+	}
+	return keys
+}
+
+// notePricingKey records a key that pricing is wanted for. NodePricing calls it before
+// triggering a download so that the type it is about to ask about is populated even when
+// the cluster cache has not yet caught up with the node.
+func (aws *AWS) notePricingKey(key string) {
+	aws.recentPricingKeysLock.Lock()
+	defer aws.recentPricingKeysLock.Unlock()
+
+	if aws.recentPricingKeys == nil {
+		aws.recentPricingKeys = make(map[string]time.Time, 1)
+	}
+	aws.recentPricingKeys[key] = time.Now()
+}
+
 func (aws *AWS) isPreemptible(key string) bool {
 	s := strings.Split(key, ",")
 	if len(s) == 4 && s[3] == PreemptibleType {
@@ -938,6 +994,11 @@ func (aws *AWS) DownloadPricingData() error {
 		key := aws.GetKey(labels, n)
 		inputkeys[key.Features()] = true
 	}
+
+	// Keep populating pricing for instance types that have recently run here, not just the
+	// ones running at this instant, so that a type returning after a scale-down does not
+	// trigger another download of the whole offer file.
+	inputkeys = aws.pricingKeysToPopulate(inputkeys)
 
 	pvList := aws.Clientset.GetAllPersistentVolumes()
 
@@ -1738,6 +1799,10 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 	if ok {
 		return aws.createNode(terms, usageType, k)
 	} else if _, ok := aws.ValidPricingKeys[key]; ok {
+		// Note the key before downloading: the cluster cache may not have caught up with
+		// the node yet, and a download that does not populate the key being asked for
+		// leaves the next call to make the same request again.
+		aws.notePricingKey(key)
 		aws.DownloadPricingDataLock.RUnlock()
 		err := aws.DownloadPricingData()
 		aws.DownloadPricingDataLock.RLock()
