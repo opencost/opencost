@@ -17,6 +17,7 @@ const (
 	CloudCostRefreshRateHoursEnvVar = "CLOUD_COST_REFRESH_RATE_HOURS"
 	CloudCostQueryWindowDaysEnvVar  = "CLOUD_COST_QUERY_WINDOW_DAYS"
 	CloudCostRunWindowDaysEnvVar    = "CLOUD_COST_RUN_WINDOW_DAYS"
+	CloudCostPvRetentionEnvVar      = "CLOUD_COST_PV_RETENTION"
 
 	CustomCostEnvVarPrefix          = "CUSTOM_COST_"
 	CustomCostEnabledEnvVar         = "CUSTOM_COST_ENABLED"
@@ -66,6 +67,10 @@ func GetCustomCostQueryWindowHours() int {
 
 func GetCustomCostQueryWindowDays() int {
 	return env.GetInt(CustomCostQueryWindowDaysEnvVar, 7)
+}
+
+func GetCloudCostPvRetention() int {
+	return env.GetInt(CloudCostPvRetentionEnvVar, 2)
 }
 
 func GetCustomCost1dRetention() int {

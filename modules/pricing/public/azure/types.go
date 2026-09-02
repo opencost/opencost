@@ -6,6 +6,13 @@ import (
 	"github.com/opencost/opencost/core/pkg/pricing"
 )
 
+// nodeKey is used internally to deduplicate VM pricing entries.
+type nodeKey struct {
+	Region       string
+	InstanceType string
+	Provisioning pricing.ProvisioningType
+}
+
 // mapAzureDiskType maps Azure disk SKU names to VolumeType constants
 func mapAzureDiskType(skuName string) pricing.VolumeType {
 	skuLower := strings.ToLower(skuName)
