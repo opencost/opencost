@@ -12,6 +12,7 @@
     "internetNetworkEgress": "0.0725",
     "natGatewayEgress": "0.045",
     "natGatewayIngress": "0.045",
+    "azureAKSPricingTier": "standard",
     "spotLabel": "kubernetes.azure.com/scalesetpriority",
     "spotLabelValue": "spot",
     "azureSubscriptionID": "",
