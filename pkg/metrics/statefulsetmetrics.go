@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 //--------------------------------------------------------------------------
@@ -43,7 +44,30 @@ func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 		statefulsetUID := string(statefulset.UID)
 
 		if statefulset.SpecSelector != nil {
-			labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(statefulset.SpecSelector.MatchLabels))
+			// Use MatchLabels when available. If a statefulset uses only
+			// matchExpressions, synthesise a flat label map only when every
+			// expression can be reduced to a single key=value equality pair
+			// (i.e. operator In with exactly one value). Any non-synthesisable
+			// expression (NotIn, DoesNotExist, Exists, multi-value In) causes
+			// the whole synthesis to be skipped to avoid emitting a selector
+			// broader than the real controller selector.
+			selectorLabels := statefulset.SpecSelector.MatchLabels
+			if len(selectorLabels) == 0 {
+				synthesized := make(map[string]string)
+				ok := true
+				for _, expr := range statefulset.SpecSelector.MatchExpressions {
+					if expr.Operator == metav1.LabelSelectorOpIn && len(expr.Values) == 1 {
+						synthesized[expr.Key] = expr.Values[0]
+					} else {
+						ok = false
+						break
+					}
+				}
+				if ok && len(synthesized) > 0 {
+					selectorLabels = synthesized
+				}
+			}
+			labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(selectorLabels))
 			if len(labels) > 0 {
 				m := newStatefulsetMatchLabelsMetric(statefulsetName, statefulsetNS, "statefulSet_match_labels", labels, values, statefulsetUID)
 				ch <- m
