@@ -79,6 +79,12 @@ func Execute(conf *Config) error {
 	if conf.CloudCostEnabled {
 
 		cloudCostPipelineService = costmodel.InitializeCloudCost(router)
+		if a != nil {
+			// Wire ingested CloudCost data (e.g. RDS/DCS/OBS billing) into
+			// ComputeAssets so it can be surfaced as Cloud assets alongside
+			// Node/Disk/LoadBalancer in the Assets API/dashboard.
+			a.Model.CloudCostQuerier = cloudCostPipelineService.GetCloudCostQuerier()
+		}
 	}
 
 	var customCostPipelineService *customcost.PipelineService

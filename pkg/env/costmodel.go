@@ -32,6 +32,11 @@ const (
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
 
+	HuaweiAccessKeyIDEnvVar     = "HUAWEICLOUD_ACCESS_KEY_ID"
+	HuaweiAccessKeySecretEnvVar = "HUAWEICLOUD_SECRET_ACCESS_KEY"
+	HuaweiProjectIDEnvVar       = "HUAWEICLOUD_PROJECT_ID"
+	HuaweiDomainIDEnvVar        = "HUAWEICLOUD_DOMAIN_ID"
+
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 	AzureLocaleEnvVar         = "AZURE_LOCALE"
@@ -195,6 +200,30 @@ func GetAlibabaAccessKeyID() string {
 // the Alibaba access key secret for authentication
 func GetAlibabaAccessKeySecret() string {
 	return env.Get(AlibabaAccessKeySecretEnvVar, "")
+}
+
+// GetHuaweiAccessKeyID returns the environment variable value for HuaweiAccessKeyIDEnvVar which represents
+// the Huawei Cloud access key (AK) for authentication
+func GetHuaweiAccessKeyID() string {
+	return env.Get(HuaweiAccessKeyIDEnvVar, "")
+}
+
+// GetHuaweiAccessKeySecret returns the environment variable value for HuaweiAccessKeySecretEnvVar which represents
+// the Huawei Cloud secret key (SK) for authentication
+func GetHuaweiAccessKeySecret() string {
+	return env.Get(HuaweiAccessKeySecretEnvVar, "")
+}
+
+// GetHuaweiProjectID returns the environment variable value for HuaweiProjectIDEnvVar, required for
+// Huawei Cloud regional service authentication (e.g. ECS, EVS)
+func GetHuaweiProjectID() string {
+	return env.Get(HuaweiProjectIDEnvVar, "")
+}
+
+// GetHuaweiDomainID returns the environment variable value for HuaweiDomainIDEnvVar, required for
+// Huawei Cloud global service authentication (e.g. BSS)
+func GetHuaweiDomainID() string {
+	return env.Get(HuaweiDomainIDEnvVar, "")
 }
 
 // GetAzureOfferID returns the environment variable value for AzureOfferIDEnvVar which represents

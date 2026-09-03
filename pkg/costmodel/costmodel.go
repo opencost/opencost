@@ -22,6 +22,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloudcost"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -57,6 +58,13 @@ type CostModel struct {
 	Provider        costAnalyzerCloud.Provider
 	KubeModel       *km.KubeModel
 	pricingMetadata *costAnalyzerCloud.PricingMatchMetadata
+	// CloudCostQuerier, when set, is queried by ComputeAssets for CloudCost data
+	// (e.g. RDS/DCS/OBS billing ingested via a CloudCostIntegration) so that it can
+	// be surfaced as Cloud assets alongside Node/Disk/LoadBalancer. It is optional
+	// and provider-agnostic: any registered CloudCostIntegration's ingested data
+	// flows through it identically. Nil unless wired up by the caller (see
+	// pkg/cmd/costmodel/costmodel.go).
+	CloudCostQuerier cloudcost.Querier
 }
 
 func NewCostModel(
@@ -1226,7 +1234,15 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 					}
 				} else { // add case to use default pricing model when API data fails.
 					log.Debugf("No node price or CPUprice found, falling back to default")
-					nodePrice = defaultCPU*cpu + defaultRAM*ram + gpuc*defaultGPU
+					// ramGB, not ram: defaultRAM is a per-GB-hour price, while ram
+					// is the node's memory in BYTES. Multiplying by bytes inflated
+					// nodePrice by ~1.07e9x, and since gpuToRAMRatio then claims the
+					// bulk of ramMultiple, nearly all of that bogus total landed on
+					// the GPU price (observed: a 4 vCPU/16GB/1x T4 node priced at
+					// 42,607,801 USD/hr). CPU and RAM hid the same inflation because
+					// the metrics exporter drops >30x outliers for them but records
+					// the GPU price unguarded.
+					nodePrice = defaultCPU*cpu + defaultRAM*ramGB + gpuc*defaultGPU
 				}
 				if math.IsNaN(nodePrice) {
 					log.Warnf("nodePrice parsed as NaN. Setting to 0.")
