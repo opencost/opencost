@@ -138,11 +138,22 @@ type multiKeyGCPAllocation struct {
 	Cost    float64
 }
 
+// GetConfig returns the GCP provider's custom pricing configuration.
+// It always returns a non-nil *models.CustomPricing even on error, so that
+// downstream callers can safely access fields without nil pointer dereferences.
 func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
-	c, err := gcp.Config.GetCustomPricingData()
-	if err != nil {
-		return nil, err
+	c := &models.CustomPricing{}
+	var err error
+	if gcp.Config == nil {
+		err = fmt.Errorf("gcp provider config is nil")
+	} else if pc, e := gcp.Config.GetCustomPricingData(); pc != nil {
+		c, err = pc, e
+	} else {
+		err = e
 	}
+
+	// c is guaranteed non-nil at this point, even if config loading failed
+	// above, so we can safely apply default pricing values here.
 	if c.Discount == "" {
 		c.Discount = "30%"
 	}
@@ -152,7 +163,7 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	if c.CurrencyCode == "" {
 		c.CurrencyCode = "USD"
 	}
-	return c, nil
+	return c, err
 }
 
 // BigQueryConfig contain the required config and credentials to access OOC resources for GCP
@@ -293,16 +304,22 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	remoteEnabled := env.IsRemoteEnabled()
 
-	attribute, err := gcp.MetadataClient.InstanceAttributeValue("cluster-name")
-	if err != nil {
-		log.Infof("Error loading metadata cluster-name: %s", err.Error())
+	var attribute string
+	// MetadataClient is nil when the GCP struct is zero-initialised, in unit
+	// tests, or when OpenCost runs outside GKE where no metadata server is reachable.
+	if gcp.MetadataClient != nil {
+		var metaErr error
+		attribute, metaErr = gcp.MetadataClient.InstanceAttributeValue("cluster-name")
+		if metaErr != nil {
+			log.Infof("Error loading metadata cluster-name: %s", metaErr.Error())
+		}
 	}
 
 	c, err := gcp.GetConfig()
 	if err != nil {
 		log.Errorf("Error opening config: %s", err.Error())
 	}
-	if c.ClusterName != "" {
+	if c != nil && c.ClusterName != "" {
 		attribute = c.ClusterName
 	}
 
