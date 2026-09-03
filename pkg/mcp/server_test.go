@@ -1057,11 +1057,13 @@ func TestComputeEfficiencyMetric_ValidAllocation(t *testing.T) {
 		Name:  "test-pod",
 		Start: now.Add(-24 * time.Hour),
 		End:   now,
-		// 24 hours = 1440 minutes
-		CPUCoreHours:           24.0,   // 1 core for 24 hours
-		RAMByteHours:           24.0e9, // ~1GB for 24 hours
-		CPUCoreRequestAverage:  2.0,    // Requested 2 cores
-		RAMBytesRequestAverage: 2.0e9,  // Requested 2GB
+		// Usage averages (the actual resource consumption, NOT allocated)
+		CPUCoreUsageAverage:    1.0,   // Actually using 1 core
+		RAMBytesUsageAverage:   1.0e9, // Actually using 1GB
+		CPUCoreRequestAverage:  2.0,   // Requested 2 cores
+		RAMBytesRequestAverage: 2.0e9, // Requested 2GB
+		CPUCoreHours:           48.0,  // max(request,usage)*hours = 2*24 (allocated, NOT usage)
+		RAMByteHours:           48e9,
 		CPUCost:                10.0,
 		RAMCost:                5.0,
 	}
@@ -1072,8 +1074,8 @@ func TestComputeEfficiencyMetric_ValidAllocation(t *testing.T) {
 	assert.Equal(t, "test-pod", result.Name)
 	assert.Equal(t, 2.0, result.CPUCoresRequested)
 	assert.Equal(t, 2.0e9, result.RAMBytesRequested)
-	assert.Equal(t, 1.0, result.CPUCoresUsed)            // 24 core-hours / 24 hours = 1 core
-	assert.Equal(t, 1.0e9, result.RAMBytesUsed)          // 24GB-hours / 24 hours = 1GB
+	assert.Equal(t, 1.0, result.CPUCoresUsed)            // CPUCoreUsageAverage
+	assert.Equal(t, 1.0e9, result.RAMBytesUsed)          // RAMBytesUsageAverage
 	assert.Equal(t, 0.5, result.CPUEfficiency)           // 1 / 2 = 0.5
 	assert.Equal(t, 0.5, result.MemoryEfficiency)        // 1GB / 2GB = 0.5
 	assert.Equal(t, 1.2, result.RecommendedCPURequest)   // 1 * 1.2 = 1.2
@@ -1088,8 +1090,10 @@ func TestComputeEfficiencyMetric_CustomBufferMultiplier(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
-		CPUCoreHours:           24.0,
-		RAMByteHours:           24.0e9,
+		CPUCoreUsageAverage:    1.0,
+		RAMBytesUsageAverage:   1.0e9,
+		CPUCoreHours:           48.0,
+		RAMByteHours:           48e9,
 		CPUCoreRequestAverage:  2.0,
 		RAMBytesRequestAverage: 2.0e9,
 		CPUCost:                10.0,
@@ -1117,9 +1121,11 @@ func TestComputeEfficiencyMetric_MinimumThresholds(t *testing.T) {
 		Name:  "test-pod",
 		Start: now.Add(-24 * time.Hour),
 		End:   now,
-		// Very small usage
-		CPUCoreHours:           0.00001, // 0.000000417 cores average
-		RAMByteHours:           100,     // ~4 bytes average
+		// Very small usage averages
+		CPUCoreUsageAverage:    0.0000004, // tiny
+		RAMBytesUsageAverage:   4,         // tiny
+		CPUCoreHours:           0.00001,
+		RAMByteHours:           100,
 		CPUCoreRequestAverage:  0.1,
 		RAMBytesRequestAverage: 1000,
 		CPUCost:                0.001,
@@ -1141,6 +1147,8 @@ func TestComputeEfficiencyMetric_NoRequests(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
+		CPUCoreUsageAverage:    1.0,
+		RAMBytesUsageAverage:   1.0e9,
 		CPUCoreHours:           24.0,
 		RAMByteHours:           24.0e9,
 		CPUCoreRequestAverage:  0.0, // No requests set
@@ -1152,9 +1160,9 @@ func TestComputeEfficiencyMetric_NoRequests(t *testing.T) {
 	result := computeEfficiencyMetric(alloc, 1.2)
 
 	require.NotNil(t, result)
-	// Efficiency should be 0 when no requests are set
-	assert.Equal(t, 0.0, result.CPUEfficiency)
-	assert.Equal(t, 0.0, result.MemoryEfficiency)
+	// With usage but no requests, canonical helpers return 1.0 (100%)
+	assert.Equal(t, 1.0, result.CPUEfficiency)
+	assert.Equal(t, 1.0, result.MemoryEfficiency)
 	// Recommendations should still be calculated based on usage
 	assert.Equal(t, 1.2, result.RecommendedCPURequest)
 	assert.Equal(t, 1.2e9, result.RecommendedRAMRequest)
@@ -1166,10 +1174,12 @@ func TestComputeEfficiencyMetric_OverProvisioned(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
-		CPUCoreHours:           12.0,   // 0.5 cores average
-		RAMByteHours:           12.0e9, // 0.5GB average
-		CPUCoreRequestAverage:  4.0,    // Requested 4 cores (over-provisioned)
-		RAMBytesRequestAverage: 8.0e9,  // Requested 8GB (over-provisioned)
+		CPUCoreUsageAverage:    0.5,   // Actually using 0.5 cores
+		RAMBytesUsageAverage:   0.5e9, // Actually using 0.5GB
+		CPUCoreHours:           96.0,  // allocated = max(4,0.5)*24 = 96
+		RAMByteHours:           192e9,
+		CPUCoreRequestAverage:  4.0,   // Requested 4 cores (over-provisioned)
+		RAMBytesRequestAverage: 8.0e9, // Requested 8GB (over-provisioned)
 		CPUCost:                40.0,
 		RAMCost:                20.0,
 	}
@@ -1194,10 +1204,12 @@ func TestComputeEfficiencyMetric_UnderProvisioned(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
-		CPUCoreHours:           48.0,   // 2 cores average
-		RAMByteHours:           48.0e9, // 2GB average
-		CPUCoreRequestAverage:  1.0,    // Requested 1 core (under-provisioned)
-		RAMBytesRequestAverage: 1.0e9,  // Requested 1GB (under-provisioned)
+		CPUCoreUsageAverage:    2.0,   // Actually using 2 cores
+		RAMBytesUsageAverage:   2.0e9, // Actually using 2GB
+		CPUCoreHours:           48.0,  // allocated = max(1,2)*24 = 48
+		RAMByteHours:           48e9,
+		CPUCoreRequestAverage:  1.0,   // Requested 1 core (under-provisioned)
+		RAMBytesRequestAverage: 1.0e9, // Requested 1GB (under-provisioned)
 		CPUCost:                10.0,
 		RAMCost:                5.0,
 	}
@@ -1219,8 +1231,10 @@ func TestComputeEfficiencyMetric_CostCalculations(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
-		CPUCoreHours:           24.0,
-		RAMByteHours:           24.0e9,
+		CPUCoreUsageAverage:    1.0,
+		RAMBytesUsageAverage:   1.0e9,
+		CPUCoreHours:           48.0,
+		RAMByteHours:           48e9,
 		CPUCoreRequestAverage:  2.0,
 		RAMBytesRequestAverage: 2.0e9,
 		CPUCost:                10.0, // $10 for CPU
@@ -1257,8 +1271,10 @@ func TestComputeEfficiencyMetric_OtherCostsPreserved(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
-		CPUCoreHours:           24.0,
-		RAMByteHours:           24.0e9,
+		CPUCoreUsageAverage:    1.0,
+		RAMBytesUsageAverage:   1.0e9,
+		CPUCoreHours:           48.0,
+		RAMByteHours:           48e9,
 		CPUCoreRequestAverage:  2.0,
 		RAMBytesRequestAverage: 2.0e9,
 		CPUCost:                10.0,
@@ -1273,22 +1289,57 @@ func TestComputeEfficiencyMetric_OtherCostsPreserved(t *testing.T) {
 
 	require.NotNil(t, result)
 
-	// The "other costs" (Network, Shared, External, GPU) should be preserved
-	// in the recommended cost calculation
 	otherCosts := 2.0 + 1.0 + 1.0 + 0.0 // = 4.0
 
-	// CPU and RAM costs should be reduced based on right-sizing
-	// Original: 10.0 + 5.0 = 15.0
-	// Usage: 1 core + 1GB
-	// Recommended: 1.2 cores + 1.2GB
-	// Cost is calculated based on REQUESTED amounts (2 cores, 2GB)
-	cpuCostPerCoreHour := 10.0 / (2.0 * 24.0)  // CPU cost / (requested cores * hours)
-	ramCostPerByteHour := 5.0 / (2.0e9 * 24.0) // RAM cost / (requested bytes * hours)
+	cpuCostPerCoreHour := 10.0 / (2.0 * 24.0)
+	ramCostPerByteHour := 5.0 / (2.0e9 * 24.0)
 	expectedRecommendedCPUCost := 1.2 * 24.0 * cpuCostPerCoreHour
 	expectedRecommendedRAMCost := 1.2e9 * 24.0 * ramCostPerByteHour
 	expectedRecommendedTotal := expectedRecommendedCPUCost + expectedRecommendedRAMCost + otherCosts
 
 	assert.InDelta(t, expectedRecommendedTotal, result.RecommendedCost, 0.01)
+}
+
+// TestComputeEfficiencyMetric_UsageNotAllocated verifies the fix for #3984:
+// CPUCoreHours and RAMByteHours represent allocated resources (max of request
+// and usage), not actual usage. Before the fix, dividing those by hours yielded
+// ~100% efficiency for every workload, hiding over-provisioning.
+func TestComputeEfficiencyMetric_UsageNotAllocated(t *testing.T) {
+	now := time.Now()
+	alloc := &opencost.Allocation{
+		Name:  "over-provisioned-pod",
+		Start: now.Add(-24 * time.Hour),
+		End:   now,
+		// Real usage is 0.1 cores / 100MB
+		CPUCoreUsageAverage:  0.1,
+		RAMBytesUsageAverage: 100e6,
+		// Requested 4 cores / 8GB — heavily over-provisioned
+		CPUCoreRequestAverage:  4.0,
+		RAMBytesRequestAverage: 8.0e9,
+		// Allocated (max of request, usage) * hours — this is what the old
+		// code incorrectly used as "usage"
+		CPUCoreHours: 4.0 * 24,  // = 96 (allocated, NOT usage)
+		RAMByteHours: 8e9 * 24,  // = 192e9 (allocated, NOT usage)
+		CPUCost:      40.0,
+		RAMCost:      20.0,
+	}
+
+	result := computeEfficiencyMetric(alloc, 1.2)
+	require.NotNil(t, result)
+
+	// With the fix, efficiency reflects true usage vs request
+	assert.InDelta(t, 0.025, result.CPUEfficiency, 0.001)    // 0.1 / 4.0
+	assert.InDelta(t, 0.0125, result.MemoryEfficiency, 0.001) // 100e6 / 8e9
+
+	// The old (buggy) code would have computed:
+	//   cpuUsed = CPUCoreHours/hours = 96/24 = 4.0  → efficiency = 4/4 = 1.0 (100%)
+	// which is completely wrong for a pod using only 0.1 cores.
+	assert.Less(t, result.CPUEfficiency, 0.5, "efficiency must reflect real usage, not allocated")
+
+	// Recommendations should right-size down dramatically
+	assert.InDelta(t, 0.12, result.RecommendedCPURequest, 0.001)   // 0.1 * 1.2
+	assert.InDelta(t, 120e6, result.RecommendedRAMRequest, 1e3)    // 100e6 * 1.2
+	assert.Greater(t, result.CostSavingsPercent, 90.0)
 }
 
 func TestQueryEfficiency_InvalidWindow(t *testing.T) {
