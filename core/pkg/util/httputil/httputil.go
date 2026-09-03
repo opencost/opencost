@@ -189,6 +189,9 @@ func ExponentialBackoffWaitFor(defaultWait time.Duration, retry int) time.Durati
 
 // IsRateLimitedResponse returns true if the status code is a 429 (TooManyRequests)
 func IsRateLimitedResponse(resp *http.Response) bool {
+	if resp == nil {
+		return false
+	}
 	return resp.StatusCode == http.StatusTooManyRequests
 }
 
@@ -196,6 +199,9 @@ func IsRateLimitedResponse(resp *http.Response) bool {
 // has occurred. This function is a result of some API providers (AWS) returning
 // a 400 status code instead of 429 for rate limit exceptions.
 func IsRateLimitedBody(resp *http.Response, body []byte) bool {
+	if resp == nil {
+		return false
+	}
 	// ignore non-400 status
 	if resp.StatusCode < http.StatusBadRequest || resp.StatusCode >= http.StatusInternalServerError {
 		return false

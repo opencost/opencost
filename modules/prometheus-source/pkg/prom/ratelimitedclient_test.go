@@ -3,6 +3,7 @@ package prom
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"math"
 	"net/http"
@@ -17,11 +18,14 @@ import (
 	prometheus "github.com/prometheus/client_golang/api"
 )
 
+var errTransportFailed = errors.New("dial tcp: connection refused")
+
 // ResponseAndBody is just a test objet used to hold predefined responses
 // and response bodies
 type ResponseAndBody struct {
 	Response *http.Response
 	Body     []byte
+	Error    error
 }
 
 // MockPromClient accepts a slice of responses and bodies to return on requests made.
@@ -51,7 +55,7 @@ func (mpc *MockPromClient) Do(context.Context, *http.Request) (*http.Response, [
 		mpc.current = 0
 	}
 
-	return rnb.Response, rnb.Body, nil
+	return rnb.Response, rnb.Body, rnb.Error
 }
 
 // Creates a new mock prometheus client
@@ -387,5 +391,43 @@ func TestConcurrentRateLimiting(t *testing.T) {
 		}
 
 		t.Logf("%s\n", rateLimitErr.Error())
+	}
+}
+
+// Test transport errors during rate-limit retries.
+func TestRateLimitedRetryTransportError(t *testing.T) {
+	t.Parallel()
+
+	promClient := newMockPromClientWith([]*ResponseAndBody{
+		newNormalRateLimitedResponse("0"),
+		{
+			Response: nil,
+			Body:     nil,
+			Error:    errTransportFailed,
+		},
+	})
+
+	client, err := NewRateLimitedClient(
+		"TestClient",
+		promClient,
+		1,
+		nil,
+		nil,
+		newTestRetryOpts(),
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err = client.Do(context.Background(), req)
+	if !errors.Is(err, errTransportFailed) {
+		t.Fatalf("Expected %v, got %v", errTransportFailed, err)
 	}
 }
