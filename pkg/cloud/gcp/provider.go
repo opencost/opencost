@@ -996,6 +996,24 @@ func (gcp *GCP) getBillingAPIClientAndURL(apiKey, currencyCode string) (*http.Cl
 	return googleHttpClient, url.String(), nil
 }
 
+// fetchAndParsePage fetches a single GCP Billing API page, validates the HTTP
+// status code, and parses the body. The response body is always closed before
+// returning, so paginating the full catalog no longer leaks a connection per
+// page.
+func (gcp *GCP) fetchAndParsePage(client *http.Client, reqURL string, inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, string, error) {
+	resp, err := client.Get(reqURL)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("GCP Billing API responded with error status code %d", resp.StatusCode)
+	}
+
+	return gcp.parsePage(resp.Body, inputKeys, pvKeys)
+}
+
 func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, error) {
 	c, err := gcp.GetConfig()
 	if err != nil {
@@ -1026,11 +1044,7 @@ func (gcp *GCP) parsePagesWithClient(httpClient *http.Client, url string, inputK
 		if pageToken != "" {
 			reqURL = url + "&pageToken=" + pageToken
 		}
-		resp, err := httpClient.Get(reqURL)
-		if err != nil {
-			return err
-		}
-		page, token, err := gcp.parsePage(resp.Body, inputKeys, pvKeys)
+		page, token, err := gcp.fetchAndParsePage(httpClient, reqURL, inputKeys, pvKeys)
 		if err != nil {
 			return err
 		}
