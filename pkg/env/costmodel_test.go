@@ -101,3 +101,40 @@ func TestIsMCPServerEnabled_True(t *testing.T) {
 		t.Fatalf("expected true when env var set to true, got %v", got)
 	}
 }
+
+func TestGetAWSRISPRefreshRateHours(t *testing.T) {
+	tests := []struct {
+		name string
+		want int
+		pre  func(t *testing.T)
+	}{
+		{
+			name: "defaults to 1 when unset",
+			want: 1,
+		},
+		{
+			name: "returns 24 when AWS_RI_SP_REFRESH_RATE_HOURS is set to 24",
+			want: 24,
+			pre: func(t *testing.T) {
+				t.Setenv("AWS_RI_SP_REFRESH_RATE_HOURS", "24")
+			},
+		},
+		{
+			name: "falls back to 1 when set to an invalid value",
+			want: 1,
+			pre: func(t *testing.T) {
+				t.Setenv("AWS_RI_SP_REFRESH_RATE_HOURS", "foo")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.pre != nil {
+				tt.pre(t)
+			}
+			if got := GetAWSRISPRefreshRateHours(); got != tt.want {
+				t.Errorf("GetAWSRISPRefreshRateHours() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

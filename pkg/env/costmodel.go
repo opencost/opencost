@@ -29,6 +29,10 @@ const (
 	AWSPricingURL            = "AWS_PRICING_URL"
 	AWSECSPricingURLOverride = "AWS_ECS_PRICING_URL"
 
+	// AWSRISPRefreshRateHoursEnvVar controls how often (in hours) the Reserved
+	// Instance and Savings Plan watchers refresh their data from Athena.
+	AWSRISPRefreshRateHoursEnvVar = "AWS_RI_SP_REFRESH_RATE_HOURS"
+
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
 
@@ -183,6 +187,14 @@ func GetAWSPricingURL() string {
 // GetAWSECSPricingURLOverride returns an optional alternative URL to fetch AmazonECS pricing data from; for use in airgapped environments
 func GetAWSECSPricingURLOverride() string {
 	return env.Get(AWSECSPricingURLOverride, "")
+}
+
+// GetAWSRISPRefreshRateHours returns how often (in hours) the Reserved Instance
+// and Savings Plan watchers refresh their data from Athena. Defaults to 1, which
+// preserves the historical hourly behavior. For multi-cluster deployments sharing
+// a single CUR export, raising this (e.g. to 24) reduces Athena scan cost.
+func GetAWSRISPRefreshRateHours() int {
+	return env.GetInt(AWSRISPRefreshRateHoursEnvVar, 1)
 }
 
 // GetAlibabaAccessKeyID returns the environment variable value for AlibabaAccessKeyIDEnvVar which represents
