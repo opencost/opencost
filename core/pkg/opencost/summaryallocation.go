@@ -48,6 +48,7 @@ type SummaryAllocation struct {
 	Share                  bool                  `json:"-"`
 	UnmountedPVCost        float64               `json:"-"`
 	Efficiency             float64               `json:"efficiency"`
+	CarbonKilograms        float64               `json:"carbonKilograms"`
 }
 
 // NewSummaryAllocation converts an Allocation to a SummaryAllocation by
@@ -90,6 +91,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 		SharedCost:             alloc.SharedCost,
 		ExternalCost:           alloc.ExternalCost,
 		UnmountedPVCost:        alloc.UnmountedPVCost,
+		CarbonKilograms:        alloc.CarbonKilograms,
 	}
 
 	// Revert adjustments if reconciliation is off. If only network
@@ -229,6 +231,7 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	sa.PVCost += that.PVCost
 	sa.RAMCost += that.RAMCost
 	sa.SharedCost += that.SharedCost
+	sa.CarbonKilograms += that.CarbonKilograms
 
 	sa.Efficiency = sa.TotalEfficiency()
 	return nil
@@ -258,6 +261,7 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 		SharedCost:             sa.SharedCost,
 		ExternalCost:           sa.ExternalCost,
 		Efficiency:             sa.Efficiency,
+		CarbonKilograms:        sa.CarbonKilograms,
 	}
 }
 
@@ -358,6 +362,10 @@ func (sa *SummaryAllocation) Equal(that *SummaryAllocation) bool {
 	}
 
 	if sa.ExternalCost != that.ExternalCost {
+		return false
+	}
+
+	if sa.CarbonKilograms != that.CarbonKilograms {
 		return false
 	}
 
