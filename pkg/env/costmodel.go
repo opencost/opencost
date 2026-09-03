@@ -29,6 +29,9 @@ const (
 	AWSPricingURL            = "AWS_PRICING_URL"
 	AWSECSPricingURLOverride = "AWS_ECS_PRICING_URL"
 
+	AWSPricingCacheEnabledEnvVar = "AWS_PRICING_CACHE_ENABLED"
+	AWSPricingCacheDirEnvVar     = "AWS_PRICING_CACHE_DIR"
+
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
 
@@ -183,6 +186,20 @@ func GetAWSPricingURL() string {
 // GetAWSECSPricingURLOverride returns an optional alternative URL to fetch AmazonECS pricing data from; for use in airgapped environments
 func GetAWSECSPricingURLOverride() string {
 	return env.Get(AWSECSPricingURLOverride, "")
+}
+
+// GetAWSPricingCacheEnabled reports whether the AWS offer file may be cached on disk and
+// revalidated with a conditional request instead of being downloaded on every refresh.
+// Off by default: the cache needs local storage roughly the size of the offer file, which
+// is an operator's decision rather than something to start consuming unannounced.
+func GetAWSPricingCacheEnabled() bool {
+	return env.GetBool(AWSPricingCacheEnabledEnvVar, false)
+}
+
+// GetAWSPricingCacheDir returns the directory holding the cached AWS offer file. Empty
+// means a private directory under os.TempDir().
+func GetAWSPricingCacheDir() string {
+	return env.Get(AWSPricingCacheDirEnvVar, "")
 }
 
 // GetAlibabaAccessKeyID returns the environment variable value for AlibabaAccessKeyIDEnvVar which represents
