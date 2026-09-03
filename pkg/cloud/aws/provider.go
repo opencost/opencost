@@ -1428,7 +1428,7 @@ func (aws *AWS) spotPricingFromHistory(k models.Key) (*SpotPriceHistoryEntry, bo
 }
 
 // Stubbed NetworkPricing for AWS. Pull directly from aws.json for now
-func (aws *AWS) NetworkPricing() (*models.Network, error) {
+func (aws *AWS) NetworkPricing(netKey models.NetworkKey) (*models.Network, error) {
 	cpricing, err := aws.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -1463,7 +1463,7 @@ func (aws *AWS) NetworkPricing() (*models.Network, error) {
 	}, nil
 }
 
-func (aws *AWS) LoadBalancerPricing() (*models.LoadBalancer, error) {
+func (aws *AWS) LoadBalancerPricing(lbKey models.LBKey) (*models.LoadBalancer, error) {
 	// TODO: determine key based on function arguments
 	// this is something that should be changed in the Provider interface
 

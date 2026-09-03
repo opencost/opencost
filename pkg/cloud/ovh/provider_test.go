@@ -387,7 +387,7 @@ func TestPVPricing(t *testing.T) {
 func TestNetworkPricing(t *testing.T) {
 	provider := &OVH{}
 
-	net, err := provider.NetworkPricing()
+	net, err := provider.NetworkPricing(nil)
 	if err != nil {
 		t.Fatalf("NetworkPricing failed: %v", err)
 	}
@@ -410,7 +410,7 @@ func TestNetworkPricing(t *testing.T) {
 func TestLoadBalancerPricing(t *testing.T) {
 	provider := &OVH{}
 
-	lb, err := provider.LoadBalancerPricing()
+	lb, err := provider.LoadBalancerPricing(nil)
 	if err != nil {
 		t.Fatalf("LoadBalancerPricing failed: %v", err)
 	}
