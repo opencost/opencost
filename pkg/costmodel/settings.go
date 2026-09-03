@@ -52,6 +52,12 @@ func (a *Accesses) InitializeSettingsPubSub() {
 		for {
 			msg := <-costDataCacheCh
 			log.Infof("Flushing cost data caches: %s", msg)
+			// Actually flush the caches by re-downloading pricing data
+			// This ensures that new custom pricing or discount settings take effect immediately
+			err := a.CloudProvider.DownloadPricingData()
+			if err != nil {
+				log.Errorf("Error re-downloading pricing data after settings change: %s", err)
+			}
 		}
 	}(a)
 }
