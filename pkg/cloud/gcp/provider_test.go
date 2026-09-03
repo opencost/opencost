@@ -671,6 +671,7 @@ func TestGCP_findCostForDisk(t *testing.T) {
 	tests := []struct {
 		name     string
 		disk     *compute.Disk
+		pricing  map[string]*GCPPricing
 		expected float64
 	}{
 		{
@@ -697,15 +698,49 @@ func TestGCP_findCostForDisk(t *testing.T) {
 			},
 			expected: GCPMonthlyGP2DiskCost * 200,
 		},
+		{
+			name: "Dynamic SSD disk from zone",
+			disk: &compute.Disk{
+				Type:   "pd-ssd",
+				SizeGb: 100,
+				Zone:   "us-central1-a",
+			},
+			pricing: map[string]*GCPPricing{
+				"us-central1,ssd": {
+					PV: &models.PV{
+						Cost: "0.000228",
+					},
+				},
+			},
+			expected: 0.000228 * 730.0 * 100,
+		},
+		{
+			name: "Dynamic Standard disk from region URL",
+			disk: &compute.Disk{
+				Type:   "pd-standard",
+				SizeGb: 50,
+				Region: "https://www.googleapis.com/compute/v1/projects/my-project/regions/europe-west1",
+			},
+			pricing: map[string]*GCPPricing{
+				"europe-west1,pdstandard": {
+					PV: &models.PV{
+						Cost: "0.000055",
+					},
+				},
+			},
+			expected: 0.000055 * 730.0 * 50,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gcp := &GCP{}
+			gcp := &GCP{
+				Pricing: tt.pricing,
+			}
 			cost, err := gcp.findCostForDisk(tt.disk)
 			assert.NoError(t, err)
 			assert.NotNil(t, cost)
-			assert.Equal(t, tt.expected, *cost)
+			assert.InDelta(t, tt.expected, *cost, 1e-9)
 		})
 	}
 }
