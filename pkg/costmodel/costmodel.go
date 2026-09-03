@@ -208,6 +208,11 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 		return nil, err
 	}
 
+	nodeLabelsMap := make(map[string]map[string]string)
+	for _, n := range cm.Cache.GetAllNodes() {
+		nodeLabelsMap[n.Name] = n.Labels
+	}
+
 	// Unmounted PVs represent the PVs that are not mounted or tied to a volume on a container
 	unmountedPVs := make(map[string][]*PersistentVolumeClaimData)
 	pvClaimMapping, err := GetPVInfoLocal(cm.Cache, clusterID)
@@ -335,7 +340,9 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 
 			var podNetCosts []*util.Vector
 			if usage, ok := networkUsageMap[ns+","+podName+","+clusterID]; ok {
-				netCosts, err := GetNetworkCost(usage, cp)
+				nodeLabels := nodeLabelsMap[pod.Spec.NodeName]
+				netKey := cp.GetNetworkKey(nodeLabels, clusterID)
+				netCosts, err := GetNetworkCost(usage, cp, netKey)
 				if err != nil {
 					log.Debugf("Error pulling network costs: %s", err.Error())
 				} else {
