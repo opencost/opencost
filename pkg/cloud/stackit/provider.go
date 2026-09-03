@@ -122,7 +122,7 @@ func (s *STACKIT) NodePricing(key models.Key) (*models.Node, models.PricingMetad
 	}, meta, nil
 }
 
-func (s *STACKIT) LoadBalancerPricing() (*models.LoadBalancer, error) {
+func (s *STACKIT) LoadBalancerPricing(key models.LBKey) (*models.LoadBalancer, error) {
 	config, err := s.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get config: %w", err)
@@ -138,7 +138,7 @@ func (s *STACKIT) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	}, nil
 }
 
-func (s *STACKIT) NetworkPricing() (*models.Network, error) {
+func (s *STACKIT) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	config, err := s.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get config: %w", err)

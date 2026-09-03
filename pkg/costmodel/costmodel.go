@@ -1352,6 +1352,33 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 	return nodes, nil
 }
 
+func getLBFeatures(service *clustercache.Service, providerType string) string {
+	var hints []string
+
+	if service.Annotations != nil {
+		// AWS load balancer annotations
+		if class, ok := service.Annotations["service.beta.kubernetes.io/aws-load-balancer-class"]; ok {
+			hints = append(hints, strings.ToLower(class))
+		}
+		if lbType, ok := service.Annotations["service.beta.kubernetes.io/aws-load-balancer-type"]; ok {
+			hints = append(hints, strings.ToLower(lbType))
+		}
+
+		// GCP load balancer annotations
+		if lbType, ok := service.Annotations["cloud.google.com/load-balancer-type"]; ok {
+			hints = append(hints, strings.ToLower(lbType))
+		}
+		if lbType, ok := service.Annotations["networking.gke.io/load-balancer-type"]; ok {
+			hints = append(hints, strings.ToLower(lbType))
+		}
+	}
+
+	// Intentionally avoid provider-specific defaults here. Leaving hints empty (when no annotations
+	// are present) allows cloud providers to fall back to their standard default pricing.
+	// (If we later add reliable GCP LB type detection, it should be derived from Service metadata.)
+	return strings.Join(hints, ",")
+}
+
 // TODO: drop some logs
 func (cm *CostModel) GetLBCost() (map[serviceKey]*costAnalyzerCloud.LoadBalancer, error) {
 	// for fetching prices from cloud provider
@@ -1363,6 +1390,11 @@ func (cm *CostModel) GetLBCost() (map[serviceKey]*costAnalyzerCloud.LoadBalancer
 	servicesList := cm.Cache.GetAllServices()
 	loadBalancerMap := make(map[serviceKey]*costAnalyzerCloud.LoadBalancer)
 
+	var providerType string
+	if info, err := cp.ClusterInfo(); err == nil && info != nil {
+		providerType = info["provider"]
+	}
+
 	for _, service := range servicesList {
 		namespace := service.Namespace
 		name := service.Name
@@ -1373,7 +1405,12 @@ func (cm *CostModel) GetLBCost() (map[serviceKey]*costAnalyzerCloud.LoadBalancer
 		}
 
 		if service.Type == "LoadBalancer" {
-			loadBalancer, err := cp.LoadBalancerPricing()
+			lbFeatures := getLBFeatures(service, providerType)
+			lbKey := &costAnalyzerCloud.CustomLBKey{
+				LBID:       fmt.Sprintf("%s/%s/%s", coreenv.GetClusterID(), service.Namespace, service.Name),
+				LBFeatures: lbFeatures,
+			}
+			loadBalancer, err := cp.LoadBalancerPricing(lbKey)
 			if err != nil {
 				return nil, err
 			}
@@ -2107,6 +2144,32 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 	start, end := *allocSet.Window.Start(), *allocSet.Window.End()
 	idleSet := opencost.NewAllocationSet(start, end)
 
+	// Compute raw idle costs to distribute quota overhead proportionally
+	var totalRawIdleCPU, totalRawIdleRAM float64
+	for key, assetTotal := range assetTotals {
+		allocTotal := allocTotals[key]
+		if allocTotal == nil {
+			allocTotal = &opencost.AllocationTotals{}
+		}
+		cpuRaw := assetTotal.TotalCPUCost() - allocTotal.TotalCPUCost()
+		if cpuRaw > 0 {
+			totalRawIdleCPU += cpuRaw
+		}
+		ramRaw := assetTotal.TotalRAMCost() - allocTotal.TotalRAMCost()
+		if ramRaw > 0 {
+			totalRawIdleRAM += ramRaw
+		}
+	}
+
+	// Compute total quota overhead costs from allocSet
+	var totalOverheadCPU, totalOverheadRAM float64
+	for _, alloc := range allocSet.Allocations {
+		if strings.Contains(alloc.Name, "__quota_overhead__") {
+			totalOverheadCPU += alloc.QuotaOverheadCPUCost
+			totalOverheadRAM += alloc.QuotaOverheadRAMCost
+		}
+	}
+
 	for key, assetTotal := range assetTotals {
 		allocTotal, ok := allocTotals[key]
 		if !ok {
@@ -2137,6 +2200,15 @@ func computeIdleAllocations(allocSet *opencost.AllocationSet, assetSet *opencost
 		cpuIdleCost := assetTotal.TotalCPUCost() - allocTotal.TotalCPUCost()
 		gpuIdleCost := assetTotal.TotalGPUCost() - allocTotal.TotalGPUCost()
 		ramIdleCost := assetTotal.TotalRAMCost() - allocTotal.TotalRAMCost()
+
+		if cpuIdleCost > 0 && totalRawIdleCPU > 0 && totalOverheadCPU > 0 {
+			subtraction := (cpuIdleCost / totalRawIdleCPU) * totalOverheadCPU
+			cpuIdleCost -= subtraction
+		}
+		if ramIdleCost > 0 && totalRawIdleRAM > 0 && totalOverheadRAM > 0 {
+			subtraction := (ramIdleCost / totalRawIdleRAM) * totalOverheadRAM
+			ramIdleCost -= subtraction
+		}
 
 		// Clamp idle costs to zero to prevent negative idle allocations
 		if cpuIdleCost < 0 {
