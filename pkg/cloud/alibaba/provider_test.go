@@ -2298,3 +2298,30 @@ func TestProcessDescribePriceAndCreateAlibabaPricing_ErrorHandling(t *testing.T)
 		}
 	})
 }
+
+func TestAlibabaRefreshCustomPricing(t *testing.T) {
+	cp := &models.CustomPricing{
+		CPU: "0.05",
+		RAM: "0.006",
+		GPU: "2.0",
+	}
+	pricingEntry := &AlibabaPricing{
+		Node: &models.Node{BaseCPUPrice: "old"},
+	}
+	a := &Alibaba{
+		Config:  &fakeProviderConfig{customPricing: cp},
+		Pricing: map[string]*AlibabaPricing{"cn-hangzhou,ecs.g6.large,linux": pricingEntry},
+	}
+	if err := a.RefreshCustomPricing(); err != nil {
+		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
+	}
+	if pricingEntry.Node.BaseCPUPrice != cp.CPU {
+		t.Errorf("BaseCPUPrice = %q, want %q", pricingEntry.Node.BaseCPUPrice, cp.CPU)
+	}
+	if pricingEntry.Node.BaseRAMPrice != cp.RAM {
+		t.Errorf("BaseRAMPrice = %q, want %q", pricingEntry.Node.BaseRAMPrice, cp.RAM)
+	}
+	if pricingEntry.Node.BaseGPUPrice != cp.GPU {
+		t.Errorf("BaseGPUPrice = %q, want %q", pricingEntry.Node.BaseGPUPrice, cp.GPU)
+	}
+}

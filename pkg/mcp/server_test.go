@@ -702,6 +702,7 @@ func (mp *mockProvider) PVPricing(models.PVKey) (*models.PV, error)             
 func (mp *mockProvider) NetworkPricing() (*models.Network, error)                { return nil, nil }
 func (mp *mockProvider) LoadBalancerPricing() (*models.LoadBalancer, error)      { return nil, nil }
 func (mp *mockProvider) DownloadPricingData() error                              { return nil }
+func (mp *mockProvider) RefreshCustomPricing() error                             { return nil }
 func (mp *mockProvider) GetKey(map[string]string, *clustercache.Node) models.Key { return nil }
 func (mp *mockProvider) GetPVKey(*clustercache.PersistentVolume, map[string]string, string) models.PVKey {
 	return nil

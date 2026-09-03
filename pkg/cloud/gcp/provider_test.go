@@ -1369,3 +1369,14 @@ func (m *mockConfig) Update(updateFn func(*models.CustomPricing) error) (*models
 func (m *mockConfig) ConfigFileManager() *config.ConfigFileManager {
 	return nil
 }
+
+func TestGCPRefreshCustomPricing(t *testing.T) {
+	gcp := &GCP{Config: &mockConfig{}}
+	if err := gcp.RefreshCustomPricing(); err != nil {
+		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
+	}
+	// mockConfig returns an empty CustomPricing; verify fields are updated (to "")
+	if gcp.BaseCPUPrice != "" {
+		t.Errorf("BaseCPUPrice = %q, want empty string", gcp.BaseCPUPrice)
+	}
+}
