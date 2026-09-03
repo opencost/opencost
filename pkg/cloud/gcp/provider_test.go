@@ -811,17 +811,145 @@ func TestGCP_NetworkPricing(t *testing.T) {
 		Config: &mockConfig{},
 	}
 
-	result, err := gcp.NetworkPricing()
+	result, err := gcp.NetworkPricing(nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 }
 
 func TestGCP_LoadBalancerPricing(t *testing.T) {
-	gcp := &GCP{}
+	gcp := &GCP{
+		ClusterRegion: "us-central1",
+		Pricing: map[string]*GCPPricing{
+			"us-central1,ForwardingRule:external-http": {
+				Description: "External HTTP(S) Load Balancer Forwarding Rule",
+				PricingInfo: []*PricingInfo{
+					{
+						PricingExpression: &PricingExpression{
+							UsageUnit: "h",
+							TieredRates: []*TieredRates{
+								{
+									UnitPrice: &UnitPriceInfo{
+										Units: "0",
+										Nanos: 25000000, // 0.025
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"us-central1,ForwardingRule:internal-http": {
+				Description: "Internal HTTP(S) Load Balancer Forwarding Rule",
+				PricingInfo: []*PricingInfo{
+					{
+						PricingExpression: &PricingExpression{
+							UsageUnit: "h",
+							TieredRates: []*TieredRates{
+								{
+									UnitPrice: &UnitPriceInfo{
+										Units: "0",
+										Nanos: 18000000, // 0.018
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"us-central1,ForwardingRule:network-tcp": {
+				Description: "Regional Forwarding Rule",
+				PricingInfo: []*PricingInfo{
+					{
+						PricingExpression: &PricingExpression{
+							UsageUnit: "h",
+							TieredRates: []*TieredRates{
+								{
+									UnitPrice: &UnitPriceInfo{
+										Units: "0",
+										Nanos: 20000000, // 0.020
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"us-central1,ForwardingRule:ssl-proxy": {
+				Description: "SSL Proxy Load Balancer Forwarding Rule",
+				PricingInfo: []*PricingInfo{
+					{
+						PricingExpression: &PricingExpression{
+							UsageUnit: "h",
+							TieredRates: []*TieredRates{
+								{
+									UnitPrice: &UnitPriceInfo{
+										Units: "0",
+										Nanos: 35000000, // 0.035
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 
-	result, err := gcp.LoadBalancerPricing()
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
+	cases := []struct {
+		name         string
+		key          models.LBKey
+		expectedCost float64
+	}{
+		{
+			name:         "Nil key defaults to fallback rule cost (fffrc * 1 = 0.025)",
+			key:          nil,
+			expectedCost: 0.025,
+		},
+		{
+			name: "External HTTP(S) LB by feature name",
+			key: &models.CustomLBKey{
+				LBFeatures: "external-http",
+			},
+			expectedCost: 0.025,
+		},
+		{
+			name: "Internal HTTP(S) LB by ID",
+			key: &models.CustomLBKey{
+				LBID: "gcp-lb-internal-http",
+			},
+			expectedCost: 0.018,
+		},
+		{
+			name: "Network/TCP LB by features",
+			key: &models.CustomLBKey{
+				LBFeatures: "network-tcp-lb",
+			},
+			expectedCost: 0.020,
+		},
+		{
+			name: "SSL Proxy LB by features",
+			key: &models.CustomLBKey{
+				LBFeatures: "ssl-proxy",
+			},
+			expectedCost: 0.035,
+		},
+		{
+			name: "Unknown key defaults to fallback rule cost (0.025)",
+			key: &models.CustomLBKey{
+				LBFeatures: "unknown-lb-type",
+			},
+			expectedCost: 0.025,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := gcp.LoadBalancerPricing(tc.key)
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.InDelta(t, tc.expectedCost, result.Cost, 0.0001)
+		})
+	}
 }
 
 func TestGCP_GetPVKey(t *testing.T) {

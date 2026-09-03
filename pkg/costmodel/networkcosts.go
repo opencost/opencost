@@ -144,9 +144,16 @@ func GetNetworkUsageData(
 
 // GetNetworkCost computes the actual cost for NetworkUsageData based on data provided by the Provider.
 func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) ([]*util.Vector, error) {
+	if usage == nil {
+		return nil, fmt.Errorf("network usage is nil")
+	}
+
 	var results []*util.Vector
 
-	pricing, err := cloud.NetworkPricing()
+	netKey := &costAnalyzerCloud.CustomNetworkKey{
+		NetworkID: fmt.Sprintf("%s/%s/%s", usage.ClusterID, usage.Namespace, usage.PodName),
+	}
+	pricing, err := cloud.NetworkPricing(netKey)
 	if err != nil {
 		return nil, err
 	}

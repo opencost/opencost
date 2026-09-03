@@ -2,12 +2,14 @@ package costmodel
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/pkg/cloud/models"
 )
 
 const Ki = 1024
@@ -621,4 +623,91 @@ func TestCalculateStartAndEnd(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestApplyNodesToPod_CarbonAllocation(t *testing.T) {
+	cm := &CostModel{
+		Provider: &carbonMockProvider{},
+	}
+
+	// Create pod map
+	pKey := podKey{
+		namespaceKey: namespaceKey{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+		},
+		Pod: "pod1",
+	}
+
+	alloc := &opencost.Allocation{
+		Name: "cluster1/node1/namespace1/pod1/container1",
+		Properties: &opencost.AllocationProperties{
+			Cluster:   "cluster1",
+			Node:      "node1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container1",
+		},
+		CPUCoreHours: 2.0,
+		RAMByteHours: 8.0 * 1024.0 * 1024.0 * 1024.0, // 8 GiB hours
+	}
+
+	podMap := map[podKey]*pod{
+		pKey: {
+			Key: pKey,
+			Allocations: map[string]*opencost.Allocation{
+				"container1": alloc,
+			},
+		},
+	}
+
+	// Create node pricing map
+	nKey := newNodeKey("cluster1", "node1")
+	nodeMap := map[nodeKey]*nodePricing{
+		nKey: {
+			Name:            "node1",
+			NodeType:        "t4g.nano",
+			ProviderID:      "aws:///us-east-1a/i-1",
+			CostPerCPUHr:    0.01,
+			CostPerRAMGiBHr: 0.002,
+		},
+	}
+
+	// Create node labels map
+	nodeLabels := map[nodeKey]map[string]string{
+		nKey: {
+			"topology_kubernetes_io_region": "us-east-1",
+		},
+	}
+
+	cm.applyNodesToPod(podMap, nodeMap, nodeLabels)
+
+	if alloc.CarbonKilograms == 0 {
+		t.Errorf("expected non-zero CarbonKilograms")
+	}
+
+	// Math verification:
+	// nodeCoeff for AWS us-east-1 t4g.nano is 4.84769853777516e-06 tonnes/hour = 0.00484769853777516 kg/hour.
+	// default capacity fallback is 4 cores, 16 GiB RAM.
+	// totalNodeCostRate = 0.01 * 4 + 0.002 * 16 = 0.072.
+	// alloc.CPUCost = 2 * 0.01 = 0.02
+	// alloc.RAMCost = 8 * 0.002 = 0.016
+	// totalAllocCost = 0.036
+	// carbonKilograms = 0.036 * (0.00484769853777516 / 0.072) = 0.00242384926888758 kg.
+	expectedCarbon := 0.036 * (0.00484769853777516 / 0.072)
+	if math.Abs(alloc.CarbonKilograms-expectedCarbon) > 1e-9 {
+		t.Errorf("unexpected CarbonKilograms: expected %g, got %g", expectedCarbon, alloc.CarbonKilograms)
+	}
+}
+
+type carbonMockProvider struct {
+	models.Provider
+}
+
+func (mp *carbonMockProvider) GetConfig() (*models.CustomPricing, error) {
+	return &models.CustomPricing{
+		CustomPricesEnabled: "false",
+		CPU:                 "0.01",
+		RAM:                 "0.002",
+	}, nil
 }

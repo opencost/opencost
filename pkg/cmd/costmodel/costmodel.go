@@ -69,6 +69,7 @@ func Execute(conf *Config) error {
 		router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
 		router.GET("/assets", a.ComputeAssetsHandler)
 		if conf.CarbonEstimatesEnabled {
+			router.GET("/allocation/carbon", a.ComputeAllocationHandler)
 			router.GET("/assets/carbon", a.ComputeAssetsCarbonHandler)
 		}
 		router.GET("/kubemodel", a.KubeModelHandler)
