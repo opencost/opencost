@@ -282,9 +282,12 @@ func (g *GCPPricingSource) buildNodePricing(ps *pricing.PricingSet, nodeCPUCosts
 		}
 		processedKeys[key] = true
 
-		// Skip spot/preemptible pricing
+		// GCP's Cloud Billing Catalog API bills both legacy Preemptible VMs
+		// and modern Spot VMs under the "Preemptible" usageType, so we map
+		// that usage type to our Spot provisioning type.
+		provisioning := pricing.ProvisioningOnDemand
 		if strings.EqualFold(key.UsageType, "preemptible") {
-			continue
+			provisioning = pricing.ProvisioningSpot
 		}
 
 		cpuCost := nodeCPUCosts[key]
@@ -300,7 +303,7 @@ func (g *GCPPricingSource) buildNodePricing(ps *pricing.PricingSet, nodeCPUCosts
 				Provider:     cloud.ProviderGCP,
 				Region:       key.Region,
 				InstanceType: key.InstanceType,
-				Provisioning: pricing.ProvisioningOnDemand,
+				Provisioning: provisioning,
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceCPU: pricing.Price{

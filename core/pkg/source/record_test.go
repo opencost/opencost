@@ -103,6 +103,7 @@ func TestRecordMetricsQuerier_Counts(t *testing.T) {
 	r.QueryDaemonSetUptime(start, end)
 	r.QueryDaemonSetLabels(start, end)
 	r.QueryDaemonSetAnnotations(start, end)
+	r.QueryDaemonSetArguments(start, end)
 	r.QueryJobInfo(start, end)
 	r.QueryJobUptime(start, end)
 	r.QueryJobLabels(start, end)
@@ -259,6 +260,7 @@ func TestRecordMetricsQuerier_Counts(t *testing.T) {
 		"QueryDaemonSetUptime":                          1,
 		"QueryDaemonSetLabels":                          1,
 		"QueryDaemonSetAnnotations":                     1,
+		"QueryDaemonSetArguments":                       1,
 		"QueryJobInfo":                                  1,
 		"QueryJobUptime":                                1,
 		"QueryJobLabels":                                1,

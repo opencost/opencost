@@ -626,6 +626,12 @@ func (m *MockMetricsQuerier) QueryDaemonSetAnnotations(start, end time.Time) *Fu
 	})
 }
 
+func (m *MockMetricsQuerier) QueryDaemonSetArguments(start, end time.Time) *Future[DaemonSetArgumentResult] {
+	return getFutureFromOverride(m.overrides, QueryDaemonSetArguments, func() *Future[DaemonSetArgumentResult] {
+		return m.noop.QueryDaemonSetArguments(start, end)
+	})
+}
+
 // Job
 
 func (m *MockMetricsQuerier) QueryJobInfo(start, end time.Time) *Future[JobInfoResult] {
