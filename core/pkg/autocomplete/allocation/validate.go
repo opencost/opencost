@@ -17,6 +17,11 @@ func ValidateField(field string) (string, error) {
 	switch f {
 	case "account", "cluster", "namespace", "node", "controllerkind", "controllername", "pod", "container", "label", "namespacelabel":
 		return f, nil
+	// Alias fields map to user-configured label keys via LabelConfig (e.g. "department" →
+	// LabelConfig.DepartmentLabel). Resolution to the actual label key happens in
+	// allocationAutocompleteValues using the LabelConfig on the request.
+	case "department", "environment", "owner", "product", "team":
+		return f, nil
 	}
 
 	if strings.HasPrefix(f, "label:") {

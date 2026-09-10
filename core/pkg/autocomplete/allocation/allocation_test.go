@@ -21,6 +21,15 @@ func TestValidateField(t *testing.T) {
 		{"label", "label", false},
 		{"label:App", "label:App", false},
 		{"namespacelabel:Team", "namespacelabel:Team", false},
+		// alias fields
+		{"department", "department", false},
+		{"environment", "environment", false},
+		{"owner", "owner", false},
+		{"product", "product", false},
+		{"team", "team", false},
+		// case-insensitive alias
+		{"Department", "department", false},
+		{"TEAM", "team", false},
 		{"", "", true},
 		{"bad", "", true},
 	}

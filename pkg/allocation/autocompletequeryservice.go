@@ -7,6 +7,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/autocomplete"
 	coreallocation "github.com/opencost/opencost/core/pkg/autocomplete/allocation"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 )
 
 func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, req autocomplete.Request) (*autocomplete.Response, error) {
@@ -40,7 +41,7 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 				continue
 			}
 
-			values := allocationAutocompleteValues(alloc.Properties, field)
+			values := allocationAutocompleteValues(alloc.Properties, field, req.LabelConfig)
 			for _, value := range values {
 				if value == "" {
 					continue
@@ -56,7 +57,7 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 	return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(results, req.Limit)}, nil
 }
 
-func allocationAutocompleteValues(props *opencost.AllocationProperties, field string) []string {
+func allocationAutocompleteValues(props *opencost.AllocationProperties, field string, labelConfig *opencost.LabelConfig) []string {
 	switch {
 	case field == "account":
 		return nil
@@ -88,8 +89,48 @@ func allocationAutocompleteValues(props *opencost.AllocationProperties, field st
 		if v, ok := autocomplete.MapValueFold(props.NamespaceLabels, label); ok {
 			return []string{v}
 		}
+	// Alias fields resolve to user-configured label keys via LabelConfig.
+	// Each configured key string may be comma-separated; all keys are checked.
+	case field == "department", field == "environment", field == "owner", field == "product", field == "team":
+		return aliasLabelValues(props.Labels, aliasLabelKey(field, labelConfig))
 	}
 	return nil
+}
+
+// aliasLabelKey returns the configured label key string for the given alias field.
+func aliasLabelKey(alias string, labelConfig *opencost.LabelConfig) string {
+	if labelConfig == nil {
+		labelConfig = opencost.NewLabelConfig()
+	}
+	switch alias {
+	case "department":
+		return labelConfig.DepartmentLabel
+	case "environment":
+		return labelConfig.EnvironmentLabel
+	case "owner":
+		return labelConfig.OwnerLabel
+	case "product":
+		return labelConfig.ProductLabel
+	case "team":
+		return labelConfig.TeamLabel
+	}
+	return ""
+}
+
+// aliasLabelValues looks up each comma-separated key from configuredKey in labels
+// and returns all found values.
+func aliasLabelValues(labels map[string]string, configuredKey string) []string {
+	if configuredKey == "" || len(labels) == 0 {
+		return nil
+	}
+	var results []string
+	for _, key := range strings.Split(configuredKey, ",") {
+		key = promutil.SanitizeLabelName(strings.TrimSpace(key))
+		if v, ok := labels[key]; ok && v != "" {
+			results = append(results, v)
+		}
+	}
+	return results
 }
 
 func mapKeys(values map[string]string) []string {
