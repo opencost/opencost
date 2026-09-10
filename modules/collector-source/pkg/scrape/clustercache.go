@@ -2,6 +2,7 @@ package scrape
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -688,19 +689,17 @@ func (ccs *ClusterCacheScraper) GetScrapePVs(pvs []*clustercache.PersistentVolum
 func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, pv := range pvs {
-		providerID := pv.Name
-		var csiVolumeHandle string
-		// if a more accurate provider ID is available, use that
-		if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
-			providerID = pv.Spec.CSI.VolumeHandle
-			csiVolumeHandle = pv.Spec.CSI.VolumeHandle
-		}
+		providerID := getPVProviderID(pv)
+
 		pvInfo := map[string]string{
-			source.UIDLabel:             string(pv.UID),
-			source.PVLabel:              pv.Name,
-			source.StorageClassLabel:    pv.Spec.StorageClassName,
-			source.ProviderIDLabel:      providerID,
-			source.CSIVolumeHandleLabel: csiVolumeHandle,
+			source.UIDLabel:          string(pv.UID),
+			source.PVLabel:           pv.Name,
+			source.StorageClassLabel: pv.Spec.StorageClassName,
+			source.ProviderIDLabel:   providerID,
+		}
+
+		if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
+			pvInfo[source.CSIVolumeHandleLabel] = pv.Spec.CSI.VolumeHandle
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
@@ -727,6 +726,27 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 	})
 
 	return scrapeResults
+}
+
+// Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
+var persistentVolumeAWSRegex = regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)")
+
+func getPVProviderID(pv *clustercache.PersistentVolume) string {
+	providerID := pv.Name
+	if pv.Spec.GCEPersistentDisk != nil {
+		providerID = pv.Spec.GCEPersistentDisk.PDName
+	} else if pv.Spec.AzureDisk != nil {
+		providerID = pv.Spec.AzureDisk.DiskName
+	} else if pv.Spec.AWSElasticBlockStore != nil {
+		providerID = pv.Spec.AWSElasticBlockStore.VolumeID
+		match := persistentVolumeAWSRegex.FindStringSubmatch(providerID)
+		if len(match) >= 2 {
+			providerID = match[1]
+		}
+	} else if pv.Spec.CSI != nil {
+		providerID = pv.Spec.CSI.VolumeHandle
+	}
+	return providerID
 }
 
 func (ccs *ClusterCacheScraper) GetScrapeServices(
@@ -1339,7 +1359,7 @@ func getPersistentVolumeClaimClass(claim *clustercache.PersistentVolumeClaim) st
 // toResourceUnitValue accepts a resource name and quantity and returns the sanitized resource, the unit, and the value in the units.
 // Returns an empty string for resource and unit if there was a failure.
 func toResourceUnitValue(resourceName v1.ResourceName, quantity resource.Quantity) (resource string, unit string, value float64) {
-	resource = promutil.SanitizeLabelName(string(resourceName))
+	resource = resourceName.String()
 
 	switch resourceName {
 	case v1.ResourceCPU:

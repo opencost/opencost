@@ -7434,10 +7434,10 @@ func (target *PersistentVolume) MarshalBinaryWithContext(ctx *EncodingContext) (
 	}
 
 	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.CSIVolumeHandle)
+		d := ctx.Table.AddOrGet(target.ProviderID)
 		buff.WriteInt(d) // write table index
 	} else {
-		buff.WriteString(target.CSIVolumeHandle) // write string
+		buff.WriteString(target.ProviderID) // write string
 	}
 
 	buff.WriteFloat64(target.SizeBytes) // write float64
@@ -7552,7 +7552,7 @@ func (target *PersistentVolume) UnmarshalBinaryWithContext(ctx *DecodingContext)
 		n = buff.ReadString() // read string
 	}
 	m := n
-	target.CSIVolumeHandle = m
+	target.ProviderID = m
 
 	p := buff.ReadFloat64() // read float64
 	target.SizeBytes = p
