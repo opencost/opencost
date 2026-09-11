@@ -46,3 +46,18 @@ func buildPVIndex(pvs []*clustercache.PersistentVolume) map[string]types.UID {
 	}
 	return m
 }
+
+// podKey is a composite key for a Pod (namespace + name).
+type podKey struct {
+	namespace string
+	name      string
+}
+
+// buildPodIndex returns a map from (namespace, name) to Pod UID.
+func buildPodIndex(pods []*clustercache.Pod) map[podKey]types.UID {
+	m := make(map[podKey]types.UID, len(pods))
+	for _, pod := range pods {
+		m[podKey{namespace: pod.Namespace, name: pod.Name}] = pod.UID
+	}
+	return m
+}

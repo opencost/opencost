@@ -2244,6 +2244,24 @@ func (pds *PrometheusMetricsQuerier) QueryDaemonSetAnnotations(start, end time.T
 	return source.NewFuture(source.DecodeAnnotationsResult, ctx.QueryAtTime(queryDaemonSetAnnotations, end))
 }
 
+func (pds *PrometheusMetricsQuerier) QueryDaemonSetArguments(start, end time.Time) *source.Future[source.DaemonSetArgumentResult] {
+	const queryName = "QueryDaemonSetArguments"
+	const queryFmtDaemonSetArguments = `avg(avg_over_time(daemonset_arguments{%s}[%s])) by (%s, uid, arg, value)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDaemonSetArguments := fmt.Sprintf(queryFmtDaemonSetArguments, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDaemonSetArguments)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeDaemonSetArgumentResult, ctx.QueryAtTime(queryDaemonSetArguments, end))
+}
+
 func (pds *PrometheusMetricsQuerier) QueryJobInfo(start, end time.Time) *source.Future[source.JobInfoResult] {
 	const queryName = "QueryJobInfo"
 	const queryFmtJobInfo = `avg(avg_over_time(job_info{%s}[%s])) by (%s, uid, namespace_uid, job)`

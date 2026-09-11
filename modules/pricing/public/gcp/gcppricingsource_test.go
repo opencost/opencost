@@ -656,14 +656,14 @@ func TestBuildNodePricing(t *testing.T) {
 			currencyCode: "USD",
 		},
 		{
-			name: "Preemptible instance - excluded",
+			name: "Preemptible instance - included as spot",
 			cpuCosts: map[nodeKey]float64{
 				{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.007583,
 			},
 			ramCosts: map[nodeKey]float64{
 				{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.001017,
 			},
-			wantNodes:    0,
+			wantNodes:    1,
 			currencyCode: "USD",
 		},
 		{
@@ -700,6 +700,58 @@ func TestBuildNodePricing(t *testing.T) {
 			}
 
 		})
+	}
+}
+
+func TestBuildNodePricing_SpotProvisioning(t *testing.T) {
+	source := &GCPPricingSource{
+		config: GCPPricingSourceConfig{
+			CurrencyCode: "USD",
+		},
+	}
+	ps := &pricing.PricingSet{
+		NodePricing:             []*pricing.NodePricing{},
+		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+	}
+
+	cpuCosts := map[nodeKey]float64{
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "ondemand"}:    0.031611,
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.007583,
+	}
+	ramCosts := map[nodeKey]float64{
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "ondemand"}:    0.004237,
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.001017,
+	}
+
+	source.buildNodePricing(ps, cpuCosts, ramCosts)
+
+	if len(ps.NodePricing) != 2 {
+		t.Fatalf("buildNodePricing() created %d nodes, want 2", len(ps.NodePricing))
+	}
+
+	var sawOnDemand, sawSpot bool
+	for _, np := range ps.NodePricing {
+		switch np.Properties.Provisioning {
+		case pricing.ProvisioningOnDemand:
+			sawOnDemand = true
+			if np.Prices[pricing.ResourceCPU].Price != 0.031611 {
+				t.Errorf("on-demand CPU price = %v, want 0.031611", np.Prices[pricing.ResourceCPU].Price)
+			}
+		case pricing.ProvisioningSpot:
+			sawSpot = true
+			if np.Prices[pricing.ResourceCPU].Price != 0.007583 {
+				t.Errorf("spot CPU price = %v, want 0.007583", np.Prices[pricing.ResourceCPU].Price)
+			}
+		default:
+			t.Errorf("unexpected provisioning type: %v", np.Properties.Provisioning)
+		}
+	}
+
+	if !sawOnDemand {
+		t.Error("expected an on-demand node pricing entry")
+	}
+	if !sawSpot {
+		t.Error("expected a spot node pricing entry")
 	}
 }
 
