@@ -130,6 +130,7 @@ const (
 	QueryDaemonSetUptime      = "QueryDaemonSetUptime"
 	QueryDaemonSetLabels      = "QueryDaemonSetLabels"
 	QueryDaemonSetAnnotations = "QueryDaemonSetAnnotations"
+	QueryDaemonSetArguments   = "QueryDaemonSetArguments"
 
 	// Job
 	QueryJobInfo        = "QueryJobInfo"
@@ -352,6 +353,7 @@ type MetricsQuerier interface {
 	QueryDaemonSetUptime(start, end time.Time) *Future[UptimeResult]
 	QueryDaemonSetLabels(start, end time.Time) *Future[LabelsResult]
 	QueryDaemonSetAnnotations(start, end time.Time) *Future[AnnotationsResult]
+	QueryDaemonSetArguments(start, end time.Time) *Future[DaemonSetArgumentResult]
 
 	// Job
 	QueryJobInfo(start, end time.Time) *Future[JobInfoResult]

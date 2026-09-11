@@ -15,9 +15,12 @@ import (
 	"github.com/opencost/opencost/pkg/cloud"
 )
 
-const LabelColumnPrefix = "resource_tags_user_"
-const AWSLabelColumnPrefix = "resource_tags_aws_"
+// Resource Tag Columns
 const AthenaResourceTagPrefix = "resource_tags_"
+const AthenaResourceTagsUserPrefix = "user_"
+const AthenaResourceTagsAWSPrefix = "aws_"
+const LabelColumnPrefix = AthenaResourceTagPrefix + AthenaResourceTagsUserPrefix
+const AWSLabelColumnPrefix = AthenaResourceTagPrefix + AthenaResourceTagsAWSPrefix
 const AthenaResourceTagsColumn = "resource_tags"
 
 const AthenaResourceTagsCastToJsonColumn = "CAST(resource_tags AS JSON) as resource_tags"
@@ -433,9 +436,26 @@ func athenaRowToCloudCost(row types.Row, aqi AthenaQueryIndexes) (*opencost.Clou
 
 	if _, ok := aqi.ColumnIndexes[AthenaResourceTagsCastToJsonColumn]; ok {
 		resourceTags := GetAthenaRowValue(row, aqi.ColumnIndexes, AthenaResourceTagsCastToJsonColumn)
-		err := json.Unmarshal([]byte(resourceTags), &labels)
+		rawTags := map[string]string{}
+		err := json.Unmarshal([]byte(resourceTags), &rawTags)
 		if err != nil {
 			log.Errorf("athenaRowToCloudCost: error unmarshalling resource tags: %s", err.Error())
+		}
+		// aws tags keep their prefix
+		for tagKey, value := range rawTags {
+			if !strings.HasPrefix(tagKey, AthenaResourceTagsUserPrefix) && value != "" {
+				labels[tagKey] = value
+			}
+		}
+		// remove "user_" prefix, aws tags take precedence
+		for tagKey, value := range rawTags {
+			if !strings.HasPrefix(tagKey, AthenaResourceTagsUserPrefix) || value == "" {
+				continue
+			}
+			labelName := strings.TrimPrefix(tagKey, AthenaResourceTagsUserPrefix)
+			if _, exists := labels[labelName]; !exists {
+				labels[labelName] = value
+			}
 		}
 	}
 
