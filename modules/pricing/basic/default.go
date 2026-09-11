@@ -5,7 +5,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
-const DefaultClusterPricePerHour float64 = 0.0
+const DefaultClusterPricePerHour float64 = 0.10
 
 const DefaultNetworkLocalEgressPricePerGiB float64 = 0.0
 const DefaultNetworkCrossZoneEgressPricePerGiB float64 = 0.01

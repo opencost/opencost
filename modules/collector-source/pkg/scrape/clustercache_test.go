@@ -1351,6 +1351,182 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Non-CSI PV: provider ID comes from the in-tree AWS EBS source and
+			// the csi_volume_handle label must not be present at all.
+			name: "aws ebs non-csi pv omits csi_volume_handle label",
+			scrapes: []scrape{
+				{
+					PVs: []*clustercache.PersistentVolume{
+						{
+							Name: "pv-aws",
+							UID:  "uuid-aws",
+							Spec: v1.PersistentVolumeSpec{
+								StorageClassName: "gp2",
+								PersistentVolumeSource: v1.PersistentVolumeSource{
+									AWSElasticBlockStore: &v1.AWSElasticBlockStoreVolumeSource{
+										VolumeID: "aws://us-east-2a/vol-0fc54c5e83b8d2b76",
+									},
+								},
+								Capacity: v1.ResourceList{
+									v1.ResourceStorage: resource.MustParse("8192"),
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.KubecostPVInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid-aws",
+						source.PVLabel:           "pv-aws",
+						source.StorageClassLabel: "gp2",
+						source.ProviderIDLabel:   "vol-0fc54c5e83b8d2b76",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid-aws",
+						source.PVLabel:           "pv-aws",
+						source.StorageClassLabel: "gp2",
+						source.ProviderIDLabel:   "vol-0fc54c5e83b8d2b76",
+					},
+				},
+				{
+					Name: metric.KubePersistentVolumeCapacityBytes,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid-aws",
+						source.PVLabel:           "pv-aws",
+						source.StorageClassLabel: "gp2",
+						source.ProviderIDLabel:   "vol-0fc54c5e83b8d2b76",
+					},
+					Value:          8192,
+					AdditionalInfo: nil,
+				},
+			},
+		},
+		{
+			// GCE PD in-tree source: provider ID is the PD name, no csi label.
+			name: "gce pd non-csi pv omits csi_volume_handle label",
+			scrapes: []scrape{
+				{
+					PVs: []*clustercache.PersistentVolume{
+						{
+							Name: "pv-gce",
+							UID:  "uuid-gce",
+							Spec: v1.PersistentVolumeSpec{
+								StorageClassName: "standard",
+								PersistentVolumeSource: v1.PersistentVolumeSource{
+									GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+										PDName: "gke-pvc-abc123",
+									},
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.KubecostPVInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid-gce",
+						source.PVLabel:           "pv-gce",
+						source.StorageClassLabel: "standard",
+						source.ProviderIDLabel:   "gke-pvc-abc123",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid-gce",
+						source.PVLabel:           "pv-gce",
+						source.StorageClassLabel: "standard",
+						source.ProviderIDLabel:   "gke-pvc-abc123",
+					},
+				},
+			},
+		},
+		{
+			// CSI source present but VolumeHandle empty: csi_volume_handle label
+			// is omitted, and provider_id currently ends up empty (documents the
+			// gap where the old code fell back to pv.Name).
+			name: "csi pv with empty volume handle omits csi label and has empty provider id",
+			scrapes: []scrape{
+				{
+					PVs: []*clustercache.PersistentVolume{
+						{
+							Name: "pv-csi-empty",
+							UID:  "uuid-csi-empty",
+							Spec: v1.PersistentVolumeSpec{
+								StorageClassName: "gp3",
+								PersistentVolumeSource: v1.PersistentVolumeSource{
+									CSI: &v1.CSIPersistentVolumeSource{
+										VolumeHandle: "",
+									},
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.KubecostPVInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid-csi-empty",
+						source.PVLabel:           "pv-csi-empty",
+						source.StorageClassLabel: "gp3",
+						source.ProviderIDLabel:   "",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid-csi-empty",
+						source.PVLabel:           "pv-csi-empty",
+						source.StorageClassLabel: "gp3",
+						source.ProviderIDLabel:   "",
+					},
+				},
+			},
+		},
+		{
+			// No recognized volume source: provider ID falls back to pv.Name.
+			name: "pv with no known volume source falls back to name",
+			scrapes: []scrape{
+				{
+					PVs: []*clustercache.PersistentVolume{
+						{
+							Name: "pv-nfs",
+							UID:  "uuid-nfs",
+							Spec: v1.PersistentVolumeSpec{
+								StorageClassName: "nfs",
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.KubecostPVInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid-nfs",
+						source.PVLabel:           "pv-nfs",
+						source.StorageClassLabel: "nfs",
+						source.ProviderIDLabel:   "pv-nfs",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid-nfs",
+						source.PVLabel:           "pv-nfs",
+						source.StorageClassLabel: "nfs",
+						source.ProviderIDLabel:   "pv-nfs",
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1362,7 +1538,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 			}
 
 			if len(scrapeResults) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
+				t.Fatalf("Expected result length of %d, got %d: %+v", len(tt.expected), len(scrapeResults), scrapeResults)
 			}
 
 			for i, expected := range tt.expected {
@@ -1370,6 +1546,117 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 				if !reflect.DeepEqual(expected, got) {
 					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
+				// csi_volume_handle must only be present for CSI volumes with a
+				// non-empty handle.
+				if _, ok := got.Labels[source.CSIVolumeHandleLabel]; ok {
+					if got.Labels[source.CSIVolumeHandleLabel] == "" {
+						t.Errorf("index %d: csi_volume_handle label present but empty", i)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestToResourceUnitValue(t *testing.T) {
+	tests := []struct {
+		name         string
+		resourceName v1.ResourceName
+		quantity     resource.Quantity
+		wantResource string
+		wantUnit     string
+		wantValue    float64
+	}{
+		{
+			name:         "cpu is reported in cores",
+			resourceName: v1.ResourceCPU,
+			quantity:     resource.MustParse("500m"),
+			wantResource: "cpu",
+			wantUnit:     "core",
+			wantValue:    0.5,
+		},
+		{
+			name:         "memory is reported in bytes",
+			resourceName: v1.ResourceMemory,
+			quantity:     resource.MustParse("1Ki"),
+			wantResource: "memory",
+			wantUnit:     "byte",
+			wantValue:    1024,
+		},
+		{
+			name:         "storage is reported in bytes",
+			resourceName: v1.ResourceStorage,
+			quantity:     resource.MustParse("2Ki"),
+			wantResource: "storage",
+			wantUnit:     "byte",
+			wantValue:    2048,
+		},
+		{
+			name:         "ephemeral storage is reported in bytes",
+			resourceName: v1.ResourceEphemeralStorage,
+			quantity:     resource.MustParse("3Ki"),
+			wantResource: "ephemeral-storage",
+			wantUnit:     "byte",
+			wantValue:    3072,
+		},
+		{
+			name:         "pods are reported as integers",
+			resourceName: v1.ResourcePods,
+			quantity:     resource.MustParse("10"),
+			wantResource: "pods",
+			wantUnit:     "integer",
+			wantValue:    10,
+		},
+		{
+			// Regression guard: the resource name is no longer sanitized, so the
+			// hyphen and case are preserved verbatim ("hugepages-2Mi", not
+			// "hugepages_2Mi").
+			name:         "huge pages keep their raw name and are bytes",
+			resourceName: v1.ResourceName(v1.ResourceHugePagesPrefix + "2Mi"),
+			quantity:     resource.MustParse("4Ki"),
+			wantResource: "hugepages-2Mi",
+			wantUnit:     "byte",
+			wantValue:    4096,
+		},
+		{
+			// Regression guard: extended resource names keep '.' and '/'
+			// ("nvidia.com/gpu", not "nvidia_com_gpu").
+			name:         "extended resource keeps dotted slashed name and is integer",
+			resourceName: v1.ResourceName("nvidia.com/gpu"),
+			quantity:     resource.MustParse("2"),
+			wantResource: "nvidia.com/gpu",
+			wantUnit:     "integer",
+			wantValue:    2,
+		},
+		{
+			name:         "attachable volume resource keeps raw name and is bytes",
+			resourceName: v1.ResourceName(v1.ResourceAttachableVolumesPrefix + "aws-ebs"),
+			quantity:     resource.MustParse("5"),
+			wantResource: "attachable-volumes-aws-ebs",
+			wantUnit:     "byte",
+			wantValue:    5,
+		},
+		{
+			name:         "unrecognized native resource returns empty",
+			resourceName: v1.ResourceName("kubernetes.io/somethingelse"),
+			quantity:     resource.MustParse("1"),
+			wantResource: "",
+			wantUnit:     "",
+			wantValue:    0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResource, gotUnit, gotValue := toResourceUnitValue(tt.resourceName, tt.quantity)
+			if gotResource != tt.wantResource {
+				t.Errorf("resource = %q, want %q", gotResource, tt.wantResource)
+			}
+			if gotUnit != tt.wantUnit {
+				t.Errorf("unit = %q, want %q", gotUnit, tt.wantUnit)
+			}
+			if gotValue != tt.wantValue {
+				t.Errorf("value = %v, want %v", gotValue, tt.wantValue)
 			}
 		})
 	}

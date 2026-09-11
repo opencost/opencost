@@ -1,14 +1,16 @@
 package networkinsight
 
+import "github.com/opencost/opencost/core/pkg/filter/fieldstrings"
+
 type NetworkInsightField string
 type NetworkInsightDetailField string
 
-// Only support namespace, pod and cluster on day 1
 // Field used for Network Insight filtering
 const (
-	FieldClusterID NetworkInsightField = "cluster"
-	FieldNamespace NetworkInsightField = "namespace"
-	FieldPod       NetworkInsightField = "pod"
+	FieldClusterID NetworkInsightField = NetworkInsightField(fieldstrings.FieldClusterID)
+	FieldNamespace NetworkInsightField = NetworkInsightField(fieldstrings.FieldNamespace)
+	FieldPod       NetworkInsightField = NetworkInsightField(fieldstrings.FieldPod)
+	FieldAccount   NetworkInsightField = NetworkInsightField(fieldstrings.FieldAccount)
 )
 
 // Field used for Network Insight Details filtering

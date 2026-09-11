@@ -33,11 +33,14 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+		ServicePricing:          []*pricing.ServicePricing{},
 	}
 	skuToNodeKey := make(map[string]nodeKey)
 	seenNodeKeys := make(map[nodeKey]struct{})
 	skuToVolumeKey := make(map[string]volumeKey)
 	seenVolumeKeys := make(map[volumeKey]struct{})
+	skuToLBRegion := make(map[string]string)
+	seenLBRegions := make(map[string]struct{})
 
 	// Regions is used by the spotAPI to know what to query
 	regions := make(map[string]struct{})
@@ -108,6 +111,19 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 			return
 		}
 
+		// Handle Network Load Balancer pricing
+		if strings.Contains(attr.UsageType, "LoadBalancerUsage") && attr.Operation == "LoadBalancing:Network" {
+			if attr.RegionCode == "" {
+				return
+			}
+			if _, seen := seenLBRegions[attr.RegionCode]; seen {
+				return
+			}
+			seenLBRegions[attr.RegionCode] = struct{}{}
+			skuToLBRegion[product.Sku] = attr.RegionCode
+			return
+		}
+
 		// Handle EBS volumes
 		if strings.Contains(attr.UsageType, "EBS:Volume") {
 			// Extract the volume type from the usage type (e.g., "USE1-EBS:VolumeUsage.gp3" -> "EBS:VolumeUsage.gp3")
@@ -148,11 +164,12 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 				termCount, len(ps.NodePricing), len(ps.PersistentVolumePricing))
 		}
 
-		// Check if this SKU is for a node or volume we're tracking
+		// Check if this SKU is for a node, volume, or load balancer we're tracking
 		nk, isNode := skuToNodeKey[term.Sku]
 		vk, isVolume := skuToVolumeKey[term.Sku]
+		lbRegion, isLB := skuToLBRegion[term.Sku]
 
-		if !isNode && !isVolume {
+		if !isNode && !isVolume && !isLB {
 			return
 		}
 
@@ -212,13 +229,31 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 				},
 				Prices: pricing.Prices{
 					pricing.ResourceStorage: pricing.Price{
-						Unit:  unit.Hour,
+						Unit:  unit.GiBHour,
 						Price: hourlyPrice,
 					},
 				},
 			}
 
 			ps.PersistentVolumePricing = append(ps.PersistentVolumePricing, volumePricing)
+		}
+
+		// Handle load balancer pricing
+		if isLB {
+			servicePricing := &pricing.ServicePricing{
+				Properties: pricing.ServicePricingProperties{
+					Provider: cloud.ProviderAWS,
+					Region:   lbRegion,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceService: pricing.Price{
+						Unit:  unit.Hour,
+						Price: price,
+					},
+				},
+			}
+
+			ps.ServicePricing = append(ps.ServicePricing, servicePricing)
 		}
 	}
 
