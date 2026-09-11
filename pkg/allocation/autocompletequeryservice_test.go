@@ -98,113 +98,198 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 	}
 }
 
-func TestAliasLabelKey(t *testing.T) {
+func TestQueryAllocationAutocompleteFromSetRange_Alias(t *testing.T) {
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	as := opencost.NewAllocationSet(start, start.Add(24*time.Hour))
+	// label-backed alias value
+	as.Set(opencost.NewMockUnitAllocation("a1", start, 24*time.Hour, &opencost.AllocationProperties{
+		Namespace: "ns-a",
+		Labels:    map[string]string{"team": "platform"},
+	}))
+	// annotation-backed alias value: GenerateKey and the alias filter pass
+	// both fall back to annotations, so autocomplete must too
+	as.Set(opencost.NewMockUnitAllocation("a2", start, 24*time.Hour, &opencost.AllocationProperties{
+		Namespace:   "ns-b",
+		Annotations: map[string]string{"team": "data"},
+	}))
+	// label wins over annotation when both are present
+	as.Set(opencost.NewMockUnitAllocation("a3", start, 24*time.Hour, &opencost.AllocationProperties{
+		Namespace:   "ns-c",
+		Labels:      map[string]string{"team": "sre"},
+		Annotations: map[string]string{"team": "ignored"},
+	}))
+	// second configured key, needing sanitization (cost-center -> cost_center)
+	as.Set(opencost.NewMockUnitAllocation("a4", start, 24*time.Hour, &opencost.AllocationProperties{
+		Namespace: "ns-d",
+		Labels:    map[string]string{"cost_center": "eng-123"},
+	}))
+
+	asr := opencost.NewAllocationSetRange(as)
+	window := opencost.NewClosedWindow(start, start.Add(24*time.Hour))
+
+	// default LabelConfig: team -> "team"
+	resp, err := QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{
+		Field:  "team",
+		Window: window,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"data", "platform", "sre"}
+	if !equalStrings(resp.Data, want) {
+		t.Fatalf("team autocomplete = %v, want %v", resp.Data, want)
+	}
+
+	// search applies to alias values
+	resp, err = QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{
+		Field:  "Team",
+		Search: "dat",
+		Window: window,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !equalStrings(resp.Data, []string{"data"}) {
+		t.Fatalf("team autocomplete with search = %v, want [data]", resp.Data)
+	}
+
+	// custom LabelConfig with comma-separated keys
+	cfg := opencost.NewLabelConfig()
+	cfg.DepartmentLabel = "squad, cost-center"
+	resp, err = QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{
+		Field:       "department",
+		Window:      window,
+		LabelConfig: cfg,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !equalStrings(resp.Data, []string{"eng-123"}) {
+		t.Fatalf("department autocomplete = %v, want [eng-123]", resp.Data)
+	}
+
+	// alias configured to a key no allocation carries
+	cfg.OwnerLabel = "missing"
+	resp, err = QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{
+		Field:       "owner",
+		Window:      window,
+		LabelConfig: cfg,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(resp.Data) != 0 {
+		t.Fatalf("owner autocomplete = %v, want empty", resp.Data)
+	}
+}
+
+func TestAliasLabelKeys(t *testing.T) {
 	cfg := &opencost.LabelConfig{
 		DepartmentLabel:  "cost-center",
-		EnvironmentLabel: "stage",
+		EnvironmentLabel: "stage, tier",
 		OwnerLabel:       "owner",
-		ProductLabel:     "product",
+		ProductLabel:     "",
 		TeamLabel:        "squad",
 	}
 
 	tests := []struct {
-		alias string
-		want  string
+		field string
+		want  []string
 	}{
-		{"department", "cost-center"},
-		{"environment", "stage"},
-		{"owner", "owner"},
-		{"product", "product"},
-		{"team", "squad"},
+		{"department", []string{"cost_center"}},
+		{"environment", []string{"stage", "tier"}},
+		{"owner", []string{"owner"}},
+		{"product", nil},
+		{"team", []string{"squad"}},
+		{"namespace", nil},
+		{"label:team", nil},
 	}
 	for _, tt := range tests {
-		got := aliasLabelKey(tt.alias, cfg)
-		if got != tt.want {
-			t.Errorf("aliasLabelKey(%q) = %q, want %q", tt.alias, got, tt.want)
+		got := aliasLabelKeys(tt.field, cfg)
+		if !equalStrings(got, tt.want) {
+			t.Errorf("aliasLabelKeys(%q) = %v, want %v", tt.field, got, tt.want)
 		}
 	}
-}
 
-func TestAliasLabelKey_DefaultConfig(t *testing.T) {
-	// nil config falls back to NewLabelConfig() defaults
-	tests := []struct {
-		alias string
-		want  string
-	}{
-		{"department", "department"},
-		{"environment", "env"},
-		{"owner", "owner"},
-		{"product", "app"},
-		{"team", "team"},
-	}
-	for _, tt := range tests {
-		got := aliasLabelKey(tt.alias, nil)
-		if got != tt.want {
-			t.Errorf("aliasLabelKey(%q, nil) = %q, want %q", tt.alias, got, tt.want)
-		}
+	defaults := opencost.NewLabelConfig()
+	if got := aliasLabelKeys("product", defaults); !equalStrings(got, []string{"app"}) {
+		t.Errorf("aliasLabelKeys(product, defaults) = %v, want [app]", got)
 	}
 }
 
 func TestAliasLabelValues(t *testing.T) {
-	labels := map[string]string{
-		"team":        "platform",
-		"cost_center": "eng-123",
-	}
-
 	tests := []struct {
-		name          string
-		configuredKey string
-		labels        map[string]string
-		want          []string
+		name  string
+		props *opencost.AllocationProperties
+		keys  []string
+		want  []string
 	}{
 		{
-			name:          "single key match",
-			configuredKey: "team",
-			labels:        labels,
-			want:          []string{"platform"},
+			name:  "label match",
+			props: &opencost.AllocationProperties{Labels: map[string]string{"team": "platform"}},
+			keys:  []string{"team"},
+			want:  []string{"platform"},
 		},
 		{
-			name:          "single key no match",
-			configuredKey: "missing",
-			labels:        labels,
-			want:          nil,
+			name:  "annotation fallback",
+			props: &opencost.AllocationProperties{Annotations: map[string]string{"team": "platform"}},
+			keys:  []string{"team"},
+			want:  []string{"platform"},
 		},
 		{
-			name:          "comma-separated, first matches",
-			configuredKey: "team,missing",
-			labels:        labels,
-			want:          []string{"platform"},
+			name: "label wins over annotation",
+			props: &opencost.AllocationProperties{
+				Labels:      map[string]string{"team": "from-label"},
+				Annotations: map[string]string{"team": "from-annotation"},
+			},
+			keys: []string{"team"},
+			want: []string{"from-label"},
 		},
 		{
-			name:          "comma-separated, second matches (key sanitized: cost-center → cost_center)",
-			configuredKey: "missing,cost-center",
-			labels:        labels,
-			want:          []string{"eng-123"},
+			name: "multiple keys, mixed sources",
+			props: &opencost.AllocationProperties{
+				Labels:      map[string]string{"cost_center": "eng-123"},
+				Annotations: map[string]string{"squad": "core"},
+			},
+			keys: []string{"squad", "cost_center", "missing"},
+			want: []string{"core", "eng-123"},
 		},
 		{
-			name:          "empty configured key",
-			configuredKey: "",
-			labels:        labels,
-			want:          nil,
+			name:  "exact-case only, matching GenerateKey",
+			props: &opencost.AllocationProperties{Labels: map[string]string{"Team": "platform"}},
+			keys:  []string{"team"},
+			want:  nil,
 		},
 		{
-			name:          "nil labels",
-			configuredKey: "team",
-			labels:        nil,
-			want:          nil,
+			name:  "no keys",
+			props: &opencost.AllocationProperties{Labels: map[string]string{"team": "platform"}},
+			keys:  nil,
+			want:  nil,
+		},
+		{
+			name:  "nil maps",
+			props: &opencost.AllocationProperties{},
+			keys:  []string{"team"},
+			want:  nil,
 		},
 	}
 
 	for _, tt := range tests {
-		got := aliasLabelValues(tt.labels, tt.configuredKey)
-		if len(got) != len(tt.want) {
-			t.Errorf("case %q aliasLabelValues(%q): got %v, want %v", tt.name, tt.configuredKey, got, tt.want)
-			continue
-		}
-		for i := range got {
-			if got[i] != tt.want[i] {
-				t.Errorf("case %q aliasLabelValues(%q)[%d]: got %q, want %q", tt.name, tt.configuredKey, i, got[i], tt.want[i])
-			}
+		got := aliasLabelValues(tt.props, tt.keys)
+		if !equalStrings(got, tt.want) {
+			t.Errorf("case %q: aliasLabelValues = %v, want %v", tt.name, got, tt.want)
 		}
 	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

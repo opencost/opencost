@@ -97,6 +97,11 @@ func TestRouteField(t *testing.T) {
 		{"label:App", RouteLabelValue, "App"},
 		{"namespacelabel", RouteNamespaceLabelKeys, ""},
 		{"cluster", RouteDefault, ""},
+		{"department", RouteAlias, "department"},
+		{"environment", RouteAlias, "environment"},
+		{"owner", RouteAlias, "owner"},
+		{"product", RouteAlias, "product"},
+		{"team", RouteAlias, "team"},
 	}
 	for _, tt := range tests {
 		route, key, err := RouteField(tt.field)

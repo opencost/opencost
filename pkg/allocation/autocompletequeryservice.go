@@ -7,7 +7,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/autocomplete"
 	coreallocation "github.com/opencost/opencost/core/pkg/autocomplete/allocation"
 	"github.com/opencost/opencost/core/pkg/opencost"
-	"github.com/opencost/opencost/core/pkg/util/promutil"
 )
 
 func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, req autocomplete.Request) (*autocomplete.Response, error) {
@@ -17,6 +16,10 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 	if err != nil {
 		return nil, err
 	}
+
+	// Alias fields resolve to configured label keys once per request rather
+	// than once per allocation; nil for non-alias fields.
+	aliasKeys := aliasLabelKeys(field, req.LabelConfig)
 
 	var matcher opencost.AllocationMatcher
 	if autocomplete.HasFilter(req.Filter) {
@@ -41,7 +44,7 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 				continue
 			}
 
-			values := allocationAutocompleteValues(alloc.Properties, field, req.LabelConfig)
+			values := allocationAutocompleteValues(alloc.Properties, field, aliasKeys)
 			for _, value := range values {
 				if value == "" {
 					continue
@@ -57,7 +60,8 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 	return &autocomplete.Response{Data: autocomplete.UniqueSortedLimited(results, req.Limit)}, nil
 }
 
-func allocationAutocompleteValues(props *opencost.AllocationProperties, field string, labelConfig *opencost.LabelConfig) []string {
+func allocationAutocompleteValues(props *opencost.AllocationProperties, field string, aliasKeys []string) []string {
+	prop := opencost.AllocationProperty(field)
 	switch {
 	case field == "account":
 		return nil
@@ -89,44 +93,57 @@ func allocationAutocompleteValues(props *opencost.AllocationProperties, field st
 		if v, ok := autocomplete.MapValueFold(props.NamespaceLabels, label); ok {
 			return []string{v}
 		}
-	// Alias fields resolve to user-configured label keys via LabelConfig.
-	// Each configured key string may be comma-separated; all keys are checked.
-	case field == "department", field == "environment", field == "owner", field == "product", field == "team":
-		return aliasLabelValues(props.Labels, aliasLabelKey(field, labelConfig))
+	case prop.IsAliasedLabel():
+		return aliasLabelValues(props, aliasKeys)
 	}
 	return nil
 }
 
-// aliasLabelKey returns the configured label key string for the given alias field.
-func aliasLabelKey(alias string, labelConfig *opencost.LabelConfig) string {
-	if labelConfig == nil {
-		labelConfig = opencost.NewLabelConfig()
-	}
-	switch alias {
-	case "department":
-		return labelConfig.DepartmentLabel
-	case "environment":
-		return labelConfig.EnvironmentLabel
-	case "owner":
-		return labelConfig.OwnerLabel
-	case "product":
-		return labelConfig.ProductLabel
-	case "team":
-		return labelConfig.TeamLabel
-	}
-	return ""
-}
-
-// aliasLabelValues looks up each comma-separated key from configuredKey in labels
-// and returns all found values.
-func aliasLabelValues(labels map[string]string, configuredKey string) []string {
-	if configuredKey == "" || len(labels) == 0 {
+// aliasLabelKeys returns the sanitized label keys configured for an alias field
+// (e.g. "team" -> LabelConfig.TeamLabel), or nil if field is not an alias. The
+// configured value may be comma-separated. Keys are sanitized with
+// LabelConfig.Sanitize, exactly as GenerateKey does, so autocomplete agrees with
+// aggregation.
+func aliasLabelKeys(field string, labelConfig *opencost.LabelConfig) []string {
+	var configured string
+	switch opencost.AllocationProperty(field) {
+	case opencost.AllocationDepartmentProp:
+		configured = labelConfig.DepartmentLabel
+	case opencost.AllocationEnvironmentProp:
+		configured = labelConfig.EnvironmentLabel
+	case opencost.AllocationOwnerProp:
+		configured = labelConfig.OwnerLabel
+	case opencost.AllocationProductProp:
+		configured = labelConfig.ProductLabel
+	case opencost.AllocationTeamProp:
+		configured = labelConfig.TeamLabel
+	default:
 		return nil
 	}
+
+	var keys []string
+	for _, key := range strings.Split(configured, ",") {
+		if key = labelConfig.Sanitize(key); key != "" {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+// aliasLabelValues returns the value of each alias key from the allocation's
+// labels, falling back to its annotations when the label is absent. This
+// mirrors GenerateKey and the alias filter pass, so every value returned here
+// is one that aggregation and filtering will accept. Lookups are exact-case,
+// as in GenerateKey; this intentionally differs from the case-folded
+// label:<key> path.
+func aliasLabelValues(props *opencost.AllocationProperties, keys []string) []string {
 	var results []string
-	for _, key := range strings.Split(configuredKey, ",") {
-		key = promutil.SanitizeLabelName(strings.TrimSpace(key))
-		if v, ok := labels[key]; ok && v != "" {
+	for _, key := range keys {
+		if v, ok := props.Labels[key]; ok {
+			results = append(results, v)
+			continue
+		}
+		if v, ok := props.Annotations[key]; ok {
 			results = append(results, v)
 		}
 	}
