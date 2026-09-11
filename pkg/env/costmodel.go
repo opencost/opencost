@@ -58,9 +58,10 @@ const (
 	CSVEndpointEnvVar       = "CSV_ENDPOINT"
 	CSVPathEnvVar           = "CSV_PATH"
 
-	CloudProviderAPIKeyEnvVar        = "CLOUD_PROVIDER_API_KEY"
-	CollectorDataSourceEnabledEnvVar = "COLLECTOR_DATA_SOURCE_ENABLED"
-	LocalCollectorDirectoryEnvVar    = "LOCAL_COLLECTOR_DIRECTORY"
+	CloudProviderAPIKeyEnvVar             = "CLOUD_PROVIDER_API_KEY"
+	CollectorDataSourceEnabledEnvVar      = "COLLECTOR_DATA_SOURCE_ENABLED"
+	PrometheusOTelDataSourceEnabledEnvVar = "PROMETHEUS_OTEL_DATA_SOURCE_ENABLED"
+	LocalCollectorDirectoryEnvVar         = "LOCAL_COLLECTOR_DIRECTORY"
 
 	LogCollectionEnabledEnvVar    = "LOG_COLLECTION_ENABLED"
 	ProductAnalyticsEnabledEnvVar = "PRODUCT_ANALYTICS_ENABLED"
@@ -102,13 +103,15 @@ const (
 
 	// Metrics Emitter
 	MetricsEmitterQueryWindowEnvVar = "METRICS_EMITTER_QUERY_WINDOW"
-
 	// Inference Cost
 	InferenceCostEnabledEnvVar           = "INFERENCE_COST_ENABLED"
 	InferenceModelLabelEnvVar            = "INFERENCE_MODEL_LABEL"
 	InferenceSharedInfraLabelEnvVar      = "INFERENCE_SHARED_INFRA_LABEL"
 	InferenceSharedInfraLabelValueEnvVar = "INFERENCE_SHARED_INFRA_LABEL_VALUE"
 	InferenceCollectionIntervalEnvVar    = "INFERENCE_COLLECTION_INTERVAL"
+
+	// OTel Labels - When enabled, OpenCost metrics use OTel-style label names
+	OpenCostUseOTelLabelsEnvVar = "OPENCOST_USE_OTEL_LABELS"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -297,9 +300,15 @@ func GetCloudProviderAPIKey() string {
 	return env.Get(CloudProviderAPIKeyEnvVar, "")
 }
 
-// IsCollectorDataSourceEnabeled returns the environment variable which enables a source.OpencostDatasource which does not use uses Prometheus
+// IsCollectorDataSourceEnabled returns the environment variable which enables a source.OpenCostDataSource which does not use Prometheus
 func IsCollectorDataSourceEnabled() bool {
 	return env.GetBool(CollectorDataSourceEnabledEnvVar, false)
+}
+
+// IsPrometheusOTelDataSourceEnabled returns the environment variable which enables a source.OpenCostDataSource
+// that uses Prometheus with OpenTelemetry Collector metric names instead of standard cAdvisor/KSM metrics.
+func IsPrometheusOTelDataSourceEnabled() bool {
+	return env.GetBool(PrometheusOTelDataSourceEnabledEnvVar, false)
 }
 
 // IsLogCollectionEnabled returns the environment variable value for LogCollectionEnabledEnvVar which represents
@@ -427,7 +436,6 @@ func GetMCPHTTPPort() int {
 func GetMetricsEmitterQueryWindow() time.Duration {
 	return env.GetDuration(MetricsEmitterQueryWindowEnvVar, 2*time.Minute)
 }
-
 // IsInferenceCostEnabled returns whether the inference cost collector is enabled.
 func IsInferenceCostEnabled() bool {
 	return env.GetBool(InferenceCostEnabledEnvVar, false)
@@ -452,4 +460,11 @@ func GetInferenceSharedInfraLabelValue() string {
 // Default is 2 minutes to match the core metrics emitter query window.
 func GetInferenceCollectionInterval() time.Duration {
 	return env.GetDuration(InferenceCollectionIntervalEnvVar, 2*time.Minute)
+}
+
+// IsOTelLabelsEnabled returns true if OpenCost should use OTel-style labels
+// for exported metrics (e.g., k8s_node_name instead of node, k8s_namespace_name instead of namespace).
+// This allows OpenCost metrics to correlate with OTel Collector metrics without label_replace() transformations.
+func IsOTelLabelsEnabled() bool {
+	return env.GetBool(OpenCostUseOTelLabelsEnvVar, false)
 }
