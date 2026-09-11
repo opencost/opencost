@@ -2,7 +2,6 @@ package scrape
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -689,7 +688,7 @@ func (ccs *ClusterCacheScraper) GetScrapePVs(pvs []*clustercache.PersistentVolum
 func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, pv := range pvs {
-		providerID := getPVProviderID(pv)
+		providerID := clustercache.GetPVProviderID(pv)
 
 		pvInfo := map[string]string{
 			source.UIDLabel:          string(pv.UID),
@@ -726,27 +725,6 @@ func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) 
 	})
 
 	return scrapeResults
-}
-
-// Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
-var persistentVolumeAWSRegex = regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)")
-
-func getPVProviderID(pv *clustercache.PersistentVolume) string {
-	providerID := pv.Name
-	if pv.Spec.GCEPersistentDisk != nil {
-		providerID = pv.Spec.GCEPersistentDisk.PDName
-	} else if pv.Spec.AzureDisk != nil {
-		providerID = pv.Spec.AzureDisk.DiskName
-	} else if pv.Spec.AWSElasticBlockStore != nil {
-		providerID = pv.Spec.AWSElasticBlockStore.VolumeID
-		match := persistentVolumeAWSRegex.FindStringSubmatch(providerID)
-		if len(match) >= 2 {
-			providerID = match[1]
-		}
-	} else if pv.Spec.CSI != nil {
-		providerID = pv.Spec.CSI.VolumeHandle
-	}
-	return providerID
 }
 
 func (ccs *ClusterCacheScraper) GetScrapeServices(
