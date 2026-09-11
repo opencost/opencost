@@ -160,6 +160,19 @@ func NewContainerMetricsFromPod(pod *clustercache.Pod, clusterID string) ([]*Con
 			key:           containerMetricKey(ns, podName, containerName, node, clusterID),
 		})
 	}
+	for _, container := range pod.Spec.InitContainers {
+		if container.RestartPolicy != nil && string(*container.RestartPolicy) == "Always" {
+			containerName := container.Name
+			cs = append(cs, &ContainerMetric{
+				Namespace:     ns,
+				PodName:       podName,
+				ContainerName: containerName,
+				NodeName:      node,
+				ClusterID:     clusterID,
+				key:           containerMetricKey(ns, podName, containerName, node, clusterID),
+			})
+		}
+	}
 	return cs, nil
 }
 
