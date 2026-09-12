@@ -7,6 +7,29 @@ import (
 	"github.com/opencost/opencost/pkg/cloud"
 )
 
+func TestAthenaWhereUsage(t *testing.T) {
+	// Regression test for https://github.com/opencost/opencost/issues/4022 -
+	// AWS Marketplace subscription/fee charges (line_item_line_item_type = 'Fee')
+	// must be included, but only when billed through AWS Marketplace, so that
+	// non-Marketplace 'Fee' rows (e.g. Reserved Instance upfront purchases,
+	// already captured via 'DiscountedUsage' amortization) are not swept in and
+	// double counted.
+	expected := "(line_item_line_item_type = 'Usage' OR line_item_line_item_type = 'DiscountedUsage' OR line_item_line_item_type = 'SavingsPlanCoveredUsage' OR line_item_line_item_type = 'EdpDiscount' OR line_item_line_item_type = 'PrivateRateDiscount' OR (line_item_line_item_type = 'Fee' AND bill_billing_entity = 'AWS Marketplace'))"
+	if AthenaWhereUsage != expected {
+		t.Errorf("AthenaWhereUsage = %v, want %v", AthenaWhereUsage, expected)
+	}
+
+	if !strings.Contains(AthenaWhereUsage, "line_item_line_item_type = 'Fee' AND bill_billing_entity = 'AWS Marketplace'") {
+		t.Errorf("AthenaWhereUsage should include AWS Marketplace 'Fee' rows scoped to bill_billing_entity, got: %v", AthenaWhereUsage)
+	}
+
+	// A bare, unscoped 'Fee' disjunct would also match non-Marketplace fees like RI
+	// upfront purchases, so it must never appear on its own.
+	if strings.Contains(AthenaWhereUsage, "line_item_line_item_type = 'Fee')") {
+		t.Errorf("AthenaWhereUsage should not include an unscoped 'Fee' clause, got: %v", AthenaWhereUsage)
+	}
+}
+
 func TestAthenaIntegration_GetListCostColumn(t *testing.T) {
 	ai := &AthenaIntegration{}
 	expected := "SUM(CASE line_item_line_item_type WHEN 'EdpDiscount' THEN 0 WHEN 'PrivateRateDiscount' THEN 0 ELSE line_item_unblended_cost END) as list_cost"
