@@ -1492,3 +1492,114 @@ func TestAWS_findCostForDisk(t *testing.T) {
 		}
 	})
 }
+
+// TestPricingKeyMemory covers remembering instance types that have recently run in the
+// cluster. populatePricing rebuilds aws.Pricing from scratch and fills it only for the keys
+// it is handed, so without this a type that scales to zero loses its pricing.
+func TestPricingKeyMemory(t *testing.T) {
+	const (
+		keyA = "us-east-2,m5.large,linux"
+		keyB = "us-east-2,m5.xlarge,linux"
+		keyC = "us-east-2,c5.large,linux"
+	)
+
+	awsTest := &AWS{}
+
+	got := awsTest.pricingKeysToPopulate(map[string]bool{keyA: true})
+	if !got[keyA] {
+		t.Fatalf("a running instance type must be populated, got %v", got)
+	}
+
+	// keyA's nodes go away. Its pricing must keep being populated, otherwise the next node
+	// of that type misses aws.Pricing, passes the ValidPricingKeys check in NodePricing,
+	// and re-downloads the whole offer file.
+	got = awsTest.pricingKeysToPopulate(map[string]bool{keyB: true})
+	if !got[keyA] {
+		t.Errorf("a recently-seen instance type must still be populated, got %v", got)
+	}
+	if !got[keyB] {
+		t.Errorf("the currently-running instance type is missing, got %v", got)
+	}
+
+	// A key NodePricing asked about is populated by the download it triggers, even if the
+	// cluster cache has not caught up with the node yet.
+	awsTest.notePricingKey(keyC)
+	got = awsTest.pricingKeysToPopulate(map[string]bool{keyB: true})
+	if !got[keyC] {
+		t.Errorf("a key noted by NodePricing must be populated, got %v", got)
+	}
+
+	// Memory is bounded: once a type has been gone longer than pricingKeyMemory it stops
+	// being populated and stops occupying the map.
+	awsTest.recentPricingKeysLock.Lock()
+	awsTest.recentPricingKeys[keyA] = time.Now().Add(-pricingKeyMemory - time.Minute)
+	awsTest.recentPricingKeys[keyC] = time.Now().Add(-pricingKeyMemory - time.Minute)
+	awsTest.recentPricingKeysLock.Unlock()
+
+	got = awsTest.pricingKeysToPopulate(map[string]bool{keyB: true})
+	if got[keyA] || got[keyC] {
+		t.Errorf("a long-gone instance type must be forgotten, got %v", got)
+	}
+	awsTest.recentPricingKeysLock.Lock()
+	remaining := len(awsTest.recentPricingKeys)
+	awsTest.recentPricingKeysLock.Unlock()
+	if remaining != 1 {
+		t.Errorf("expired keys should be dropped from the map, %d remain", remaining)
+	}
+}
+
+// TestPricingSurvivesScaleToZero is the regression: an instance type whose nodes have gone
+// away keeps its pricing across a refresh, so a returning node is a hit rather than the
+// trigger for another several-hundred-MB download.
+func TestPricingSurvivesScaleToZero(t *testing.T) {
+	const key = "us-east-2,m5.large,linux"
+
+	populate := func(t *testing.T, awsTest *AWS, inputkeys map[string]bool) {
+		t.Helper()
+		fixture, err := os.Open("testdata/pricing-us-east-2.json")
+		if err != nil {
+			t.Fatalf("failed to load pricing fixture: %s", err)
+		}
+		defer fixture.Close()
+		resp := &http.Response{
+			Body:    io.NopCloser(fixture),
+			Request: &http.Request{URL: &url.URL{Scheme: "https", Host: "test-aws-http-endpoint:443"}},
+		}
+		if err := awsTest.populatePricing(resp, inputkeys); err != nil {
+			t.Fatalf("populatePricing: %s", err)
+		}
+	}
+
+	// Establish the behaviour being fixed: handed only the keys currently in the cluster,
+	// populatePricing drops everything else.
+	t.Run("pricing is dropped when the type is not in the input keys", func(t *testing.T) {
+		awsTest := &AWS{ValidPricingKeys: map[string]bool{}, ClusterRegion: "us-east-2"}
+		populate(t, awsTest, map[string]bool{key: true})
+		if awsTest.Pricing[key] == nil {
+			t.Fatalf("expected pricing for %q on the first refresh", key)
+		}
+
+		populate(t, awsTest, map[string]bool{})
+		if awsTest.Pricing[key] != nil {
+			t.Fatalf("fixture assumption is wrong: %q survived an empty input key set", key)
+		}
+		if !awsTest.ValidPricingKeys[key] {
+			t.Fatalf("fixture assumption is wrong: %q should still be a valid pricing key", key)
+		}
+	})
+
+	t.Run("pricing survives when the type has merely scaled to zero", func(t *testing.T) {
+		awsTest := &AWS{ValidPricingKeys: map[string]bool{}, ClusterRegion: "us-east-2"}
+
+		populate(t, awsTest, awsTest.pricingKeysToPopulate(map[string]bool{key: true}))
+		if awsTest.Pricing[key] == nil {
+			t.Fatalf("expected pricing for %q on the first refresh", key)
+		}
+
+		// Every node of that type is gone by the time the next refresh runs.
+		populate(t, awsTest, awsTest.pricingKeysToPopulate(map[string]bool{}))
+		if awsTest.Pricing[key] == nil {
+			t.Errorf("pricing for %q was evicted after its nodes went away; a returning node would re-download the offer file", key)
+		}
+	})
+}
