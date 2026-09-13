@@ -371,6 +371,16 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 	// identifies allocations.
 	names := []string{}
 
+	// If the namespace is already part of the aggregation, there is no need
+	// to include it in the controller key, since it would be duplicated.
+	namespaceInAgg := false
+	for _, agg := range aggregateBy {
+		if agg == AllocationNamespaceProp {
+			namespaceInAgg = true
+			break
+		}
+	}
+
 	for _, agg := range aggregateBy {
 		switch true {
 		case agg == AllocationClusterProp:
@@ -399,7 +409,16 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 				// Indicate that allocation has no controller
 				controller = UnallocatedSuffix
 			} else if p.ControllerKind != "" {
-				controller = fmt.Sprintf("%s:%s", p.ControllerKind, controller)
+				if p.Namespace != "" && !namespaceInAgg {
+					// Include the namespace so that controllers with the same
+					// kind/name in different namespaces are not collapsed into
+					// a single entry
+					controller = fmt.Sprintf("%s:%s:%s", p.ControllerKind, p.Namespace, controller)
+				} else {
+					controller = fmt.Sprintf("%s:%s", p.ControllerKind, controller)
+				}
+			} else if p.Namespace != "" && !namespaceInAgg {
+				controller = fmt.Sprintf("%s:%s", p.Namespace, controller)
 			}
 			names = append(names, controller)
 		case agg == AllocationPodProp:

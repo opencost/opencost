@@ -228,6 +228,58 @@ func TestGenerateKey(t *testing.T) {
 			labelConfig: customOwnerLabelConfig,
 			expected:    "redacted",
 		},
+		"aggregate by controller with kind and namespace": {
+			aggregate: []string{"controller"},
+			allocationProps: &AllocationProperties{
+				Namespace:      "ns",
+				Controller:     "name",
+				ControllerKind: "deployment",
+			},
+			expected: "deployment:ns:name",
+		},
+		"aggregate by controller without kind but with namespace": {
+			aggregate: []string{"controller"},
+			allocationProps: &AllocationProperties{
+				Namespace:  "ns",
+				Controller: "name",
+			},
+			expected: "ns:name",
+		},
+		"aggregate by namespace and controller": {
+			aggregate: []string{"namespace", "controller"},
+			allocationProps: &AllocationProperties{
+				Namespace:      "ns",
+				Controller:     "name",
+				ControllerKind: "deployment",
+			},
+			expected: "ns/deployment:name",
+		},
+		"aggregate by controller with kind and empty namespace": {
+			aggregate: []string{"controller"},
+			allocationProps: &AllocationProperties{
+				Controller:     "name",
+				ControllerKind: "deployment",
+			},
+			expected: "deployment:name",
+		},
+		"same controller name and kind in different namespaces stay separate (ns1)": {
+			aggregate: []string{"controller"},
+			allocationProps: &AllocationProperties{
+				Namespace:      "ns1",
+				Controller:     "app",
+				ControllerKind: "deployment",
+			},
+			expected: "deployment:ns1:app",
+		},
+		"same controller name and kind in different namespaces stay separate (ns2)": {
+			aggregate: []string{"controller"},
+			allocationProps: &AllocationProperties{
+				Namespace:      "ns2",
+				Controller:     "app",
+				ControllerKind: "deployment",
+			},
+			expected: "deployment:ns2:app",
+		},
 	}
 
 	for name, tc := range cases {
