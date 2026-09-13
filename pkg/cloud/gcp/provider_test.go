@@ -1098,6 +1098,42 @@ func TestGCP_parsePages(t *testing.T) {
 	assert.Error(t, err) // Expect error due to missing API key
 }
 
+func TestGCP_fetchAndParsePage_Non200Status(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "boom")
+	}))
+	defer srv.Close()
+
+	gcp := &GCP{}
+	_, _, err := gcp.fetchAndParsePage(srv.Client(), srv.URL, map[string]models.Key{}, map[string]models.PVKey{})
+	if err == nil {
+		t.Fatal("expected an error for a non-200 response, got nil")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("expected error to include status code 500, got %q", err.Error())
+	}
+}
+
+func TestGCP_fetchAndParsePage_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"skus":[],"nextPageToken":""}`)
+	}))
+	defer srv.Close()
+
+	gcp := &GCP{}
+	page, token, err := gcp.fetchAndParsePage(srv.Client(), srv.URL, map[string]models.Key{}, map[string]models.PVKey{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if token != "done" {
+		t.Errorf("token = %q, want %q", token, "done")
+	}
+	if len(page) != 0 {
+		t.Errorf("page len = %d, want 0", len(page))
+	}
+}
+
 // TestGCP_parsePagesWithClient_Pagination verifies that multi-page traversal
 // sends exactly one pageToken param per request rather than accumulating
 // tokens from earlier pages.
