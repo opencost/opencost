@@ -430,6 +430,7 @@ type AwsAthenaInfo struct {
 	ServiceKeyName   string `json:"serviceKeyName"`
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
+	ExternalID       string `json:"externalID,omitempty"`
 	MasterPayerARN   string `json:"masterPayerARN"`
 }
 
@@ -444,6 +445,7 @@ func (aai *AwsAthenaInfo) IsEmpty() bool {
 		aai.ServiceKeyName == "" &&
 		aai.ServiceKeySecret == "" &&
 		aai.AccountID == "" &&
+		aai.ExternalID == "" &&
 		aai.MasterPayerARN == ""
 }
 
@@ -458,7 +460,15 @@ func (aai *AwsAthenaInfo) CreateConfig() (awsSDK.Config, error) {
 		// Create the credentials from AssumeRoleProvider to assume the role
 		// referenced by the roleARN.
 		stsSvc := sts.NewFromConfig(cfg)
-		creds := stscreds.NewAssumeRoleProvider(stsSvc, aai.MasterPayerARN)
+		var creds *stscreds.AssumeRoleProvider
+
+		if aai.ExternalID != "" {
+			creds = stscreds.NewAssumeRoleProvider(stsSvc, aai.MasterPayerARN, func(o *stscreds.AssumeRoleOptions) {
+				o.ExternalID = awsSDK.String(aai.ExternalID)
+			})
+		} else {
+			creds = stscreds.NewAssumeRoleProvider(stsSvc, aai.MasterPayerARN)
+		}
 		cfg.Credentials = awsSDK.NewCredentialsCache(creds)
 	}
 	return cfg, nil
@@ -541,6 +551,7 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		AthenaWorkgroup:  config.AthenaWorkgroup,
 		ServiceKeyName:   aak.AccessKeyID,
 		ServiceKeySecret: aak.SecretAccessKey,
+		ExternalID:       config.MasterPayerExternalID,
 		AccountID:        config.AthenaProjectID,
 		MasterPayerARN:   config.MasterPayerARN,
 	}, nil
@@ -587,6 +598,9 @@ func configUpdaterWithReaderAndType(r io.Reader, updateType string) func(c *mode
 			c.AwsServiceKeyName = aai.ServiceKeyName
 			if aai.ServiceKeySecret != "" {
 				c.AwsServiceKeySecret = aai.ServiceKeySecret
+			}
+			if aai.ExternalID != "" {
+				c.MasterPayerExternalID = aai.ExternalID
 			}
 			if aai.MasterPayerARN != "" {
 				c.MasterPayerARN = aai.MasterPayerARN

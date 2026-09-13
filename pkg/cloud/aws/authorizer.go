@@ -149,14 +149,18 @@ func (sa *ServiceAccount) CreateAWSConfig(region string) (aws.Config, error) {
 
 // AssumeRole is a wrapper for another Authorizer which adds an assumed role to the configuration
 type AssumeRole struct {
+	ExternalID string     `json:"externalID"`
 	Authorizer Authorizer `json:"authorizer"`
 	RoleARN    string     `json:"roleARN"`
 }
 
 // MarshalJSON custom json marshalling functions, sets properties as tagged in struct and sets the authorizer type property
 func (ara *AssumeRole) MarshalJSON() ([]byte, error) {
-	fmap := make(map[string]any, 3)
+	fmap := make(map[string]any, 4)
 	fmap[cloud.AuthorizerTypeProperty] = AssumeRoleAuthorizerType
+	if ara.ExternalID != "" {
+		fmap["externalID"] = ara.ExternalID
+	}
 	fmap["roleARN"] = ara.RoleARN
 	fmap["authorizer"] = ara.Authorizer
 	return json.Marshal(fmap)
@@ -171,6 +175,14 @@ func (ara *AssumeRole) UnmarshalJSON(b []byte) error {
 	}
 
 	fmap := f.(map[string]interface{})
+
+	if _, ok := fmap["externalID"]; ok {
+		externalID, err := cloud.GetInterfaceValue[string](fmap, "externalID")
+		if err != nil {
+			return fmt.Errorf("AssumeRole: UnmarshalJSON: %s", err.Error())
+		}
+		ara.ExternalID = externalID
+	}
 
 	roleARN, err := cloud.GetInterfaceValue[string](fmap, "roleARN")
 	if err != nil {
@@ -196,7 +208,16 @@ func (ara *AssumeRole) CreateAWSConfig(region string) (aws.Config, error) {
 	// Create the credentials from AssumeRoleProvider to assume the role
 	// referenced by the RoleARN.
 	stsSvc := sts.NewFromConfig(cfg)
-	creds := stscreds.NewAssumeRoleProvider(stsSvc, ara.RoleARN)
+
+	var creds *stscreds.AssumeRoleProvider
+	if ara.ExternalID != "" {
+		creds = stscreds.NewAssumeRoleProvider(stsSvc, ara.RoleARN, func(o *stscreds.AssumeRoleOptions) {
+			o.ExternalID = aws.String(ara.ExternalID)
+		})
+	} else {
+		creds = stscreds.NewAssumeRoleProvider(stsSvc, ara.RoleARN)
+	}
+
 	cfg.Credentials = aws.NewCredentialsCache(creds)
 	return cfg, nil
 }
@@ -239,11 +260,16 @@ func (ara *AssumeRole) Equals(config cloud.Config) bool {
 		return false
 	}
 
+	if ara.ExternalID != thatConfig.ExternalID {
+		return false
+	}
+
 	return true
 }
 
 func (ara *AssumeRole) Sanitize() cloud.Config {
 	return &AssumeRole{
+		ExternalID: ara.ExternalID,
 		Authorizer: ara.Authorizer.Sanitize().(Authorizer),
 		RoleARN:    ara.RoleARN,
 	}

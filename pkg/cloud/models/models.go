@@ -164,6 +164,7 @@ type CustomPricing struct {
 	AthenaTable                  string `json:"athenaTable"`
 	AthenaWorkgroup              string `json:"athenaWorkgroup"`
 	MasterPayerARN               string `json:"masterPayerARN"`
+	MasterPayerExternalID        string `json:"masterPayerExternalID,omitempty"`
 	BillingDataDataset           string `json:"billingDataDataset,omitempty"`
 	CustomPricesEnabled          string `json:"customPricesEnabled"`
 	AzureSubscriptionID          string `json:"azureSubscriptionID"`
