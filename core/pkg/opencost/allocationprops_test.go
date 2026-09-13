@@ -262,6 +262,24 @@ func TestGenerateKey(t *testing.T) {
 			},
 			expected: "deployment:name",
 		},
+		"same controller name and kind in different namespaces stay separate (ns1)": {
+			aggregate: []string{"controller"},
+			allocationProps: &AllocationProperties{
+				Namespace:      "ns1",
+				Controller:     "app",
+				ControllerKind: "deployment",
+			},
+			expected: "deployment:ns1:app",
+		},
+		"same controller name and kind in different namespaces stay separate (ns2)": {
+			aggregate: []string{"controller"},
+			allocationProps: &AllocationProperties{
+				Namespace:      "ns2",
+				Controller:     "app",
+				ControllerKind: "deployment",
+			},
+			expected: "deployment:ns2:app",
+		},
 	}
 
 	for name, tc := range cases {
