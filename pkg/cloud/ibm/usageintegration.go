@@ -1,0 +1,354 @@
+package ibm
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/IBM/platform-services-go-sdk/usagereportsv4"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/pkg/cloud"
+)
+
+// Field-mapping contract for IBM CloudCost (shared with Cloudability CAC path):
+//
+//	Provider          = "IBM"
+//	ProviderID        = ResourceInstanceID from Usage Reports (typically a full CRN)
+//	AccountID         = account_id from Usage Reports (published samples are bare 32-hex, no "a/" prefix)
+//	InvoiceEntityID   = AccountID (no payer/enterprise column in row data)
+//	Service           = ResourceName when names=true, else ResourceID
+//	Category          = selectIBMCategory(ResourceID) only — pure function of service id
+//	UsageType         = N/A on CloudCostProperties in this tree (and must remain unset if added later)
+//	ListCost / AmortizedCost           = sum(rated_cost) converted to USD, prorated
+//	NetCost / AmortizedNetCost / InvoicedCost = sum(cost) converted to USD, prorated
+//
+// Daily values are synthetic: report totals ÷ covered days (full month, or MTD day-of-month),
+// emitted for days overlapping the query window. Non-billable instances are skipped.
+
+// UsageIntegration ingests IBM Cloud Usage Reports into CloudCost.
+type UsageIntegration struct {
+	UsageConfiguration
+	ConnectionStatus cloud.ConnectionStatus
+}
+
+func (ui *UsageIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCostSetRange, error) {
+	return ui.getCloudCost(start, end, time.Now().UTC())
+}
+
+func (ui *UsageIntegration) getCloudCost(start, end, asOf time.Time) (*opencost.CloudCostSetRange, error) {
+	client, err := ui.GetUsageReportsClient()
+	if err != nil {
+		ui.ConnectionStatus = cloud.FailedConnection
+		return nil, fmt.Errorf("getting IBM usage reports client: %w", err)
+	}
+
+	ccsr, err := opencost.NewCloudCostSetRange(start, end, opencost.AccumulateOptionDay, ui.Key())
+	if err != nil {
+		return nil, err
+	}
+
+	months := monthsOverlapping(start, end)
+	itemsSeen := 0
+	for _, month := range months {
+		options := client.NewGetResourceUsageAccountOptions(ui.AccountID, month)
+		options.SetLimit(200)
+		options.SetNames(true)
+		options.SetTags(true)
+
+		pager, err := client.NewGetResourceUsageAccountPager(options)
+		if err != nil {
+			ui.ConnectionStatus = cloud.FailedConnection
+			return nil, fmt.Errorf("creating usage pager for %s: %w", month, err)
+		}
+
+		for pager.HasNext() {
+			page, err := pager.GetNext()
+			if err != nil {
+				ui.ConnectionStatus = cloud.FailedConnection
+				return nil, fmt.Errorf("querying IBM resource usage for %s: %w", month, err)
+			}
+			for _, item := range page {
+				itemsSeen++
+				record, ok := instanceUsageFromSDK(item)
+				if !ok {
+					continue
+				}
+				for _, cc := range cloudCostsFromInstance(record, start, end, asOf) {
+					ccsr.LoadCloudCost(cc)
+				}
+			}
+		}
+	}
+
+	if itemsSeen == 0 && ui.ConnectionStatus != cloud.SuccessfulConnection {
+		ui.ConnectionStatus = cloud.MissingData
+		return ccsr, nil
+	}
+
+	ui.ConnectionStatus = cloud.SuccessfulConnection
+	return ccsr, nil
+}
+
+func (ui *UsageIntegration) GetStatus() cloud.ConnectionStatus {
+	if ui.ConnectionStatus.String() == "" {
+		ui.ConnectionStatus = cloud.InitialStatus
+	}
+	return ui.ConnectionStatus
+}
+
+func (ui *UsageIntegration) RefreshStatus() cloud.ConnectionStatus {
+	log.Warn("status refresh is not supported for the IBM Cloud provider")
+	return ui.ConnectionStatus
+}
+
+// instanceUsageRecord is a testable projection of Usage Reports instance usage.
+// Costs are stored after conversion to USD.
+type instanceUsageRecord struct {
+	AccountID          string
+	ResourceInstanceID string
+	ResourceID         string
+	ResourceName       string
+	Region             string
+	Month              string
+	Cost               float64
+	RatedCost          float64
+	Tags               []any
+}
+
+// instanceUsageFromSDK projects an SDK row. ok is false when the row should be skipped
+// (explicitly non-billable).
+func instanceUsageFromSDK(item usagereportsv4.InstanceUsage) (instanceUsageRecord, bool) {
+	if item.Billable != nil && !*item.Billable {
+		return instanceUsageRecord{}, false
+	}
+
+	record := instanceUsageRecord{
+		Tags: mergeTagSlices(item.Tags, item.ServiceTags),
+	}
+	if item.AccountID != nil {
+		record.AccountID = *item.AccountID
+	}
+	if item.ResourceInstanceID != nil {
+		record.ResourceInstanceID = *item.ResourceInstanceID
+	}
+	if item.ResourceID != nil {
+		record.ResourceID = *item.ResourceID
+	}
+	if item.ResourceName != nil {
+		record.ResourceName = *item.ResourceName
+	}
+	if item.Region != nil {
+		record.Region = *item.Region
+	}
+	if item.Month != nil {
+		record.Month = *item.Month
+	}
+
+	rate := 1.0
+	if item.CurrencyRate != nil && *item.CurrencyRate > 0 {
+		rate = *item.CurrencyRate
+	}
+
+	for _, metric := range item.Usage {
+		if metric.NonChargeable != nil && *metric.NonChargeable {
+			continue
+		}
+		if metric.Cost != nil {
+			record.Cost += *metric.Cost * rate
+		}
+		if metric.RatedCost != nil {
+			record.RatedCost += *metric.RatedCost * rate
+		}
+	}
+	return record, true
+}
+
+func mergeTagSlices(parts ...[]any) []any {
+	var out []any
+	for _, part := range parts {
+		out = append(out, part...)
+	}
+	return out
+}
+
+func cloudCostsFromInstance(item instanceUsageRecord, start, end, asOf time.Time) []*opencost.CloudCost {
+	if item.Month == "" || (item.Cost == 0 && item.RatedCost == 0) {
+		return nil
+	}
+	monthStart, err := time.Parse("2006-01", item.Month)
+	if err != nil {
+		return nil
+	}
+	monthStart = time.Date(monthStart.Year(), monthStart.Month(), 1, 0, 0, 0, 0, time.UTC)
+	days := prorationDays(monthStart, asOf)
+	if days <= 0 {
+		return nil
+	}
+
+	dailyNet := item.Cost / float64(days)
+	dailyList := item.RatedCost / float64(days)
+
+	service := item.ResourceName
+	if service == "" {
+		service = item.ResourceID
+	}
+
+	properties := &opencost.CloudCostProperties{
+		ProviderID:      item.ResourceInstanceID,
+		Provider:        opencost.IBMProvider,
+		AccountID:       item.AccountID,
+		InvoiceEntityID: item.AccountID,
+		RegionID:        item.Region,
+		Service:         service,
+		Category:        selectIBMCategory(item.ResourceID),
+		Labels:          parseTags(item.Tags),
+	}
+
+	var costs []*opencost.CloudCost
+	for d := 0; d < days; d++ {
+		dayStart := monthStart.AddDate(0, 0, d)
+		dayEnd := dayStart.AddDate(0, 0, 1)
+		if !dayStart.Before(end) || !dayEnd.After(start) {
+			continue
+		}
+		ds := dayStart
+		de := dayEnd
+		costs = append(costs, &opencost.CloudCost{
+			Properties: properties,
+			Window:     opencost.NewWindow(&ds, &de),
+			ListCost: opencost.CostMetric{
+				Cost: dailyList,
+			},
+			NetCost: opencost.CostMetric{
+				Cost: dailyNet,
+			},
+			AmortizedNetCost: opencost.CostMetric{
+				Cost: dailyNet,
+			},
+			AmortizedCost: opencost.CostMetric{
+				Cost: dailyList,
+			},
+			InvoicedCost: opencost.CostMetric{
+				Cost: dailyNet,
+			},
+		})
+	}
+	return costs
+}
+
+// prorationDays returns the divisor for spreading a monthly (or MTD) report total.
+// Completed months use calendar days; the asOf month uses day-of-month (MTD).
+func prorationDays(monthStart, asOf time.Time) int {
+	asOf = asOf.UTC()
+	monthStart = monthStart.UTC()
+	full := daysInMonth(monthStart.Year(), int(monthStart.Month()))
+	if asOf.Year() == monthStart.Year() && asOf.Month() == monthStart.Month() {
+		if asOf.Day() < 1 {
+			return full
+		}
+		if asOf.Day() < full {
+			return asOf.Day()
+		}
+	}
+	return full
+}
+
+func monthsOverlapping(start, end time.Time) []string {
+	if !start.Before(end) {
+		return nil
+	}
+	cursor := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
+	last := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC)
+	// end is exclusive; if end is exactly month start, previous month is last needed
+	if end.Equal(last) {
+		last = last.AddDate(0, -1, 0)
+	}
+	var months []string
+	for !cursor.After(last) {
+		months = append(months, cursor.Format("2006-01"))
+		cursor = cursor.AddDate(0, 1, 0)
+	}
+	return months
+}
+
+func daysInMonth(year, month int) int {
+	start := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	return start.AddDate(0, 1, -1).Day()
+}
+
+func parseTags(raw []any) opencost.CloudCostLabels {
+	labels := opencost.CloudCostLabels{}
+	for _, tag := range raw {
+		switch v := tag.(type) {
+		case string:
+			key, value, ok := splitTagString(v)
+			if !ok {
+				continue
+			}
+			labels[key] = value
+		case map[string]any:
+			key, _ := v["key"].(string)
+			if key == "" {
+				key, _ = v["Key"].(string)
+			}
+			value, _ := v["value"].(string)
+			if value == "" {
+				value, _ = v["Value"].(string)
+			}
+			if key == "" || value == "" {
+				continue
+			}
+			labels[key] = value
+		}
+	}
+	return labels
+}
+
+func splitTagString(tag string) (string, string, bool) {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return "", "", false
+	}
+	key, value, found := strings.Cut(tag, ":")
+	key = strings.TrimSpace(key)
+	value = strings.TrimSpace(value)
+	if !found || key == "" || value == "" {
+		return "", "", false
+	}
+	return key, value, true
+}
+
+// selectIBMCategory maps IBM Usage Reports resource_id (service id) to an OpenCost category.
+// This must stay a pure function of resourceID so Cloudability and the API path agree.
+func selectIBMCategory(resourceID string) string {
+	id := strings.ToLower(strings.TrimSpace(resourceID))
+
+	switch {
+	case id == "is.instance",
+		id == "is.bare-metal-server",
+		id == "is.dedicated-host",
+		id == "codeengine",
+		id == "containers-kubernetes",
+		strings.HasPrefix(id, "codeengine"):
+		return opencost.ComputeCategory
+	case id == "is.volume",
+		id == "is.snapshot",
+		id == "is.share",
+		id == "cloud-object-storage",
+		strings.HasPrefix(id, "databases-for-"):
+		return opencost.StorageCategory
+	case id == "is.load-balancer",
+		id == "is.floating-ip",
+		id == "is.public-gateway",
+		id == "is.vpn",
+		id == "transit",
+		id == "internet-svcs",
+		strings.HasPrefix(id, "is.vpn"),
+		strings.HasPrefix(id, "transit"),
+		strings.HasPrefix(id, "internet-svcs"):
+		return opencost.NetworkCategory
+	default:
+		return opencost.OtherCategory
+	}
+}
