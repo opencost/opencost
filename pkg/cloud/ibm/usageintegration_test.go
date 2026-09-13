@@ -236,8 +236,10 @@ func TestCloudCostsFromInstance(t *testing.T) {
 	}
 
 	costs := cloudCostsFromInstance(item, start, end, asOf)
-	if len(costs) != 2 {
-		t.Fatalf("got %d cloud costs, want 2", len(costs))
+	// Every day the month total was prorated across is emitted, not just the days inside the
+	// window, so the whole of the completed January is returned.
+	if len(costs) != 31 {
+		t.Fatalf("got %d cloud costs, want 31 (whole prorated January)", len(costs))
 	}
 
 	dailyNet := 31.0 / 31.0
@@ -289,8 +291,8 @@ func TestCloudCostsFromInstance_RatedCostZeroKept(t *testing.T) {
 		RatedCost:          0,
 	}
 	costs := cloudCostsFromInstance(item, start, end, asOf)
-	if len(costs) != 1 {
-		t.Fatalf("got %d costs, want 1", len(costs))
+	if len(costs) != 31 {
+		t.Fatalf("got %d costs, want 31 (whole prorated month)", len(costs))
 	}
 	if costs[0].ListCost.Cost != 0 {
 		t.Errorf("ListCost = %v, want 0 (rated_cost zero is valid)", costs[0].ListCost.Cost)
@@ -335,8 +337,8 @@ func TestServiceUsesResourceID(t *testing.T) {
 	end := time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC)
 	asOf := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 	costs := cloudCostsFromInstance(item, start, end, asOf)
-	if len(costs) != 1 {
-		t.Fatalf("got %d costs, want 1", len(costs))
+	if len(costs) != 28 {
+		t.Fatalf("got %d costs, want 28 (whole prorated February)", len(costs))
 	}
 	if costs[0].Properties.Service != "is.instance" {
 		t.Errorf("service = %q, want is.instance", costs[0].Properties.Service)
@@ -366,5 +368,136 @@ func TestUsageConfigurationKeySanitizesSlash(t *testing.T) {
 	cfg := &UsageConfiguration{AccountID: "a/b09edf5642ebfad587c594f4d4a354b0"}
 	if got := cfg.Key(); got != "b09edf5642ebfad587c594f4d4a354b0" {
 		t.Errorf("Key() = %q, want bare hex", got)
+	}
+}
+
+// The billing-export producer (cloudability/kubecost-saas, bingen/ibm) marks every IKS/ROKS row
+// as fully Kubernetes. Both producers write into the same aggregation, so if this path leaves
+// KubernetesPercent at zero, migrating a customer from the export to an API key silently zeroes
+// their entire IBM Kubernetes spend.
+func TestKubernetesPercentMatchesBillingExportProducer(t *testing.T) {
+	const workerCRN = "crn:v1:bluemix:public:containers-kubernetes:jp-tok:a/f8ce6d5aa4cf4:" +
+		"ch9goilt0elehhb3utbg:worker:kube-ch9goilt0elehhb3utbg-ccmdefault-0000017d"
+
+	tests := []struct {
+		name       string
+		resourceID string
+		providerID string
+		want       float64
+	}{
+		{"kubernetes by service id", "containers-kubernetes", "crn:v1:bluemix:public:containers-kubernetes:us-south:a/x:y::", 1.0},
+		{"kubernetes by crn service segment", "", workerCRN, 1.0},
+		{"service id is case insensitive", "Containers-Kubernetes", "", 1.0},
+		{"unrelated service", "is.volume", "crn:v1:bluemix:public:is:us-south:a/x::volume:r006-1", 0.0},
+	}
+
+	start := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC)
+	asOf := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			item := instanceUsageRecord{
+				AccountID:          "acct",
+				ResourceInstanceID: tt.providerID,
+				ResourceID:         tt.resourceID,
+				Month:              "2026-02",
+				Cost:               28.0,
+				RatedCost:          56.0,
+			}
+			costs := cloudCostsFromInstance(item, start, end, asOf)
+			if len(costs) != 28 {
+				t.Fatalf("got %d costs, want 28 (whole prorated February)", len(costs))
+			}
+			cc := costs[0]
+			for metric, got := range map[string]float64{
+				"ListCost":         cc.ListCost.KubernetesPercent,
+				"NetCost":          cc.NetCost.KubernetesPercent,
+				"AmortizedNetCost": cc.AmortizedNetCost.KubernetesPercent,
+				"AmortizedCost":    cc.AmortizedCost.KubernetesPercent,
+				"InvoicedCost":     cc.InvoicedCost.KubernetesPercent,
+			} {
+				if got != tt.want {
+					t.Errorf("%s.KubernetesPercent = %v, want %v", metric, got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+// bingen/ibm sets AccountName and InvoiceEntityName to the same normalized account id, because IBM
+// billing data carries no account display name. Both are user-selectable aggregation properties, so
+// leaving them empty here would split rows when a customer switches producers.
+func TestAccountNamesMatchBillingExportProducer(t *testing.T) {
+	item := instanceUsageRecord{
+		AccountID:          "4756fbd48cbc4b6d968340888c27fd05",
+		ResourceInstanceID: "inst",
+		ResourceID:         "is.instance",
+		Month:              "2026-02",
+		Cost:               28.0,
+		RatedCost:          28.0,
+	}
+	start := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC)
+	asOf := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+
+	costs := cloudCostsFromInstance(item, start, end, asOf)
+	if len(costs) != 28 {
+		t.Fatalf("got %d costs, want 28 (whole prorated February)", len(costs))
+	}
+	props := costs[0].Properties
+	if props.AccountName != item.AccountID {
+		t.Errorf("AccountName = %q, want %q", props.AccountName, item.AccountID)
+	}
+	if props.InvoiceEntityName != item.AccountID {
+		t.Errorf("InvoiceEntityName = %q, want %q", props.InvoiceEntityName, item.AccountID)
+	}
+	// Pinned so a later edit cannot populate it and split rows against the other producer.
+	if props.AvailabilityZone != "" {
+		t.Errorf("AvailabilityZone = %q, want empty", props.AvailabilityZone)
+	}
+}
+
+// A month total is divided by a divisor derived from asOf, so the resulting flat daily rate is only
+// self-consistent if every day it covers is written in the same pass. The ingestor's Put replaces
+// whole day-sets, so emitting only the days inside the caller's window leaves the rest of the month
+// holding rates computed at an earlier asOf, and the stored month sums to neither total.
+//
+// The integration already fetches the whole month from IBM regardless of the window, so covering
+// every prorated day costs no extra API calls.
+func TestCloudCostsFromInstanceCoversWholeProratedMonth(t *testing.T) {
+	// Stock ingestor shape: a 7-day window that does not reach the first of the month.
+	start := time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC)
+	asOf := time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC)
+
+	item := instanceUsageRecord{
+		AccountID:          "acct",
+		ResourceInstanceID: "inst",
+		ResourceID:         "is.instance",
+		Month:              "2026-10",
+		Cost:               110.0,
+		RatedCost:          110.0,
+	}
+
+	costs := cloudCostsFromInstance(item, start, end, asOf)
+
+	// asOf is the 11th, so the month-to-date total spreads over days 1..11.
+	if len(costs) != 11 {
+		t.Fatalf("got %d costs, want 11 (every prorated day of the month)", len(costs))
+	}
+
+	var total float64
+	for _, cc := range costs {
+		total += cc.NetCost.Cost
+	}
+	if diff := total - item.Cost; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("emitted total = %v, want %v (IBM's reported month total)", total, item.Cost)
+	}
+
+	// First emitted day must be the first of the month, not the window start.
+	if got := costs[0].Window.Start().UTC(); !got.Equal(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("first day = %s, want 2026-10-01", got.Format("2006-01-02"))
 	}
 }

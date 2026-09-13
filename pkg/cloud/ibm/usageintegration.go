@@ -44,7 +44,10 @@ func (ui *UsageIntegration) getCloudCost(start, end, asOf time.Time) (*opencost.
 		return nil, fmt.Errorf("getting IBM usage reports client: %w", err)
 	}
 
-	ccsr, err := opencost.NewCloudCostSetRange(start, end, opencost.AccumulateOptionDay, ui.Key())
+	// Cover whole months: cloudCostsFromInstance prorates a month total across every covered day,
+	// so all of those days have to be rewritten together for the stored month to equal IBM's total.
+	rangeStart, rangeEnd := monthRangeCovering(start, end)
+	ccsr, err := opencost.NewCloudCostSetRange(rangeStart, rangeEnd, opencost.AccumulateOptionDay, ui.Key())
 	if err != nil {
 		return nil, err
 	}
@@ -198,46 +201,74 @@ func cloudCostsFromInstance(item instanceUsageRecord, start, end, asOf time.Time
 	}
 
 	properties := &opencost.CloudCostProperties{
-		ProviderID:      item.ResourceInstanceID,
-		Provider:        opencost.IBMProvider,
-		AccountID:       item.AccountID,
-		InvoiceEntityID: item.AccountID,
-		RegionID:        item.Region,
-		Service:         item.ResourceID,
-		Category:        selectIBMCategory(item.ResourceID),
-		Labels:          labels,
+		ProviderID: item.ResourceInstanceID,
+		Provider:   opencost.IBMProvider,
+		AccountID:  item.AccountID,
+		// IBM billing data carries no account display name. The billing-export producer collapses
+		// both names onto the account id; match it exactly or the two split rows on aggregation.
+		AccountName:       item.AccountID,
+		InvoiceEntityID:   item.AccountID,
+		InvoiceEntityName: item.AccountID,
+		RegionID:          item.Region,
+		Service:           item.ResourceID,
+		Category:          selectIBMCategory(item.ResourceID),
+		Labels:            labels,
+	}
+
+	k8sPct := 0.0
+	if isKubernetesResource(item.ResourceID, item.ResourceInstanceID) {
+		k8sPct = 1.0
 	}
 
 	var costs []*opencost.CloudCost
+	// Every day the total was divided across must be emitted, not just the days inside the caller's
+	// window. The repository replaces whole day-sets, so a partial rewrite leaves the rest of the
+	// month holding a rate computed at a different asOf and the stored month sums to neither total.
+	// getCloudCost widens its range to the months covered here so all of these days are persisted.
 	for d := 0; d < days; d++ {
 		dayStart := monthStart.AddDate(0, 0, d)
 		dayEnd := dayStart.AddDate(0, 0, 1)
-		if !dayStart.Before(end) || !dayEnd.After(start) {
-			continue
-		}
 		ds := dayStart
 		de := dayEnd
 		costs = append(costs, &opencost.CloudCost{
 			Properties: properties,
 			Window:     opencost.NewWindow(&ds, &de),
 			ListCost: opencost.CostMetric{
-				Cost: dailyList,
+				Cost:              dailyList,
+				KubernetesPercent: k8sPct,
 			},
 			NetCost: opencost.CostMetric{
-				Cost: dailyNet,
+				Cost:              dailyNet,
+				KubernetesPercent: k8sPct,
 			},
 			AmortizedNetCost: opencost.CostMetric{
-				Cost: dailyNet,
+				Cost:              dailyNet,
+				KubernetesPercent: k8sPct,
 			},
 			AmortizedCost: opencost.CostMetric{
-				Cost: dailyList,
+				Cost:              dailyList,
+				KubernetesPercent: k8sPct,
 			},
 			InvoicedCost: opencost.CostMetric{
-				Cost: dailyNet,
+				Cost:              dailyNet,
+				KubernetesPercent: k8sPct,
 			},
 		})
 	}
 	return costs
+}
+
+// kubernetesServiceID is IBM's service identifier for both IKS and ROKS clusters.
+const kubernetesServiceID = "containers-kubernetes"
+
+// isKubernetesResource reports whether a usage row belongs to an IKS or ROKS cluster, by service
+// identifier or by the service segment of the resource CRN. Mirrors the billing-export producer so
+// both paths mark the same rows as Kubernetes.
+func isKubernetesResource(serviceID, providerID string) bool {
+	if strings.EqualFold(strings.TrimSpace(serviceID), kubernetesServiceID) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(providerID), ":"+kubernetesServiceID+":")
 }
 
 // prorationDays returns the divisor for spreading a monthly (or MTD) report total.
@@ -255,6 +286,22 @@ func prorationDays(monthStart, asOf time.Time) int {
 		}
 	}
 	return full
+}
+
+// monthRangeCovering returns the half-open range spanning every whole month that [start, end)
+// touches. It mirrors monthsOverlapping's exclusive-end convention: an end landing exactly on a
+// month boundary does not pull in that month.
+func monthRangeCovering(start, end time.Time) (time.Time, time.Time) {
+	rangeStart := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
+	lastMonth := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC)
+	if end.Equal(lastMonth) {
+		lastMonth = lastMonth.AddDate(0, -1, 0)
+	}
+	rangeEnd := lastMonth.AddDate(0, 1, 0)
+	if !rangeStart.Before(rangeEnd) {
+		return start, end
+	}
+	return rangeStart, rangeEnd
 }
 
 func monthsOverlapping(start, end time.Time) []string {
