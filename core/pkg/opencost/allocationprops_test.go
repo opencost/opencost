@@ -228,6 +228,40 @@ func TestGenerateKey(t *testing.T) {
 			labelConfig: customOwnerLabelConfig,
 			expected:    "redacted",
 		},
+		"aggregate by controller with kind and namespace": {
+			aggregate: []string{"controller"},
+			allocationProps: &AllocationProperties{
+				Namespace:      "ns",
+				Controller:     "name",
+				ControllerKind: "deployment",
+			},
+			expected: "deployment:ns:name",
+		},
+		"aggregate by controller without kind but with namespace": {
+			aggregate: []string{"controller"},
+			allocationProps: &AllocationProperties{
+				Namespace:  "ns",
+				Controller: "name",
+			},
+			expected: "ns:name",
+		},
+		"aggregate by namespace and controller": {
+			aggregate: []string{"namespace", "controller"},
+			allocationProps: &AllocationProperties{
+				Namespace:      "ns",
+				Controller:     "name",
+				ControllerKind: "deployment",
+			},
+			expected: "ns/deployment:name",
+		},
+		"aggregate by controller with kind and empty namespace": {
+			aggregate: []string{"controller"},
+			allocationProps: &AllocationProperties{
+				Controller:     "name",
+				ControllerKind: "deployment",
+			},
+			expected: "deployment:name",
+		},
 	}
 
 	for name, tc := range cases {
