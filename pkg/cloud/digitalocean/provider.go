@@ -867,6 +867,12 @@ func isDefaultNetworkPricing(cp *models.CustomPricing) bool {
 		cp.NatGatewayIngress == "0.045"
 }
 
+// RefreshCustomPricing is a no-op since DOKS pricing comes from the DigitalOcean API, not config.
+func (do *DOKS) RefreshCustomPricing() error {
+	log.Infof("RefreshCustomPricing is not implemented for DigitalOcean; pricing is sourced from the DigitalOcean API and cannot be refreshed via custom config")
+	return nil
+}
+
 func (do *DOKS) AllNodePricing() (interface{}, error) {
 	_, _ = do.fetchPricingData()
 	return do.Cache, nil
