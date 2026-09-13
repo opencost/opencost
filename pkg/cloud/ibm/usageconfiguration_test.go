@@ -145,8 +145,8 @@ func TestUsageConfiguration_KeyProviderSanitize(t *testing.T) {
 		t.Errorf("Key() = %q, want acct-123", cfg.Key())
 	}
 	slashCfg := &UsageConfiguration{AccountID: "a/acct-123"}
-	if slashCfg.Key() != "a-acct-123" {
-		t.Errorf("Key() with slash = %q, want a-acct-123", slashCfg.Key())
+	if slashCfg.Key() != "acct-123" {
+		t.Errorf("Key() with a/ prefix = %q, want acct-123", slashCfg.Key())
 	}
 	if cfg.Provider() != opencost.IBMProvider {
 		t.Errorf("Provider() = %q, want %q", cfg.Provider(), opencost.IBMProvider)

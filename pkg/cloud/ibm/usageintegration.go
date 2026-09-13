@@ -15,14 +15,15 @@ import (
 //
 //	Provider          = "IBM"
 //	ProviderID        = ResourceInstanceID from Usage Reports (typically a full CRN)
-//	AccountID         = account_id from Usage Reports (published samples are bare 32-hex, no "a/" prefix)
+//	AccountID         = account_id normalized to bare 32-hex (strip leading "a/" if present)
 //	InvoiceEntityID   = AccountID (no payer/enterprise column in row data)
-//	Service           = ResourceName when names=true, else ResourceID
+//	Service           = ResourceID (stable service id — not the display name)
 //	Category          = selectIBMCategory(ResourceID) only — pure function of service id
 //	UsageType         = N/A on CloudCostProperties in this tree (and must remain unset if added later)
 //	ListCost / AmortizedCost           = sum(rated_cost) converted to USD, prorated
 //	NetCost / AmortizedNetCost / InvoicedCost = sum(cost) converted to USD, prorated
 //
+// ResourceName (when names=true) is stored as label "ibm_resource_name", not Service.
 // Daily values are synthetic: report totals ÷ covered days (full month, or MTD day-of-month),
 // emitted for days overlapping the query window. Non-billable instances are skipped.
 
@@ -51,8 +52,10 @@ func (ui *UsageIntegration) getCloudCost(start, end, asOf time.Time) (*opencost.
 	months := monthsOverlapping(start, end)
 	itemsSeen := 0
 	for _, month := range months {
-		options := client.NewGetResourceUsageAccountOptions(ui.AccountID, month)
+		options := client.NewGetResourceUsageAccountOptions(normalizeAccountID(ui.AccountID), month)
 		options.SetLimit(200)
+		// names=true populates ResourceName for the ibm_resource_name label only;
+		// Service always keys on ResourceID for CAC / billing-export agreement.
 		options.SetNames(true)
 		options.SetTags(true)
 
@@ -127,7 +130,7 @@ func instanceUsageFromSDK(item usagereportsv4.InstanceUsage) (instanceUsageRecor
 		Tags: mergeTagSlices(item.Tags, item.ServiceTags),
 	}
 	if item.AccountID != nil {
-		record.AccountID = *item.AccountID
+		record.AccountID = normalizeAccountID(*item.AccountID)
 	}
 	if item.ResourceInstanceID != nil {
 		record.ResourceInstanceID = *item.ResourceInstanceID
@@ -189,9 +192,9 @@ func cloudCostsFromInstance(item instanceUsageRecord, start, end, asOf time.Time
 	dailyNet := item.Cost / float64(days)
 	dailyList := item.RatedCost / float64(days)
 
-	service := item.ResourceName
-	if service == "" {
-		service = item.ResourceID
+	labels := parseTags(item.Tags)
+	if item.ResourceName != "" {
+		labels["ibm_resource_name"] = item.ResourceName
 	}
 
 	properties := &opencost.CloudCostProperties{
@@ -200,9 +203,9 @@ func cloudCostsFromInstance(item instanceUsageRecord, start, end, asOf time.Time
 		AccountID:       item.AccountID,
 		InvoiceEntityID: item.AccountID,
 		RegionID:        item.Region,
-		Service:         service,
+		Service:         item.ResourceID,
 		Category:        selectIBMCategory(item.ResourceID),
-		Labels:          parseTags(item.Tags),
+		Labels:          labels,
 	}
 
 	var costs []*opencost.CloudCost
@@ -319,36 +322,43 @@ func splitTagString(tag string) (string, string, bool) {
 	return key, value, true
 }
 
+// normalizeAccountID returns the bare IBM account GUID. Billing exports and CRNs
+// may carry "a/<hex>"; CloudCost AccountID must not contain "/" (aggregation key
+// and storage path). Published Usage Reports samples are already bare hex.
+func normalizeAccountID(accountID string) string {
+	accountID = strings.TrimSpace(accountID)
+	return strings.TrimPrefix(accountID, "a/")
+}
+
 // selectIBMCategory maps IBM Usage Reports resource_id (service id) to an OpenCost category.
-// This must stay a pure function of resourceID so Cloudability and the API path agree.
+// Pure function of resourceID. Exact matches only, except the documented databases-for-* family.
 func selectIBMCategory(resourceID string) string {
 	id := strings.ToLower(strings.TrimSpace(resourceID))
 
-	switch {
-	case id == "is.instance",
-		id == "is.bare-metal-server",
-		id == "is.dedicated-host",
-		id == "codeengine",
-		id == "containers-kubernetes",
-		strings.HasPrefix(id, "codeengine"):
+	switch id {
+	case "is.instance",
+		"is.bare-metal-server",
+		"is.dedicated-host",
+		"codeengine",
+		"containers-kubernetes":
 		return opencost.ComputeCategory
-	case id == "is.volume",
-		id == "is.snapshot",
-		id == "is.share",
-		id == "cloud-object-storage",
-		strings.HasPrefix(id, "databases-for-"):
+	case "is.volume",
+		"is.snapshot",
+		"is.share",
+		"cloud-object-storage":
 		return opencost.StorageCategory
-	case id == "is.load-balancer",
-		id == "is.floating-ip",
-		id == "is.public-gateway",
-		id == "is.vpn",
-		id == "transit",
-		id == "internet-svcs",
-		strings.HasPrefix(id, "is.vpn"),
-		strings.HasPrefix(id, "transit"),
-		strings.HasPrefix(id, "internet-svcs"):
+	case "is.load-balancer",
+		"is.floating-ip",
+		"is.public-gateway",
+		"is.vpn",
+		"transit",
+		"internet-svcs":
 		return opencost.NetworkCategory
-	default:
-		return opencost.OtherCategory
 	}
+
+	// Prefix family (shared with billing-export / CAC): all IBM Databases for X services.
+	if strings.HasPrefix(id, "databases-for-") {
+		return opencost.StorageCategory
+	}
+	return opencost.OtherCategory
 }

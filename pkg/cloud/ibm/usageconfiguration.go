@@ -3,7 +3,6 @@ package ibm
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/IBM/platform-services-go-sdk/usagereportsv4"
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -59,10 +58,10 @@ func (c *UsageConfiguration) Sanitize() cloud.Config {
 	}
 }
 
-// Key identifies the integration for storage paths. Slash is replaced so an
-// accidental "a/<hex>" account id cannot create an extra path segment.
+// Key identifies the integration for storage paths. Account IDs are normalized
+// to bare hex so "a/<hex>" cannot create an extra path segment.
 func (c *UsageConfiguration) Key() string {
-	return strings.ReplaceAll(c.AccountID, "/", "-")
+	return normalizeAccountID(c.AccountID)
 }
 
 func (c *UsageConfiguration) Provider() string {

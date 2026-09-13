@@ -79,6 +79,10 @@ func TestSelectIBMCategory(t *testing.T) {
 		{"is.vpn", opencost.NetworkCategory},
 		{"transit", opencost.NetworkCategory},
 		{"internet-svcs", opencost.NetworkCategory},
+		// Prefix arms removed: these must not silently widen beyond the locked table.
+		{"is.vpn-server", opencost.OtherCategory},
+		{"transit-gateway", opencost.OtherCategory},
+		{"codeengine-app", opencost.OtherCategory},
 		{"is.vpc", opencost.OtherCategory},
 		{"dns", opencost.OtherCategory},
 		{"cdn", opencost.OtherCategory},
@@ -167,6 +171,30 @@ func TestInstanceUsageFromSDK_CurrencyConversion(t *testing.T) {
 	}
 }
 
+func TestInstanceUsageFromSDK_NormalizesPrefixedAccountID(t *testing.T) {
+	billable := true
+	month := "2026-01"
+	account := "a/b09edf5642ebfad587c594f4d4a354b0"
+	resourceID := "is.instance"
+	cost := 1.0
+	item := usagereportsv4.InstanceUsage{
+		Billable:   &billable,
+		AccountID:  &account,
+		ResourceID: &resourceID,
+		Month:      &month,
+		Usage: []usagereportsv4.Metric{
+			{Cost: &cost, RatedCost: &cost},
+		},
+	}
+	record, ok := instanceUsageFromSDK(item)
+	if !ok {
+		t.Fatal("expected billable instance")
+	}
+	if record.AccountID != "b09edf5642ebfad587c594f4d4a354b0" {
+		t.Errorf("AccountID = %q, want bare hex", record.AccountID)
+	}
+}
+
 func TestInstanceUsageFromSDK_SkipsNonChargeableMetrics(t *testing.T) {
 	billable := true
 	cost := 5.0
@@ -224,14 +252,17 @@ func TestCloudCostsFromInstance(t *testing.T) {
 		if cc.Properties.InvoiceEntityID != cc.Properties.AccountID {
 			t.Errorf("InvoiceEntityID = %q, want AccountID", cc.Properties.InvoiceEntityID)
 		}
-		if cc.Properties.Service != "IBM Cloud Kubernetes Service" {
-			t.Errorf("service = %q", cc.Properties.Service)
+		if cc.Properties.Service != "containers-kubernetes" {
+			t.Errorf("service = %q, want ResourceID", cc.Properties.Service)
 		}
 		if cc.Properties.Category != opencost.ComputeCategory {
 			t.Errorf("category = %q", cc.Properties.Category)
 		}
 		if cc.Properties.Labels["team"] != "sre" {
 			t.Errorf("labels = %#v", cc.Properties.Labels)
+		}
+		if cc.Properties.Labels["ibm_resource_name"] != "IBM Cloud Kubernetes Service" {
+			t.Errorf("ibm_resource_name = %q", cc.Properties.Labels["ibm_resource_name"])
 		}
 		if cc.NetCost.Cost != dailyNet {
 			t.Errorf("net cost = %v, want %v", cc.NetCost.Cost, dailyNet)
@@ -290,11 +321,12 @@ func TestCloudCostsFromInstance_MTDProration(t *testing.T) {
 	}
 }
 
-func TestServiceNameFallback(t *testing.T) {
+func TestServiceUsesResourceID(t *testing.T) {
 	item := instanceUsageRecord{
 		AccountID:          "acct",
 		ResourceInstanceID: "inst",
 		ResourceID:         "is.instance",
+		ResourceName:       "Virtual Server for VPC",
 		Month:              "2026-02",
 		Cost:               28.0,
 		RatedCost:          28.0,
@@ -307,13 +339,32 @@ func TestServiceNameFallback(t *testing.T) {
 		t.Fatalf("got %d costs, want 1", len(costs))
 	}
 	if costs[0].Properties.Service != "is.instance" {
-		t.Errorf("service fallback = %q", costs[0].Properties.Service)
+		t.Errorf("service = %q, want is.instance", costs[0].Properties.Service)
+	}
+	if costs[0].Properties.Labels["ibm_resource_name"] != "Virtual Server for VPC" {
+		t.Errorf("display name label = %q", costs[0].Properties.Labels["ibm_resource_name"])
+	}
+}
+
+func TestNormalizeAccountID(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"b09edf5642ebfad587c594f4d4a354b0", "b09edf5642ebfad587c594f4d4a354b0"},
+		{"a/b09edf5642ebfad587c594f4d4a354b0", "b09edf5642ebfad587c594f4d4a354b0"},
+		{"  a/acct  ", "acct"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		if got := normalizeAccountID(tt.in); got != tt.want {
+			t.Errorf("normalizeAccountID(%q) = %q, want %q", tt.in, got, tt.want)
+		}
 	}
 }
 
 func TestUsageConfigurationKeySanitizesSlash(t *testing.T) {
 	cfg := &UsageConfiguration{AccountID: "a/b09edf5642ebfad587c594f4d4a354b0"}
-	if got := cfg.Key(); got != "a-b09edf5642ebfad587c594f4d4a354b0" {
-		t.Errorf("Key() = %q, want slash sanitized", got)
+	if got := cfg.Key(); got != "b09edf5642ebfad587c594f4d4a354b0" {
+		t.Errorf("Key() = %q, want bare hex", got)
 	}
 }
