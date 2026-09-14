@@ -138,7 +138,7 @@ func (s *STACKIT) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	}, nil
 }
 
-func (s *STACKIT) NetworkPricing() (*models.Network, error) {
+func (s *STACKIT) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	config, err := s.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get config: %w", err)
@@ -157,6 +157,10 @@ func (s *STACKIT) NetworkPricing() (*models.Network, error) {
 		NatGatewayEgressCost:      natEgress,
 		NatGatewayIngressCost:     natIngress,
 	}, nil
+}
+
+func (s *STACKIT) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
 }
 
 func (s *STACKIT) GetKey(l map[string]string, n *clustercache.Node) models.Key {

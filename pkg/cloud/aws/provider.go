@@ -1427,8 +1427,7 @@ func (aws *AWS) spotPricingFromHistory(k models.Key) (*SpotPriceHistoryEntry, bo
 	return price, true
 }
 
-// Stubbed NetworkPricing for AWS. Pull directly from aws.json for now
-func (aws *AWS) NetworkPricing() (*models.Network, error) {
+func (aws *AWS) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	cpricing, err := aws.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -1461,6 +1460,10 @@ func (aws *AWS) NetworkPricing() (*models.Network, error) {
 		NatGatewayEgressCost:      nge,
 		NatGatewayIngressCost:     ngi,
 	}, nil
+}
+
+func (aws *AWS) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
 }
 
 func (aws *AWS) LoadBalancerPricing() (*models.LoadBalancer, error) {
