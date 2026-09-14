@@ -966,6 +966,12 @@ func (aws *AWS) DownloadPricingData() error {
 		pvkeys[key.Features()] = key
 	}
 
+	// riSpRefreshInterval controls how often the Reserved Instance and Savings Plan
+	// watchers refresh their data from Athena. Defaults to 1h; raise it (e.g. to 24h
+	// via AWS_RI_SP_REFRESH_RATE_HOURS) to reduce Athena scan cost in multi-cluster
+	// deployments that share a single CUR export.
+	riSpRefreshInterval := time.Hour * time.Duration(env.GetAWSRISPRefreshRateHours())
+
 	// RIDataRunning establishes the existence of the goroutine. Since it's possible we
 	// run multiple downloads, we don't want to create multiple go routines if one already exists
 	//
@@ -986,8 +992,8 @@ func (aws *AWS) DownloadPricingData() error {
 				aws.RIDataRunning = true
 
 				for {
-					log.Infof("Reserved Instance watcher running... next update in 1h")
-					time.Sleep(time.Hour)
+					log.Infof("Reserved Instance watcher running... next update in %s", riSpRefreshInterval)
+					time.Sleep(riSpRefreshInterval)
 					err := aws.GetReservationDataFromAthena()
 					if err != nil {
 						log.Infof("Error updating RI data: %s", err.Error())
@@ -1009,8 +1015,8 @@ func (aws *AWS) DownloadPricingData() error {
 				defer errs.HandlePanic()
 				aws.SavingsPlanDataRunning = true
 				for {
-					log.Infof("Savings Plan watcher running... next update in 1h")
-					time.Sleep(time.Hour)
+					log.Infof("Savings Plan watcher running... next update in %s", riSpRefreshInterval)
+					time.Sleep(riSpRefreshInterval)
 					err := aws.GetSavingsPlanDataFromAthena()
 					if err != nil {
 						log.Infof("Error updating Savings Plan data: %s", err.Error())
