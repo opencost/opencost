@@ -16,7 +16,7 @@ type mockProvider struct {
 	err     error
 }
 
-func (m *mockProvider) NetworkPricing() (*models.Network, error) {
+func (m *mockProvider) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	return m.network, m.err
 }
 
@@ -32,7 +32,7 @@ func (m *mockProvider) NodePricing(models.Key) (*models.Node, models.PricingMeta
 	return nil, models.PricingMetadata{}, nil
 }
 
-func (m *mockProvider) LoadBalancerPricing() (*models.LoadBalancer, error) {
+func (m *mockProvider) LoadBalancerPricing(key models.LBKey) (*models.LoadBalancer, error) {
 	return nil, nil
 }
 
@@ -614,5 +614,13 @@ func TestGetNetworkCost_NATGatewayMisalignedVectors(t *testing.T) {
 	expectedThird := 20.0 * 0.05
 	if diff := result[2].Value - expectedThird; diff > 0.001 || diff < -0.001 {
 		t.Errorf("expected third vector cost %f, got %f", expectedThird, result[2].Value)
+	}
+}
+
+func TestGetNetworkCost_NilUsage(t *testing.T) {
+	provider := &mockProvider{}
+	_, err := GetNetworkCost(nil, provider)
+	if err == nil {
+		t.Fatal("expected error when usage is nil, got nil")
 	}
 }
