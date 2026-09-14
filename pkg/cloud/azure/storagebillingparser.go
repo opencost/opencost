@@ -141,7 +141,12 @@ func (asbp *AzureStorageBillingParser) ParseBillingData(start, end time.Time, re
 	} else {
 		for _, blobInfo := range blobInfos {
 			blobName := *blobInfo.Name
-			streamReader, err := asbp.StreamBlob(blobName, client)
+
+			// No overall deadline here: each block download is bounded
+			// individually by blockFetchTimeout, which catches a stalled transfer
+			// without capping how long a large blob may legitimately take to
+			// stream and parse.
+			streamReader, err := asbp.StreamBlob(ctx, blobName, client)
 			if err != nil {
 				asbp.ConnectionStatus = cloud.FailedConnection
 				return err

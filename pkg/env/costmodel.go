@@ -232,9 +232,13 @@ func GetAzureRegionInfo() string {
 
 // IsAzureDownloadBillingDataToDisk returns the environment variable value for
 // AzureDownloadBillingDataToDiskEnvVar which indicates whether the Azure
-// Billing Data should be held in memory or written to disk.
+// Billing Data should be streamed or written to disk before being parsed.
+//
+// Defaults to false: the streaming path parses the export in a bounded
+// double buffer and needs no local storage, whereas staging to disk requires
+// enough free space for the retained exports and can fill the volume.
 func IsAzureDownloadBillingDataToDisk() bool {
-	return env.GetBool(AzureDownloadBillingDataToDiskEnvVar, true)
+	return env.GetBool(AzureDownloadBillingDataToDiskEnvVar, false)
 }
 
 // GetClusterProfile returns the environment variable value for ClusterProfileEnvVar which
