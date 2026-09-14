@@ -1225,7 +1225,7 @@ func TestPVPricing_Error(t *testing.T) {
 
 func TestNetworkPricing_Error(t *testing.T) {
 	a := &Alibaba{Config: &fakeProviderConfig{}}
-	_, err := a.NetworkPricing()
+	_, err := a.NetworkPricing(nil)
 	if err == nil {
 		t.Fatalf("NetworkPricing should return error for missing config")
 	}
@@ -1233,7 +1233,7 @@ func TestNetworkPricing_Error(t *testing.T) {
 
 func TestLoadBalancerPricing_Error(t *testing.T) {
 	a := &Alibaba{Config: &fakeProviderConfig{}}
-	_, err := a.LoadBalancerPricing()
+	_, err := a.LoadBalancerPricing(nil)
 	if err == nil {
 		t.Fatalf("LoadBalancerPricing should return error for missing config")
 	}
@@ -1614,7 +1614,7 @@ func TestNetworkPricing_WithValidConfig(t *testing.T) {
 		},
 	}
 
-	network, err := a.NetworkPricing()
+	network, err := a.NetworkPricing(nil)
 	if err != nil {
 		t.Logf("NetworkPricing failed as expected: %v", err)
 	} else {
@@ -1634,7 +1634,7 @@ func TestLoadBalancerPricing_WithValidConfig(t *testing.T) {
 		},
 	}
 
-	lb, err := a.LoadBalancerPricing()
+	lb, err := a.LoadBalancerPricing(nil)
 	if err != nil {
 		t.Logf("LoadBalancerPricing failed as expected: %v", err)
 	} else {

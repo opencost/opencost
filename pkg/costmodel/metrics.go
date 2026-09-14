@@ -490,7 +490,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			cmme.ClusterManagementCostRecorder.WithLabelValues(provisioner).Set(clusterManagementCost)
 
 			// Record network pricing at global scope
-			networkCosts, err := cmme.CloudProvider.NetworkPricing()
+			networkCosts, err := cmme.CloudProvider.NetworkPricing(nil)
 			if err != nil {
 				log.Debugf("Failed to retrieve network costs: %s", err.Error())
 			} else {
