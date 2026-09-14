@@ -328,11 +328,6 @@ func (gcp *GCP) ClusterManagementPricing() (string, float64, error) {
 }
 
 func (gcp *GCP) getAllAddresses() (*compute.AddressAggregatedList, error) {
-	projID, err := gcp.MetadataClient.ProjectID()
-	if err != nil {
-		return nil, err
-	}
-
 	client, err := google.DefaultClient(context.TODO(),
 		"https://www.googleapis.com/auth/compute.readonly")
 	if err != nil {
@@ -344,13 +339,34 @@ func (gcp *GCP) getAllAddresses() (*compute.AddressAggregatedList, error) {
 		return nil, err
 	}
 
-	res, err := svc.Addresses.AggregatedList(projID).Do()
+	return getAllAddressesWithService(gcp, svc)
+}
 
+func getAllAddressesWithService(gcp *GCP, svc *compute.Service) (*compute.AddressAggregatedList, error) {
+	projID, err := gcp.MetadataClient.ProjectID()
 	if err != nil {
 		return nil, err
 	}
 
-	return res, nil
+	merged := &compute.AddressAggregatedList{
+		Items: make(map[string]compute.AddressesScopedList),
+	}
+
+	if err := svc.Addresses.AggregatedList(projID).Pages(
+		context.TODO(),
+		func(page *compute.AddressAggregatedList) error {
+			for scope, scopedList := range page.Items {
+				existing := merged.Items[scope]
+				existing.Addresses = append(existing.Addresses, scopedList.Addresses...)
+				merged.Items[scope] = existing
+			}
+			return nil
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	return merged, nil
 }
 
 func (gcp *GCP) GetAddresses() ([]byte, error) {
@@ -368,11 +384,6 @@ func (gcp *GCP) isAddressOrphaned(address *compute.Address) bool {
 }
 
 func (gcp *GCP) getAllDisks() (*compute.DiskAggregatedList, error) {
-	projID, err := gcp.MetadataClient.ProjectID()
-	if err != nil {
-		return nil, err
-	}
-
 	client, err := google.DefaultClient(context.TODO(),
 		"https://www.googleapis.com/auth/compute.readonly")
 	if err != nil {
@@ -384,13 +395,34 @@ func (gcp *GCP) getAllDisks() (*compute.DiskAggregatedList, error) {
 		return nil, err
 	}
 
-	res, err := svc.Disks.AggregatedList(projID).Do()
+	return getAllDisksWithService(gcp, svc)
+}
 
+func getAllDisksWithService(gcp *GCP, svc *compute.Service) (*compute.DiskAggregatedList, error) {
+	projID, err := gcp.MetadataClient.ProjectID()
 	if err != nil {
 		return nil, err
 	}
 
-	return res, nil
+	merged := &compute.DiskAggregatedList{
+		Items: make(map[string]compute.DisksScopedList),
+	}
+
+	if err := svc.Disks.AggregatedList(projID).Pages(
+		context.TODO(),
+		func(page *compute.DiskAggregatedList) error {
+			for zone, scopedList := range page.Items {
+				existing := merged.Items[zone]
+				existing.Disks = append(existing.Disks, scopedList.Disks...)
+				merged.Items[zone] = existing
+			}
+			return nil
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	return merged, nil
 }
 
 // GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
