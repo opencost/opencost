@@ -44,9 +44,27 @@ const (
 	defaultSpotLabel                 = "kubernetes.azure.com/scalesetpriority"
 	defaultSpotLabelValue            = "spot"
 	AzureStorageUpdateType           = "AzureStorage"
+
+	managementPlatformAKS = "aks"
+
+	// defaultAKSPricingTier is the tier assumed when none is configured, and the
+	// fallback when the configured one is unrecognized.
+	defaultAKSPricingTier = "standard"
 )
 
 var (
+	// aksTierPricePerHour is the flat per-cluster hourly charge for the managed
+	// AKS control plane, keyed by pricing tier. The rates are uniform across
+	// regions: Free carries no charge (and no uptime SLA), and Premium adds
+	// long-term support on top of Standard.
+	// https://azure.microsoft.com/en-us/pricing/details/kubernetes-service/
+	// https://learn.microsoft.com/en-us/azure/aks/free-standard-pricing-tiers
+	aksTierPricePerHour = map[string]float64{
+		"free":     0.0,
+		"standard": 0.10,
+		"premium":  0.60,
+	}
+
 	regionCodeMappings = map[string]string{
 		"ap": "asia",
 		"au": "australia",
@@ -847,16 +865,25 @@ func getMachineTypeVariants(mt string) []string {
 	return []string{}
 }
 
+// GetManagementPlatform returns "aks" for a cluster managed by AKS, and an empty
+// string for a self-managed cluster running on Azure VMs.
 func (az *Azure) GetManagementPlatform() (string, error) {
 	nodes := az.Clientset.GetAllNodes()
 
-	if len(nodes) > 0 {
-		n := nodes[0]
-		providerID := n.SpecProviderID
-		if strings.Contains(providerID, "aks") {
-			return "aks", nil
+	// AKS applies this reserved system label to every node it manages.
+	// https://learn.microsoft.com/en-us/azure/aks/use-labels#reserved-system-labels
+	for _, n := range nodes {
+		if _, ok := n.Labels[opencost.AKSNodepoolLabel]; ok {
+			return managementPlatformAKS, nil
 		}
 	}
+
+	// Fall back to the original heuristic: AKS names its scale sets
+	// "aks-<pool>-<id>-vmss", which surfaces in the node's provider ID.
+	if len(nodes) > 0 && strings.Contains(nodes[0].SpecProviderID, managementPlatformAKS) {
+		return managementPlatformAKS, nil
+	}
+
 	return "", nil
 }
 
@@ -1832,6 +1859,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 		m["name"] = c.ClusterName
 	}
 	m["provider"] = opencost.AzureProvider
+	m["provisioner"], _ = az.GetManagementPlatform()
 	m["account"] = az.ClusterAccountID
 	m["region"] = az.ClusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
@@ -1922,6 +1950,9 @@ func (az *Azure) GetConfig() (*models.CustomPricing, error) {
 	// Default to pay-as-you-go Durable offer id
 	if c.AzureOfferDurableID == "" {
 		c.AzureOfferDurableID = "MS-AZR-0003p"
+	}
+	if c.AzureAKSPricingTier == "" {
+		c.AzureAKSPricingTier = defaultAKSPricingTier
 	}
 	if c.SpotLabel == "" {
 		c.SpotLabel = defaultSpotLabel
@@ -2104,8 +2135,30 @@ func (az *Azure) PricingSourceStatus() map[string]*models.PricingSource {
 	return sources
 }
 
-func (*Azure) ClusterManagementPricing() (string, float64, error) {
-	return "", 0.0, nil
+// ClusterManagementPricing returns the flat hourly charge for the managed AKS
+// control plane. A self-managed cluster running on Azure VMs pays no such fee.
+//
+// The pricing tier is a property of the managed cluster resource and is not
+// surfaced to the cluster itself, so it is configured rather than detected.
+func (az *Azure) ClusterManagementPricing() (string, float64, error) {
+	platform, err := az.GetManagementPlatform()
+	if err != nil || platform != managementPlatformAKS {
+		return "", 0.0, err
+	}
+
+	config, err := az.GetConfig()
+	if err != nil {
+		return "", 0.0, err
+	}
+
+	price, ok := aksTierPricePerHour[strings.ToLower(config.AzureAKSPricingTier)]
+	if !ok {
+		price = aksTierPricePerHour[defaultAKSPricingTier]
+		log.DedupedWarningf(5, "%q is not a valid AKS pricing tier; pricing cluster management as %q ($%.2f/hr)",
+			config.AzureAKSPricingTier, defaultAKSPricingTier, price)
+	}
+
+	return platform, price, nil
 }
 
 func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
