@@ -796,14 +796,14 @@ func fallbackPV(key models.PVKey) (*models.PV, error) {
 //
 // TODO Once the provider interface supports more granular Load Balancer metadata,
 // this method should be updated to assign costs more precisely.
-func (do *DOKS) LoadBalancerPricing() (*models.LoadBalancer, error) {
+func (do *DOKS) LoadBalancerPricing(key models.LBKey) (*models.LoadBalancer, error) {
 	hourlyCost := 0.02
 	return &models.LoadBalancer{
 		Cost: hourlyCost,
 	}, nil
 }
 
-func (do *DOKS) NetworkPricing() (*models.Network, error) {
+func (do *DOKS) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	// fallback
 	const (
 		defaultZoneEgress        = 0.00
