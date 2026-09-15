@@ -228,13 +228,13 @@ func NewMockKubeModelSet(start, end time.Time) *KubeModelSet {
 
 	// --- PersistentVolume ---
 	kms.RegisterPersistentVolume(&PersistentVolume{
-		UID:             "pv-uid",
-		Name:            "pvc-abc123",
-		StorageClass:    "gp2",
-		CSIVolumeHandle: "vol-0abc123def456789",
-		SizeBytes:       50e9,
-		Start:           start,
-		End:             end,
+		UID:          "pv-uid",
+		Name:         "pvc-abc123",
+		StorageClass: "gp2",
+		ProviderID:   "vol-0abc123def456789",
+		SizeBytes:    50e9,
+		Start:        start,
+		End:          end,
 	})
 
 	// --- Device ---

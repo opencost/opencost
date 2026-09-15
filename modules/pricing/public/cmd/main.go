@@ -52,8 +52,8 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to generate pricing: %w", err)
 	}
 
-	log.Infof("Generated %d node pricing entries and %d volume pricing entries",
-		len(pricingSet.NodePricing), len(pricingSet.PersistentVolumePricing))
+	log.Infof("Generated %d node pricing entries, %d volume pricing entries, %d service pricing entries",
+		len(pricingSet.NodePricing), len(pricingSet.PersistentVolumePricing), len(pricingSet.ServicePricing))
 
 	if compare {
 		return comparePricing(curr, pricingSet)
@@ -69,6 +69,9 @@ func writePricingJSONL(dir string, ps *pricing.PricingSet) error {
 		return err
 	}
 	if err := writeJSONL(dir+"/persistentvolumes.jsonl", ps.PersistentVolumePricing); err != nil {
+		return err
+	}
+	if err := writeJSONL(dir+"/services.jsonl", ps.ServicePricing); err != nil {
 		return err
 	}
 	return nil
@@ -140,6 +143,12 @@ func readPricingJSONL(dir string) (*pricing.PricingSet, error) {
 		return nil, err
 	}
 	ps.PersistentVolumePricing = pvs
+
+	svcs, err := readJSONL[*pricing.ServicePricing](dir + "/services.jsonl")
+	if err != nil {
+		return nil, err
+	}
+	ps.ServicePricing = svcs
 
 	return ps, nil
 }
