@@ -120,7 +120,7 @@ func TestResolveAliasLabelKey(t *testing.T) {
 		{"team", nil, "team"},
 		{"department", &opencost.LabelConfig{DepartmentLabel: "dept"}, "dept"},
 		{"does-not-exist", &opencost.LabelConfig{DepartmentLabel: "dept"}, ""},
-		{"owner", &opencost.LabelConfig{OwnerLabel: "alpha.test.io/owner-name"}, "alpha_test_io_owner_name"},
+		{"owner", &opencost.LabelConfig{OwnerLabel: "alpha.test.io/owner-name"}, "alpha.test.io/owner-name"},
 	}
 
 	for _, tt := range tests {

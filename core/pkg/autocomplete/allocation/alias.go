@@ -13,5 +13,5 @@ func ResolveAliasLabelKey(field string, lc *opencost.LabelConfig) (string, bool)
 
 	labelConfigMap := lc.Map()
 	value, ok := labelConfigMap[field+"_label"]
-	return lc.Sanitize(value), ok
+	return value, ok
 }
