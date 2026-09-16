@@ -5,7 +5,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/unit"
 )
 
-const DefaultClusterPricePerHour float64 = 0.0
+const DefaultClusterPricePerHour float64 = 0.10
 
 const DefaultNetworkLocalEgressPricePerGiB float64 = 0.0
 const DefaultNetworkCrossZoneEgressPricePerGiB float64 = 0.01
@@ -17,7 +17,11 @@ const DefaultNetworkNATGatewayIngressPricePerGiB float64 = 0.045
 const DefaultNodePricePerVCPUHour float64 = 0.031611
 const DefaultNodePricePerRAMGiBHour float64 = 0.004237
 const DefaultNodePricePerGPUHour float64 = 0.95
-const DefaultNodePricePerLocalDiskGiBHour float64 = 0.0001096
+
+// This was originally set to double that of persistent volume, and it is unclear exactly why.
+// In order to match the legacy pipeline, it is now set to the same as persistent volume pricing
+// const DefaultNodePricePerLocalDiskGiBHour float64 = 0.0001096
+const DefaultNodePricePerLocalDiskGiBHour float64 = 0.00005479452
 
 const DefaultPersistentVolumePricePerGiBHour float64 = 0.00005479452
 
