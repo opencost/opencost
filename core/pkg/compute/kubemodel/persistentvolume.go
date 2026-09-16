@@ -21,10 +21,10 @@ func (km *KubeModel) computePersistentVolumes(kms *kubemodel.KubeModelSet, start
 	pvInfoResult, _ := pvInfoResultFuture.Await()
 	for _, res := range pvInfoResult {
 		pvMap[res.UID] = &kubemodel.PersistentVolume{
-			UID:             res.UID,
-			Name:            res.PersistentVolume,
-			StorageClass:    res.StorageClass,
-			CSIVolumeHandle: res.CSIVolumeHandle,
+			UID:          res.UID,
+			Name:         res.PersistentVolume,
+			StorageClass: res.StorageClass,
+			ProviderID:   res.ProviderID,
 		}
 	}
 
