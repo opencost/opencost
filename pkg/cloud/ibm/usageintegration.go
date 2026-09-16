@@ -24,13 +24,16 @@ import (
 //	NetCost / AmortizedNetCost / InvoicedCost = sum(cost) converted to USD, prorated
 //
 // ResourceName (when names=true) is stored as label "ibm_resource_name", not Service.
-// Daily values are synthetic: report totals ÷ covered days (full month, or MTD day-of-month),
-// emitted for days overlapping the query window. Non-billable instances are skipped.
+// Daily values are synthetic rather than true per-day usage: report totals ÷ covered days
+// (full month, or MTD day-of-month). Each refresh rewrites every covered day of each touched
+// month together so the stored month reconciles to IBM's report even when the ingestor window
+// starts mid-month. Non-billable instances are skipped.
 
 // UsageIntegration ingests IBM Cloud Usage Reports into CloudCost.
 type UsageIntegration struct {
 	UsageConfiguration
 	ConnectionStatus cloud.ConnectionStatus
+	clientFactory    func() (*usagereportsv4.UsageReportsV4, error)
 }
 
 func (ui *UsageIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCostSetRange, error) {
@@ -38,7 +41,7 @@ func (ui *UsageIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudC
 }
 
 func (ui *UsageIntegration) getCloudCost(start, end, asOf time.Time) (*opencost.CloudCostSetRange, error) {
-	client, err := ui.GetUsageReportsClient()
+	client, err := ui.usageReportsClient()
 	if err != nil {
 		ui.ConnectionStatus = cloud.FailedConnection
 		return nil, fmt.Errorf("getting IBM usage reports client: %w", err)
@@ -94,6 +97,13 @@ func (ui *UsageIntegration) getCloudCost(start, end, asOf time.Time) (*opencost.
 
 	ui.ConnectionStatus = cloud.SuccessfulConnection
 	return ccsr, nil
+}
+
+func (ui *UsageIntegration) usageReportsClient() (*usagereportsv4.UsageReportsV4, error) {
+	if ui.clientFactory != nil {
+		return ui.clientFactory()
+	}
+	return ui.GetUsageReportsClient()
 }
 
 func (ui *UsageIntegration) GetStatus() cloud.ConnectionStatus {
