@@ -307,11 +307,11 @@ func (g *GCPPricingSource) buildNodePricing(ps *pricing.PricingSet, nodeCPUCosts
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceCPU: pricing.Price{
-					Unit:  unit.Hour,
+					Unit:  unit.VCPUHour,
 					Price: cpuCost,
 				},
 				pricing.ResourceRAM: pricing.Price{
-					Unit:  unit.Hour,
+					Unit:  unit.GiBHour,
 					Price: ramCost,
 				},
 			},
@@ -334,7 +334,7 @@ func (g *GCPPricingSource) buildVolumePricing(
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceStorage: pricing.Price{
-					Unit:  unit.Hour,
+					Unit:  unit.GiBHour,
 					Price: cost,
 				},
 			},
