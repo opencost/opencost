@@ -14,7 +14,6 @@ package kubemodel
 import (
 	"cmp"
 	"fmt"
-	"github.com/opencost/opencost/core/pkg/cloud"
 	"io"
 	"iter"
 	"os"
@@ -24,6 +23,8 @@ import (
 	"sync"
 	"time"
 	"unsafe"
+
+	"github.com/opencost/opencost/core/pkg/cloud"
 
 	util "github.com/opencost/bingen/pkg/util"
 )
@@ -4922,7 +4923,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](Device) ---
 					lllll := new(Device)
 					buff.ReadInt() // [compatibility, unused]
@@ -5958,7 +5958,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](Device) ---
 						uuuu := new(Device)
 						buff.ReadInt() // [compatibility, unused]
@@ -6065,6 +6064,7 @@ func (target *Metadata) MarshalBinaryWithContext(ctx *EncodingContext) (err erro
 		// --- [begin][write][slice]([]Diagnostic) ---
 		buff.WriteInt(len(target.Diagnostics)) // slice length
 		for i := range target.Diagnostics {
+
 			// --- [begin][write][struct](Diagnostic) ---
 			buff.WriteInt(0) // [compatibility, unused]
 			errC := target.Diagnostics[i].MarshalBinaryWithContext(ctx)
@@ -6188,6 +6188,7 @@ func (target *Metadata) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 			l := buff.ReadInt() // slice len
 			h := make([]Diagnostic, l)
 			for i := range l {
+
 				// --- [begin][read][struct](Diagnostic) ---
 				n := new(Diagnostic)
 				buff.ReadInt() // [compatibility, unused]
@@ -6210,6 +6211,7 @@ func (target *Metadata) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	}
 	// field version check
 	if uint8(1) <= version {
+
 		// --- [begin][read][alias](DiagnosticLevel) ---
 		var o int
 		p := buff.ReadInt() // read int
@@ -7434,10 +7436,10 @@ func (target *PersistentVolume) MarshalBinaryWithContext(ctx *EncodingContext) (
 	}
 
 	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.CSIVolumeHandle)
+		d := ctx.Table.AddOrGet(target.ProviderID)
 		buff.WriteInt(d) // write table index
 	} else {
-		buff.WriteString(target.CSIVolumeHandle) // write string
+		buff.WriteString(target.ProviderID) // write string
 	}
 
 	buff.WriteFloat64(target.SizeBytes) // write float64
@@ -7552,7 +7554,7 @@ func (target *PersistentVolume) UnmarshalBinaryWithContext(ctx *DecodingContext)
 		n = buff.ReadString() // read string
 	}
 	m := n
-	target.CSIVolumeHandle = m
+	target.ProviderID = m
 
 	p := buff.ReadFloat64() // read float64
 	target.SizeBytes = p
@@ -9638,7 +9640,6 @@ func (target *ResourceQuotaSpecHard) UnmarshalBinaryWithContext(ctx *DecodingCon
 
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var a map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -9687,7 +9688,6 @@ func (target *ResourceQuotaSpecHard) UnmarshalBinaryWithContext(ctx *DecodingCon
 	}
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var l map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -10048,7 +10048,6 @@ func (target *ResourceQuotaStatusUsed) UnmarshalBinaryWithContext(ctx *DecodingC
 
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var a map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {
@@ -10097,7 +10096,6 @@ func (target *ResourceQuotaStatusUsed) UnmarshalBinaryWithContext(ctx *DecodingC
 	}
 	// field version check
 	if uint8(1) <= version {
-
 		// --- [begin][read][alias](ResourceQuantities) ---
 		var l map[Resource]ResourceQuantity
 		if buff.ReadUInt8() == uint8(0) {

@@ -82,6 +82,7 @@ func GeneratePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 	combinedSet := &pricing.PricingSet{
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+		ServicePricing:          []*pricing.ServicePricing{},
 	}
 
 	// Fetch AWS pricing
@@ -91,7 +92,8 @@ func GeneratePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 	}
 	combinedSet.NodePricing = append(combinedSet.NodePricing, awsSet.NodePricing...)
 	combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, awsSet.PersistentVolumePricing...)
-	log.Infof("Added %d AWS node pricing entries", len(awsSet.NodePricing))
+	combinedSet.ServicePricing = append(combinedSet.ServicePricing, awsSet.ServicePricing...)
+	log.Infof("Added %d AWS node pricing entries, %d service pricing entries", len(awsSet.NodePricing), len(awsSet.ServicePricing))
 
 	// Fetch Azure pricing
 	azureSet, err := GenerateAzurePricing(currency)
@@ -100,7 +102,8 @@ func GeneratePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 	}
 	combinedSet.NodePricing = append(combinedSet.NodePricing, azureSet.NodePricing...)
 	combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, azureSet.PersistentVolumePricing...)
-	log.Infof("Added %d Azure node pricing entries", len(azureSet.NodePricing))
+	combinedSet.ServicePricing = append(combinedSet.ServicePricing, azureSet.ServicePricing...)
+	log.Infof("Added %d Azure node pricing entries, %d service pricing entries", len(azureSet.NodePricing), len(azureSet.ServicePricing))
 
 	// GCP does NOT support CNY
 	if currency != "CNY" {
@@ -110,14 +113,15 @@ func GeneratePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 		}
 		combinedSet.NodePricing = append(combinedSet.NodePricing, gcpSet.NodePricing...)
 		combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, gcpSet.PersistentVolumePricing...)
-		log.Infof("Added %d GCP node pricing entries", len(gcpSet.NodePricing))
+		combinedSet.ServicePricing = append(combinedSet.ServicePricing, gcpSet.ServicePricing...)
+		log.Infof("Added %d GCP node pricing entries, %d service pricing entries", len(gcpSet.NodePricing), len(gcpSet.ServicePricing))
 	}
 
 	// Sort the combined set to ensure deterministic output
 	combinedSet.Sort()
 
-	log.Infof("Generated combined pricing set with %d total node entries and %d volume entries",
-		len(combinedSet.NodePricing), len(combinedSet.PersistentVolumePricing))
+	log.Infof("Generated combined pricing set with %d total node entries, %d volume entries, %d service entries",
+		len(combinedSet.NodePricing), len(combinedSet.PersistentVolumePricing), len(combinedSet.ServicePricing))
 
 	return combinedSet, nil
 }

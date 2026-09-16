@@ -219,7 +219,7 @@ func (a *AzurePricingSource) parseDiskPage(body io.Reader, ps *pricing.PricingSe
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceStorage: pricing.Price{
-					Unit:  unit.Hour,
+					Unit:  unit.GiBHour,
 					Price: hourlyPrice,
 				},
 			},

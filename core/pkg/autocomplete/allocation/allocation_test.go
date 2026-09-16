@@ -21,6 +21,11 @@ func TestValidateField(t *testing.T) {
 		{"label", "label", false},
 		{"label:App", "label:App", false},
 		{"namespacelabel:Team", "namespacelabel:Team", false},
+		{"department", "department", false},
+		{"environment", "environment", false},
+		{"owner", "owner", false},
+		{"product", "product", false},
+		{"team", "team", false},
 		{"", "", true},
 		{"bad", "", true},
 	}
@@ -88,11 +93,40 @@ func TestRouteField(t *testing.T) {
 		{"label:App", RouteLabelValue, "App"},
 		{"namespacelabel", RouteNamespaceLabelKeys, ""},
 		{"cluster", RouteDefault, ""},
+		{"department", RouteAlias, ""},
+		{"environment", RouteAlias, ""},
+		{"owner", RouteAlias, ""},
+		{"product", RouteAlias, ""},
+		{"team", RouteAlias, ""},
 	}
 	for _, tt := range tests {
 		route, key, err := RouteField(tt.field)
 		if err != nil || route != tt.route || key != tt.key {
 			t.Fatalf("RouteField(%q) = %v, %q, %v; want %v, %q", tt.field, route, key, err, tt.route, tt.key)
+		}
+	}
+}
+
+func TestResolveAliasLabelKey(t *testing.T) {
+	tests := []struct {
+		field       string
+		labelConfig *opencost.LabelConfig
+		expected    string
+	}{
+		{"department", nil, "department"},
+		{"environment", nil, "env"},
+		{"owner", nil, "owner"},
+		{"product", nil, "app"},
+		{"team", nil, "team"},
+		{"department", &opencost.LabelConfig{DepartmentLabel: "dept"}, "dept"},
+		{"does-not-exist", &opencost.LabelConfig{DepartmentLabel: "dept"}, ""},
+		{"owner", &opencost.LabelConfig{OwnerLabel: "alpha.test.io/owner-name"}, "alpha.test.io/owner-name"},
+	}
+
+	for _, tt := range tests {
+		actual, _ := ResolveAliasLabelKey(tt.field, tt.labelConfig)
+		if actual != tt.expected {
+			t.Fatalf("TestResolveAliasLabelKey(%q, %v) = %q; want %q", tt.field, tt.labelConfig, actual, tt.expected)
 		}
 	}
 }
