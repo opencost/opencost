@@ -54,7 +54,28 @@ func TestComputePersistentVolumes(t *testing.T) {
 			want: map[string]*kubemodel.PersistentVolume{},
 		},
 		{
-			name: "pv with storage class and csi volume handle",
+			name: "pv with storage class and provider id",
+			overrides: map[string]any{
+				source.QueryKMPVInfo: []*source.PVInfoResult{
+					{UID: "pv-1", PersistentVolume: "pvc-data-0", StorageClass: "gp2", ProviderID: "vol-abc123"},
+				},
+				source.QueryPVUptime: []*source.UptimeResult{
+					{UID: "pv-1", First: start, Last: end},
+				},
+			},
+			want: map[string]*kubemodel.PersistentVolume{
+				"pv-1": {
+					UID:          "pv-1",
+					Name:         "pvc-data-0",
+					StorageClass: "gp2",
+					ProviderID:   "vol-abc123",
+					Start:        start,
+					End:          end,
+				},
+			},
+		},
+		{
+			name: "pv with csi volume handle",
 			overrides: map[string]any{
 				source.QueryKMPVInfo: []*source.PVInfoResult{
 					{UID: "pv-1", PersistentVolume: "pvc-data-0", StorageClass: "gp2", CSIVolumeHandle: "vol-abc123"},
@@ -65,12 +86,12 @@ func TestComputePersistentVolumes(t *testing.T) {
 			},
 			want: map[string]*kubemodel.PersistentVolume{
 				"pv-1": {
-					UID:             "pv-1",
-					Name:            "pvc-data-0",
-					StorageClass:    "gp2",
-					CSIVolumeHandle: "vol-abc123",
-					Start:           start,
-					End:             end,
+					UID:          "pv-1",
+					Name:         "pvc-data-0",
+					StorageClass: "gp2",
+					ProviderID:   "",
+					Start:        start,
+					End:          end,
 				},
 			},
 		},
