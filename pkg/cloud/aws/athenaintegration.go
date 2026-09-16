@@ -57,8 +57,30 @@ var AthenaNetSPPricingCoalesce = fmt.Sprintf("COALESCE(%s, %s, 0)", AthenaNetSPP
 const AthenaDateColumn = "line_item_usage_start_date"
 const AthenaDateTruncColumn = "DATE_TRUNC('day'," + AthenaDateColumn + ") as usage_date"
 
+// AthenaBillingEntityColumn distinguishes standard AWS charges ('AWS') from AWS
+// Marketplace charges ('AWS Marketplace') on a CUR line item.
+const AthenaBillingEntityColumn = "bill_billing_entity"
+const AthenaMarketplaceBillingEntity = "AWS Marketplace"
+
 const AthenaWhereDateFmt = `line_item_usage_start_date >= date '%s' AND line_item_usage_start_date < date '%s'`
-const AthenaWhereUsage = "(line_item_line_item_type = 'Usage' OR line_item_line_item_type = 'DiscountedUsage' OR line_item_line_item_type = 'SavingsPlanCoveredUsage' OR line_item_line_item_type = 'EdpDiscount' OR line_item_line_item_type = 'PrivateRateDiscount')"
+
+// AthenaWhereUsageBase filters to usage-driving line item types only. It references no
+// optional CUR columns, so it is always safe to use regardless of which columns a given
+// CUR export includes.
+const AthenaWhereUsageBase = "(line_item_line_item_type = 'Usage' OR line_item_line_item_type = 'DiscountedUsage' OR line_item_line_item_type = 'SavingsPlanCoveredUsage' OR line_item_line_item_type = 'EdpDiscount' OR line_item_line_item_type = 'PrivateRateDiscount')"
+
+// AthenaWhereUsage extends AthenaWhereUsageBase with AWS Marketplace 'Fee' line items
+// (flat-rate/subscription charges for third-party SaaS products). Marketplace is scoped
+// to bill_billing_entity = 'AWS Marketplace' so this does not also pull in
+// non-Marketplace 'Fee' rows, such as Reserved Instance upfront purchases, which are
+// outside the scope of this Marketplace-specific fix. CUR 2.0 exports can disable any
+// column, including bill_billing_entity, so callers must only use this filter when
+// AthenaBillingEntityColumn is confirmed present (see getCloudCost) -- otherwise the
+// query will fail with COLUMN_NOT_FOUND and fall back to AthenaWhereUsageBase instead.
+var AthenaWhereUsage = fmt.Sprintf(
+	"(line_item_line_item_type = 'Usage' OR line_item_line_item_type = 'DiscountedUsage' OR line_item_line_item_type = 'SavingsPlanCoveredUsage' OR line_item_line_item_type = 'EdpDiscount' OR line_item_line_item_type = 'PrivateRateDiscount' OR (line_item_line_item_type = 'Fee' AND %s = '%s'))",
+	AthenaBillingEntityColumn, AthenaMarketplaceBillingEntity,
+)
 
 // AthenaQueryIndexes is a struct for holding the context of a query
 type AthenaQueryIndexes struct {
@@ -186,13 +208,13 @@ func (ai *AthenaIntegration) getCloudCost(start, end time.Time, limit int) (*ope
 	whereDate := fmt.Sprintf(AthenaWhereDateFmt, start.Format("2006-01-02"), end.Format("2006-01-02"))
 	wherePartitions := ai.GetPartitionWhere(start, end, isCUR20(allColumns))
 
-	// Query for all line items with a resource_id or from AWS Marketplace, which did not end before
-	// the range or start after it. This captures all costs with any amount of
-	// overlap with the range, for which we will only extract the relevant costs
+	// Query for all line items whose usage start date falls within the given range and
+	// partition, restricted to usage-driving line item types and, when the
+	// bill_billing_entity column exists, AWS Marketplace fees (see GetWhereUsage).
 	whereConjuncts := []string{
 		wherePartitions,
 		whereDate,
-		AthenaWhereUsage,
+		ai.GetWhereUsage(allColumns),
 	}
 	columnStr := strings.Join(selectColumns, ", ")
 	whereClause := strings.Join(whereConjuncts, " AND ")
@@ -244,6 +266,19 @@ func (ai *AthenaIntegration) GetListCostColumn() string {
 	listCostBuilder.WriteString(AthenaPricingColumn)
 	listCostBuilder.WriteString(" END")
 	return fmt.Sprintf("SUM(%s) as list_cost", listCostBuilder.String())
+}
+
+// GetWhereUsage returns the usage-type filter to apply to the CUR query. When the CUR
+// export includes bill_billing_entity, AWS Marketplace 'Fee' line items are included
+// alongside the usual usage-driving types (see AthenaWhereUsage). CUR 2.0 exports can
+// disable any column, so when bill_billing_entity is absent this falls back to
+// AthenaWhereUsageBase -- referencing a missing column would otherwise fail the entire
+// query with COLUMN_NOT_FOUND, not just omit Marketplace fees.
+func (ai *AthenaIntegration) GetWhereUsage(allColumns map[string]bool) string {
+	if allColumns[AthenaBillingEntityColumn] {
+		return AthenaWhereUsage
+	}
+	return AthenaWhereUsageBase
 }
 
 func (ai *AthenaIntegration) GetNetCostColumn(allColumns map[string]bool) string {
