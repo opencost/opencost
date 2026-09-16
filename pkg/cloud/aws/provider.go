@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"regexp"
@@ -944,7 +945,7 @@ func (aws *AWS) DownloadPricingData() error {
 	storageClasses := aws.Clientset.GetAllStorageClasses()
 	storageClassMap := make(map[string]map[string]string)
 	for _, storageClass := range storageClasses {
-		params := storageClass.Parameters
+		params := maps.Clone(storageClass.Parameters)
 		if params != nil {
 			params["provisioner"] = storageClass.Provisioner
 		}
