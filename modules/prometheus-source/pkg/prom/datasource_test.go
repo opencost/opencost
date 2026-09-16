@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -34,6 +35,12 @@ func TestPrometheusDataSourceDetectsRangeSemanticsForNonSemverVersions(t *testin
 					}
 					value := "1"
 					if r.Form.Get("query") == rangeSemanticsProbe {
+						evaluationTime, err := strconv.ParseInt(r.Form.Get("time"), 10, 64)
+						if err != nil {
+							t.Errorf("invalid probe evaluation time %q: %v", r.Form.Get("time"), err)
+						} else if evaluationTime%int64(time.Minute/time.Second) != 0 {
+							t.Errorf("probe evaluation time %d is not minute-aligned", evaluationTime)
+						}
 						value = tc.probeValue
 					}
 					_, _ = fmt.Fprintf(w, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"job":"kubecost"},"value":[0,%q]}]}}`, value)
