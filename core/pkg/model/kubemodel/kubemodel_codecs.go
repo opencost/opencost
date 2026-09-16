@@ -14,6 +14,7 @@ package kubemodel
 import (
 	"cmp"
 	"fmt"
+	"github.com/opencost/opencost/core/pkg/cloud"
 	"io"
 	"iter"
 	"os"
@@ -23,8 +24,6 @@ import (
 	"sync"
 	"time"
 	"unsafe"
-
-	"github.com/opencost/opencost/core/pkg/cloud"
 
 	util "github.com/opencost/bingen/pkg/util"
 )
@@ -4217,7 +4216,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		if buff.ReadUInt8() == uint8(0) {
 			target.Metadata = nil
 		} else {
-
 			// --- [begin][read][struct](Metadata) ---
 			a := new(Metadata)
 			buff.ReadInt() // [compatibility, unused]
@@ -4235,6 +4233,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	}
 	// field version check
 	if uint8(1) <= version {
+
 		// --- [begin][read][struct](Window) ---
 		b := new(Window)
 		buff.ReadInt() // [compatibility, unused]
@@ -4651,6 +4650,7 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzz = nil
 				} else {
+
 					// --- [begin][read][struct](ReplicaSet) ---
 					rrr := new(ReplicaSet)
 					buff.ReadInt() // [compatibility, unused]
@@ -4741,7 +4741,6 @@ func (target *KubeModelSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 				if buff.ReadUInt8() == uint8(0) {
 					zzzzzzzzzzz = nil
 				} else {
-
 					// --- [begin][read][struct](PersistentVolume) ---
 					ffff := new(PersistentVolume)
 					buff.ReadInt() // [compatibility, unused]
@@ -5602,6 +5601,7 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzz = nil
 					} else {
+
 						// --- [begin][read][struct](ReplicaSet) ---
 						lll := new(ReplicaSet)
 						buff.ReadInt() // [compatibility, unused]
@@ -5720,7 +5720,6 @@ func (stream *KubeModelSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVal
 					if buff.ReadUInt8() == uint8(0) {
 						zzzzzzzzzzz = nil
 					} else {
-
 						// --- [begin][read][struct](PersistentVolume) ---
 						www := new(PersistentVolume)
 						buff.ReadInt() // [compatibility, unused]
