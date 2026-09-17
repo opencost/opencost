@@ -135,20 +135,36 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPrici
 	return pc.customPricing, nil
 }
 
-// ThreadSafe method for retrieving the custom pricing config.
+// ThreadSafe method for retrieving the custom pricing config. The returned
+// value is a defensive copy of the cached config, so callers cannot mutate
+// the shared state in place.
 func (pc *ProviderConfig) GetCustomPricingData() (*models.CustomPricing, error) {
 	// Fast path: once loaded, the config is cached, so readers only need the read lock.
 	pc.lock.RLock()
 	cached := pc.customPricing
 	pc.lock.RUnlock()
 	if cached != nil {
-		return cached, nil
+		return cloneCustomPricing(cached), nil
 	}
 
 	pc.lock.Lock()
 	defer pc.lock.Unlock()
 
-	return pc.loadConfig(true)
+	loaded, err := pc.loadConfig(true)
+	if err != nil {
+		return nil, err
+	}
+	return cloneCustomPricing(loaded), nil
+}
+
+// cloneCustomPricing returns a shallow copy of the given CustomPricing. This is
+// sufficient because all fields are value types (strings).
+func cloneCustomPricing(cp *models.CustomPricing) *models.CustomPricing {
+	if cp == nil {
+		return nil
+	}
+	clone := *cp
+	return &clone
 }
 
 // ConfigFileManager returns the ConfigFileManager instance used to manage the CustomPricing
