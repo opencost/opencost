@@ -33,7 +33,7 @@ const (
 	GeneratorPackageName string = "kubemodel"
 
 	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 3
+	DefaultCodecVersion uint8 = 4
 )
 
 //--------------------------------------------------------------------------
@@ -3094,6 +3094,28 @@ func (target *InferenceEngine) MarshalBinaryWithContext(ctx *EncodingContext) (e
 
 	buff.WriteFloat64(target.Preemptions) // write float64
 
+	buff.WriteInt(target.SampleCount) // write int
+
+	buff.WriteInt(target.SampleIntervalSeconds) // write int
+
+	// --- [begin][write][reference](time.Time) ---
+	f, errA := target.FirstSampleTime.MarshalBinary()
+	if errA != nil {
+		return errA
+	}
+	buff.WriteInt(len(f))
+	buff.WriteBytes(f)
+	// --- [end][write][reference](time.Time) ---
+
+	// --- [begin][write][reference](time.Time) ---
+	g, errB := target.LastSampleTime.MarshalBinary()
+	if errB != nil {
+		return errB
+	}
+	buff.WriteInt(len(g))
+	buff.WriteBytes(g)
+	// --- [end][write][reference](time.Time) ---
+
 	return nil
 }
 
@@ -3227,6 +3249,57 @@ func (target *InferenceEngine) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 
 	dd := buff.ReadFloat64() // read float64
 	target.Preemptions = dd
+
+	// field version check
+	if uint8(4) <= version {
+
+		ee := buff.ReadInt() // read int
+		target.SampleCount = ee
+
+	} else {
+		target.SampleCount = int(0) // default
+	}
+	// field version check
+	if uint8(4) <= version {
+
+		ff := buff.ReadInt() // read int
+		target.SampleIntervalSeconds = ff
+
+	} else {
+		target.SampleIntervalSeconds = int(0) // default
+	}
+	// field version check
+	if uint8(4) <= version {
+
+		// --- [begin][read][reference](time.Time) ---
+		gg := new(time.Time)
+		hh := buff.ReadInt() // byte array length
+		ll := buff.ReadBytes(hh)
+		errA := gg.UnmarshalBinary(ll)
+		if errA != nil {
+			return errA
+		}
+		target.FirstSampleTime = *gg
+		// --- [end][read][reference](time.Time) ---
+
+	} else {
+	}
+	// field version check
+	if uint8(4) <= version {
+
+		// --- [begin][read][reference](time.Time) ---
+		mm := new(time.Time)
+		nn := buff.ReadInt() // byte array length
+		oo := buff.ReadBytes(nn)
+		errB := mm.UnmarshalBinary(oo)
+		if errB != nil {
+			return errB
+		}
+		target.LastSampleTime = *mm
+		// --- [end][read][reference](time.Time) ---
+
+	} else {
+	}
 
 	return nil
 }

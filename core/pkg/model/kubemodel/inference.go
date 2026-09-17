@@ -2,6 +2,7 @@ package kubemodel
 
 import (
 	"fmt"
+	"time"
 )
 
 // InferenceEngine holds window-aggregated scheduler telemetry for one
@@ -124,6 +125,56 @@ type InferenceEngine struct {
 	// and instability signal: sustained preemptions mean the engine is
 	// thrashing its KV budget.
 	Preemptions float64 `json:"preemptions"`
+
+	// SampleCount is how many samples the summaries above were computed from.
+	//
+	// It exists because a summary of zero is otherwise indistinguishable from
+	// no summary at all. Both data sources reduce a window to scalars, and an
+	// aggregator with no input returns zero rather than absent, so an engine
+	// that was never scraped and an engine that was genuinely idle produce
+	// byte-identical entries. A consumer that cannot tell them apart will
+	// report a scrape failure as zero consumption, and the whole point of
+	// these signals is to not do that.
+	//
+	// Zero means the gauges above carry no measurement and must be treated as
+	// absent rather than as measured zeroes.
+	SampleCount int `json:"sampleCount"` // @bingen:field[version=4]
+
+	// SampleIntervalSeconds is the resolution the summaries were computed at,
+	// after any coarsening the data source had to apply.
+	//
+	// It is reported rather than assumed from configuration because the two
+	// data sources cannot always honour the same requested resolution: the
+	// collector source retains fixed blocks whose finest is coarser than the
+	// default request, so it rounds up and says so here. Zero means the
+	// resolution is unknown, which is the case for a window-level summary that
+	// was not computed from sub-intervals at all.
+	SampleIntervalSeconds int `json:"sampleIntervalSeconds"` // @bingen:field[version=4]
+
+	// FirstSampleTime and LastSampleTime bound the samples that contributed,
+	// in UTC.
+	//
+	// They distinguish a signal measured across the whole window from one
+	// measured across a fraction of it, which matters for two reasons: a
+	// replica that started midway through the window has a legitimately short
+	// span, while a replica whose scraping stopped halfway has a span that
+	// looks the same and means something entirely different. Reporting the
+	// bounds lets a consumer judge coverage instead of guessing at it, and it
+	// is what the recommendation coverage gate reads.
+	//
+	// Both are zero when SampleCount is zero.
+	FirstSampleTime time.Time `json:"firstSampleTime"` // @bingen:field[version=4]
+	LastSampleTime  time.Time `json:"lastSampleTime"`  // @bingen:field[version=4]
+}
+
+// HasSamples reports whether this entry carries an actual measurement.
+//
+// Callers should prefer this over testing a gauge against zero. A zero gauge is
+// a legitimate measurement (an idle engine really does have an empty queue), so
+// zero-testing conflates "idle" with "never scraped" — the exact conflation the
+// SampleCount field exists to prevent.
+func (is *InferenceEngine) HasSamples() bool {
+	return is.SampleCount > 0
 }
 
 // EngineVLLM identifies vLLM as the serving engine that produced an
