@@ -1254,23 +1254,25 @@ func computeEfficiencyMetric(alloc *opencost.Allocation, bufferMultiplier float6
 		return nil
 	}
 
-	// Calculate time duration in hours
-	hours := alloc.Minutes() / 60.0
-	if hours <= 0 {
+	if alloc.Minutes() <= 0 {
 		return nil
 	}
 
-	// Get current usage (average over the period)
-	cpuCoresUsed := alloc.CPUCoreHours / hours
-	ramBytesUsed := alloc.RAMByteHours / hours
+	hours := alloc.Minutes() / 60.0
 
-	// Get requested amounts
+	// Use the actual usage averages, NOT CPUCoreHours/hours which represents
+	// allocated resources (max of request and usage) and makes efficiency
+	// appear ~100% even for grossly over-provisioned workloads.
+	cpuCoresUsed := alloc.CPUCoreUsageAverage
+	ramBytesUsed := alloc.RAMBytesUsageAverage
+
 	cpuCoresRequested := alloc.CPUCoreRequestAverage
 	ramBytesRequested := alloc.RAMBytesRequestAverage
 
-	// Calculate current efficiency (will be 0 if no requests are set)
-	cpuEfficiency := safeDiv(cpuCoresUsed, cpuCoresRequested)
-	memoryEfficiency := safeDiv(ramBytesUsed, ramBytesRequested)
+	// Use the canonical efficiency helpers which handle the no-request edge
+	// cases (usage-without-request → 100%, zero-usage-zero-cost → 0%).
+	cpuEfficiency := alloc.CPUEfficiency()
+	memoryEfficiency := alloc.RAMEfficiency()
 
 	// Calculate recommendations with buffer for headroom
 	recommendedCPU := cpuCoresUsed * bufferMultiplier
