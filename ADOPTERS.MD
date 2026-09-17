@@ -15,3 +15,4 @@ If you would like to be included in this table, please submit a PR to this file 
 | Microsoft                                  | *                                 | Service Provider       | [Leverage OpenCost on Azure Kubernetes Service](http://aka.ms/aks/OpenCost-AKS) |
 | mindcurv group                             | *                                 | Consultancy            | [mindcurv group](https://mindcurv.com/en/) |
 | Zendesk                                    | *                                 | end user               | [Zendesk](https://www.zendesk.com/) |
+| OpenChoreo                                 |OpenChoreo                         | Another Project        | [OpenChoreo](https://openchoreo.dev/) |

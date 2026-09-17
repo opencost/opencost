@@ -34,6 +34,7 @@ const (
 	DaemonSetInfo                                         = "daemonset_info"
 	DaemonSetLabels                                       = "daemonset_labels"
 	DaemonSetAnnotations                                  = "daemonset_annotations"
+	DaemonSetArguments                                    = "daemonset_arguments"
 	JobInfo                                               = "job_info"
 	JobLabels                                             = "job_labels"
 	JobAnnotations                                        = "job_annotations"

@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
@@ -38,6 +40,7 @@ var kubeModelMetricNames = []string{
 	"daemonset_info",
 	"daemonset_labels",
 	"daemonset_annotations",
+	"daemonset_arguments",
 	"job_info",
 	"job_labels",
 	"job_annotations",
@@ -358,6 +361,7 @@ func (c KubeModelCollector) scrapeDaemonSets(
 	emitInfo := !isDisabled(disabled, "daemonset_info")
 	emitLabels := !isDisabled(disabled, "daemonset_labels")
 	emitAnno := !isDisabled(disabled, "daemonset_annotations")
+	emitArgs := !isDisabled(disabled, "daemonset_arguments")
 
 	for _, ds := range sets {
 		nsUID, ok := nsIndex[ds.Namespace]
@@ -377,6 +381,18 @@ func (c KubeModelCollector) scrapeDaemonSets(
 		}
 		if emitAnno {
 			out = append(out, kubeAnnotationsMetric("daemonset_annotations", string(ds.UID), ds.Annotations))
+		}
+		if emitArgs {
+			daemonSetArguments := coreutil.ParseContainerArgs(ds.SpecContainers)
+			for _, arg := range slices.Sorted(maps.Keys(daemonSetArguments)) {
+				out = append(out, newInfoMetric("daemonset_arguments", map[string]string{
+					"uid":           string(ds.UID),
+					"namespace_uid": string(nsUID),
+					"daemonset":     ds.Name,
+					"arg":           arg,
+					"value":         daemonSetArguments[arg],
+				}))
+			}
 		}
 	}
 	return out
