@@ -2669,6 +2669,21 @@ func (a *Allocation) StringProperty(property string) (string, error) {
 			return "", nil
 		}
 		return a.Properties.Controller, nil
+	case AllocationControllerNamespaceProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		controller := a.Properties.Controller
+		if controller == "" {
+			controller = UnallocatedSuffix
+		}
+		if a.Properties.ControllerKind != "" {
+			controller = fmt.Sprintf("%s:%s", a.Properties.ControllerKind, controller)
+		}
+		if a.Properties.Namespace != "" {
+			controller = fmt.Sprintf("%s:%s", a.Properties.Namespace, controller)
+		}
+		return controller, nil
 	case AllocationControllerKindProp:
 		if a.Properties == nil {
 			return "", nil
