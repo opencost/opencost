@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -113,8 +114,8 @@ func (mpm *MockPricingModule) Checksum(ctx context.Context) (string, error) {
 var pricingTestFS embed.FS
 
 func (mpm *MockPricingModule) loadTestFile(filename string) error {
-	path := filepath.Join("test", filename)
-	bs, err := pricingTestFS.ReadFile(path)
+	// embedded file paths are always slash separated, so they cannot be built with filepath
+	bs, err := pricingTestFS.ReadFile(path.Join("test", filename))
 	if err != nil {
 		return fmt.Errorf("failed to read embedded pricing file: %w", err)
 	}
