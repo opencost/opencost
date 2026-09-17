@@ -1602,4 +1602,50 @@ func TestPricingSurvivesScaleToZero(t *testing.T) {
 			t.Errorf("pricing for %q was evicted after its nodes went away; a returning node would re-download the offer file", key)
 		}
 	})
+
+	// The memory has to measure how long ago the type was last seen, not how long ago a
+	// download happened. Those diverge exactly when this change works: downloads stop, so a
+	// type that has been running throughout still ages out, and is then evicted the moment
+	// it scales down — the original loop, reproduced after a quiet period.
+	t.Run("pricing survives a type that ran longer than the memory before scaling to zero", func(t *testing.T) {
+		// p3.8xlarge rather than m5.large: it is the only compute instance in the fixture
+		// whose on-demand terms carry HourlyRateCode, so NodePricing returns a price instead
+		// of an error and the sighting is a real one.
+		const runningKey = "us-east-2,p3.8xlarge,windows"
+
+		awsTest := &AWS{ValidPricingKeys: map[string]bool{}, ClusterRegion: "us-east-2"}
+
+		populate(t, awsTest, awsTest.pricingKeysToPopulate(map[string]bool{runningKey: true}))
+		if awsTest.Pricing[runningKey] == nil {
+			t.Fatalf("expected pricing for %q on the first refresh", runningKey)
+		}
+
+		// Nodes of that type keep running, but nothing has triggered a download for longer
+		// than pricingKeyMemory.
+		awsTest.recentPricingKeysLock.Lock()
+		awsTest.recentPricingKeys[runningKey] = time.Now().Add(-pricingKeyMemory - time.Minute)
+		awsTest.recentPricingKeysLock.Unlock()
+
+		// The cost model prices one of them, which is the sighting that must refresh it.
+		node := &awsKey{
+			Labels: map[string]string{
+				v1.LabelTopologyRegion:     "us-east-2",
+				v1.LabelInstanceTypeStable: "p3.8xlarge",
+				v1.LabelOSStable:           "windows",
+			},
+			ProviderID: "aws:///us-east-2b/i-0123456789abcdef0",
+		}
+		if got := node.Features(); got != runningKey {
+			t.Fatalf("test node has key %q, want %q", got, runningKey)
+		}
+		if _, _, err := awsTest.NodePricing(node); err != nil {
+			t.Fatalf("NodePricing: %s", err)
+		}
+
+		// Only then does the type scale to zero.
+		populate(t, awsTest, awsTest.pricingKeysToPopulate(map[string]bool{}))
+		if awsTest.Pricing[runningKey] == nil {
+			t.Errorf("pricing for %q was evicted after a quiet period; the memory is measuring time since the last download rather than time since the type was last seen", runningKey)
+		}
+	})
 }

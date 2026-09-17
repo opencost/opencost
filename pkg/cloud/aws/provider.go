@@ -843,9 +843,11 @@ func (aws *AWS) pricingKeysToPopulate(current map[string]bool) map[string]bool {
 	return keys
 }
 
-// notePricingKey records a key that pricing is wanted for. NodePricing calls it before
-// triggering a download so that the type it is about to ask about is populated even when
-// the cluster cache has not yet caught up with the node.
+// notePricingKey records that pricing for a key is in use. NodePricing calls it whenever it
+// prices a node, so that pricingKeyMemory measures how long ago the type was last seen
+// rather than how long ago a download happened, and before triggering a download so that
+// the type it is about to ask about is populated even when the cluster cache has not yet
+// caught up with the node.
 func (aws *AWS) notePricingKey(key string) {
 	aws.recentPricingKeysLock.Lock()
 	defer aws.recentPricingKeysLock.Unlock()
@@ -1797,6 +1799,10 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 		log.Debugf("NodePricing: for key \"%s\" found the following OnDemand data: %s", key, string(termsStr))
 	}
 	if ok {
+		// Not redundant with the download path: without this the memory measures time since
+		// the last download, so a type running across a quiet period ages out and is evicted
+		// the moment it scales down.
+		aws.notePricingKey(key)
 		return aws.createNode(terms, usageType, k)
 	} else if _, ok := aws.ValidPricingKeys[key]; ok {
 		// Note the key before downloading: the cluster cache may not have caught up with
