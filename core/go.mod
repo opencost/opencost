@@ -39,6 +39,7 @@ require (
 	k8s.io/client-go v0.36.0
 	k8s.io/kubelet v0.36.0
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2
+	pgregory.net/rapid v1.2.0
 )
 
 require (
