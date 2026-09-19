@@ -269,6 +269,42 @@ const (
 
 	// SharedAssetType describes the Shared AssetType
 	SharedAssetType
+
+	// Huawei Cloud service sub-types for Cloud assets.
+	ECSCloudAssetType
+	EVSCloudAssetType
+	OBSCloudAssetType
+	RDSCloudAssetType
+	DCSCloudAssetType
+	ELBCloudAssetType
+	NATCloudAssetType
+	VPCCloudAssetType
+	EIPCloudAssetType
+	DEWCloudAssetType
+	OtherCloudAssetType
+
+	// More Huawei Cloud service sub-types. These are appended after
+	// OtherCloudAssetType, rather than grouped with the block above, so that
+	// every pre-existing AssetType keeps its ordinal: an AssetType is encoded
+	// as its numeric value (see MarshalBinary), so renumbering would make
+	// already-persisted AssetSets decode as the wrong type.
+	CCECloudAssetType
+	SWRCloudAssetType
+	SFSCloudAssetType
+	CBRCloudAssetType
+	FGSCloudAssetType
+	LTSCloudAssetType
+	CESCloudAssetType
+	AOMCloudAssetType
+	SMNCloudAssetType
+	DNSCloudAssetType
+	DMSCloudAssetType
+	APIGCloudAssetType
+	WAFCloudAssetType
+	CodeArtsCloudAssetType
+	SupportPlanCloudAssetType
+	ModelArtsCloudAssetType
+	RMSCloudAssetType
 )
 
 // ParseAssetType attempts to parse the given string into an AssetType
@@ -288,6 +324,62 @@ func ParseAssetType(text string) (AssetType, error) {
 		return NodeAssetType, nil
 	case "shared":
 		return SharedAssetType, nil
+	case "ecs":
+		return ECSCloudAssetType, nil
+	case "evs":
+		return EVSCloudAssetType, nil
+	case "obs":
+		return OBSCloudAssetType, nil
+	case "rds":
+		return RDSCloudAssetType, nil
+	case "dcs":
+		return DCSCloudAssetType, nil
+	case "elb":
+		return ELBCloudAssetType, nil
+	case "nat":
+		return NATCloudAssetType, nil
+	case "vpc":
+		return VPCCloudAssetType, nil
+	case "eip":
+		return EIPCloudAssetType, nil
+	case "dew":
+		return DEWCloudAssetType, nil
+	case "othercloud":
+		return OtherCloudAssetType, nil
+	case "cce":
+		return CCECloudAssetType, nil
+	case "swr":
+		return SWRCloudAssetType, nil
+	case "sfs":
+		return SFSCloudAssetType, nil
+	case "cbr":
+		return CBRCloudAssetType, nil
+	case "functiongraph":
+		return FGSCloudAssetType, nil
+	case "lts":
+		return LTSCloudAssetType, nil
+	case "ces":
+		return CESCloudAssetType, nil
+	case "aom":
+		return AOMCloudAssetType, nil
+	case "smn":
+		return SMNCloudAssetType, nil
+	case "dns":
+		return DNSCloudAssetType, nil
+	case "dms":
+		return DMSCloudAssetType, nil
+	case "apig":
+		return APIGCloudAssetType, nil
+	case "waf":
+		return WAFCloudAssetType, nil
+	case "codearts":
+		return CodeArtsCloudAssetType, nil
+	case "supportplan":
+		return SupportPlanCloudAssetType, nil
+	case "modelarts":
+		return ModelArtsCloudAssetType, nil
+	case "rms":
+		return RMSCloudAssetType, nil
 	}
 	return AnyAssetType, fmt.Errorf("invalid asset type: %s", text)
 }
@@ -303,7 +395,51 @@ func (at AssetType) String() string {
 		"Network",
 		"Node",
 		"Shared",
+		"ECS",
+		"EVS",
+		"OBS",
+		"RDS",
+		"DCS",
+		"ELB",
+		"NAT",
+		"VPC",
+		"EIP",
+		"DEW",
+		"OtherCloud",
+		"CCE",
+		"SWR",
+		"SFS",
+		"CBR",
+		"FunctionGraph",
+		"LTS",
+		"CES",
+		"AOM",
+		"SMN",
+		"DNS",
+		"DMS",
+		"APIG",
+		"WAF",
+		"CodeArts",
+		"SupportPlan",
+		"ModelArts",
+		"RMS",
 	}[at]
+}
+
+// MarshalBinary implements encoding.BinaryMarshaler, used by the bingen-generated
+// codec since AssetType is not a plain built-in type.
+func (at AssetType) MarshalBinary() ([]byte, error) {
+	return []byte{byte(at)}, nil
+}
+
+// UnmarshalBinary implements encoding.BinaryUnmarshaler, used by the bingen-generated
+// codec since AssetType is not a plain built-in type.
+func (at *AssetType) UnmarshalBinary(data []byte) error {
+	if len(data) != 1 {
+		return fmt.Errorf("invalid AssetType binary data: expected 1 byte, got %d", len(data))
+	}
+	*at = AssetType(data[0])
+	return nil
 }
 
 // Any is the most general Asset, which is usually created as a result of
@@ -514,7 +650,8 @@ type Cloud struct {
 	Window     Window
 	Adjustment float64
 	Cost       float64
-	Credit     float64 // Credit is a negative value representing dollars credited back to a given line-item
+	Credit     float64   // Credit is a negative value representing dollars credited back to a given line-item
+	typ        AssetType //@bingen:field[version=22, default=CloudAssetType]
 }
 
 // NewCloud returns a new Cloud Asset
@@ -525,6 +662,7 @@ func NewCloud(category, providerID string, start, end time.Time, window Window) 
 	}
 
 	return &Cloud{
+		typ:        CloudAssetType,
 		Labels:     AssetLabels{},
 		Properties: properties,
 		Start:      start,
@@ -535,7 +673,23 @@ func NewCloud(category, providerID string, start, end time.Time, window Window) 
 
 // Type returns the AssetType
 func (ca *Cloud) Type() AssetType {
-	return CloudAssetType
+	return ca.typ
+}
+
+// resourceSpec returns the provider spec/SKU code of the billed resource,
+// falling back to its resource type, or "" when neither label is present.
+func (ca *Cloud) resourceSpec() string {
+	if spec := ca.Labels[AssetResourceSpecLabel]; spec != "" {
+		return spec
+	}
+	return ca.Labels[AssetResourceTypeLabel]
+}
+
+// SetCloudType sets the AssetType for this Cloud asset. Used by ClusterCloudCosts
+// to map Huawei Cloud services (RDS, DCS, OBS, etc.) to distinct AssetTypes
+// so the Infra Assets dashboard shows them as separate categories.
+func (ca *Cloud) SetCloudType(t AssetType) {
+	ca.typ = t
 }
 
 // Properties returns the AssetProperties
@@ -682,6 +836,7 @@ func (ca *Cloud) add(that *Cloud) {
 // Clone returns a cloned instance of the Asset
 func (ca *Cloud) Clone() Asset {
 	return &Cloud{
+		typ:        ca.typ,
 		Labels:     ca.Labels.Clone(),
 		Properties: ca.Properties.Clone(),
 		Start:      ca.Start,
@@ -700,6 +855,9 @@ func (ca *Cloud) Equal(a Asset) bool {
 		return false
 	}
 
+	if ca.typ != that.typ {
+		return false
+	}
 	if !ca.Labels.Equal(that.Labels) {
 		return false
 	}

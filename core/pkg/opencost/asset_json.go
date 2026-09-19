@@ -102,6 +102,14 @@ func (ca *Cloud) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "start", ca.Start.Format(time.RFC3339), ",")
 	jsonEncodeString(buffer, "end", ca.End.Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", ca.Minutes(), ",")
+	// A Cloud asset has no dedicated spec field, so its provider spec/SKU code
+	// (or, failing that, its resource type) is surfaced under the same
+	// "nodeType" key Node assets use: both answer "what kind of thing is this",
+	// and consumers of the assets API already render that key generically.
+	// Round-tripping is unaffected -- the value is read back from the labels.
+	if spec := ca.resourceSpec(); spec != "" {
+		jsonEncodeString(buffer, "nodeType", spec, ",")
+	}
 	jsonEncodeFloat64(buffer, "adjustment", ca.Adjustment, ",")
 	jsonEncodeFloat64(buffer, "credit", ca.Credit, ",")
 	jsonEncodeFloat64(buffer, "totalCost", ca.TotalCost(), "")
@@ -157,6 +165,13 @@ func (ca *Cloud) InterfaceToCloud(itf interface{}) error {
 	ca.End = end
 	if _, found := fmap["window"]; found {
 		ca.Window = toWindow(fmap["window"].(map[string]interface{}))
+	}
+
+	ca.typ = CloudAssetType
+	if typeStr, ok := fmap["type"].(string); ok {
+		if parsed, err := ParseAssetType(typeStr); err == nil {
+			ca.typ = parsed
+		}
 	}
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
