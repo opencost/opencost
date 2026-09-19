@@ -202,6 +202,9 @@ const OVHProvider = "OVH"
 // STACKITProvider describes the provider STACKIT
 const STACKITProvider = "STACKIT"
 
+// IBMProvider describes the provider IBM Cloud
+const IBMProvider = "IBM"
+
 // NilProvider describes unknown provider
 const NilProvider = "-"
 

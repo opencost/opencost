@@ -297,7 +297,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 			}
 
 			nsAnnotations := namespaceAnnotationsMapping[ns+","+clusterID]
-			podAnnotations := pod.Annotations
+			podAnnotations := maps.Clone(pod.Annotations)
 			if podAnnotations == nil {
 				podAnnotations = make(map[string]string)
 			}
@@ -829,7 +829,7 @@ func (cm *CostModel) addPVData(pvClaimMapping map[string]*PersistentVolumeClaimD
 	storageClasses := cache.GetAllStorageClasses()
 	storageClassMap := make(map[string]map[string]string)
 	for _, storageClass := range storageClasses {
-		params := storageClass.Parameters
+		params := maps.Clone(storageClass.Parameters)
 		storageClassMap[storageClass.Name] = params
 		if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.Annotations["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 			storageClassMap["default"] = params
@@ -960,7 +960,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 	}
 	for _, n := range nodeList {
 		name := n.Name
-		nodeLabels := n.Labels
+		nodeLabels := maps.Clone(n.Labels)
 		if nodeLabels == nil {
 			log.Warnf("GetNodeCost: Found node '%s' with no labels", name)
 			nodeLabels = make(map[string]string)
