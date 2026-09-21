@@ -3,6 +3,9 @@ package aws
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -10,6 +13,26 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/opencost/opencost/pkg/cloud"
 )
+
+// stsAssumeRoleSuccessBody is a minimal, valid AssumeRole XML response used to let credential
+// retrieval succeed in tests that only care about a subsequent Athena API failure.
+const stsAssumeRoleSuccessBody = `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleResult>
+    <Credentials>
+      <AccessKeyId>ASIAFAKEACCESSKEY</AccessKeyId>
+      <SecretAccessKey>fakeSecretAccessKey</SecretAccessKey>
+      <SessionToken>fakeSessionToken</SessionToken>
+      <Expiration>2099-01-01T00:00:00Z</Expiration>
+    </Credentials>
+    <AssumedRoleUser>
+      <AssumedRoleId>AROAFAKE:test-role</AssumedRoleId>
+      <Arn>arn:aws:sts::123456789012:assumed-role/test-role/test-role</Arn>
+    </AssumedRoleUser>
+  </AssumeRoleResult>
+  <ResponseMetadata>
+    <RequestId>fake-request-id</RequestId>
+  </ResponseMetadata>
+</AssumeRoleResponse>`
 
 func TestAthenaQuerier_GetColumns(t *testing.T) {
 	// Create mock client
@@ -952,5 +975,91 @@ func TestParseARN(t *testing.T) {
 	result = ParseARN(id)
 	if result != id {
 		t.Errorf("ParseARN() for empty string = %v, want %v", result, id)
+	}
+}
+
+// TestAthenaQuerier_QueryAthenaPaginated_AssumeRoleSucceedsAthenaFails covers the case the
+// original AssumeRole logging fix could get wrong: AssumeRole succeeds, but the assumed role
+// lacks Athena permissions. The resulting error must be attributed to Athena StartQueryExecution,
+// not misreported as an AssumeRole failure.
+func TestAthenaQuerier_QueryAthenaPaginated_AssumeRoleSucceedsAthenaFails(t *testing.T) {
+	stsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(stsAssumeRoleSuccessBody))
+	}))
+	defer stsServer.Close()
+
+	athenaServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"__type":"AccessDeniedException","message":"User is not authorized to perform: athena:StartQueryExecution"}`))
+	}))
+	defer athenaServer.Close()
+
+	t.Setenv("AWS_ENDPOINT_URL_STS", stsServer.URL)
+	t.Setenv("AWS_ENDPOINT_URL_ATHENA", athenaServer.URL)
+
+	querier := &AthenaQuerier{
+		AthenaConfiguration: AthenaConfiguration{
+			Bucket:   "test-bucket",
+			Region:   "us-east-1",
+			Database: "test-db",
+			Table:    "test-table",
+			Account:  "123456789012",
+			Authorizer: &AssumeRole{
+				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
+				RoleARN:    "arn:aws:iam::123456789012:role/test-role",
+			},
+		},
+	}
+
+	err := querier.queryAthenaPaginated(context.Background(), "SELECT 1", func(*athena.GetQueryResultsOutput) bool { return true })
+	if err == nil {
+		t.Fatal("expected an error from a rejected StartQueryExecution call, got nil")
+	}
+	if !strings.Contains(err.Error(), "Athena") || !strings.Contains(err.Error(), "StartQueryExecution") {
+		t.Errorf("expected error to identify Athena StartQueryExecution, got: %s", err.Error())
+	}
+	if !strings.Contains(err.Error(), "AccessDeniedException") {
+		t.Errorf("expected error to include the AWS error code AccessDeniedException, got: %s", err.Error())
+	}
+	if strings.Contains(err.Error(), "AssumeRole: failed to assume role") {
+		t.Errorf("error incorrectly attributed to an AssumeRole failure: %s", err.Error())
+	}
+}
+
+// TestWaitForQueryToComplete_FailedState verifies that an Athena query which fails after
+// StartQueryExecution succeeds (e.g. denied access to the S3 output bucket or a KMS key) is
+// reported with its StateChangeReason, and is not confused with an SDK/credentials error.
+func TestWaitForQueryToComplete_FailedState(t *testing.T) {
+	athenaServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"QueryExecution":{"Status":{"State":"FAILED","StateChangeReason":"Access Denied when writing output to url: s3://test-bucket/path"}}}`))
+	}))
+	defer athenaServer.Close()
+
+	t.Setenv("AWS_ENDPOINT_URL_ATHENA", athenaServer.URL)
+
+	querier := &AthenaQuerier{
+		AthenaConfiguration: AthenaConfiguration{
+			Bucket:     "test-bucket",
+			Region:     "us-east-1",
+			Database:   "test-db",
+			Table:      "test-table",
+			Account:    "123456789012",
+			Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
+		},
+	}
+	cli, err := querier.GetAthenaClient()
+	if err != nil {
+		t.Fatalf("GetAthenaClient() returned an unexpected error: %v", err)
+	}
+
+	err = waitForQueryToComplete(context.Background(), cli, aws.String("test-query-id"))
+	if err == nil {
+		t.Fatal("expected an error for a FAILED query execution, got nil")
+	}
+	if !strings.Contains(err.Error(), "Access Denied when writing output to url: s3://test-bucket/path") {
+		t.Errorf("expected error to include StateChangeReason, got: %s", err.Error())
+	}
+	if strings.Contains(err.Error(), "AssumeRole") {
+		t.Errorf("error incorrectly attributed to AssumeRole: %s", err.Error())
 	}
 }
