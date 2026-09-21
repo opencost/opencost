@@ -91,8 +91,8 @@ func TestInferProviderFromProviderID(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := inferProviderFromProviderID(tc.id); got != tc.want {
-				t.Fatalf("inferProviderFromProviderID(%q) = %q, want %q", tc.id, got, tc.want)
+			if got := InferProviderFromProviderID(tc.id); got != tc.want {
+				t.Fatalf("InferProviderFromProviderID(%q) = %q, want %q", tc.id, got, tc.want)
 			}
 		})
 	}
