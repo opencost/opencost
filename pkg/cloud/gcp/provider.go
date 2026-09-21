@@ -1175,8 +1175,7 @@ func (gcp *GCP) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	return pricing.PV, nil
 }
 
-// Stubbed NetworkPricing for GCP. Pull directly from gcp.json for now
-func (gcp *GCP) NetworkPricing() (*models.Network, error) {
+func (gcp *GCP) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	cpricing, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -1209,6 +1208,10 @@ func (gcp *GCP) NetworkPricing() (*models.Network, error) {
 		NatGatewayEgressCost:      nge,
 		NatGatewayIngressCost:     ngi,
 	}, nil
+}
+
+func (gcp *GCP) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
 }
 
 func (gcp *GCP) LoadBalancerPricing() (*models.LoadBalancer, error) {
