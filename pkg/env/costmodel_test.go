@@ -101,3 +101,67 @@ func TestIsMCPServerEnabled_True(t *testing.T) {
 		t.Fatalf("expected true when env var set to true, got %v", got)
 	}
 }
+
+func TestIsAzureDownloadBillingDataToDisk(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+		pre  func()
+	}{
+		{
+			name: "Ensure the default is false, so billing data is streamed rather than staged on disk",
+			want: false,
+			pre: func() {
+				os.Unsetenv(AzureDownloadBillingDataToDiskEnvVar)
+			},
+		},
+		{
+			name: "Ensure the value is true when AZURE_DOWNLOAD_BILLING_DATA_TO_DISK is set to true",
+			want: true,
+			pre: func() {
+				os.Setenv(AzureDownloadBillingDataToDiskEnvVar, "true")
+			},
+		},
+		{
+			name: "Ensure the value is false when AZURE_DOWNLOAD_BILLING_DATA_TO_DISK is set to false",
+			want: false,
+			pre: func() {
+				os.Setenv(AzureDownloadBillingDataToDiskEnvVar, "false")
+			},
+		},
+		{
+			name: "Ensure the default applies when AZURE_DOWNLOAD_BILLING_DATA_TO_DISK is set to an empty string",
+			want: false,
+			pre: func() {
+				os.Setenv(AzureDownloadBillingDataToDiskEnvVar, "")
+			},
+		},
+	}
+
+	// Save whatever the caller's environment already had and put it back
+	// afterwards, so running this package with a value set, or running it more
+	// than once, does not change the result of these or any later tests.
+	original, hadOriginal := os.LookupEnv(AzureDownloadBillingDataToDiskEnvVar)
+	t.Cleanup(func() {
+		if hadOriginal {
+			os.Setenv(AzureDownloadBillingDataToDiskEnvVar, original)
+			return
+		}
+		os.Unsetenv(AzureDownloadBillingDataToDiskEnvVar)
+	})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Start every subtest from a known-unset state so the cases are
+			// independent of each other and of their execution order.
+			os.Unsetenv(AzureDownloadBillingDataToDiskEnvVar)
+			if tt.pre != nil {
+				tt.pre()
+			}
+
+			if got := IsAzureDownloadBillingDataToDisk(); got != tt.want {
+				t.Errorf("IsAzureDownloadBillingDataToDisk() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
