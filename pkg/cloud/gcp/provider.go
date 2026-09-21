@@ -1031,6 +1031,7 @@ func (gcp *GCP) parsePagesWithClient(httpClient *http.Client, url string, inputK
 			return err
 		}
 		page, token, err := gcp.parsePage(resp.Body, inputKeys, pvKeys)
+		resp.Body.Close()
 		if err != nil {
 			return err
 		}
