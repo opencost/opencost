@@ -1373,7 +1373,10 @@ func (cm *CostModel) GetLBCost() (map[serviceKey]*costAnalyzerCloud.LoadBalancer
 		}
 
 		if service.Type == "LoadBalancer" {
-			loadBalancer, err := cp.LoadBalancerPricing()
+			lbKey := &costAnalyzerCloud.CustomLBKey{
+				LBID: service.Name,
+			}
+			loadBalancer, err := cp.LoadBalancerPricing(lbKey)
 			if err != nil {
 				return nil, err
 			}
