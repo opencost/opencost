@@ -557,7 +557,7 @@ func (alibaba *Alibaba) PVPricing(pvk models.PVKey) (*models.PV, error) {
 
 // Inter zone and Inter region network cost are defaulted based on https://www.alibabacloud.com/help/en/cloud-data-transmission/latest/cross-region-data-transfers
 // Internet cost is default based on https://www.alibabacloud.com/help/en/elastic-compute-service/latest/public-bandwidth to $0.123
-func (alibaba *Alibaba) NetworkPricing() (*models.Network, error) {
+func (alibaba *Alibaba) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	cpricing, err := alibaba.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -594,6 +594,10 @@ func (alibaba *Alibaba) NetworkPricing() (*models.Network, error) {
 
 // Alibaba loadbalancer has three different types https://www.alibabacloud.com/product/server-load-balancer,
 // defaulted price to classic load balancer https://www.alibabacloud.com/help/en/server-load-balancer/latest/pay-as-you-go.
+func (alibaba *Alibaba) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
+}
+
 func (alibaba *Alibaba) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	cpricing, err := alibaba.Config.GetCustomPricingData()
 	if err != nil {
