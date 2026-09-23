@@ -85,7 +85,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 			conf = conf.WithEndpoint(endpoint)
 		}
 		s3Client := s3.New(session.New(conf))
-		bucketAndKey := strings.Split(strings.TrimPrefix(c.CSVLocation, "s3://"), "/")
+		bucketAndKey := strings.SplitN(strings.TrimPrefix(c.CSVLocation, "s3://"), "/", 2)
 		if len(bucketAndKey) == 2 {
 			out, err := s3Client.GetObject(&s3.GetObjectInput{
 				Bucket: aws.String(bucketAndKey[0]),
