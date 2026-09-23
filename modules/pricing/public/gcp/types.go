@@ -69,6 +69,15 @@ type nodeKey struct {
 	UsageType    string // OnDemand, Preemptible, Spot
 }
 
+// gpuKey identifies the hourly price of one GPU product in a GCP region and
+// purchase option. GPU SKUs do not include a machine type, so they are joined
+// with completed CPU/RAM node prices when the PricingSet is built.
+type gpuKey struct {
+	Region    string
+	Product   string
+	UsageType string // OnDemand, Preemptible, Spot
+}
+
 // volumeKey is used internally to track volume metadata during parsing
 type volumeKey struct {
 	Region     string
@@ -166,6 +175,12 @@ func normalizeInstanceType(resourceGroup, description string) string {
 	return resourceGroupLower
 }
 
+// isCommitmentOrReservedSKU checks whether a SKU is for committed use discounts (CUD) or reserved instances
+func isCommitmentOrReservedSKU(description string) bool {
+	d := strings.ToUpper(description)
+	return strings.Contains(d, "COMMITMENT") || strings.Contains(d, "RESERVATION")
+}
+
 // isComputeResource checks if a SKU is for compute resources (CPU/RAM)
 func isComputeResource(resourceGroup string) bool {
 	resourceGroupLower := strings.ToLower(resourceGroup)
@@ -180,4 +195,47 @@ func isStorageResource(resourceGroup string) bool {
 		resourceGroupLower == "pdbalanced" ||
 		resourceGroupLower == "pdextreme" ||
 		strings.HasPrefix(resourceGroupLower, "hyperdisk")
+}
+
+// isGPUResource checks whether a Catalog SKU is priced per attached GPU.
+func isGPUResource(resourceGroup string) bool {
+	return strings.EqualFold(resourceGroup, "GPU")
+}
+
+const gpuProductLabel = "nvidia.com/gpu.product"
+
+// normalizeGPUProduct maps recognized Catalog SKU descriptions to the
+// nvidia.com/gpu.product node-label values used by the KCM GPU-pricing path.
+// The returned string must match the exact case-sensitive value stamped on
+// nodes by the NVIDIA device plugin (e.g. "Tesla-T4", "NVIDIA-A100-SXM4-40GB")
+// because ClickHouse stage 02 derivation matches via exact FNV-32a bitmap hashes.
+// Unknown descriptions are intentionally skipped rather than emitting a price
+// that could match the wrong GPU model.
+func normalizeGPUProduct(description string) string {
+	desc := strings.ToLower(description)
+
+	// A100 must be checked first: the 80 GB variant has a distinct product string.
+	if strings.Contains(desc, "a100") {
+		if strings.Contains(desc, "80gb") || strings.Contains(desc, "80 gb") {
+			return "NVIDIA-A100-80GB-PCIe"
+		}
+		return "Tesla-A100"
+	}
+
+	switch {
+	case strings.Contains(desc, "l4"):
+		return "NVIDIA-L4"
+	case strings.Contains(desc, "t4"):
+		return "Tesla-T4"
+	case strings.Contains(desc, "v100"):
+		return "Tesla-V100"
+	case strings.Contains(desc, "p100"):
+		return "Tesla-P100"
+	case strings.Contains(desc, "p4"):
+		return "Tesla-P4"
+	case strings.Contains(desc, "k80"):
+		return "Tesla-K80"
+	default:
+		return ""
+	}
 }
