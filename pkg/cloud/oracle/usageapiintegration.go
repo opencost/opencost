@@ -52,107 +52,40 @@ func (uai *UsageApiIntegration) getCloudCost(ctx context.Context, client usageAP
 	}
 
 	hasItems := false
-	for {
+	seenPageTokens := map[string]struct{}{}
+	for page := 1; ; page++ {
 		resp, err := client.RequestSummarizedUsages(ctx, req)
 		if err != nil {
 			uai.ConnectionStatus = cloud.FailedConnection
 			return nil, fmt.Errorf("failed to query usage: %w", err)
 		}
+		log.Debugf("UsageApiIntegration[%s]: received %d usage items from page %d", uai.Key(), len(resp.Items), page)
 
 		if len(resp.Items) > 0 {
 			hasItems = true
 		}
 
 		for _, item := range resp.Items {
-			resourceId := ""
-			if item.ResourceId != nil {
-				resourceId = *item.ResourceId
+			if item.TimeUsageStarted == nil || item.TimeUsageEnded == nil {
+				log.Warnf("UsageApiIntegration[%s]: skipping usage item without a usage window", uai.Key())
+				continue
 			}
 
-			tenantName := ""
-			if item.TenantName != nil {
-				tenantName = *item.TenantName
-			}
-
-			subscriptionId := ""
-			if item.SubscriptionId != nil {
-				subscriptionId = *item.SubscriptionId
-			}
-
-			service := ""
-			if item.Service != nil {
-				service = *item.Service
-			}
-
-			category := SelectOCICategory(service)
-
-			// Iterate through the slice of tags, assigning
-			// keys and values to the map of labels
-			labels := opencost.CloudCostLabels{}
-			for _, tag := range item.Tags {
-				if tag.Key == nil || tag.Value == nil {
-					continue
-				}
-				labels[*tag.Key] = *tag.Value
-			}
-
-			properties := &opencost.CloudCostProperties{
-				ProviderID:      resourceId,
-				Provider:        opencost.OracleProvider,
-				AccountID:       uai.TenancyID,
-				AccountName:     tenantName,
-				InvoiceEntityID: subscriptionId,
-				RegionID:        uai.Region,
-				Service:         service,
-				Category:        category,
-				Labels:          labels,
-			}
-
-			winStart := item.TimeUsageStarted.Time
-			winEnd := winStart.AddDate(0, 0, 1)
-
-			listRate := 0.0
-			if item.ListRate != nil {
-				listRate = float64(*item.ListRate)
-			}
-
-			attrCost, err := parseAttributedCost(item.AttributedCost)
+			cc, err := uai.usageSummaryToCloudCost(item)
 			if err != nil {
 				return nil, err
 			}
-
-			computedAmt := 0.0
-			if item.ComputedAmount != nil {
-				computedAmt = float64(*item.ComputedAmount)
-			}
-
-			cc := &opencost.CloudCost{
-				Properties: properties,
-				Window:     opencost.NewWindow(&winStart, &winEnd),
-				//todo: which returned costs go where?
-				ListCost: opencost.CostMetric{
-					Cost: listRate,
-				},
-				NetCost: opencost.CostMetric{
-					Cost: computedAmt,
-				},
-				AmortizedNetCost: opencost.CostMetric{
-					Cost: attrCost,
-				},
-				AmortizedCost: opencost.CostMetric{
-					Cost: attrCost,
-				},
-				InvoicedCost: opencost.CostMetric{
-					Cost: computedAmt,
-				},
-			}
-
 			ccsr.LoadCloudCost(cc)
 		}
 
 		if resp.OpcNextPage == nil || *resp.OpcNextPage == "" {
 			break
 		}
+		if _, ok := seenPageTokens[*resp.OpcNextPage]; ok {
+			uai.ConnectionStatus = cloud.FailedConnection
+			return nil, fmt.Errorf("received a repeated OCI usage API page token")
+		}
+		seenPageTokens[*resp.OpcNextPage] = struct{}{}
 		req.Page = resp.OpcNextPage
 	}
 
@@ -164,6 +97,83 @@ func (uai *UsageApiIntegration) getCloudCost(ctx context.Context, client usageAP
 
 	uai.ConnectionStatus = cloud.SuccessfulConnection
 	return ccsr, nil
+}
+
+func (uai *UsageApiIntegration) usageSummaryToCloudCost(item usageapi.UsageSummary) (*opencost.CloudCost, error) {
+	resourceID := ""
+	if item.ResourceId != nil {
+		resourceID = *item.ResourceId
+	}
+
+	tenantName := ""
+	if item.TenantName != nil {
+		tenantName = *item.TenantName
+	}
+
+	subscriptionID := ""
+	if item.SubscriptionId != nil {
+		subscriptionID = *item.SubscriptionId
+	}
+
+	service := ""
+	if item.Service != nil {
+		service = *item.Service
+	}
+
+	labels := opencost.CloudCostLabels{}
+	for _, tag := range item.Tags {
+		if tag.Key == nil || tag.Value == nil {
+			continue
+		}
+		labels[*tag.Key] = *tag.Value
+	}
+
+	listRate := 0.0
+	if item.ListRate != nil {
+		listRate = float64(*item.ListRate)
+	}
+
+	attributedCost, err := parseAttributedCost(item.AttributedCost)
+	if err != nil {
+		return nil, err
+	}
+
+	computedAmount := 0.0
+	if item.ComputedAmount != nil {
+		computedAmount = float64(*item.ComputedAmount)
+	}
+
+	winStart := item.TimeUsageStarted.Time
+	winEnd := item.TimeUsageEnded.Time
+	return &opencost.CloudCost{
+		Properties: &opencost.CloudCostProperties{
+			ProviderID:      resourceID,
+			Provider:        opencost.OracleProvider,
+			AccountID:       uai.TenancyID,
+			AccountName:     tenantName,
+			InvoiceEntityID: subscriptionID,
+			RegionID:        uai.Region,
+			Service:         service,
+			Category:        SelectOCICategory(service),
+			Labels:          labels,
+		},
+		Window: opencost.NewWindow(&winStart, &winEnd),
+		ListCost: opencost.CostMetric{
+			Cost: listRate,
+		},
+		NetCost: opencost.CostMetric{
+			Cost: computedAmount,
+		},
+		AmortizedNetCost: opencost.CostMetric{
+			Cost: attributedCost,
+		},
+		AmortizedCost: opencost.CostMetric{
+			Cost: attributedCost,
+		},
+		InvoicedCost: opencost.CostMetric{
+			Cost: computedAmount,
+		},
+	}, nil
 }
 
 func (uai *UsageApiIntegration) GetStatus() cloud.ConnectionStatus {

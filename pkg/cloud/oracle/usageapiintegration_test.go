@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/oracle/oci-go-sdk/v65/common"
 	"github.com/oracle/oci-go-sdk/v65/usageapi"
 )
@@ -193,9 +194,93 @@ func TestUsageAPIIntegrationGetCloudCostFollowsPagination(t *testing.T) {
 	if client.requests[1].Page == nil || *client.requests[1].Page != "next-page" {
 		t.Errorf("second request page = %v, want next-page", client.requests[1].Page)
 	}
+	if client.requests[1].Limit == nil || *client.requests[1].Limit != 500 {
+		t.Errorf("second request limit = %v, want 500", client.requests[1].Limit)
+	}
 
 	if got := len(ccsr.CloudCostSets[0].CloudCosts); got != 501 {
 		t.Errorf("expected 501 CloudCosts from both pages, got %d", got)
+	}
+}
+
+func TestUsageAPIIntegrationGetCloudCostSkipsUsageSummaryWithoutTimeWindow(t *testing.T) {
+	start := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	item := testUsageSummary(start, "resource-1", 1)
+	item.TimeUsageEnded = nil
+	client := &fakeUsageAPIClient{
+		responses: []usageapi.RequestSummarizedUsagesResponse{
+			{
+				UsageAggregation: usageapi.UsageAggregation{Items: []usageapi.UsageSummary{item}},
+			},
+		},
+	}
+	integration := &UsageApiIntegration{
+		UsageApiConfiguration: UsageApiConfiguration{
+			TenancyID: "tenancy-id",
+			Region:    "region",
+		},
+	}
+
+	ccsr, err := integration.getCloudCost(context.Background(), client, start, start.AddDate(0, 0, 1))
+	if err != nil {
+		t.Fatalf("getCloudCost() error = %v", err)
+	}
+	if !ccsr.IsEmpty() {
+		t.Error("expected usage summary without a time window to be skipped")
+	}
+}
+
+func TestUsageAPIIntegrationGetCloudCostRejectsRepeatedPageToken(t *testing.T) {
+	start := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	client := &fakeUsageAPIClient{
+		responses: []usageapi.RequestSummarizedUsagesResponse{
+			{
+				UsageAggregation: usageapi.UsageAggregation{Items: []usageapi.UsageSummary{testUsageSummary(start, "resource-1", 1)}},
+				OpcNextPage:      common.String("page-token"),
+			},
+			{
+				UsageAggregation: usageapi.UsageAggregation{Items: []usageapi.UsageSummary{testUsageSummary(start, "resource-2", 1)}},
+				OpcNextPage:      common.String("page-token"),
+			},
+		},
+	}
+	integration := &UsageApiIntegration{
+		UsageApiConfiguration: UsageApiConfiguration{
+			TenancyID: "tenancy-id",
+			Region:    "region",
+		},
+	}
+
+	_, err := integration.getCloudCost(context.Background(), client, start, start.AddDate(0, 0, 1))
+	if err == nil {
+		t.Fatal("expected error for repeated OCI page token")
+	}
+	if got := len(client.requests); got != 2 {
+		t.Errorf("expected 2 OCI requests before repeated token error, got %d", got)
+	}
+	if integration.ConnectionStatus != cloud.FailedConnection {
+		t.Errorf("ConnectionStatus = %s, want %s", integration.ConnectionStatus, cloud.FailedConnection)
+	}
+}
+
+func TestUsageSummaryToCloudCostUsesOCIUsageWindow(t *testing.T) {
+	start := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(12 * time.Hour)
+	item := testUsageSummary(start, "resource-1", 1)
+	item.TimeUsageEnded = &common.SDKTime{Time: end}
+	integration := &UsageApiIntegration{
+		UsageApiConfiguration: UsageApiConfiguration{
+			TenancyID: "tenancy-id",
+			Region:    "region",
+		},
+	}
+
+	cloudCost, err := integration.usageSummaryToCloudCost(item)
+	if err != nil {
+		t.Fatalf("usageSummaryToCloudCost() error = %v", err)
+	}
+	if got := cloudCost.Window.End(); !got.Equal(end) {
+		t.Errorf("CloudCost window end = %s, want %s", got, end)
 	}
 }
 
