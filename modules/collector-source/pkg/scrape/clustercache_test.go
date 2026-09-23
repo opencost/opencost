@@ -3092,3 +3092,46 @@ func Test_kubernetesScraper_scrapeCronJobs(t *testing.T) {
 		})
 	}
 }
+
+func TestClusterCacheScraper_Scrape_PodRetainsUIDsOfRemovedReferents(t *testing.T) {
+	cache := &clustercache.MockClusterCache{
+		Nodes:      []*clustercache.Node{{Name: "node-a", UID: "uid-node-a"}},
+		Namespaces: []*clustercache.Namespace{{Name: "ns-1", UID: "uid-ns-1"}},
+		Pods: []*clustercache.Pod{
+			{
+				Name:      "pod-a",
+				Namespace: "ns-1",
+				UID:       "uid-pod-a",
+				Spec:      clustercache.PodSpec{NodeName: "node-a"},
+			},
+		},
+	}
+	ccs := newClusterCacheScraper(cache, nil).(*ClusterCacheScraper)
+
+	podInfo := func(updates []metric.Update) map[string]string {
+		for _, u := range updates {
+			if u.Name == metric.PodInfo {
+				return u.AdditionalInfo
+			}
+		}
+		t.Fatalf("no %s update found", metric.PodInfo)
+		return nil
+	}
+
+	first := podInfo(ccs.Scrape())
+	if first[source.NodeUIDLabel] != "uid-node-a" || first[source.NamespaceUIDLabel] != "uid-ns-1" {
+		t.Fatalf("unexpected pod info on first scrape: %v", first)
+	}
+
+	// the node and namespace are removed from the cluster cache before the pod
+	cache.Nodes = nil
+	cache.Namespaces = nil
+
+	second := podInfo(ccs.Scrape())
+	if second[source.NodeUIDLabel] != "uid-node-a" {
+		t.Errorf("expected node UID to be retained, got %q", second[source.NodeUIDLabel])
+	}
+	if second[source.NamespaceUIDLabel] != "uid-ns-1" {
+		t.Errorf("expected namespace UID to be retained, got %q", second[source.NamespaceUIDLabel])
+	}
+}
