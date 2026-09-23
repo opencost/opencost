@@ -14,19 +14,23 @@ import (
 type StatSummaryScraper struct {
 	client       nodestats.StatSummaryClient
 	clusterCache clustercache.ClusterCache
+	nodeIndex    *persistedIndex[string]
+	pvcIndex     *persistedIndex[pvcKey]
 }
 
 func newStatSummaryScraper(client nodestats.StatSummaryClient, clusterCache clustercache.ClusterCache) Scraper {
 	return &StatSummaryScraper{
 		client:       client,
 		clusterCache: clusterCache,
+		nodeIndex:    newPersistedIndex[string]("node"),
+		pvcIndex:     newPersistedIndex[pvcKey]("pvc"),
 	}
 }
 
 func (s *StatSummaryScraper) Scrape() []metric.Update {
 
-	nodeNameToUID := buildNodeIndex(s.clusterCache.GetAllNodes())
-	pvcNameToUID := buildPVCIndex(s.clusterCache.GetAllPersistentVolumeClaims())
+	nodeNameToUID := s.nodeIndex.update(buildNodeIndex(s.clusterCache.GetAllNodes()))
+	pvcNameToUID := s.pvcIndex.update(buildPVCIndex(s.clusterCache.GetAllPersistentVolumeClaims()))
 
 	var scrapeResults []metric.Update
 	nodeStats, err := s.client.GetNodeData()
