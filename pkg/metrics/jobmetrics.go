@@ -100,10 +100,10 @@ func newKubeJobStatusFailedMetric(job, namespace, uid, fqName, reason string, va
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kjsf KubeJobStatusFailedMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"job_name":  kjsf.job,
-		"namespace": kjsf.namespace,
-		"uid":       kjsf.uid,
-		"reason":    kjsf.reason,
+		"job_name":          kjsf.job,
+		GetNamespaceLabel(): kjsf.namespace,
+		"uid":               kjsf.uid,
+		"reason":            kjsf.reason,
 	}
 	return prometheus.NewDesc(kjsf.fqName, kjsf.help, []string{}, l)
 }
@@ -120,7 +120,7 @@ func (kjsf KubeJobStatusFailedMetric) Write(m *dto.Metric) error {
 			Value: &kjsf.job,
 		},
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kjsf.namespace,
 		},
 		{

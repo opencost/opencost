@@ -112,7 +112,7 @@ func NewPrometheusDataSource(infoProvider clusters.ClusterInfoProvider, promConf
 
 	// cluster info provider
 	clusterInfoProvider := clusters.NewClusterInfoDecorator(infoProvider, metadata)
-	clusterMap := newPrometheusClusterMap(promContexts, clusterInfoProvider, 5*time.Minute)
+	clusterMap := NewPrometheusClusterMap(promContexts, clusterInfoProvider, 5*time.Minute)
 
 	// create metrics querier implementation for prometheus and thanos
 	metricsQuerier := newPrometheusMetricsQuerier(
