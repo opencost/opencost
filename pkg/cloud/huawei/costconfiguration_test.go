@@ -16,9 +16,11 @@ func TestCostConfiguration_Validate(t *testing.T) {
 			config:  CostConfiguration{ProjectID: "proj-1", Region: "la-south-2"},
 			wantErr: false,
 		},
-		"missing projectID": {
+		"projectID resolved at integration time": {
+			// projectID is optional: it is resolved from the instance metadata
+			// service at integration time when absent.
 			config:  CostConfiguration{Region: "la-south-2"},
-			wantErr: true,
+			wantErr: false,
 		},
 		"missing region": {
 			config:  CostConfiguration{ProjectID: "proj-1"},

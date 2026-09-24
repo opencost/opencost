@@ -267,13 +267,27 @@ func TestHuawei_PricingSourceStatus(t *testing.T) {
 }
 
 func TestHuawei_LoadBalancerPricing(t *testing.T) {
-	h := &Huawei{}
+	// No live pricing: the price comes from defaultLBPrice in the provider config.
+	h := &Huawei{Config: &fakeProviderConfig{customPricing: &models.CustomPricing{DefaultLBPrice: "0.071"}}}
+	lb, err := h.LoadBalancerPricing()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if lb.Cost != 0.071 {
+		t.Fatalf("expected configured fallback cost 0.071, got %v", lb.Cost)
+	}
+}
+
+// TestHuawei_LoadBalancerPricingDefault covers the built-in fallback applied by
+// GetConfig when defaultLBPrice is absent from the config.
+func TestHuawei_LoadBalancerPricingDefault(t *testing.T) {
+	h := &Huawei{Config: &fakeProviderConfig{customPricing: &models.CustomPricing{}}}
 	lb, err := h.LoadBalancerPricing()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if lb.Cost != 0.053 {
-		t.Fatalf("expected static fallback cost 0.053, got %v", lb.Cost)
+		t.Fatalf("expected built-in fallback cost 0.053, got %v", lb.Cost)
 	}
 }
 
@@ -511,5 +525,49 @@ func TestHuawei_DownloadPricingData_SkipsUnmappedStorageClass(t *testing.T) {
 	}
 	if len(h.Pricing) != 0 {
 		t.Fatalf("expected no live pricing for an unmapped storage class or empty ratings response, got %+v", h.Pricing)
+	}
+}
+
+// TestHuawei_GetConfigDefaults covers the defaults GetConfig fills in. The
+// currency default is USD, matching both the international BSS endpoint this
+// provider queries and the rates in configs/huawei.json.
+func TestHuawei_GetConfigDefaults(t *testing.T) {
+	h := &Huawei{Config: &fakeProviderConfig{customPricing: &models.CustomPricing{}}}
+
+	c, err := h.GetConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.CurrencyCode != "USD" {
+		t.Errorf("CurrencyCode = %q, want USD", c.CurrencyCode)
+	}
+	if c.DefaultLBPrice != "0.053" {
+		t.Errorf("DefaultLBPrice = %q, want 0.053", c.DefaultLBPrice)
+	}
+	if c.Discount != "0%" {
+		t.Errorf("Discount = %q, want 0%%", c.Discount)
+	}
+	if c.NegotiatedDiscount != "0%" {
+		t.Errorf("NegotiatedDiscount = %q, want 0%%", c.NegotiatedDiscount)
+	}
+}
+
+// TestHuawei_GetConfigKeepsConfiguredValues checks the defaults do not override
+// values present in the config.
+func TestHuawei_GetConfigKeepsConfiguredValues(t *testing.T) {
+	h := &Huawei{Config: &fakeProviderConfig{customPricing: &models.CustomPricing{
+		CurrencyCode:   "CNY",
+		DefaultLBPrice: "0.071",
+	}}}
+
+	c, err := h.GetConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.CurrencyCode != "CNY" {
+		t.Errorf("CurrencyCode = %q, want CNY", c.CurrencyCode)
+	}
+	if c.DefaultLBPrice != "0.071" {
+		t.Errorf("DefaultLBPrice = %q, want 0.071", c.DefaultLBPrice)
 	}
 }

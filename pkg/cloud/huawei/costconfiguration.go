@@ -19,10 +19,10 @@ type CostConfiguration struct {
 	Region    string `json:"region"`
 }
 
+// Validate does not require a projectID: when it is absent, it is resolved
+// from the instance metadata service at integration time (see resolveProjectID),
+// so a node with an IAM agency attached needs none configured.
 func (c *CostConfiguration) Validate() error {
-	if c.ProjectID == "" {
-		return fmt.Errorf("CostConfiguration: missing projectID")
-	}
 	if c.Region == "" {
 		return fmt.Errorf("CostConfiguration: missing region")
 	}
@@ -49,8 +49,30 @@ func (c *CostConfiguration) Sanitize() cloud.Config {
 	}
 }
 
+// Key identifies this integration. The project ID is the natural identifier,
+// but it is optional (see Validate), so the region stands in when it is absent
+// -- an account has one Huawei integration per region either way.
 func (c *CostConfiguration) Key() string {
-	return c.ProjectID
+	if c.ProjectID != "" {
+		return c.ProjectID
+	}
+	return c.Region
+}
+
+// resolveProjectID returns the configured project ID, falling back to the
+// instance metadata service for nodes that have an IAM agency attached but no
+// project ID provisioned. The lookup is deliberately here rather than in
+// UnmarshalJSON: unmarshalling a config must not touch the network. Results are
+// cached, see projectIDCacheTTL.
+func (c *CostConfiguration) resolveProjectID() (string, error) {
+	if c.ProjectID != "" {
+		return c.ProjectID, nil
+	}
+	projectID, err := huaweiProjectIDFromMetadata()
+	if err != nil {
+		return "", fmt.Errorf("CostConfiguration: no projectID configured and IAM agency metadata lookup failed: %w", err)
+	}
+	return projectID, nil
 }
 
 func (c *CostConfiguration) Provider() string {
@@ -73,16 +95,8 @@ func (c *CostConfiguration) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return fmt.Errorf("CostConfiguration: UnmarshalJSON: %w", err)
 	}
-	if projectID == "" {
-		// cloud-integration.json ships with an empty projectID when no static
-		// HUAWEICLOUD_PROJECT_ID/values.yaml cloud.projectId was provisioned. Fall
-		// back to the instance metadata service (same mechanism
-		// huaweiGlobalCredentials uses for AK/SK), so a node with an IAM agency
-		// attached needs no project ID configured anywhere either.
-		if metaProjectID, metaErr := huaweiProjectIDFromMetadata(); metaErr == nil {
-			projectID = metaProjectID
-		}
-	}
+	// An empty projectID is allowed: it is resolved from instance metadata at
+	// integration time instead (see resolveProjectID).
 	c.ProjectID = projectID
 
 	region, err := cloud.GetInterfaceValue[string](fmap, "region")

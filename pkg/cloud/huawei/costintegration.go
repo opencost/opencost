@@ -45,7 +45,13 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 	// BSS's end_time is inclusive; OpenCost windows are end-exclusive.
 	endTime := end.AddDate(0, 0, -1).Format(bssDateLayout)
 
-	rows, err := fetchCostAnalysedBills(ci.ProjectID, beginTime, endTime, "ORIGINAL_COST", "NET_AMOUNT")
+	projectID, err := ci.resolveProjectID()
+	if err != nil {
+		ci.ConnectionStatus = cloud.InvalidConfiguration
+		return nil, fmt.Errorf("getting huawei cloud cost data: %w", err)
+	}
+
+	rows, err := fetchCostAnalysedBills(projectID, beginTime, endTime, "ORIGINAL_COST", "NET_AMOUNT")
 	if err != nil {
 		ci.ConnectionStatus = cloud.FailedConnection
 		return nil, fmt.Errorf("getting huawei cloud cost data: %w", err)
@@ -86,7 +92,7 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		properties := &opencost.CloudCostProperties{
 			ProviderID: resource.ID,
 			Provider:   opencost.HuaweiProvider,
-			AccountID:  ci.ProjectID,
+			AccountID:  projectID,
 			RegionID:   region,
 			Service:    serviceType,
 			Category:   selectHuaweiCategory(serviceType),

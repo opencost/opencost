@@ -56,7 +56,8 @@ func (k *huaweiKey) GPUCount() int {
 	return 0
 }
 
-// TODO: Implement GPU type detection once GPU pricing is supported.
+// GPU type detection is not implemented: GPU pricing is not yet queried from
+// BSS, so there is no per-type price to look up.
 func (k *huaweiKey) GPUType() string {
 	return ""
 }
@@ -130,6 +131,29 @@ func (h *Huawei) GetPVKey(pv *clustercache.PersistentVolume, parameters map[stri
 // error and returns nil rather than failing outright: NodePricing/PVPricing already
 // fall back to the static base CPU/RAM/storage prices for any key with no live
 // pricing data, the same graceful-degradation behavior pkg/cloud/otc uses.
+// resolveProviderProjectID picks the project ID used for live BSS pricing.
+// HUAWEICLOUD_PROJECT_ID takes precedence over the static config file: the
+// project ID is region-specific (see bssRegion in pricingapi.go) and the BSS
+// demandPrice API rejects requests with an empty project_id, so it must be set
+// correctly for live pricing to work at all. With neither set, it falls back to
+// the instance metadata service -- the same mechanism huaweiGlobalCredentials
+// (pricingapi.go) already uses for AK/SK -- so a node with an IAM agency
+// attached needs no project ID provisioned anywhere.
+func resolveProviderProjectID(configProjectID string) string {
+	if projectID := env.GetHuaweiProjectID(); projectID != "" {
+		return projectID
+	}
+	if configProjectID != "" {
+		return configProjectID
+	}
+	projectID, err := huaweiProjectIDFromMetadata()
+	if err != nil {
+		log.Warnf("huawei cloud: %s not set and IAM agency metadata lookup failed, live BSS pricing will fail: %v", env.HuaweiProjectIDEnvVar, err)
+		return ""
+	}
+	return projectID
+}
+
 func (h *Huawei) DownloadPricingData() error {
 	h.DownloadPricingDataLock.Lock()
 	defer h.DownloadPricingDataLock.Unlock()
@@ -142,25 +166,7 @@ func (h *Huawei) DownloadPricingData() error {
 	h.BaseCPUPrice = c.CPU
 	h.BaseRAMPrice = c.RAM
 	h.BaseGPUPrice = c.GPU
-	h.ProjectID = c.ProjectID
-	if projectID := env.GetHuaweiProjectID(); projectID != "" {
-		// HUAWEICLOUD_PROJECT_ID takes precedence over the static config file: the
-		// project ID is region-specific (see pricingapi.go's bssRegionID comment)
-		// and the BSS demandPrice API rejects requests with an empty project_id, so
-		// this must be set correctly for live pricing to work at all.
-		h.ProjectID = projectID
-	} else if h.ProjectID == "" {
-		// Neither the env var nor the static config file has a project ID: fall
-		// back to the instance metadata service, the same mechanism
-		// huaweiGlobalCredentials (pricingapi.go) already uses for AK/SK, so a
-		// node with an IAM agency attached needs no project ID provisioned
-		// anywhere either.
-		if projectID, err := huaweiProjectIDFromMetadata(); err == nil {
-			h.ProjectID = projectID
-		} else {
-			log.Warnf("huawei cloud: %s not set and IAM agency metadata lookup failed, live BSS pricing will fail: %v", env.HuaweiProjectIDEnvVar, err)
-		}
-	}
+	h.ProjectID = resolveProviderProjectID(c.ProjectID)
 
 	h.Pricing = make(map[string]*HuaweiPricing)
 	h.ValidPricingKeys = make(map[string]bool)
@@ -494,11 +500,18 @@ func (h *Huawei) LoadBalancerPricing() (*models.LoadBalancer, error) {
 		}
 	}
 
-	// Static default: the confirmed on-demand price of a Shared (Basic) ELB in
-	// la-south-2 per a real Huawei Cloud bill export (see pricingapi.go). Used as a
-	// fallback for other regions or when live BSS pricing is unavailable.
+	// Fall back to the configured default (defaultLBPrice in huawei.json) when
+	// live BSS pricing is unavailable or the region has no published rate.
+	cfg, err := h.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	lbPrice, err := strconv.ParseFloat(cfg.DefaultLBPrice, 64)
+	if err != nil {
+		return nil, fmt.Errorf("huawei cloud: parsing defaultLBPrice %q: %w", cfg.DefaultLBPrice, err)
+	}
 	return &models.LoadBalancer{
-		Cost: 0.053,
+		Cost: lbPrice,
 	}, nil
 }
 
@@ -513,8 +526,15 @@ func (h *Huawei) GetConfig() (*models.CustomPricing, error) {
 	if c.NegotiatedDiscount == "" {
 		c.NegotiatedDiscount = "0%"
 	}
+	if c.DefaultLBPrice == "" {
+		// The confirmed on-demand price of a Shared (Basic) ELB in la-south-2 per
+		// a real Huawei Cloud bill export (see pricingapi.go).
+		c.DefaultLBPrice = "0.053"
+	}
 	if c.CurrencyCode == "" {
-		c.CurrencyCode = "CNY"
+		// The international BSS endpoint this provider queries reports amounts in
+		// USD (see bssRegion), and huawei.json's fallback rates are USD too.
+		c.CurrencyCode = "USD"
 	}
 	return c, nil
 }
@@ -537,32 +557,31 @@ func (h *Huawei) ClusterInfo() (map[string]string, error) {
 	return m, nil
 }
 
-// TODO: Implement method
+// The methods below satisfy models.Provider but have no Huawei Cloud
+// implementation. They return zero values, which the cost model treats as "no
+// data available" rather than an error, the same way pkg/cloud/stackit does for
+// the capabilities it does not support.
+
 func (h *Huawei) UpdateConfigFromConfigMap(cm map[string]string) (*models.CustomPricing, error) {
 	return &models.CustomPricing{}, nil
 }
 
-// TODO: Implement method
 func (h *Huawei) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
 	return &models.CustomPricing{}, nil
 }
 
-// TODO: Implement method
 func (h *Huawei) GetAddresses() ([]byte, error) {
 	return []byte{}, nil
 }
 
-// TODO: Implement method
 func (h *Huawei) GetDisks() ([]byte, error) {
 	return []byte{}, nil
 }
 
-// TODO: Implement method
 func (h *Huawei) GetOrphanedResources() ([]models.OrphanedResource, error) {
 	return []models.OrphanedResource{}, nil
 }
 
-// TODO: Implement method
 func (h *Huawei) GpuPricing(nodeLabels map[string]string) (string, error) {
 	return "", nil
 }
@@ -573,13 +592,14 @@ func (h *Huawei) AllNodePricing() (interface{}, error) {
 	return h.Pricing, nil
 }
 
-// TODO: Implement method
 func (h *Huawei) GetManagementPlatform() (string, error) {
 	return "", nil
 }
 
-// TODO: Implement method
-func (h *Huawei) ApplyReservedInstancePricing(nodes map[string]*models.Node) {}
+func (h *Huawei) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
+	// Huawei Cloud reserved instances are not exposed through the BSS
+	// demandPrice API this provider queries, so there is nothing to apply.
+}
 
 func (h *Huawei) ServiceAccountStatus() *models.ServiceAccountStatus {
 	return &models.ServiceAccountStatus{
@@ -602,7 +622,6 @@ func (h *Huawei) PricingSourceStatus() map[string]*models.PricingSource {
 	}
 }
 
-// TODO: Implement method
 func (h *Huawei) ClusterManagementPricing() (string, float64, error) {
 	return "", 0.0, nil
 }

@@ -17,23 +17,26 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 )
 
-// bssRegionID selects the BSS endpoint used to price resources. BSS (Billing and
-// Subscription Service) is a global service with a small, fixed set of regional
-// endpoints (see huaweicloud-sdk-go-v3/services/bssintl/v2/region); it is separate
-// from the region the priced resource actually lives in, which is passed per
-// product in DemandProductInfo.Region instead. ap-southeast-1 is the international
-// (non-mainland-China) BSS endpoint, which is what accounts using region IDs like
+// bssRegion returns the BSS endpoint used to price resources, overridable via
+// HUAWEICLOUD_BSS_REGION. BSS (Billing and Subscription Service) is a global
+// service with a small, fixed set of regional endpoints (see
+// huaweicloud-sdk-go-v3/services/bssintl/v2/region); it is separate from the
+// region the priced resource actually lives in, which is passed per product in
+// DemandProductInfo.Region instead. The default is the international
+// (non-mainland-China) endpoint, which is what accounts using region IDs like
 // "la-south-2" (Latin America) are registered against.
 //
-// TODO(Fase 3): if a live account turns out to be registered on the mainland-China
-// realm instead, switch to the "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bss/v2"
-// package (cn-north-1 endpoint) rather than bssintl.
-const bssRegionID = "ap-southeast-1"
+// Accounts registered on the mainland-China realm reach BSS through a different
+// SDK package ("services/bss/v2", cn-north-1) rather than a different region on
+// this one, so pointing this at a mainland region will not work; such an account
+// needs support for that package.
+func bssRegion() string {
+	return env.GetHuaweiBSSRegion()
+}
 
 // Product/resource codes for the BSS demandPrice ("on-demand-resources") request.
 // ecsCloudServiceType/ecsResourceType/usageMeasureIDHour are confirmed correct
-// against a live account (Fase 3): a node demandPrice query with these values
-// succeeds. The EVS codes are believed correct per Huawei's published resource_spec
+// against a live account: a node demandPrice query with these values succeeds. The EVS codes are believed correct per Huawei's published resource_spec
 // enum (SATA/SAS/GPSSD/SSD) but are not yet confirmed by a successful live query.
 const (
 	ecsCloudServiceType = "hws.service.type.ec2"
@@ -61,7 +64,7 @@ const (
 	// volume type (SATA/SAS/GPSSD/SSD) a PV was provisioned with. The StorageClass
 	// *name* is an arbitrary cluster-specific Kubernetes name (e.g. "csi-disk-dss")
 	// and is not a valid BSS resource_spec on its own. Confirmed against a live
-	// CCE cluster's StorageClass in Fase 3.
+	// CCE cluster's StorageClass.
 	everestDiskVolumeTypeParam = "everest.io/disk-volume-type"
 
 	// evsReferenceSizeGB is the volume size (GB) used to query EVS on-demand pricing.
@@ -99,9 +102,8 @@ var bssEndpointOverride string
 // shared across calls), so without caching at this level every DownloadPricingData
 // invocation triggers a fresh round trip to 169.254.169.254 for both the
 // metadata token and the security key -- the same flood problem
-// huaweiProjectIDFromMetadata (metadata.go) has, and the actual cause of the
-// "too frequent" 503s observed against the huaweiobs plugin (which calls this
-// once per ingestion window). Huawei Cloud agency-assumed temporary
+// huaweiProjectIDFromMetadata (metadata.go) has, and the observed cause of
+// "too frequent" 503s from the metadata service. Huawei Cloud agency-assumed temporary
 // credentials are valid well beyond this TTL, so re-using them for 10 minutes
 // is safe.
 const agencyCredsCacheTTL = 10 * time.Minute
@@ -174,7 +176,7 @@ func newBssClient() (*bssintl.BssintlClient, error) {
 	if bssEndpointOverride != "" {
 		builder = builder.WithEndpoint(bssEndpointOverride)
 	} else {
-		region, err := bssintlregion.SafeValueOf(bssRegionID)
+		region, err := bssintlregion.SafeValueOf(bssRegion())
 		if err != nil {
 			return nil, fmt.Errorf("resolving huawei cloud BSS region: %w", err)
 		}

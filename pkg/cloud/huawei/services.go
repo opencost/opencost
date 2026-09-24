@@ -116,24 +116,19 @@ func lookupService(serviceType string) (service, bool) {
 		return service{}, false
 	}
 
+	// An exact display name, or a bare abbreviation ("RDS") -- a code without
+	// its prefix. Both are unambiguous, so they win over substring matching.
 	for _, svc := range services {
-		if slices.Contains(svc.names, normalized) {
+		if slices.Contains(svc.names, normalized) || slices.Contains(svc.codes, normalized) {
 			return svc, true
 		}
 	}
 
-	// A bare abbreviation ("RDS") is a code without its prefix.
+	// Last resort: a display name carrying a qualifier, e.g. "Elastic Load
+	// Balance (Shared)".
 	for _, svc := range services {
-		if slices.Contains(svc.codes, normalized) {
+		if slices.ContainsFunc(svc.names, func(name string) bool { return strings.Contains(normalized, name) }) {
 			return svc, true
-		}
-	}
-
-	for _, svc := range services {
-		for _, name := range svc.names {
-			if strings.Contains(normalized, name) {
-				return svc, true
-			}
 		}
 	}
 

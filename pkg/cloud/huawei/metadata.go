@@ -13,18 +13,15 @@ import (
 // agency's temporary credentials (see huaweiGlobalCredentials in pricingapi.go)
 // come from GetSecurityKeyPath on this same host, but that response carries no
 // project_id field -- project ID is region-specific, not part of the
-// AK/SK/security-token triple. meta_data.json is where it actually lives; this is
-// the exact mechanism mlops-infra/images/ces-exporter-image/ces_exporter.py
-// already uses to resolve project_id for CES without any static config.
+// AK/SK/security-token triple. meta_data.json is where it actually lives.
 var metadataEndpoint = "http://169.254.169.254"
 
 const metadataPath = "/openstack/latest/meta_data.json"
 
 // projectIDCacheTTL bounds how long a resolved project ID is reused before
-// hitting the metadata service again. The huaweiobs Custom Cost plugin calls
-// huaweiProjectIDFromMetadata once per ingestion window -- hundreds of calls
-// in a single build cycle when backfilling a month in 1h blocks -- and without
-// caching this floods 169.254.169.254 until it starts responding 503 "The
+// hitting the metadata service again. Without caching, a backfill that walks a
+// month in small windows calls this once per window and floods 169.254.169.254
+// until it starts responding 503 "The
 // request is too frequent. Please try again later!", failing every window in
 // the batch. The project ID never changes for the life of the node, so this
 // could be cached indefinitely, but a bounded TTL still allows recovery if the

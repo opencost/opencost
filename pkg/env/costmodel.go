@@ -36,6 +36,12 @@ const (
 	HuaweiAccessKeySecretEnvVar = "HUAWEICLOUD_SECRET_ACCESS_KEY"
 	HuaweiProjectIDEnvVar       = "HUAWEICLOUD_PROJECT_ID"
 	HuaweiDomainIDEnvVar        = "HUAWEICLOUD_DOMAIN_ID"
+	HuaweiBSSRegionEnvVar       = "HUAWEICLOUD_BSS_REGION"
+
+	// DefaultHuaweiBSSRegion is the international (non-mainland-China) BSS
+	// endpoint, which is what accounts outside mainland China are registered
+	// against.
+	DefaultHuaweiBSSRegion = "ap-southeast-1"
 
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
@@ -224,6 +230,13 @@ func GetHuaweiProjectID() string {
 // Huawei Cloud global service authentication (e.g. BSS)
 func GetHuaweiDomainID() string {
 	return env.Get(HuaweiDomainIDEnvVar, "")
+}
+
+// GetHuaweiBSSRegion returns the environment variable value for
+// HuaweiBSSRegionEnvVar, which selects the BSS endpoint used to price
+// resources. Defaults to the international endpoint.
+func GetHuaweiBSSRegion() string {
+	return env.Get(HuaweiBSSRegionEnvVar, DefaultHuaweiBSSRegion)
 }
 
 // GetAzureOfferID returns the environment variable value for AzureOfferIDEnvVar which represents

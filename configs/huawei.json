@@ -1,6 +1,6 @@
 {
     "provider": "Huawei",
-    "description": "Fallback prices used when the BSS demandPrice API returns no price for a resource, and as the CPU:RAM:GPU weighting the cost model uses to split a node's total BSS price across its resources. Derived from real la-south-2 on-demand rates -- see the pricing-configs ConfigMap in mlops-infra helm/opencost for how the values were solved.",
+    "description": "Fallback prices used when the BSS demandPrice API returns no price for a resource, and as the CPU:RAM:GPU weighting the cost model uses to split a node's total BSS price across its resources. Solved from real la-south-2 on-demand rates.",
     "CPU": "0.018901",
     "spotCPU": "0.018901",
     "RAM": "0.0025202",
@@ -13,5 +13,6 @@
     "internetNetworkEgress": "0.0",
     "natGatewayEgress": "0.0",
     "natGatewayIngress": "0.0",
-    "currencyCode": "USD"
+    "currencyCode": "USD",
+    "defaultLBPrice": "0.053"
 }
