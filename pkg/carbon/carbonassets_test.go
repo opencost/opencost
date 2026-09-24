@@ -86,6 +86,7 @@ func TestInferProviderFromProviderID(t *testing.T) {
 		{"gce standard", "gce://my-project/us-central1-a/gke-node-1", opencost.GCPProvider},
 		{"legacy gke prefix", "gke-node-1", opencost.GCPProvider},
 		{"azure standard", "azure:///subscriptions/x/resourceGroups/y/providers/Microsoft.Compute/virtualMachines/z", opencost.AzureProvider},
+		{"scaleway", "scaleway://fr-par/instance/scw-1234", opencost.ScalewayProvider},
 		{"unknown prefix", "something-else", ""},
 		{"whitespace and case", "  AWS:///eu-west-1a/i-xyz  ", opencost.AWSProvider},
 	}
@@ -112,6 +113,13 @@ func TestResolveProvider_FallsBackToProviderID(t *testing.T) {
 	n := nodeWithLabels("", "gce://my-project/us-central1-a/gke-node-1", "us-central1", "e2-standard-2", 60)
 	if got := resolveProvider(n); got != opencost.GCPProvider {
 		t.Fatalf("resolveProvider = %q, want %q", got, opencost.GCPProvider)
+	}
+}
+
+func TestResolveProvider_Scaleway(t *testing.T) {
+	n := nodeWithLabels(opencost.ScalewayProvider, "scaleway://fr-par/instance/scw-1234", "fr-par", "BASIC3-X2C-4G", 60)
+	if got := resolveProvider(n); got != opencost.ScalewayProvider {
+		t.Fatalf("resolveProvider = %q, want %q", got, opencost.ScalewayProvider)
 	}
 }
 

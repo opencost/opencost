@@ -33,6 +33,11 @@ var (
 	carbonLookupNode    map[carbonLookupKeyNode]float64
 	carbonLookupDisk    map[carbonLookupKeyRegion]float64
 	carbonLookupNetwork map[carbonLookupKeyRegion]float64
+
+	// staticNodeProviders is the set of providers with rows in the static
+	// embedded Node table. The runtime coefficient registry (see registry.go)
+	// is consulted only for providers not in this set.
+	staticNodeProviders map[string]struct{}
 )
 
 func init() {
@@ -58,6 +63,7 @@ func init() {
 	carbonLookupNode = make(map[carbonLookupKeyNode]float64)
 	carbonLookupDisk = make(map[carbonLookupKeyRegion]float64)
 	carbonLookupNetwork = make(map[carbonLookupKeyRegion]float64)
+	staticNodeProviders = make(map[string]struct{})
 
 	for _, row := range rows {
 		// Skip blank records (e.g. a trailing newline in the CSV).
@@ -82,6 +88,7 @@ func init() {
 
 		switch assetType {
 		case "Node":
+			staticNodeProviders[provider] = struct{}{}
 			carbonLookupNode[carbonLookupKeyNode{
 				provider:     provider,
 				region:       region,
@@ -143,6 +150,15 @@ func lookupCarbonCoeff(asset opencost.Asset) float64 {
 
 	switch asset.Type() {
 	case opencost.NodeAssetType:
+		// Providers with no static rows (e.g. Scaleway) resolve node
+		// coefficients from the runtime registry populated by the cloud
+		// provider (FR-012).
+		if _, ok := staticNodeProviders[provider]; !ok {
+			if coeff, ok := runtimeNodeCoefficient(provider, region, instanceType); ok {
+				return coeff
+			}
+			return 0
+		}
 		if coeff, ok := carbonLookupNode[carbonLookupKeyNode{provider, region, instanceType}]; ok {
 			return coeff
 		}
@@ -187,7 +203,7 @@ func resolveProvider(asset opencost.Asset) string {
 	}
 
 	switch props.Provider {
-	case opencost.AWSProvider, opencost.GCPProvider, opencost.AzureProvider:
+	case opencost.AWSProvider, opencost.GCPProvider, opencost.AzureProvider, opencost.ScalewayProvider:
 		return props.Provider
 	}
 
@@ -215,6 +231,8 @@ func inferProviderFromProviderID(providerID string) string {
 		return opencost.GCPProvider
 	case strings.HasPrefix(id, "azure:"):
 		return opencost.AzureProvider
+	case strings.HasPrefix(id, "scaleway"):
+		return opencost.ScalewayProvider
 	}
 	return ""
 }
