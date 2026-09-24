@@ -285,6 +285,9 @@ type Provider interface {
 	LoadBalancerPricing() (*LoadBalancer, error) // TODO: add key interface arg for dynamic price fetching
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
+	// RefreshCustomPricing reloads custom pricing and discount config into memory
+	// without triggering a full DownloadPricingData (no k8s or cloud API calls).
+	RefreshCustomPricing() error
 	GetKey(map[string]string, *clustercache.Node) Key
 	GetPVKey(*clustercache.PersistentVolume, map[string]string, string) PVKey
 	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
