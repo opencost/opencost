@@ -313,6 +313,206 @@
             "serviceProviderName": "Google",
             "node": null,
             "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/G200-GPU0-0001",
+            "skuId": "G200-GPU0-0001",
+            "description": "Nvidia L4 GPU running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "GPU",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "us-central1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "h",
+                        "usageUnitDescription": "hour",
+                        "baseUnit": "s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 750000000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "effectiveTime": "2024-01-01T00:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/G200-CPU0-0002",
+            "skuId": "G200-CPU0-0002",
+            "description": "G2 Instance Core running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "CPU",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "us-central1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "h",
+                        "usageUnitDescription": "hour",
+                        "baseUnit": "s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 40000000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "effectiveTime": "2024-01-01T00:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/G200-RAM0-0003",
+            "skuId": "G200-RAM0-0003",
+            "description": "G2 Instance Ram running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "RAM",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "us-central1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "GiBy.h",
+                        "usageUnitDescription": "gibibyte hour",
+                        "baseUnit": "By.s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 6000000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "effectiveTime": "2024-01-01T00:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/G200-CPU1-0004",
+            "skuId": "G200-CPU1-0004",
+            "description": "Spot Preemptible G2 Instance Core running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "CPU",
+                "usageType": "Preemptible"
+            },
+            "serviceRegions": [
+                "us-central1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "h",
+                        "usageUnitDescription": "hour",
+                        "baseUnit": "s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 20000000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "effectiveTime": "2024-01-01T00:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/G200-RAM1-0005",
+            "skuId": "G200-RAM1-0005",
+            "description": "Spot Preemptible G2 Instance Ram running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "RAM",
+                "usageType": "Preemptible"
+            },
+            "serviceRegions": [
+                "us-central1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "GiBy.h",
+                        "usageUnitDescription": "gibibyte hour",
+                        "baseUnit": "By.s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 2000000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "effectiveTime": "2024-01-01T00:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
         }
     ],
     "nextPageToken": "APKCS1HVa0YpwgyTFbqbJ1eGwzKZmsPwLqzMZPTSNia5ck1Hc54Tx_Kz3oBxwSnRIdGVxXoSPdf-XlDpyNBf4QuxKcIEgtrQ1LDLWAgZowI0ns7HjrGta2s="

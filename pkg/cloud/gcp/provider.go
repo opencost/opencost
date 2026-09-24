@@ -748,6 +748,15 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "E2 INSTANCE") {
 					instanceType = "e2"
 				}
+
+				// Sole-tenancy SKUs (including "Sole Tenancy Premium" surcharge
+				// SKUs) are excluded so they do not overwrite the standard
+				// on-demand/spot per-vCPU/per-GB rates.
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "G2 INSTANCE") && !strings.Contains(strings.ToUpper(product.Description), "SOLE") {
+					// Exclude "Sole Tenancy Premium for G2 Instance ..." SKUs so
+					// they don't overwrite the real g2 vCPU/RAM rates.
+					instanceType = "g2standard"
+				}
 				partialCPUMap := make(map[string]float64)
 				partialCPUMap["e2micro"] = 0.25
 				partialCPUMap["e2small"] = 0.5
@@ -1703,7 +1712,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	discount := defaultDiscount
 	switch class {
-	case "e2", "f1", "g1", "n4":
+	case "e2", "f1", "g1", "n4", "g2":
 		discount = 0.0
 	case "n2", "n2d":
 		discount = 0.2
