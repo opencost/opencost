@@ -90,29 +90,6 @@ func TestParseCostAmount(t *testing.T) {
 	}
 }
 
-func TestSelectHuaweiCategory(t *testing.T) {
-	cases := []struct {
-		serviceType string
-		want        string
-	}{
-		{"Elastic Cloud Server", "Compute"},
-		{"Cloud Container Engine", "Compute"},
-		{"Elastic Volume Service", "Storage"},
-		{"Object Storage Service", "Storage"},
-		{"Elastic Load Balance", "Network"},
-		{"Virtual Private Cloud", "Network"},
-		{"Relational Database Service", "Storage"},
-		{"Distributed Cache Service", "Compute"},
-		{"Data Encryption Workshop", "Storage"},
-		{"Some Unrecognized Service", "Other"},
-	}
-	for _, c := range cases {
-		if got := selectHuaweiCategory(c.serviceType); got != c.want {
-			t.Errorf("selectHuaweiCategory(%q) = %q, want %q", c.serviceType, got, c.want)
-		}
-	}
-}
-
 // TestDescribeResource covers the composite RESOURCE_ID values BSS actually
 // returns, taken from a live query against the account.
 func TestDescribeResource(t *testing.T) {
@@ -268,10 +245,10 @@ func TestCostIntegration_GetCloudCost_ResourceDetails(t *testing.T) {
 			if cc.Properties.Category != opencost.StorageCategory {
 				t.Errorf("expected category %q, got %q", opencost.StorageCategory, cc.Properties.Category)
 			}
-			if got := cc.Properties.Labels[opencost.AssetResourceTypeLabel]; got != "rds.instance" {
+			if got := cc.Properties.Labels[ResourceTypeLabel]; got != "rds.instance" {
 				t.Errorf("expected resource type label %q, got %q", "rds.instance", got)
 			}
-			if got := cc.Properties.Labels[opencost.AssetResourceNameLabel]; got != "rds-mlops-mysql" {
+			if got := cc.Properties.Labels[ResourceNameLabel]; got != "rds-mlops-mysql" {
 				t.Errorf("expected resource name label %q, got %q", "rds-mlops-mysql", got)
 			}
 		}

@@ -77,10 +77,10 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 
 		labels := opencost.CloudCostLabels{}
 		if resource.Type != "" {
-			labels[opencost.AssetResourceTypeLabel] = resource.Type
+			labels[ResourceTypeLabel] = resource.Type
 		}
 		if resource.Name != "" {
-			labels[opencost.AssetResourceNameLabel] = resource.Name
+			labels[ResourceNameLabel] = resource.Name
 		}
 
 		properties := &opencost.CloudCostProperties{
@@ -256,13 +256,4 @@ func parseCostAmount(s *string) (float64, error) {
 		return 0, fmt.Errorf("unable to parse float %q: %w", *s, err)
 	}
 	return f, nil
-}
-
-// selectHuaweiCategory maps a BSS CLOUD_SERVICE_TYPE dimension value (an
-// English-language service name, since GetCloudCost requests X-Language: en_us)
-// to an OpenCost asset category. The service catalogue itself lives in
-// core/pkg/opencost, next to the AssetType each service is reported as, so that
-// a service is described in exactly one place.
-func selectHuaweiCategory(serviceType string) string {
-	return opencost.HuaweiServiceCategory(serviceType)
 }
