@@ -6,6 +6,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -490,6 +491,139 @@ func TestKubeDeploymentStatusAvailableReplicasMetric(t *testing.T) {
 		} else if actualValue != expectedValue {
 			t.Errorf("Label %s: expected %s, got %s", key, expectedValue, actualValue)
 		}
+	}
+}
+
+// TestKubecostDeploymentCollector_Collect_MatchExpressions verifies that
+// deployments using only matchExpressions (no matchLabels) are still emitted
+// as deployment_match_labels metrics instead of being silently dropped.
+func TestKubecostDeploymentCollector_Collect_MatchExpressions(t *testing.T) {
+	tests := []struct {
+		name          string
+		deployments   []*clustercache.Deployment
+		expectedCount int
+	}{
+		{
+			name: "deployment with only matchExpressions In operator",
+			deployments: []*clustercache.Deployment{
+				{
+					UID:         types.UID("expr-uid-1"),
+					Name:        "expr-deployment",
+					Namespace:   "default",
+					MatchLabels: map[string]string{}, // empty — only matchExpressions
+					SpecSelector: &metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "app",
+								Operator: metav1.LabelSelectorOpIn,
+								Values:   []string{"myapp"},
+							},
+						},
+					},
+				},
+			},
+			expectedCount: 1,
+		},
+		{
+			name: "deployment with matchExpressions Exists operator single value",
+			deployments: []*clustercache.Deployment{
+				{
+					UID:         types.UID("expr-uid-2"),
+					Name:        "exists-deployment",
+					Namespace:   "default",
+					MatchLabels: map[string]string{},
+					SpecSelector: &metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "tier",
+								Operator: metav1.LabelSelectorOpExists,
+								Values:   []string{"frontend"},
+							},
+						},
+					},
+				},
+			},
+			expectedCount: 1,
+		},
+		{
+			name: "deployment with matchExpressions NotIn operator is skipped (multi-value not synthesisable)",
+			deployments: []*clustercache.Deployment{
+				{
+					UID:         types.UID("expr-uid-3"),
+					Name:        "notin-deployment",
+					Namespace:   "default",
+					MatchLabels: map[string]string{},
+					SpecSelector: &metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "env",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"prod", "staging"},
+							},
+						},
+					},
+				},
+			},
+			expectedCount: 0,
+		},
+		{
+			name: "deployment with nil SpecSelector and empty MatchLabels emits nothing",
+			deployments: []*clustercache.Deployment{
+				{
+					UID:          types.UID("expr-uid-4"),
+					Name:         "nil-selector-deployment",
+					Namespace:    "default",
+					MatchLabels:  map[string]string{},
+					SpecSelector: nil,
+				},
+			},
+			expectedCount: 0,
+		},
+		{
+			name: "matchLabels takes precedence over matchExpressions",
+			deployments: []*clustercache.Deployment{
+				{
+					UID:         types.UID("expr-uid-5"),
+					Name:        "both-deployment",
+					Namespace:   "default",
+					MatchLabels: map[string]string{"app": "primary"},
+					SpecSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "primary"},
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "tier",
+								Operator: metav1.LabelSelectorOpIn,
+								Values:   []string{"web"},
+							},
+						},
+					},
+				},
+			},
+			expectedCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := MetricsConfig{DisabledMetrics: []string{}}
+			kdc := KubecostDeploymentCollector{
+				KubeClusterCache: NewFakeDeploymentCache(tt.deployments),
+				metricsConfig:    mc,
+			}
+
+			ch := make(chan prometheus.Metric, 10)
+			kdc.Collect(ch)
+			close(ch)
+
+			count := 0
+			for range ch {
+				count++
+			}
+
+			if count != tt.expectedCount {
+				t.Errorf("Expected %d metrics, got %d", tt.expectedCount, count)
+			}
+		})
 	}
 }
 
