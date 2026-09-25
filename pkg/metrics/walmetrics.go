@@ -59,7 +59,7 @@ var walMetrics = []walMetric{
 		"Unix time of the newest collector WAL object applied during the startup restore, 0 if none.", prometheus.GaugeValue,
 		func(s source.WALStatus) float64 { return unixOrZero(s.RestoreNewest.Unix(), s.RestoreNewest.IsZero()) }),
 	newWALMetric("opencost_wal_restore_tail_gap_seconds",
-		"Interval between the newest restored collector WAL object and the start of the restore: history not persisted before the restart.", prometheus.GaugeValue,
+		"Interval between the newest restored collector WAL object and the start of the restore: history not persisted before the restart. Includes the downtime of a normal restart; covers the whole retention window when nothing was restored (e.g. a first install).", prometheus.GaugeValue,
 		func(s source.WALStatus) float64 { return s.RestoreTailGap.Seconds() }),
 	newWALMetric("opencost_wal_restore_largest_gap_seconds",
 		"Largest interval between consecutive restored collector WAL objects. Values well above the scrape interval indicate history that was never persisted or could not be restored.", prometheus.GaugeValue,

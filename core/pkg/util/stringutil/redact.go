@@ -14,7 +14,8 @@ var userInfoPattern = regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/]*@`)
 
 // secretParamPattern matches the values of well known signature and credential parameters used by
 // cloud storage presigned URLs and connection strings, wherever they appear.
-var secretParamPattern = regexp.MustCompile(`(?i)\b(sig|signature|x-amz-signature|x-amz-credential|x-amz-security-token|x-goog-signature|x-goog-credential|accountkey|sharedaccesssignature|access_token|token)=[^&;\s"']+`)
+// Values may follow = (query strings, connection strings), : (headers) or ":" (JSON).
+var secretParamPattern = regexp.MustCompile(`(?i)\b(sig|signature|x-amz-signature|x-amz-credential|x-amz-security-token|x-goog-signature|x-goog-credential|accountkey|sharedaccesssignature|access_token|refresh_token|client_secret|password|token)("?\s*[:=]\s*"?)[^&;,\s"']+`)
 
 // RedactURLs removes query strings, fragments and user info from any URLs contained in s, and the
 // values of well known signature and credential parameters anywhere in s, so that error messages
@@ -28,5 +29,5 @@ func RedactURLs(s string) string {
 		}
 		return u
 	})
-	return secretParamPattern.ReplaceAllString(s, "${1}=REDACTED")
+	return secretParamPattern.ReplaceAllString(s, "${1}${2}REDACTED")
 }

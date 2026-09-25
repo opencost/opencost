@@ -37,9 +37,18 @@ type Walinator struct {
 	limitResolution *util.Resolution
 	updater         Updater
 
-	statusLock sync.Mutex
-	status     source.WALStatus
+	statusLock     sync.Mutex
+	status         source.WALStatus
+	lastFailureLog time.Time
 }
+
+const (
+	// failureLogInterval is the minimum interval between error logs while wal writes keep failing
+	failureLogInterval = 10 * time.Minute
+
+	// maxStatusErrorLength truncates errors recorded in the wal status
+	maxStatusErrorLength = 512
+)
 
 func NewWalinator(
 	clusterID string,
@@ -261,9 +270,15 @@ func (w *Walinator) recordExport(err error) {
 	}
 
 	msg := stringutil.RedactURLs(err.Error())
-	// log at error level when writes start failing or the cause changes, not on every scrape
-	if w.status.ConsecutiveExportFailures == 0 || msg != w.status.LastExportError {
-		log.Errorf("failed to export update results: %s", msg)
+	if len(msg) > maxStatusErrorLength {
+		msg = msg[:maxStatusErrorLength] + "..."
+	}
+
+	// log at error level when writes start failing and periodically while they keep failing, not on
+	// every scrape
+	if w.status.ConsecutiveExportFailures == 0 || now.Sub(w.lastFailureLog) >= failureLogInterval {
+		log.Errorf("failed to export update results (%d consecutive failures): %s", w.status.ConsecutiveExportFailures+1, msg)
+		w.lastFailureLog = now
 	} else {
 		log.Debugf("failed to export update results: %s", msg)
 	}

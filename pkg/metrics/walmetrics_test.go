@@ -54,7 +54,7 @@ opencost_wal_restore_largest_gap_seconds 600
 # HELP opencost_wal_restore_newest_timestamp_seconds Unix time of the newest collector WAL object applied during the startup restore, 0 if none.
 # TYPE opencost_wal_restore_newest_timestamp_seconds gauge
 opencost_wal_restore_newest_timestamp_seconds 1.699999e+09
-# HELP opencost_wal_restore_tail_gap_seconds Interval between the newest restored collector WAL object and the start of the restore: history not persisted before the restart.
+# HELP opencost_wal_restore_tail_gap_seconds Interval between the newest restored collector WAL object and the start of the restore: history not persisted before the restart. Includes the downtime of a normal restart; covers the whole retention window when nothing was restored (e.g. a first install).
 # TYPE opencost_wal_restore_tail_gap_seconds gauge
 opencost_wal_restore_tail_gap_seconds 1800
 # HELP opencost_wal_restore_list_failed 1 if the collector WAL startup restore could not list stored objects, meaning nothing was restored.
