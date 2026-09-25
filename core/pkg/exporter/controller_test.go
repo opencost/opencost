@@ -227,10 +227,10 @@ func TestComputeExportController_RetriesFailedClosedWindow(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Outage: every closed window drains, in order, exactly once
+// Outage: every closed window drains exactly once, within the retry backoff cap
 // ---------------------------------------------------------------------------
 
-func TestComputeExportController_OutageDrainsInOrder(t *testing.T) {
+func TestComputeExportController_OutageDrains(t *testing.T) {
 	src := &fakeComputeSource[controllerTestSet]{}
 	outageStart, outageEnd := at(9, 0, 0), at(14, 0, 0)
 	exp := &fakeComputeExporter[controllerTestSet]{
@@ -262,9 +262,9 @@ func TestComputeExportController_OutageDrainsInOrder(t *testing.T) {
 		}
 	}
 
-	// 2. final exports occur in ascending window order, and 3. a closed window
-	// is never exported again after its first post-close success.
-	var order []time.Time
+	// 2. every final export happens within maxRetryBackoffTicks ticks of recovery, and 3. a closed
+	// window is never exported again after its first post-close success.
+	drainedBy := outageEnd.Add(maxRetryBackoffTicks * 5 * time.Minute)
 	done := map[time.Time]bool{}
 	for _, r := range recs {
 		if !r.postClose() {
@@ -277,16 +277,29 @@ func TestComputeExportController_OutageDrainsInOrder(t *testing.T) {
 		}
 		if r.Success {
 			done[r.Start] = true
-			order = append(order, r.Start)
-		}
-	}
-	for i := 1; i < len(order); i++ {
-		if !order[i].After(order[i-1]) {
-			fail("final exports out of order: %s finalized after %s", hourWindow(order[i]), hourWindow(order[i-1]))
+			if r.Start.Before(outageEnd) && r.Now.After(drainedBy) {
+				fail("window %s finalized at %s, after the drain bound %s", hourWindow(r.Start), r.Now.Format("15:04:05"), drainedBy.Format("15:04:05"))
+			}
 		}
 	}
 
-	// 4. the current window is attempted on every tick, including during the outage.
+	// 4. during the outage, at most one retry (plus any newly closed window) is attempted per tick.
+	for i, now := range ticks {
+		if !now.Before(outageEnd) || now.Before(outageStart) {
+			continue
+		}
+		retries := 0
+		for _, r := range recs {
+			if r.Tick == i && r.postClose() && !r.Start.Equal(now.Truncate(time.Hour).Add(-time.Hour)) {
+				retries++
+			}
+		}
+		if retries > 1 {
+			fail("tick %s attempted %d retries during the outage, want at most 1", now.Format("15:04:05"), retries)
+		}
+	}
+
+	// 5. the current window is attempted on every tick, including during the outage.
 	for i, now := range ticks {
 		cur := now.Truncate(time.Hour)
 		found := false

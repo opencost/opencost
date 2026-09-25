@@ -10,10 +10,12 @@ package exporter
 //	                                    (excludes the current, open window)
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/source"
 )
 
 func TestComputeExportController_EvictsBeyondMaxPending(t *testing.T) {
@@ -97,23 +99,17 @@ func TestComputeExportController_CapsExportsPerTick(t *testing.T) {
 		}
 	}
 
-	// recovery drains oldest-first: 13:30 → 08,09; 13:35 → 10,11; 13:40 → 12.
-	want := map[time.Time]time.Time{
-		at(8, 0, 0):  recovery,
-		at(9, 0, 0):  recovery,
-		at(10, 0, 0): at(13, 35, 0),
-		at(11, 0, 0): at(13, 35, 0),
-		at(12, 0, 0): at(13, 40, 0),
-	}
-	for w, wantAt := range want {
+	// every pending window drains within maxRetryBackoffTicks ticks of recovery
+	drainedBy := recovery.Add(maxRetryBackoffTicks * 5 * time.Minute)
+	for w := at(8, 0, 0); w.Before(at(13, 0, 0)); w = w.Add(time.Hour) {
 		i := firstPostCloseSuccess(recs, w)
 		if i < 0 {
 			t.Errorf("window %s never got a post-close export", hourWindow(w))
 			continue
 		}
-		if !recs[i].Now.Equal(wantAt) {
-			t.Errorf("window %s finalized at %s, want %s (oldest-first, 2 per tick)",
-				hourWindow(w), recs[i].Now.Format("15:04:05"), wantAt.Format("15:04:05"))
+		if recs[i].Now.After(drainedBy) {
+			t.Errorf("window %s finalized at %s, after the drain bound %s",
+				hourWindow(w), recs[i].Now.Format("15:04:05"), drainedBy.Format("15:04:05"))
 		}
 	}
 
@@ -218,5 +214,88 @@ func TestComputeExportController_StopDuringBacklog(t *testing.T) {
 	}
 	if c.pendingCount() != 5 {
 		t.Errorf("expected the 5 un-attempted windows to remain pending, got %d", c.pendingCount())
+	}
+}
+
+// Windows that always fail must not block newer closed windows from being exported (no head-of-line
+// blocking), and are retried with backoff rather than on every tick.
+func TestComputeExportController_PoisonedWindowsDoNotBlock(t *testing.T) {
+	poisoned := map[time.Time]bool{at(8, 0, 0): true, at(9, 0, 0): true, at(10, 0, 0): true, at(11, 0, 0): true, at(12, 0, 0): true}
+	src := &fakeComputeSource[controllerTestSet]{}
+	exp := &fakeComputeExporter[controllerTestSet]{
+		failIf: func(w opencost.Window, _ time.Time) bool { return poisoned[*w.Start()] },
+	}
+	c := NewComputeExportController[controllerTestSet](src, exp, time.Hour)
+
+	ticks := ticksEvery(at(8, 2, 0), at(20, 2, 0), 5*time.Minute)
+	runTicks(c, exp, ticks, nil)
+	recs := exp.Records()
+
+	// every healthy window gets its final export on the first tick after it closes
+	for w := at(13, 0, 0); w.Before(at(20, 0, 0)); w = w.Add(time.Hour) {
+		i := firstPostCloseSuccess(recs, w)
+		if i < 0 {
+			t.Errorf("healthy window %s was never exported after closing", hourWindow(w))
+			continue
+		}
+		if want := w.Add(time.Hour).Add(2 * time.Minute); !recs[i].Now.Equal(want) {
+			t.Errorf("healthy window %s finalized at %s, want %s", hourWindow(w), recs[i].Now.Format("15:04:05"), want.Format("15:04:05"))
+		}
+	}
+
+	// the first poisoned window is retried with backoff: far fewer attempts than ticks since it closed
+	attempts := 0
+	for _, r := range recs {
+		if r.Start.Equal(at(8, 0, 0)) && r.postClose() {
+			attempts++
+		}
+	}
+	ticksSinceClose := len(ticksEvery(at(9, 2, 0), at(20, 2, 0), 5*time.Minute))
+	if attempts == 0 || attempts > ticksSinceClose/maxRetryBackoffTicks+5 {
+		t.Errorf("poisoned window attempted %d times over %d ticks, want backoff", attempts, ticksSinceClose)
+	}
+	if t.Failed() {
+		dumpRecords(t, recs)
+	}
+}
+
+// A backwards clock step followed by a forward one must not enqueue the same window twice.
+func TestComputeExportController_ClockStepDoesNotDuplicatePending(t *testing.T) {
+	src := &fakeComputeSource[controllerTestSet]{}
+	exp := &fakeComputeExporter[controllerTestSet]{
+		failIf: func(w opencost.Window, _ time.Time) bool { return w.Start().Equal(at(9, 0, 0)) },
+	}
+	c := NewComputeExportController[controllerTestSet](src, exp, time.Hour)
+
+	runTicks(c, exp, []time.Time{at(9, 30, 0), at(10, 30, 0), at(9, 45, 0), at(10, 35, 0)}, nil)
+	if n := c.pendingCount(); n != 1 {
+		t.Errorf("pendingCount() = %d, want 1", n)
+	}
+}
+
+// A compute that fails with a QueryErrorCollection keeps the window pending until it succeeds.
+func TestComputeExportController_ErrorCollectionKeepsWindowPending(t *testing.T) {
+	failing := true
+	src := &fakeComputeSource[controllerTestSet]{
+		computeFn: func(start, _ time.Time, _ int) (*controllerTestSet, error) {
+			if failing && start.Equal(at(9, 0, 0)) {
+				errs := &source.QueryErrorCollector{}
+				errs.AppendError(&source.QueryError{Query: "q", Error: fmt.Errorf("boom")})
+				return nil, errs
+			}
+			return &controllerTestSet{}, nil
+		},
+	}
+	exp := &fakeComputeExporter[controllerTestSet]{}
+	c := NewComputeExportController[controllerTestSet](src, exp, time.Hour)
+
+	runTicks(c, exp, []time.Time{at(9, 30, 0), at(10, 5, 0)}, nil)
+	if n := c.pendingCount(); n != 1 {
+		t.Fatalf("pendingCount() = %d after error collection, want 1", n)
+	}
+	failing = false
+	runTicks(c, exp, []time.Time{at(10, 10, 0)}, nil)
+	if n := c.pendingCount(); n != 0 {
+		t.Errorf("pendingCount() = %d after recovery, want 0", n)
 	}
 }
