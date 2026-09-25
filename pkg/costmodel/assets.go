@@ -2,11 +2,11 @@ package costmodel
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/core/pkg/source"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/source"
 )
 
 // clampTimeToRange does not permit timestamps to exceed a given start, end

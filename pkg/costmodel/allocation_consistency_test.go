@@ -43,6 +43,8 @@ var swapStateNames = [2]string{"A", "B"}
 type servedQuery struct {
 	method string
 	state  int
+	// pinned is true when the query was issued through a pinned view
+	pinned bool
 }
 
 // swapQuerier is a MetricsQuerier over two snapshots that flips from state A
@@ -83,7 +85,7 @@ func (q *swapQuerier) serve(method string) source.MetricsQuerier {
 	if q.parent == nil {
 		state = root.currentState()
 	}
-	root.served = append(root.served, servedQuery{method: method, state: state})
+	root.served = append(root.served, servedQuery{method: method, state: state, pinned: q.parent != nil})
 	return q.states[state]
 }
 
@@ -255,11 +257,28 @@ func checkConsistentDataView(t *testing.T, flipAfter int, wantPodB bool) {
 		t.Errorf("pod-b present = %v, want %v", podPresent["pod-b"], wantPodB)
 	}
 
+	requireAllPinned(t, querier)
+}
+
+// requireAllPinned fails if any query bypassed the pinned view, or the querier was not pinned and
+// released exactly once. A bypassing query can be served from a different state than the pinned view
+// whenever the data source swaps between Pin() and that query.
+func requireAllPinned(t *testing.T, querier *swapQuerier) {
+	t.Helper()
+	var bypassed []string
+	for _, s := range querier.servedQueries() {
+		if !s.pinned {
+			bypassed = append(bypassed, s.method)
+		}
+	}
+	if len(bypassed) > 0 {
+		t.Errorf("E3 violated: %d queries bypassed the pinned querier: %v", len(bypassed), head(bypassed, 6))
+	}
+
 	querier.mu.Lock()
-	pins, releases := querier.pins, querier.releases
-	querier.mu.Unlock()
-	if pins != 1 || releases != 1 {
-		t.Errorf("expected the querier to be pinned and released once per computation, got pins=%d releases=%d", pins, releases)
+	defer querier.mu.Unlock()
+	if querier.pins != 1 || querier.releases != 1 {
+		t.Errorf("expected the querier to be pinned and released once per computation, got pins=%d releases=%d", querier.pins, querier.releases)
 	}
 }
 
@@ -953,11 +972,7 @@ func requireSingleState(t *testing.T, querier *swapQuerier) {
 	if len(states) > 1 {
 		t.Errorf("E3 violated: queries served from %d states (A=%d, B=%d)", len(states), states[swapStateA], states[swapStateB])
 	}
-	querier.mu.Lock()
-	defer querier.mu.Unlock()
-	if querier.pins != 1 || querier.releases != 1 {
-		t.Errorf("expected one pin and release, got pins=%d releases=%d", querier.pins, querier.releases)
-	}
+	requireAllPinned(t, querier)
 }
 
 func TestComputeAssets_ConsistentDataView(t *testing.T) {
