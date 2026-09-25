@@ -219,7 +219,9 @@ func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
 }
 
 // tick runs a single export pass for the provided time: newly closed windows first, then due retries
-// oldest first (together at most maxExportsPerTick), followed by the current window.
+// (together at most maxExportsPerTick), followed by the current window. Retries go to the windows with
+// the fewest failed attempts first, then oldest, so windows that keep failing can't hold the retry
+// slot ahead of a window that failed once.
 func (cd *ComputeExportController[T]) tick(now time.Time) {
 	cd.tickCount++
 
@@ -230,14 +232,27 @@ func (cd *ComputeExportController[T]) tick(now time.Time) {
 		cd.lastTickWindow = start
 	}
 
+	// candidates for each pass: never-attempted windows oldest first, then due retries ordered by
+	// fewest attempts, then oldest (a stable sort keeps pending's ascending order within ties)
+	var first, retries []*pendingWindow
+	for _, pw := range cd.pending {
+		if pw.attempts == 0 {
+			first = append(first, pw)
+		} else if pw.nextTick <= cd.tickCount {
+			retries = append(retries, pw)
+		}
+	}
+	slices.SortStableFunc(retries, func(a, b *pendingWindow) int { return a.attempts - b.attempts })
+
 	attempts := 0
-	for _, firstAttempt := range []bool{true, false} {
-		for _, pw := range cd.pending {
+	for _, pass := range []struct {
+		windows      []*pendingWindow
+		firstAttempt bool
+	}{{first, true}, {retries, false}} {
+		firstAttempt := pass.firstAttempt
+		for _, pw := range pass.windows {
 			if attempts >= cd.maxExportsPerTick || cd.runState.IsStopping() {
 				break
-			}
-			if (pw.attempts == 0) != firstAttempt || pw.nextTick > cd.tickCount {
-				continue
 			}
 			attempts++
 
@@ -267,6 +282,9 @@ func (cd *ComputeExportController[T]) tick(now time.Time) {
 // retryBackoffTicks returns the number of ticks to wait before retrying a window that has failed the
 // given number of times: 1, 2, 4, 8, then maxRetryBackoffTicks.
 func retryBackoffTicks(attempts int) uint64 {
+	if attempts < 1 {
+		return 1
+	}
 	if attempts > 4 {
 		return maxRetryBackoffTicks
 	}

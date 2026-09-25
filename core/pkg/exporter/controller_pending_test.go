@@ -299,3 +299,31 @@ func TestComputeExportController_ErrorCollectionKeepsWindowPending(t *testing.T)
 		t.Errorf("pendingCount() = %d after recovery, want 0", n)
 	}
 }
+
+// Many windows that always fail must not hold the retry slot ahead of a newer window that failed once:
+// retries go to the fewest-attempted windows first.
+func TestComputeExportController_ManyPoisonedWindowsDoNotBlockRetries(t *testing.T) {
+	transient := at(14, 0, 0)
+	src := &fakeComputeSource[controllerTestSet]{}
+	exp := &fakeComputeExporter[controllerTestSet]{
+		failIf: func(w opencost.Window, now time.Time) bool {
+			s := *w.Start()
+			if s.Before(at(14, 0, 0)) && !s.Before(at(1, 0, 0)) {
+				return true // 13 windows that always fail
+			}
+			return s.Equal(transient) && now.Before(at(15, 10, 0))
+		},
+	}
+	c := NewComputeExportController[controllerTestSet](src, exp, time.Hour)
+
+	runTicks(c, exp, ticksEvery(at(0, 30, 0), at(18, 0, 0), 5*time.Minute), nil)
+
+	i := firstPostCloseSuccess(exp.Records(), transient)
+	if i < 0 {
+		t.Fatalf("window %s was never exported after its transient failure cleared", hourWindow(transient))
+	}
+	// the transient failure clears at 15:10; with backoff it must be retried within maxRetryBackoffTicks
+	if bound := at(15, 10, 0).Add(maxRetryBackoffTicks * 5 * time.Minute); exp.Records()[i].Now.After(bound) {
+		t.Errorf("window %s finalized at %s, after %s", hourWindow(transient), exp.Records()[i].Now.Format("15:04:05"), bound.Format("15:04:05"))
+	}
+}
