@@ -9,7 +9,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v10
+      - uses: actions/stale@1e223db275d687790206a7acac4d1a11bd6fe629 # v10.4.0
         with:
           stale-issue-message: 'This issue has been marked as stale because it has been open for 360 days with no activity. Please remove the stale label or comment or this issue will be closed in 5 days.'
           close-issue-message: 'This issue was closed because it has been inactive for 365 days with no activity.'

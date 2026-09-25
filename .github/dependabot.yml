@@ -1,25 +1,54 @@
 version: 2
+
+# cooldown delays *version* updates until a release has been public for a few
+# days, so a hijacked release is likely to be caught and pulled before we adopt
+# it. It does not apply to security updates, which still open immediately.
 updates:
   # Dependencies listed in go.mod
   - package-ecosystem: "gomod"
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
   - package-ecosystem: "gomod"
     directory: "/core" # Location of package manifests
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
   - package-ecosystem: "gomod"
     directory: "/modules/collector-source" # Location of package manifests
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
   - package-ecosystem: "gomod"
     directory: "/modules/prometheus-source" # Location of package manifests
     schedule:
       interval: "weekly"
-
-  # Dependencies listed in .github/workflows/*.yml
-  - package-ecosystem: "github-actions"
-    directory: "/"
+    cooldown:
+      default-days: 7
+  - package-ecosystem: "gomod"
+    directory: "/modules/pricing/basic" # Location of package manifests
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+  - package-ecosystem: "gomod"
+    directory: "/modules/pricing/public" # Location of package manifests
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+
+  # Dependencies listed in .github/workflows/*.yml and .github/actions/*/action.yaml.
+  # Actions are pinned by commit SHA; dependabot bumps the SHA and the version comment.
+  - package-ecosystem: "github-actions"
+    directories:
+      - "/"
+      - "/.github/actions/*"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
