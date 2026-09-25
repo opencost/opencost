@@ -108,6 +108,10 @@ const (
 
 	// maxRetryBackoffTicks caps the number of ticks between retries of a failed closed window
 	maxRetryBackoffTicks = 12
+
+	// persistentFailureAttempts is the number of failed exports after which a window is reported as
+	// persistently failing (about 3 hours of retries at a 5 minute interval)
+	persistentFailureAttempts = 6
 )
 
 // pendingWindow is a closed window awaiting a successful export
@@ -125,8 +129,8 @@ type pendingWindow struct {
 // Each tick exports the current (in-progress) window. When a window closes, it is added to a pending
 // list and exported on the next tick. A window whose export fails stays pending and is retried with a
 // per-window backoff until an export succeeds. Newly closed windows are exported before retries, and
-// retries go oldest first; after a failed retry no further retries are attempted in that tick, so a
-// storage outage costs at most one retry per tick. The pending list is bounded; when it overflows,
+// retries go fewest-attempts first, then oldest; after a failed retry no further retries are attempted
+// in that tick, so a storage outage costs at most one retry per tick. The pending list is bounded; when it overflows,
 // the oldest window is dropped and counted.
 type ComputeExportController[T any] struct {
 	runState   atomic.AtomicRunState
@@ -232,9 +236,22 @@ func (cd *ComputeExportController[T]) tick(now time.Time) {
 		cd.lastTickWindow = start
 	}
 
-	// candidates for each pass: never-attempted windows oldest first, then due retries ordered by
-	// fewest attempts, then oldest (a stable sort keeps pending's ascending order within ties)
-	var first, retries []*pendingWindow
+	first, retries := cd.dueWindows()
+	budget := cd.maxExportsPerTick
+	budget -= cd.exportPending(first, budget, true)
+	cd.exportPending(retries, budget, false)
+	cd.pending = slices.DeleteFunc(cd.pending, func(pw *pendingWindow) bool { return pw.start.IsZero() })
+
+	if cd.runState.IsStopping() {
+		return
+	}
+	cd.exportAndLog(opencost.NewClosedWindow(start, start.Add(cd.resolution)))
+}
+
+// dueWindows returns the pending windows to attempt this tick: never-attempted windows oldest first, and
+// due retries ordered by fewest attempts, then oldest (a stable sort keeps pending's ascending order
+// within ties).
+func (cd *ComputeExportController[T]) dueWindows() (first, retries []*pendingWindow) {
 	for _, pw := range cd.pending {
 		if pw.attempts == 0 {
 			first = append(first, pw)
@@ -243,40 +260,38 @@ func (cd *ComputeExportController[T]) tick(now time.Time) {
 		}
 	}
 	slices.SortStableFunc(retries, func(a, b *pendingWindow) int { return a.attempts - b.attempts })
+	return first, retries
+}
 
-	attempts := 0
-	for _, pass := range []struct {
-		windows      []*pendingWindow
-		firstAttempt bool
-	}{{first, true}, {retries, false}} {
-		firstAttempt := pass.firstAttempt
-		for _, pw := range pass.windows {
-			if attempts >= cd.maxExportsPerTick || cd.runState.IsStopping() {
-				break
-			}
-			attempts++
+// exportPending attempts up to budget of the given windows in order and returns the number attempted.
+// Exported windows are marked for removal by zeroing their start; failed windows are scheduled for
+// retry. After a failed retry (firstAttempt false) it stops: the next retry would most likely fail too
+// (e.g. storage is down), so it doesn't recompute more windows only to discard them.
+func (cd *ComputeExportController[T]) exportPending(windows []*pendingWindow, budget int, firstAttempt bool) int {
+	attempted := 0
+	for _, pw := range windows {
+		if attempted >= budget || cd.runState.IsStopping() {
+			break
+		}
+		attempted++
 
-			if cd.exportAndLog(opencost.NewClosedWindow(pw.start, pw.start.Add(cd.resolution))) {
-				pw.start = time.Time{} // exported; removed below
-				continue
-			}
+		if cd.exportAndLog(opencost.NewClosedWindow(pw.start, pw.start.Add(cd.resolution))) {
+			pw.start = time.Time{} // exported; removed by tick
+			continue
+		}
 
-			pw.attempts++
-			pw.nextTick = cd.tickCount + retryBackoffTicks(pw.attempts)
+		pw.attempts++
+		pw.nextTick = cd.tickCount + retryBackoffTicks(pw.attempts)
+		if pw.attempts == persistentFailureAttempts {
+			log.Warnf("[%s] closed window [%s, %s) has failed to export %d times; retrying until it is dropped from the pending list",
+				cd.Name(), pw.start.Format(time.RFC3339), pw.start.Add(cd.resolution).Format(time.RFC3339), pw.attempts)
+		}
 
-			// a failed retry most likely means the next one will fail too (e.g. storage is down); stop
-			// retrying until the next tick rather than recomputing more windows only to discard them
-			if !firstAttempt {
-				break
-			}
+		if !firstAttempt {
+			break
 		}
 	}
-	cd.pending = slices.DeleteFunc(cd.pending, func(pw *pendingWindow) bool { return pw.start.IsZero() })
-
-	if cd.runState.IsStopping() {
-		return
-	}
-	cd.exportAndLog(opencost.NewClosedWindow(start, start.Add(cd.resolution)))
+	return attempted
 }
 
 // retryBackoffTicks returns the number of ticks to wait before retrying a window that has failed the
