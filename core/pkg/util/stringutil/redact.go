@@ -2,25 +2,31 @@ package stringutil
 
 import (
 	"regexp"
+	"strings"
 )
 
 // urlPattern matches scheme://... URLs up to the next whitespace or quote.
 var urlPattern = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"']+`)
 
-// userInfoPattern matches the user:password@ portion following a URL scheme.
-var userInfoPattern = regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/@]*@`)
+// userInfoPattern matches the user:password@ portion following a URL scheme, up to the last @ before
+// the path, so passwords containing @ are fully removed.
+var userInfoPattern = regexp.MustCompile(`^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/]*@`)
 
-// RedactURLs removes query strings, fragments and user info from any URLs contained in s, so
-// that error messages from storage clients (which may embed presigned URLs or credentials) are
-// safe to expose through status endpoints and diagnostics.
+// secretParamPattern matches the values of well known signature and credential parameters used by
+// cloud storage presigned URLs and connection strings, wherever they appear.
+var secretParamPattern = regexp.MustCompile(`(?i)\b(sig|signature|x-amz-signature|x-amz-credential|x-amz-security-token|x-goog-signature|x-goog-credential|accountkey|sharedaccesssignature|access_token|token)=[^&;\s"']+`)
+
+// RedactURLs removes query strings, fragments and user info from any URLs contained in s, and the
+// values of well known signature and credential parameters anywhere in s, so that error messages
+// from storage clients (which may embed presigned URLs or credentials) are safe to expose through
+// logs, status endpoints and diagnostics.
 func RedactURLs(s string) string {
-	return urlPattern.ReplaceAllStringFunc(s, func(u string) string {
+	s = urlPattern.ReplaceAllStringFunc(s, func(u string) string {
 		u = userInfoPattern.ReplaceAllString(u, "${1}REDACTED@")
-		for i, r := range u {
-			if r == '?' || r == '#' {
-				return u[:i] + "?REDACTED"
-			}
+		if i := strings.IndexAny(u, "?#"); i >= 0 {
+			return u[:i] + "?REDACTED"
 		}
 		return u
 	})
+	return secretParamPattern.ReplaceAllString(s, "${1}=REDACTED")
 }

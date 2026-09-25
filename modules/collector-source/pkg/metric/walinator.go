@@ -97,13 +97,13 @@ type restoreResult struct {
 
 // restore applies updates from wal files to restore the state of the previous updater(repo)
 func (w *Walinator) restore() {
-	startTime := time.Now()
+	startTime := time.Now().UTC()
 	var listErr string
 
 	fileInfos, err := w.getFileInfos()
 	if err != nil {
-		log.Errorf("failed to retrieve updates files: %s", err.Error())
 		listErr = stringutil.RedactURLs(err.Error())
+		log.Errorf("failed to retrieve updates files: %s", listErr)
 	}
 	limit := w.limitResolution.Limit()
 
@@ -117,7 +117,7 @@ func (w *Walinator) restore() {
 	workerFn := func(fi fileInfo) restoreResult {
 		b, err := w.storage.Read(fi.name)
 		if err != nil {
-			log.Errorf("failed to load file contents for '%s': %s", fi.name, err.Error())
+			log.Errorf("failed to load file contents for '%s': %s", fi.name, stringutil.RedactURLs(err.Error()))
 			return restoreResult{fi: fi}
 		}
 
@@ -158,15 +158,21 @@ func (w *Walinator) restore() {
 	worker.ConcurrentOrderedProcessWith(worker.OptimalWorkerCount(), workerFn, inRange, processFn)
 
 	duration := time.Since(startTime)
+	tailFrom := newest
+	if tailFrom.IsZero() {
+		tailFrom = limit
+	}
+	tailGap := max(startTime.Sub(tailFrom), 0)
 	if listErr != "" || errs > 0 {
 		log.Errorf("wal restore incomplete: %d of %d objects applied, %d errors, list error: %q", applied, len(inRange), errs, listErr)
 	} else {
-		log.Infof("wal restore complete: %d objects applied in %s, largest gap %s", applied, duration, largestGap)
+		log.Infof("wal restore complete: %d objects applied in %s, largest gap %s, %s since newest object", applied, duration, largestGap, tailGap)
 	}
 
 	w.statusLock.Lock()
 	defer w.statusLock.Unlock()
 	w.status.RestoreCompleted = true
+	w.status.RestoreStartedAt = startTime
 	w.status.RestoreListError = listErr
 	w.status.RestoreObjectsSeen = len(inRange)
 	w.status.RestoreObjectsApplied = applied
@@ -176,6 +182,7 @@ func (w *Walinator) restore() {
 	w.status.RestoreNewest = newest
 	w.status.RestoreLargestGap = largestGap
 	w.status.RestoreLargestGapStart = gapStart
+	w.status.RestoreTailGap = tailGap
 }
 
 // Status returns the current export and restore status of the wal
@@ -253,12 +260,14 @@ func (w *Walinator) recordExport(err error) {
 		return
 	}
 
-	if w.status.ConsecutiveExportFailures == 0 {
-		log.Errorf("failed to export update results: %s", err.Error())
+	msg := stringutil.RedactURLs(err.Error())
+	// log at error level when writes start failing or the cause changes, not on every scrape
+	if w.status.ConsecutiveExportFailures == 0 || msg != w.status.LastExportError {
+		log.Errorf("failed to export update results: %s", msg)
 	} else {
-		log.Debugf("failed to export update results: %s", err.Error())
+		log.Debugf("failed to export update results: %s", msg)
 	}
-	w.status.LastExportError = stringutil.RedactURLs(err.Error())
+	w.status.LastExportError = msg
 	w.status.LastExportErrorAt = now
 	w.status.ConsecutiveExportFailures++
 	w.status.ExportFailuresTotal++

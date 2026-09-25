@@ -172,8 +172,12 @@ const (
 func walDiagnosticDetails(status source.WALStatus) (map[string]any, error) {
 	var problems []string
 	if status.ConsecutiveExportFailures > 0 {
-		problems = append(problems, fmt.Sprintf("%d consecutive write failures since %s (last error: %s)",
-			status.ConsecutiveExportFailures, status.LastExportSuccess.Format(time.RFC3339), status.LastExportError))
+		since := "no successful write since start"
+		if !status.LastExportSuccess.IsZero() {
+			since = "last successful write at " + status.LastExportSuccess.Format(time.RFC3339)
+		}
+		problems = append(problems, fmt.Sprintf("%d consecutive write failures, %s (last error: %s)",
+			status.ConsecutiveExportFailures, since, status.LastExportError))
 	}
 	if status.RestoreListError != "" {
 		problems = append(problems, fmt.Sprintf("restore could not list objects: %s", status.RestoreListError))
@@ -195,6 +199,7 @@ func walDiagnosticDetails(status source.WALStatus) (map[string]any, error) {
 		"restoreNewest":          status.RestoreNewest,
 		"restoreLargestGap":      status.RestoreLargestGap.String(),
 		"restoreLargestGapStart": status.RestoreLargestGapStart,
+		"restoreTailGap":         status.RestoreTailGap.String(),
 	}, nil
 }
 

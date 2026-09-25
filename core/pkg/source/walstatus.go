@@ -3,7 +3,8 @@ package source
 import "time"
 
 // WALStatus reports the health of a data source's write-ahead log: whether updates are being
-// persisted, and how complete the most recent restore was.
+// persisted, and how complete the most recent restore was. Durations serialize to JSON as integer
+// nanoseconds.
 type WALStatus struct {
 	// Enabled is false when the data source has no WAL configured; all other fields are zero.
 	Enabled bool `json:"enabled"`
@@ -22,6 +23,8 @@ type WALStatus struct {
 
 	// RestoreCompleted is true once the startup restore has finished, whether or not it had errors.
 	RestoreCompleted bool `json:"restoreCompleted"`
+	// RestoreStartedAt is the time the startup restore began.
+	RestoreStartedAt time.Time `json:"restoreStartedAt"`
 	// RestoreListError is set when the WAL objects could not be listed, meaning nothing was restored.
 	RestoreListError string `json:"restoreListError,omitempty"`
 	// RestoreObjectsSeen is the number of WAL objects inside the retention window.
@@ -40,6 +43,10 @@ type WALStatus struct {
 	// was never persisted or could not be restored.
 	RestoreLargestGap      time.Duration `json:"restoreLargestGap"`
 	RestoreLargestGapStart time.Time     `json:"restoreLargestGapStart"`
+	// RestoreTailGap is the interval between the newest applied object (or the start of the retention
+	// window, if nothing was applied) and the start of the restore: history that was not persisted
+	// before the restart, whether because the process was down or because writes were failing.
+	RestoreTailGap time.Duration `json:"restoreTailGap"`
 }
 
 // WALStatusProvider is optionally implemented by an OpenCostDataSource that persists its state

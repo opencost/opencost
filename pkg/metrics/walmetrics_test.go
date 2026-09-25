@@ -27,6 +27,8 @@ func TestWALStatusCollector(t *testing.T) {
 		RestoreErrors:             3,
 		RestoreDuration:           1500 * time.Millisecond,
 		RestoreLargestGap:         10 * time.Minute,
+		RestoreNewest:             time.Unix(1699999000, 0),
+		RestoreTailGap:            30 * time.Minute,
 	}}
 	collector := WALStatusCollector{
 		provider:      provider,
@@ -43,12 +45,18 @@ opencost_wal_export_failures_total 7
 # HELP opencost_wal_last_export_success_timestamp_seconds Unix time of the most recent successful collector WAL write, 0 if none.
 # TYPE opencost_wal_last_export_success_timestamp_seconds gauge
 opencost_wal_last_export_success_timestamp_seconds 1.7e+09
-# HELP opencost_wal_restore_errors_total Collector WAL objects that could not be read or decoded during the startup restore.
-# TYPE opencost_wal_restore_errors_total counter
-opencost_wal_restore_errors_total 3
+# HELP opencost_wal_restore_errors Collector WAL objects that could not be read or decoded during the startup restore.
+# TYPE opencost_wal_restore_errors gauge
+opencost_wal_restore_errors 3
 # HELP opencost_wal_restore_largest_gap_seconds Largest interval between consecutive restored collector WAL objects. Values well above the scrape interval indicate history that was never persisted or could not be restored.
 # TYPE opencost_wal_restore_largest_gap_seconds gauge
 opencost_wal_restore_largest_gap_seconds 600
+# HELP opencost_wal_restore_newest_timestamp_seconds Unix time of the newest collector WAL object applied during the startup restore, 0 if none.
+# TYPE opencost_wal_restore_newest_timestamp_seconds gauge
+opencost_wal_restore_newest_timestamp_seconds 1.699999e+09
+# HELP opencost_wal_restore_tail_gap_seconds Interval between the newest restored collector WAL object and the start of the restore: history not persisted before the restart.
+# TYPE opencost_wal_restore_tail_gap_seconds gauge
+opencost_wal_restore_tail_gap_seconds 1800
 # HELP opencost_wal_restore_list_failed 1 if the collector WAL startup restore could not list stored objects, meaning nothing was restored.
 # TYPE opencost_wal_restore_list_failed gauge
 opencost_wal_restore_list_failed 0

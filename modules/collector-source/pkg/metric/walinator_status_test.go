@@ -204,3 +204,57 @@ func TestWalinator_RestoreFailuresAreObservable(t *testing.T) {
 		}
 	})
 }
+
+// TestWalinator_OutageUntilRestartIsObservable covers the most likely F-34 sequence: writes fail and the
+// process restarts before they recover. The lost tail of history must show up in the restored status
+// even though the restarted process has no record of the failed writes.
+func TestWalinator_OutageUntilRestartIsObservable(t *testing.T) {
+	store := &flakyStorage{MemoryStorage: storage.NewMemoryStorage()}
+	wal := newTestWalinator(t, store)
+
+	scrape := 30 * time.Second
+	now := time.Now().UTC()
+	lastPersisted := now.Add(-30 * time.Minute)
+
+	// scrapes persist until 30 minutes ago, then every write fails until the restart
+	for ts := lastPersisted.Add(-10 * scrape); !ts.After(lastPersisted); ts = ts.Add(scrape) {
+		wal.Update(testUpdateSet(ts))
+	}
+	store.set(true, false, false)
+	for ts := lastPersisted.Add(scrape); ts.Before(now); ts = ts.Add(scrape) {
+		wal.Update(testUpdateSet(ts))
+	}
+	store.set(false, false, false)
+
+	restarted := newTestWalinator(t, store)
+	restarted.restore()
+
+	rs := restarted.Status()
+	if rs.ConsecutiveExportFailures != 0 {
+		t.Fatalf("expected a fresh process to have no export failures, got %d", rs.ConsecutiveExportFailures)
+	}
+	if rs.RestoreLargestGap != scrape {
+		t.Errorf("expected no interior gap, got %s", rs.RestoreLargestGap)
+	}
+	if !rs.RestoreNewest.Equal(lastPersisted.Truncate(time.Second)) && !rs.RestoreNewest.Equal(lastPersisted) {
+		t.Errorf("expected newest restored object at %s, got %s", lastPersisted, rs.RestoreNewest)
+	}
+	if rs.RestoreTailGap < 30*time.Minute {
+		t.Errorf("expected a tail gap of at least 30m, got %s", rs.RestoreTailGap)
+	}
+	if !rs.RestoreStartedAt.After(rs.RestoreNewest) {
+		t.Errorf("expected restore start %s after newest object %s", rs.RestoreStartedAt, rs.RestoreNewest)
+	}
+}
+
+// TestWalinator_EmptyRestoreTailGap reports the whole retention window as missing when nothing was
+// restored.
+func TestWalinator_EmptyRestoreTailGap(t *testing.T) {
+	wal := newTestWalinator(t, storage.NewMemoryStorage())
+	wal.restore()
+
+	rs := wal.Status()
+	if rs.RestoreObjectsApplied != 0 || rs.RestoreTailGap < 2*timeutil.Day {
+		t.Errorf("expected nothing applied and a tail gap covering retention, got applied=%d tail=%s", rs.RestoreObjectsApplied, rs.RestoreTailGap)
+	}
+}
