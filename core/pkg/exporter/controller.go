@@ -103,6 +103,9 @@ type ComputeExportController[T any] struct {
 	resolution time.Duration
 	lastExport time.Time
 	typeName   string
+
+	// now returns the current time; overridable for tests
+	now func() time.Time
 }
 
 // NewComputeExportController creates a new `ComputeExportController[T]` instance.
@@ -116,6 +119,7 @@ func NewComputeExportController[T any](
 		resolution: resolution,
 		exporter:   exporter,
 		typeName:   reflect.TypeFor[T]().String(),
+		now:        func() time.Time { return time.Now().UTC() },
 	}
 }
 
@@ -153,30 +157,34 @@ func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
 			case <-time.After(interval):
 			}
 
-			now := time.Now().UTC()
-			windows := cd.exportWindowsFor(now)
-
-			for _, window := range windows {
-				err := cd.export(window)
-				if err != nil {
-					// Check ErrorCollection to set Warnings and Errors
-					if source.IsErrorCollection(err) {
-						c := err.(source.QueryErrorCollection)
-						errors, warnings := c.ToErrorAndWarningStrings()
-
-						cd.logErrors(window, warnings, errors)
-						continue
-					}
-
-					log.Errorf("[%s] %s", cd.typeName, err)
-				} else {
-					cd.lastExport = now
-				}
-			}
+			cd.tick(cd.now())
 		}
 	}()
 
 	return true
+}
+
+// tick runs a single export pass for the provided time.
+func (cd *ComputeExportController[T]) tick(now time.Time) {
+	windows := cd.exportWindowsFor(now)
+
+	for _, window := range windows {
+		err := cd.export(window)
+		if err != nil {
+			// Check ErrorCollection to set Warnings and Errors
+			if source.IsErrorCollection(err) {
+				c := err.(source.QueryErrorCollection)
+				errors, warnings := c.ToErrorAndWarningStrings()
+
+				cd.logErrors(window, warnings, errors)
+				continue
+			}
+
+			log.Errorf("[%s] %s", cd.typeName, err)
+		} else {
+			cd.lastExport = now
+		}
+	}
 }
 
 // exportWindows uses the last export time to determine the current time windows to
