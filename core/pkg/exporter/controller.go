@@ -94,15 +94,41 @@ func (cd *EventExportController[T]) Stop() {
 	cd.runState.Stop()
 }
 
+const (
+	// defaultMaxPendingWindows is the number of closed sub-daily windows retained for retry
+	defaultMaxPendingWindows = 48
+
+	// defaultMaxPendingDailyWindows is the number of closed daily (or longer) windows retained for retry
+	defaultMaxPendingDailyWindows = 7
+
+	// defaultMaxExportsPerTick caps how many closed windows are exported in a single tick, so that
+	// draining a backlog after an outage doesn't compute and write every window at once
+	defaultMaxExportsPerTick = 4
+)
+
 // ComputeExportController[T] is a controller type which leverages a `ComputeSource[T]` and `Exporter[T]`
 // to regularly compute the data for the current resolution and export it on a specific interval.
+//
+// Each tick exports the current (in-progress) window. When a window closes, it is added to a pending
+// list and exported on subsequent ticks until an export succeeds, oldest first. The pending list is
+// bounded; when it overflows, the oldest window is dropped and counted.
 type ComputeExportController[T any] struct {
 	runState   atomic.AtomicRunState
 	source     ComputeSource[T]
 	exporter   ComputeExporter[T]
 	resolution time.Duration
-	lastExport time.Time
 	typeName   string
+
+	// lastTickWindow is the start of the current window at the previous tick
+	lastTickWindow time.Time
+	// pending holds the start times of closed windows awaiting a successful export, ascending
+	pending []time.Time
+	// maxPendingWindows bounds pending; the oldest windows beyond this are dropped
+	maxPendingWindows int
+	// maxExportsPerTick bounds the closed-window exports attempted per tick
+	maxExportsPerTick int
+	// droppedWindows counts closed windows dropped from pending without a successful export
+	droppedWindows uint64
 
 	// now returns the current time; overridable for tests
 	now func() time.Time
@@ -114,12 +140,19 @@ func NewComputeExportController[T any](
 	exporter ComputeExporter[T],
 	resolution time.Duration,
 ) *ComputeExportController[T] {
+	maxPending := defaultMaxPendingWindows
+	if resolution >= timeutil.Day {
+		maxPending = defaultMaxPendingDailyWindows
+	}
+
 	return &ComputeExportController[T]{
-		source:     source,
-		resolution: resolution,
-		exporter:   exporter,
-		typeName:   reflect.TypeFor[T]().String(),
-		now:        func() time.Time { return time.Now().UTC() },
+		source:            source,
+		resolution:        resolution,
+		exporter:          exporter,
+		typeName:          reflect.TypeFor[T]().String(),
+		maxPendingWindows: maxPending,
+		maxExportsPerTick: defaultMaxExportsPerTick,
+		now:               func() time.Time { return time.Now().UTC() },
 	}
 }
 
@@ -164,56 +197,90 @@ func (cd *ComputeExportController[T]) Start(interval time.Duration) bool {
 	return true
 }
 
-// tick runs a single export pass for the provided time.
+// tick runs a single export pass for the provided time: pending closed windows are exported oldest
+// first (up to maxExportsPerTick), followed by the current window.
 func (cd *ComputeExportController[T]) tick(now time.Time) {
-	windows := cd.exportWindowsFor(now)
+	start := now.Truncate(cd.resolution)
+	cd.enqueueClosedWindows(start)
+	cd.lastTickWindow = start
 
-	for _, window := range windows {
-		err := cd.export(window)
-		if err != nil {
-			// Check ErrorCollection to set Warnings and Errors
-			if source.IsErrorCollection(err) {
-				c := err.(source.QueryErrorCollection)
-				errors, warnings := c.ToErrorAndWarningStrings()
-
-				cd.logErrors(window, warnings, errors)
-				continue
-			}
-
-			log.Errorf("[%s] %s", cd.typeName, err)
-		} else {
-			cd.lastExport = now
+	attempts := 0
+	remaining := make([]time.Time, 0, len(cd.pending))
+	for _, windowStart := range cd.pending {
+		if attempts >= cd.maxExportsPerTick || cd.runState.IsStopping() {
+			remaining = append(remaining, windowStart)
+			continue
 		}
+		attempts++
+
+		if !cd.exportAndLog(opencost.NewClosedWindow(windowStart, windowStart.Add(cd.resolution))) {
+			remaining = append(remaining, windowStart)
+		}
+	}
+	cd.pending = remaining
+
+	cd.exportAndLog(opencost.NewClosedWindow(start, start.Add(cd.resolution)))
+}
+
+// enqueueClosedWindows adds every window that has closed since the previous tick to the pending list,
+// dropping the oldest pending windows if the list exceeds maxPendingWindows.
+func (cd *ComputeExportController[T]) enqueueClosedWindows(currentStart time.Time) {
+	// on the first tick there is no previous window; on a backwards clock step nothing has closed
+	if cd.lastTickWindow.IsZero() || !currentStart.After(cd.lastTickWindow) {
+		return
+	}
+
+	first := cd.lastTickWindow
+	closed := int(currentStart.Sub(first) / cd.resolution)
+
+	// if more windows closed than can be retained (e.g. a long stall), skip straight to the ones we
+	// can keep rather than enqueueing and evicting each one
+	if closed > cd.maxPendingWindows {
+		skipped := closed - cd.maxPendingWindows
+		cd.drop(first, first.Add(time.Duration(skipped)*cd.resolution), skipped)
+		first = first.Add(time.Duration(skipped) * cd.resolution)
+	}
+
+	for ws := first; ws.Before(currentStart); ws = ws.Add(cd.resolution) {
+		cd.pending = append(cd.pending, ws)
+	}
+
+	if over := len(cd.pending) - cd.maxPendingWindows; over > 0 {
+		cd.drop(cd.pending[0], cd.pending[over-1].Add(cd.resolution), over)
+		cd.pending = append([]time.Time(nil), cd.pending[over:]...)
 	}
 }
 
-// exportWindows uses the last export time to determine the current time windows to
-// export. This will, at most, return 2 windows: the previous resolution window and
-// the current resolution window.
-func (cd *ComputeExportController[T]) exportWindowsFor(now time.Time) []opencost.Window {
-	start := now.Truncate(cd.resolution)
-	end := start.Add(cd.resolution)
+// drop records count closed windows in [start, end) as dropped without a successful export
+func (cd *ComputeExportController[T]) drop(start, end time.Time, count int) {
+	cd.droppedWindows += uint64(count)
+	log.Errorf("[%s] dropping %d closed window(s) in [%s, %s) that were never exported: pending limit of %d reached",
+		cd.Name(), count, start.Format(time.RFC3339), end.Format(time.RFC3339), cd.maxPendingWindows)
+}
 
-	if cd.lastExport.IsZero() {
-		return []opencost.Window{
-			opencost.NewClosedWindow(start, end),
-		}
+// pendingCount returns the number of closed windows awaiting a successful export
+func (cd *ComputeExportController[T]) pendingCount() int {
+	return len(cd.pending)
+}
+
+// exportAndLog exports the window, logging any error, and returns true on success
+func (cd *ComputeExportController[T]) exportAndLog(window opencost.Window) bool {
+	err := cd.export(window)
+	if err == nil {
+		return true
 	}
 
-	lastStart := cd.lastExport.Truncate(cd.resolution)
-	if lastStart.Equal(start) {
-		return []opencost.Window{
-			opencost.NewClosedWindow(start, end),
-		}
-	}
-	lastEnd := lastStart.Add(cd.resolution)
+	// Check ErrorCollection to set Warnings and Errors
+	if source.IsErrorCollection(err) {
+		c := err.(source.QueryErrorCollection)
+		errors, warnings := c.ToErrorAndWarningStrings()
 
-	// we've identified that the last export window is not the same as the current,
-	// so we should export the previous resolution window as well as the current one
-	return []opencost.Window{
-		opencost.NewClosedWindow(lastStart, lastEnd),
-		opencost.NewClosedWindow(start, end),
+		cd.logErrors(window, warnings, errors)
+		return false
 	}
+
+	log.Errorf("[%s] %s", cd.typeName, err)
+	return false
 }
 
 // export computes and exports the data for a given time window
