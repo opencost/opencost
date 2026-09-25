@@ -13,6 +13,8 @@ func ApplyContainerDiagnosticEndpoints(router *httprouter.Router) {
 
 	router.GET("/logs/level", GetLogLevel)
 	router.POST("/logs/level", SetLogLevel)
+	router.GET("/logs/exclude", GetLogExclude)
+	router.POST("/logs/exclude", SetLogExclude)
 
 	if env.IsPProfEnabled() {
 		router.HandlerFunc(http.MethodGet, "/debug/pprof/", pprof.Index)
