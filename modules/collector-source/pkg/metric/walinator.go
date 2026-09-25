@@ -104,6 +104,27 @@ type restoreResult struct {
 	updateSet *UpdateSet
 }
 
+// restoreStats accumulates the outcome of a restore as files are processed in order
+type restoreStats struct {
+	seen, applied, errs int
+	oldest, newest      time.Time
+	largestGap          time.Duration
+	largestGapStart     time.Time
+}
+
+// record notes an applied file with the given timestamp, tracking the restored range and the largest
+// gap between consecutive applied files
+func (rs *restoreStats) record(ts time.Time) {
+	rs.applied++
+	if rs.oldest.IsZero() {
+		rs.oldest = ts
+	} else if gap := ts.Sub(rs.newest); gap > rs.largestGap {
+		rs.largestGap = gap
+		rs.largestGapStart = rs.newest
+	}
+	rs.newest = ts
+}
+
 // restore applies updates from wal files to restore the state of the previous updater(repo)
 func (w *Walinator) restore() {
 	startTime := time.Now().UTC()
@@ -123,59 +144,56 @@ func (w *Walinator) restore() {
 		}
 	}
 
-	workerFn := func(fi fileInfo) restoreResult {
-		b, err := w.storage.Read(fi.name)
-		if err != nil {
-			log.Errorf("failed to load file contents for '%s': %s", fi.name, stringutil.RedactURLs(err.Error()))
-			return restoreResult{fi: fi}
-		}
-
-		updateSet, err := deserializeUpdateSet(fi.ext, b)
-		if err != nil {
-			log.Errorf("failed to deserialize file contents for '%s': %s", fi.name, err.Error())
-			return restoreResult{fi: fi}
-		}
-
-		if updateSet.Timestamp.IsZero() {
-			updateSet.Timestamp = fi.timestamp
-		}
-
-		return restoreResult{fi: fi, updateSet: updateSet}
-	}
-
 	// processFn is called in file order from a single goroutine
-	var applied, errs int
-	var oldest, newest, gapStart time.Time
-	var largestGap time.Duration
+	stats := restoreStats{seen: len(inRange)}
 	processFn := func(res restoreResult) {
 		if res.updateSet == nil {
-			errs++
+			stats.errs++
 			return
 		}
 		w.updater.Update(res.updateSet)
-		applied++
-
-		ts := res.fi.timestamp
-		if oldest.IsZero() {
-			oldest = ts
-		} else if gap := ts.Sub(newest); gap > largestGap {
-			largestGap = gap
-			gapStart = newest
-		}
-		newest = ts
+		stats.record(res.fi.timestamp)
 	}
-	worker.ConcurrentOrderedProcessWith(worker.OptimalWorkerCount(), workerFn, inRange, processFn)
+	worker.ConcurrentOrderedProcessWith(worker.OptimalWorkerCount(), w.readRestoreFile, inRange, processFn)
 
+	w.finishRestore(startTime, limit, listErr, stats)
+}
+
+// readRestoreFile reads and decodes a single wal file, returning a result with a nil update set if
+// the file could not be read or decoded
+func (w *Walinator) readRestoreFile(fi fileInfo) restoreResult {
+	b, err := w.storage.Read(fi.name)
+	if err != nil {
+		log.Errorf("failed to load file contents for '%s': %s", fi.name, stringutil.RedactURLs(err.Error()))
+		return restoreResult{fi: fi}
+	}
+
+	updateSet, err := deserializeUpdateSet(fi.ext, b)
+	if err != nil {
+		log.Errorf("failed to deserialize file contents for '%s': %s", fi.name, err.Error())
+		return restoreResult{fi: fi}
+	}
+
+	if updateSet.Timestamp.IsZero() {
+		updateSet.Timestamp = fi.timestamp
+	}
+
+	return restoreResult{fi: fi, updateSet: updateSet}
+}
+
+// finishRestore logs the restore outcome and records it in the wal status
+func (w *Walinator) finishRestore(startTime, limit time.Time, listErr string, stats restoreStats) {
 	duration := time.Since(startTime)
-	tailFrom := newest
+	tailFrom := stats.newest
 	if tailFrom.IsZero() {
 		tailFrom = limit
 	}
 	tailGap := max(startTime.Sub(tailFrom), 0)
-	if listErr != "" || errs > 0 {
-		log.Errorf("wal restore incomplete: %d of %d objects applied, %d errors, list error: %q", applied, len(inRange), errs, listErr)
+
+	if listErr != "" || stats.errs > 0 {
+		log.Errorf("wal restore incomplete: %d of %d objects applied, %d errors, list error: %q", stats.applied, stats.seen, stats.errs, listErr)
 	} else {
-		log.Infof("wal restore complete: %d objects applied in %s, largest gap %s, %s since newest object", applied, duration, largestGap, tailGap)
+		log.Infof("wal restore complete: %d objects applied in %s, largest gap %s, %s since newest object", stats.applied, duration, stats.largestGap, tailGap)
 	}
 
 	w.statusLock.Lock()
@@ -183,14 +201,14 @@ func (w *Walinator) restore() {
 	w.status.RestoreCompleted = true
 	w.status.RestoreStartedAt = startTime
 	w.status.RestoreListError = listErr
-	w.status.RestoreObjectsSeen = len(inRange)
-	w.status.RestoreObjectsApplied = applied
-	w.status.RestoreErrors = errs
+	w.status.RestoreObjectsSeen = stats.seen
+	w.status.RestoreObjectsApplied = stats.applied
+	w.status.RestoreErrors = stats.errs
 	w.status.RestoreDuration = duration
-	w.status.RestoreOldest = oldest
-	w.status.RestoreNewest = newest
-	w.status.RestoreLargestGap = largestGap
-	w.status.RestoreLargestGapStart = gapStart
+	w.status.RestoreOldest = stats.oldest
+	w.status.RestoreNewest = stats.newest
+	w.status.RestoreLargestGap = stats.largestGap
+	w.status.RestoreLargestGapStart = stats.largestGapStart
 	w.status.RestoreTailGap = tailGap
 }
 
