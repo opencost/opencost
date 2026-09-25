@@ -9,8 +9,12 @@ permissions: {}
 jobs:
   automate-issues-labels:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Label new issues with 'needs-triage'
-        uses: andymckay/labeler@1.0.4
-        with:
-          add-labels: "needs-triage"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: gh issue edit "$ISSUE_NUMBER" --add-label needs-triage
