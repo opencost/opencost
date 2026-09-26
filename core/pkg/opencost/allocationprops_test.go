@@ -228,6 +228,39 @@ func TestGenerateKey(t *testing.T) {
 			labelConfig: customOwnerLabelConfig,
 			expected:    "redacted",
 		},
+		"aggregate by controllerNamespace separates same-named controllers in different namespaces": {
+			aggregate: []string{"controllerNamespace"},
+			allocationProps: &AllocationProperties{
+				Controller:     "my-app",
+				ControllerKind: "deployment",
+				Namespace:      "team-a",
+			},
+			expected: "deployment:team-a:my-app",
+		},
+		"aggregate by controllerNamespace omits namespace when it is also aggregated": {
+			aggregate: []string{"namespace", "controllerNamespace"},
+			allocationProps: &AllocationProperties{
+				Controller:     "my-app",
+				ControllerKind: "deployment",
+				Namespace:      "team-a",
+			},
+			expected: "team-a/deployment:my-app",
+		},
+		"aggregate by controllerNamespace with no controller kind uses namespace prefix": {
+			aggregate: []string{"controllerNamespace"},
+			allocationProps: &AllocationProperties{
+				Controller: "my-app",
+				Namespace:  "team-a",
+			},
+			expected: "team-a:my-app",
+		},
+		"aggregate by controllerNamespace with no controller": {
+			aggregate: []string{"controllerNamespace"},
+			allocationProps: &AllocationProperties{
+				Namespace: "team-a",
+			},
+			expected: "__unallocated__",
+		},
 	}
 
 	for name, tc := range cases {
@@ -364,4 +397,25 @@ func TestIntersection(t *testing.T) {
 		t.Fatalf("Case 4: expected output %v does not match actual output %v", expectedResult, result)
 	}
 
+}
+
+func TestParsePropertyControllerNamespace(t *testing.T) {
+	cases := map[string]AllocationProperty{
+		"controllerNamespace":   AllocationControllerNamespaceProp,
+		"controllernamespace":   AllocationControllerNamespaceProp,
+		"ControllerNamespace":   AllocationControllerNamespaceProp,
+		" controllerNamespace ": AllocationControllerNamespaceProp,
+	}
+
+	for input, expected := range cases {
+		t.Run(input, func(t *testing.T) {
+			prop, err := ParseProperty(input)
+			if err != nil {
+				t.Fatalf("ParseProperty(%q) returned error: %v", input, err)
+			}
+			if prop != expected {
+				t.Fatalf("ParseProperty(%q) = %q, want %q", input, prop, expected)
+			}
+		})
+	}
 }
