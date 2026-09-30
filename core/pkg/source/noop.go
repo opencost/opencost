@@ -411,6 +411,10 @@ func (m *NoOpMetricsQuerier) QueryDaemonSetAnnotations(start, end time.Time) *Fu
 	return newEmptyResult(DecodeAnnotationsResult)
 }
 
+func (m *NoOpMetricsQuerier) QueryDaemonSetArguments(start, end time.Time) *Future[DaemonSetArgumentResult] {
+	return newEmptyResult(DecodeDaemonSetArgumentResult)
+}
+
 // Job
 
 func (m *NoOpMetricsQuerier) QueryJobInfo(start, end time.Time) *Future[JobInfoResult] {

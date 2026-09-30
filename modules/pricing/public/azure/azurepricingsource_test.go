@@ -1,6 +1,8 @@
 package azure
 
 import (
+	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -101,6 +103,16 @@ func TestIncludeItem(t *testing.T) {
 				SkuName:       "D2s v3",
 			},
 			expected: false,
+		},
+		{
+			name: "Spot - included",
+			item: AzurePricingAttributes{
+				ArmSkuName:    "Standard_D2s_v3",
+				ArmRegionName: "eastus",
+				ProductName:   "Virtual Machines Dsv3 Series",
+				SkuName:       "D2s v3 Spot",
+			},
+			expected: true,
 		},
 		{
 			name: "Low priority - excluded",
@@ -340,5 +352,123 @@ func TestNewAzurePricingSource(t *testing.T) {
 
 	if source.config.CurrencyCode != "USD" {
 		t.Errorf("CurrencyCode = %v, want USD", source.config.CurrencyCode)
+	}
+}
+
+func TestIsSpotItem(t *testing.T) {
+	tests := []struct {
+		name     string
+		skuName  string
+		expected bool
+	}{
+		{
+			name:     "Spot suffix",
+			skuName:  "D2s v3 Spot",
+			expected: true,
+		},
+		{
+			name:     "Spot suffix lowercase",
+			skuName:  "d2s v3 spot",
+			expected: true,
+		},
+		{
+			name:     "On-demand SKU",
+			skuName:  "D2s v3",
+			expected: false,
+		},
+		{
+			name:     "Low priority SKU",
+			skuName:  "D2s v3 Low Priority",
+			expected: false,
+		},
+		{
+			name:     "Spot substring but not suffix",
+			skuName:  "Spot Instance D2s v3",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isSpotItem(AzurePricingAttributes{SkuName: tt.skuName})
+			if result != tt.expected {
+				t.Errorf("isSpotItem(%q) = %v, want %v", tt.skuName, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseVMPage_Spot(t *testing.T) {
+	source := &AzurePricingSource{
+		config: AzurePricingSourceConfig{
+			CurrencyCode: "USD",
+		},
+	}
+
+	const onDemandPrice float32 = 0.1
+	const spotPrice float32 = 0.03
+
+	page := AzurePricing{
+		Items: []AzurePricingAttributes{
+			{
+				ArmSkuName:    "Standard_D2s_v3",
+				ArmRegionName: "eastus",
+				ProductName:   "Virtual Machines Dsv3 Series",
+				SkuName:       "D2s v3",
+				RetailPrice:   onDemandPrice,
+			},
+			{
+				ArmSkuName:    "Standard_D2s_v3",
+				ArmRegionName: "eastus",
+				ProductName:   "Virtual Machines Dsv3 Series",
+				SkuName:       "D2s v3 Spot",
+				RetailPrice:   spotPrice,
+			},
+		},
+	}
+
+	data, err := json.Marshal(page)
+	if err != nil {
+		t.Fatalf("failed to marshal test page: %v", err)
+	}
+
+	ps := &pricing.PricingSet{
+		NodePricing:             []*pricing.NodePricing{},
+		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+	}
+	seen := make(map[nodeKey]struct{})
+
+	_, err = source.parseVMPage(bytes.NewReader(data), ps, seen)
+	if err != nil {
+		t.Fatalf("parseVMPage() error = %v", err)
+	}
+
+	if len(ps.NodePricing) != 2 {
+		t.Fatalf("parseVMPage() created %d node pricing entries, want 2", len(ps.NodePricing))
+	}
+
+	var sawOnDemand, sawSpot bool
+	for _, np := range ps.NodePricing {
+		switch np.Properties.Provisioning {
+		case pricing.ProvisioningOnDemand:
+			sawOnDemand = true
+			// Compare against the float32 value widened to float64, matching
+			// the precision that RetailPrice (float32) actually carries.
+			if np.Prices[pricing.ResourceNode].Price != float64(onDemandPrice) {
+				t.Errorf("on-demand price = %v, want %v", np.Prices[pricing.ResourceNode].Price, float64(onDemandPrice))
+			}
+		case pricing.ProvisioningSpot:
+			sawSpot = true
+			if np.Prices[pricing.ResourceNode].Price != float64(spotPrice) {
+				t.Errorf("spot price = %v, want %v", np.Prices[pricing.ResourceNode].Price, float64(spotPrice))
+			}
+		}
+	}
+
+	if !sawOnDemand {
+		t.Error("expected an on-demand node pricing entry")
+	}
+	if !sawSpot {
+		t.Error("expected a spot node pricing entry")
 	}
 }

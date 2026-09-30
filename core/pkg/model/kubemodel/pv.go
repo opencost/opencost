@@ -7,13 +7,13 @@ import (
 
 // @bingen:generate:PersistentVolume
 type PersistentVolume struct {
-	UID             string    `json:"uid"`
-	Name            string    `json:"name"`
-	StorageClass    string    `json:"storageClass"`
-	CSIVolumeHandle string    `json:"csiVolumeHandle,omitempty"`
-	SizeBytes       float64   `json:"size"`
-	Start           time.Time `json:"start"`
-	End             time.Time `json:"end"`
+	UID          string    `json:"uid"`
+	Name         string    `json:"name"`
+	StorageClass string    `json:"storageClass"`
+	ProviderID   string    `json:"providerID,omitempty"`
+	SizeBytes    float64   `json:"size"`
+	Start        time.Time `json:"start"`
+	End          time.Time `json:"end"`
 }
 
 func (p *PersistentVolume) ValidatePersistentVolume(window Window) error {

@@ -36,5 +36,6 @@ func newOpencostTargetScraper(provider target.TargetProvider) *TargetScraper {
 			metric.NodeGPUCount,
 			metric.KubecostNodeIsSpot,
 		},
-		true)
+		true,
+		nil)
 }

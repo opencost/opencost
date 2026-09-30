@@ -40,6 +40,14 @@ func (pm *PricingModule) newPVReader() (reader.Reader[*pricing.PersistentVolumeP
 	return reader.NewJSONLinesReader[*pricing.PersistentVolumePricing](f), nil
 }
 
+func (pm *PricingModule) newServiceReader() (reader.Reader[*pricing.ServicePricing], error) {
+	f, err := embeddedFS.Open("services.jsonl")
+	if err != nil {
+		return nil, fmt.Errorf("opening embedded services.jsonl: %w", err)
+	}
+	return reader.NewJSONLinesReader[*pricing.ServicePricing](f), nil
+}
+
 func (pm *PricingModule) NewNodePricingReader(ctx context.Context) (reader.Reader[*pricing.NodePricing], error) {
 	return pm.newNodeReader()
 }
@@ -49,15 +57,15 @@ func (pm *PricingModule) NewPersistentVolumePricingReader(ctx context.Context) (
 }
 
 func (pm *PricingModule) NewClusterPricingReader(ctx context.Context) (reader.Reader[*pricing.ClusterPricing], error) {
-	return nil, fmt.Errorf("cluster pricing not yet implemented")
+	return nil, fmt.Errorf("cluster pricing not provided by public pricing module")
 }
 
 func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*pricing.NetworkPricing], error) {
-	return nil, fmt.Errorf("network pricing not yet implemented")
+	return nil, fmt.Errorf("network pricing not provided by public pricing module")
 }
 
 func (pm *PricingModule) NewServicePricingReader(ctx context.Context) (reader.Reader[*pricing.ServicePricing], error) {
-	return nil, fmt.Errorf("service pricing not yet implemented")
+	return pm.newServiceReader()
 }
 
 func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet, error) {
@@ -89,6 +97,23 @@ func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet
 	for {
 		n, err := pvReader.Read(ctx, pvDst)
 		ps.PersistentVolumePricing = append(ps.PersistentVolumePricing, pvDst[:n]...)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	svcReader, err := pm.newServiceReader()
+	if err != nil {
+		return nil, err
+	}
+	defer svcReader.Close()
+	svcDst := make([]*pricing.ServicePricing, 64)
+	for {
+		n, err := svcReader.Read(ctx, svcDst)
+		ps.ServicePricing = append(ps.ServicePricing, svcDst[:n]...)
 		if err == io.EOF {
 			break
 		}

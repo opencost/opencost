@@ -1,9 +1,11 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/cloud"
@@ -31,9 +33,17 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+		ServicePricing:          []*pricing.ServicePricing{},
 	}
 	skuToNodeKey := make(map[string]nodeKey)
+	seenNodeKeys := make(map[nodeKey]struct{})
 	skuToVolumeKey := make(map[string]volumeKey)
+	seenVolumeKeys := make(map[volumeKey]struct{})
+	skuToLBRegion := make(map[string]string)
+	seenLBRegions := make(map[string]struct{})
+
+	// Regions is used by the spotAPI to know what to query
+	regions := make(map[string]struct{})
 
 	var productCount, termCount int
 	const logInterval = 50000
@@ -55,12 +65,32 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 			return
 		}
 
-		// Handle EC2 instances
+		// Handle EC2 instances.
+		// We only want the base Linux on-demand price:
+		//   - UsageType must be a BoxUsage (compute hour charge)
+		//   - CapacityStatus must be "Used" (not a capacity reservation)
+		//   - MarketOption must be "OnDemand" (not Spot)
+		//   - OperatingSystem must be Linux (or not returned by API)
+		//   - PreInstalledSw must be "NA" (no paid software bundle)
+		// All of these can appear empty when the API omits the field, so we
+		// treat empty as "unknown" and require the affirmative value where it
+		// matters, except OperatingSystem where empty/NA is acceptable.
 		if (strings.HasPrefix(attr.UsageType, "BoxUsage") || strings.Contains(attr.UsageType, "-BoxUsage")) &&
 			(attr.CapacityStatus == "Used" || attr.CapacityStatus == "") &&
 			(attr.MarketOption == "OnDemand" || attr.MarketOption == "") {
 
+			// Skip non-Linux operating systems; allow empty/NA (field may not be returned).
 			if attr.OperatingSystem != "" && attr.OperatingSystem != "NA" && attr.OperatingSystem != "Linux" {
+				return
+			}
+
+			// Skip software bundles (SQL Server, etc.); allow empty (field may not be returned).
+			if attr.PreInstalledSw != "" && attr.PreInstalledSw != "NA" {
+				return
+			}
+
+			// Skip capacity reservations; allow empty (field may not be returned).
+			if attr.CapacityStatus != "" && attr.CapacityStatus != "Used" {
 				return
 			}
 
@@ -68,10 +98,29 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 				return
 			}
 
-			skuToNodeKey[product.Sku] = nodeKey{
+			nk := nodeKey{
 				Region:       attr.RegionCode,
 				InstanceType: attr.InstanceType,
 			}
+			if _, seen := seenNodeKeys[nk]; seen {
+				return
+			}
+			seenNodeKeys[nk] = struct{}{}
+			regions[attr.RegionCode] = struct{}{}
+			skuToNodeKey[product.Sku] = nk
+			return
+		}
+
+		// Handle Network Load Balancer pricing
+		if strings.Contains(attr.UsageType, "LoadBalancerUsage") && attr.Operation == "LoadBalancing:Network" {
+			if attr.RegionCode == "" {
+				return
+			}
+			if _, seen := seenLBRegions[attr.RegionCode]; seen {
+				return
+			}
+			seenLBRegions[attr.RegionCode] = struct{}{}
+			skuToLBRegion[product.Sku] = attr.RegionCode
 			return
 		}
 
@@ -94,11 +143,16 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 				return
 			}
 
-			skuToVolumeKey[product.Sku] = volumeKey{
+			vk := volumeKey{
 				Region:     attr.RegionCode,
 				VolumeType: volumeType,
 				UsageType:  usageTypeNoRegion,
 			}
+			if _, seen := seenVolumeKeys[vk]; seen {
+				return
+			}
+			seenVolumeKeys[vk] = struct{}{}
+			skuToVolumeKey[product.Sku] = vk
 		}
 	}
 
@@ -110,11 +164,12 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 				termCount, len(ps.NodePricing), len(ps.PersistentVolumePricing))
 		}
 
-		// Check if this SKU is for a node or volume we're tracking
+		// Check if this SKU is for a node, volume, or load balancer we're tracking
 		nk, isNode := skuToNodeKey[term.Sku]
 		vk, isVolume := skuToVolumeKey[term.Sku]
+		lbRegion, isLB := skuToLBRegion[term.Sku]
 
-		if !isNode && !isVolume {
+		if !isNode && !isVolume && !isLB {
 			return
 		}
 
@@ -174,13 +229,31 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 				},
 				Prices: pricing.Prices{
 					pricing.ResourceStorage: pricing.Price{
-						Unit:  unit.Hour,
+						Unit:  unit.GiBHour,
 						Price: hourlyPrice,
 					},
 				},
 			}
 
 			ps.PersistentVolumePricing = append(ps.PersistentVolumePricing, volumePricing)
+		}
+
+		// Handle load balancer pricing
+		if isLB {
+			servicePricing := &pricing.ServicePricing{
+				Properties: pricing.ServicePricingProperties{
+					Provider: cloud.ProviderAWS,
+					Region:   lbRegion,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceService: pricing.Price{
+						Unit:  unit.Hour,
+						Price: price,
+					},
+				},
+			}
+
+			ps.ServicePricing = append(ps.ServicePricing, servicePricing)
 		}
 	}
 
@@ -189,8 +262,61 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 		return nil, fmt.Errorf("failed to query list pricing data %w", err)
 	}
 
-	log.Infof("PricingSource (AWS): completed in %s — %d products, %d terms, %d node pricing, %d volume pricing",
+	log.Infof("PricingSource (AWS): on-demand completed in %s — %d products, %d terms, %d node pricing, %d volume pricing",
 		time.Since(start).Round(time.Second), productCount, termCount, len(ps.NodePricing), len(ps.PersistentVolumePricing))
+
+	// China does not have the spotAPI endpoint
+	if strings.ToUpper(p.config.CurrencyCode) != "CNY" {
+		spotStart := time.Now()
+		ctx := context.Background()
+
+		type regionResult struct {
+			prices []SpotPrice
+			err    error
+			region string
+		}
+
+		resultCh := make(chan regionResult, len(regions))
+		var wg sync.WaitGroup
+		// TODO: Add separate credential path for aws gov regions. Current AWS account cannot hit it
+		for r := range regions {
+			wg.Add(1)
+			go func(r string) {
+				defer wg.Done()
+				prices, err := QuerySpotPrices(ctx, r)
+				resultCh <- regionResult{prices: prices, err: err, region: r}
+			}(r)
+		}
+		wg.Wait()
+		close(resultCh)
+
+		var spotCount int
+		for res := range resultCh {
+			if res.err != nil {
+				log.Warnf("PricingSource (AWS): failed to fetch spot prices for region %s: %v", res.region, res.err)
+				continue
+			}
+			for _, sp := range res.prices {
+				ps.NodePricing = append(ps.NodePricing, &pricing.NodePricing{
+					Properties: pricing.NodePricingProperties{
+						Provider:     cloud.ProviderAWS,
+						Region:       sp.Region,
+						InstanceType: sp.InstanceType,
+						Provisioning: pricing.ProvisioningSpot,
+					},
+					Prices: pricing.Prices{
+						pricing.ResourceNode: pricing.Price{
+							Unit:  unit.Hour,
+							Price: sp.Price,
+						},
+					},
+				})
+				spotCount++
+			}
+		}
+		log.Infof("PricingSource (AWS): spot pricing completed in %s — %d entries across %d regions",
+			time.Since(spotStart).Round(time.Second), spotCount, len(regions))
+	}
 
 	return ps, nil
 }

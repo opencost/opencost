@@ -12,14 +12,19 @@ import (
 	"github.com/opencost/opencost/modules/collector-source/pkg/scrape/target"
 )
 
+// UpdateEnricher optionally batch transforms entire set of updates before they returned from
+// Scrape().
+type UpdateEnricher func(update []metric.Update)
+
 type TargetScraper struct {
 	name           string // identifier for the scraper
 	targetProvider target.TargetProvider
 	metricNames    map[string]struct{} // filter for which metrics will be processed
 	includeMetrics bool                // toggle to make metrics an include or exclude list
+	enrich         UpdateEnricher      // optional per-update enrichment, nil means no-op
 }
 
-func newTargetScrapper(name string, provider target.TargetProvider, metricNames []string, includeMetrics bool) *TargetScraper {
+func newTargetScrapper(name string, provider target.TargetProvider, metricNames []string, includeMetrics bool, enrich UpdateEnricher) *TargetScraper {
 	metricSet := make(map[string]struct{})
 	for _, metricName := range metricNames {
 		metricSet[metricName] = struct{}{}
@@ -29,6 +34,7 @@ func newTargetScrapper(name string, provider target.TargetProvider, metricNames 
 		targetProvider: provider,
 		metricNames:    metricSet,
 		includeMetrics: includeMetrics,
+		enrich:         enrich,
 	}
 }
 
@@ -70,11 +76,13 @@ func (s *TargetScraper) Scrape() []metric.Update {
 				if _, ok := s.metricNames[result.Name]; ok != s.includeMetrics {
 					continue
 				}
-				scrapeResults = append(scrapeResults, metric.Update{
+				update := metric.Update{
 					Name:   result.Name,
 					Labels: result.Labels,
 					Value:  result.Value,
-				})
+				}
+
+				scrapeResults = append(scrapeResults, update)
 			}
 			return scrapeResults
 		}
@@ -82,6 +90,10 @@ func (s *TargetScraper) Scrape() []metric.Update {
 	}
 
 	updates := concurrentScrape(scrapeFuncs...)
+
+	if s.enrich != nil {
+		s.enrich(updates)
+	}
 
 	// dispatch a scrape event for this specific scrape
 	events.Dispatch(event.ScrapeEvent{

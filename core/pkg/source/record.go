@@ -511,6 +511,11 @@ func (m *RecordMetricsQuerier) QueryDaemonSetAnnotations(start, end time.Time) *
 	return m.Querier.QueryDaemonSetAnnotations(start, end)
 }
 
+func (m *RecordMetricsQuerier) QueryDaemonSetArguments(start, end time.Time) *Future[DaemonSetArgumentResult] {
+	m.recordCall(QueryDaemonSetArguments)
+	return m.Querier.QueryDaemonSetArguments(start, end)
+}
+
 // Job
 
 func (m *RecordMetricsQuerier) QueryJobInfo(start, end time.Time) *Future[JobInfoResult] {
