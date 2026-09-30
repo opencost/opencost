@@ -32,10 +32,6 @@ func (a *infoAggregator) LabelValues() []string {
 func (a *infoAggregator) Update(value float64, timestamp time.Time, additionalInfo map[string]string) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	// The same map is shared by every resolution window; it's never mutated after dispatch and readers get a clone.
-	if a.additionalInfo != nil && maps.Equal(a.additionalInfo, additionalInfo) {
-		return
-	}
 	a.additionalInfo = additionalInfo
 }
 
