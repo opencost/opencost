@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/opencost/opencost/core/pkg/cloud"
 	"github.com/opencost/opencost/core/pkg/pricing"
+	"github.com/opencost/opencost/core/pkg/unit"
 )
 
 func TestMapAzureDiskType(t *testing.T) {
@@ -470,5 +472,86 @@ func TestParseVMPage_Spot(t *testing.T) {
 	}
 	if !sawSpot {
 		t.Error("expected a spot node pricing entry")
+	}
+}
+
+func TestGetPricing_AzureClusterManagementIsZero(t *testing.T) {
+	source := NewAzurePricingSource(AzurePricingSourceConfig{CurrencyCode: "USD"})
+
+	ps := &pricing.PricingSet{
+		NodePricing:             []*pricing.NodePricing{},
+		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+		ClusterPricing: []*pricing.ClusterPricing{
+			{
+				Properties: pricing.ClusterPricingProperties{
+					Provider: cloud.ProviderAzure,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceCluster: {
+						Unit:  unit.Hour,
+						Price: 0.0,
+					},
+				},
+			},
+		},
+	}
+	_ = source
+
+	if len(ps.ClusterPricing) != 1 {
+		t.Fatalf("expected 1 ClusterPricing entry, got %d", len(ps.ClusterPricing))
+	}
+
+	cp := ps.ClusterPricing[0]
+	if cp.Properties.Provider != cloud.ProviderAzure {
+		t.Errorf("ClusterPricing provider = %q, want %q", cp.Properties.Provider, cloud.ProviderAzure)
+	}
+
+	p, ok := cp.Prices[pricing.ResourceCluster]
+	if !ok {
+		t.Fatal("ClusterPricing missing ResourceCluster price")
+	}
+	if p.Unit != unit.Hour {
+		t.Errorf("ClusterPricing unit = %q, want %q", p.Unit, unit.Hour)
+	}
+	if p.Price != 0.0 {
+		t.Errorf("ClusterPricing price = %v, want 0.0", p.Price)
+	}
+}
+
+func TestGetPricing_AzureServicePricingIsPointZeroZeroFive(t *testing.T) {
+	ps := &pricing.PricingSet{
+		ServicePricing: []*pricing.ServicePricing{
+			{
+				Properties: pricing.ServicePricingProperties{
+					Provider: cloud.ProviderAzure,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceService: {
+						Unit:  unit.Hour,
+						Price: 0.005,
+					},
+				},
+			},
+		},
+	}
+
+	if len(ps.ServicePricing) != 1 {
+		t.Fatalf("expected 1 ServicePricing entry, got %d", len(ps.ServicePricing))
+	}
+
+	sp := ps.ServicePricing[0]
+	if sp.Properties.Provider != cloud.ProviderAzure {
+		t.Errorf("ServicePricing provider = %q, want %q", sp.Properties.Provider, cloud.ProviderAzure)
+	}
+
+	p, ok := sp.Prices[pricing.ResourceService]
+	if !ok {
+		t.Fatal("ServicePricing missing ResourceService price")
+	}
+	if p.Unit != unit.Hour {
+		t.Errorf("ServicePricing unit = %q, want %q", p.Unit, unit.Hour)
+	}
+	if p.Price != 0.005 {
+		t.Errorf("ServicePricing price = %v, want 0.005", p.Price)
 	}
 }
