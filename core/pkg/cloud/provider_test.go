@@ -16,6 +16,10 @@ func TestParseProvider(t *testing.T) {
 		{"Alibaba", ProviderAlibaba},
 		{"DigitalOcean", ProviderDigitalOcean},
 		{"Oracle", ProviderOracle},
+		{"Scaleway", ProviderScaleway},
+		{"OTC", ProviderOTC},
+		{"OVH", ProviderOVH},
+		{"STACKIT", ProviderSTACKIT},
 		// Case-insensitive
 		{"aws", ProviderAWS},
 		{"gcp", ProviderGCP},
@@ -23,6 +27,10 @@ func TestParseProvider(t *testing.T) {
 		{"alibaba", ProviderAlibaba},
 		{"digitalocean", ProviderDigitalOcean},
 		{"oracle", ProviderOracle},
+		{"scaleway", ProviderScaleway},
+		{"otc", ProviderOTC},
+		{"ovh", ProviderOVH},
+		{"stackit", ProviderSTACKIT},
 		{"AWS", ProviderAWS},
 		{"AZURE", ProviderAzure},
 		// Aliases
@@ -38,10 +46,15 @@ func TestParseProvider(t *testing.T) {
 		{"DO", ProviderDigitalOcean},
 		{"oci", ProviderOracle},
 		{"OCI", ProviderOracle},
+		{"scw", ProviderScaleway},
+		{"kapsule", ProviderScaleway},
+		{"ovhcloud", ProviderOVH},
+		{"ovh-mks", ProviderOVH},
+		{"ske", ProviderSTACKIT},
 		// Unknown input returns empty
 		{"", ProviderEmpty},
 		{"unknown", ProviderEmpty},
-		{"scaleway", ProviderEmpty},
+		{"ibm", ProviderEmpty},
 	}
 
 	for _, tt := range tests {
