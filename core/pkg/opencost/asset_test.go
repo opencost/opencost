@@ -1819,7 +1819,7 @@ func TestIsLocalPersistentVolume(t *testing.T) {
 	}{
 		{"local-pv-1a2b3c4d", true},
 		{"local-pv-", true},
-		{"pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1", false},
+		{"pvc-00000000-0000-0000-0000-000000000001", false},
 		{"my-local-pv-1", false},
 		{"", false},
 	}

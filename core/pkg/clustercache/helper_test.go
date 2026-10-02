@@ -177,12 +177,12 @@ func Test_getPVProviderID(t *testing.T) {
 				Spec: v1.PersistentVolumeSpec{
 					PersistentVolumeSource: v1.PersistentVolumeSource{
 						CSI: &v1.CSIPersistentVolumeSource{
-							VolumeHandle: "projects/guestbook-227502/zones/us-central1-a/disks/pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+							VolumeHandle: "projects/my-project/zones/us-central1-a/disks/pvc-00000000-0000-0000-0000-000000000001",
 						},
 					},
 				},
 			},
-			want: "pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+			want: "pvc-00000000-0000-0000-0000-000000000001",
 		},
 		{
 			name: "gcp pd csi regional volume handle is parsed",
@@ -191,12 +191,12 @@ func Test_getPVProviderID(t *testing.T) {
 				Spec: v1.PersistentVolumeSpec{
 					PersistentVolumeSource: v1.PersistentVolumeSource{
 						CSI: &v1.CSIPersistentVolumeSource{
-							VolumeHandle: "projects/guestbook-227502/regions/us-central1/disks/pvc-71f28a15-54c6-4dcd-8a6a-15f46fe934d8",
+							VolumeHandle: "projects/my-project/regions/us-central1/disks/pvc-00000000-0000-0000-0000-000000000002",
 						},
 					},
 				},
 			},
-			want: "pvc-71f28a15-54c6-4dcd-8a6a-15f46fe934d8",
+			want: "pvc-00000000-0000-0000-0000-000000000002",
 		},
 		{
 			name: "azure disk csi volume handle is parsed",
@@ -205,12 +205,12 @@ func Test_getPVProviderID(t *testing.T) {
 				Spec: v1.PersistentVolumeSpec{
 					PersistentVolumeSource: v1.PersistentVolumeSource{
 						CSI: &v1.CSIPersistentVolumeSource{
-							VolumeHandle: "/subscriptions/ae337b64-e7ba-3387-b043-187289efe4e3/resourceGroups/mc_test_eastus2/providers/Microsoft.Compute/disks/pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+							VolumeHandle: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.Compute/disks/pvc-00000000-0000-0000-0000-000000000001",
 						},
 					},
 				},
 			},
-			want: "pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+			want: "pvc-00000000-0000-0000-0000-000000000001",
 		},
 		{
 			name: "azure disk csi lowercase volume handle is parsed",
@@ -219,12 +219,12 @@ func Test_getPVProviderID(t *testing.T) {
 				Spec: v1.PersistentVolumeSpec{
 					PersistentVolumeSource: v1.PersistentVolumeSource{
 						CSI: &v1.CSIPersistentVolumeSource{
-							VolumeHandle: "/subscriptions/ae337b64-e7ba-3387-b043-187289efe4e3/resourcegroups/mc_test_eastus2/providers/microsoft.compute/disks/pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+							VolumeHandle: "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/my-resource-group/providers/microsoft.compute/disks/pvc-00000000-0000-0000-0000-000000000001",
 						},
 					},
 				},
 			},
-			want: "pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+			want: "pvc-00000000-0000-0000-0000-000000000001",
 		},
 		{
 			name: "azure file csi volume handle is left unchanged",
@@ -233,12 +233,12 @@ func Test_getPVProviderID(t *testing.T) {
 				Spec: v1.PersistentVolumeSpec{
 					PersistentVolumeSource: v1.PersistentVolumeSource{
 						CSI: &v1.CSIPersistentVolumeSource{
-							VolumeHandle: "mc_test_eastus2#fileaccount#pvc-8f38beb3###default",
+							VolumeHandle: "my-resource-group#fileaccount#pvc-1###default",
 						},
 					},
 				},
 			},
-			want: "mc_test_eastus2#fileaccount#pvc-8f38beb3###default",
+			want: "my-resource-group#fileaccount#pvc-1###default",
 		},
 		{
 			name: "aws prefixed csi volume handle is parsed",
@@ -259,7 +259,7 @@ func Test_getPVProviderID(t *testing.T) {
 				Spec: v1.PersistentVolumeSpec{
 					PersistentVolumeSource: v1.PersistentVolumeSource{
 						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
-							PDName: "projects/guestbook-227502/zones/us-central1-a/disks/gke-pd-1",
+							PDName: "projects/my-project/zones/us-central1-a/disks/gke-pd-1",
 						},
 					},
 				},
@@ -308,6 +308,53 @@ func Test_getPVProviderID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := GetPVProviderID(tt.pv); got != tt.want {
 				t.Errorf("getPVProviderID() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParsePVProviderID(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "aws volume id",
+			input: "aws://us-east-2a/vol-0fc54c5e83b8d2b76",
+			want:  "vol-0fc54c5e83b8d2b76",
+		},
+		{
+			name:  "gcp zonal disk",
+			input: "projects/my-project/zones/us-central1-a/disks/pvc-00000000-0000-0000-0000-000000000001",
+			want:  "pvc-00000000-0000-0000-0000-000000000001",
+		},
+		{
+			name:  "azure managed disk",
+			input: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.Compute/disks/pvc-1",
+			want:  "pvc-1",
+		},
+		{
+			name:  "bare id is unchanged",
+			input: "pvc-00000000-0000-0000-0000-000000000002",
+			want:  "pvc-00000000-0000-0000-0000-000000000002",
+		},
+		{
+			name:  "unrecognized format is unchanged",
+			input: "my-resource-group#fileaccount#pvc-1###default",
+			want:  "my-resource-group#fileaccount#pvc-1###default",
+		},
+		{
+			name:  "empty string is unchanged",
+			input: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ParsePVProviderID(tt.input); got != tt.want {
+				t.Errorf("ParsePVProviderID(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -368,27 +415,27 @@ func Test_persistentVolumeGCPRegex(t *testing.T) {
 	}{
 		{
 			name:  "zonal disk",
-			input: "projects/guestbook-227502/zones/us-central1-a/disks/pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
-			want:  "pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+			input: "projects/my-project/zones/us-central1-a/disks/pvc-00000000-0000-0000-0000-000000000001",
+			want:  "pvc-00000000-0000-0000-0000-000000000001",
 		},
 		{
 			name:  "regional disk",
-			input: "projects/guestbook-227502/regions/us-central1/disks/pvc-71f28a15",
-			want:  "pvc-71f28a15",
+			input: "projects/my-project/regions/us-central1/disks/pvc-2",
+			want:  "pvc-2",
 		},
 		{
 			name:  "self link prefix",
-			input: "https://www.googleapis.com/compute/v1/projects/guestbook-227502/zones/us-central1-a/disks/pvc-71f28a15",
-			want:  "pvc-71f28a15",
+			input: "https://www.googleapis.com/compute/v1/projects/my-project/zones/us-central1-a/disks/pvc-2",
+			want:  "pvc-2",
 		},
 		{
 			name:  "trailing path segment does not match",
-			input: "projects/guestbook-227502/zones/us-central1-a/disks/pvc-71f28a15/extra",
+			input: "projects/my-project/zones/us-central1-a/disks/pvc-2/extra",
 			want:  "",
 		},
 		{
 			name:  "bare disk name does not match",
-			input: "pvc-71f28a15",
+			input: "pvc-2",
 			want:  "",
 		},
 		{
@@ -420,22 +467,22 @@ func Test_persistentVolumeAzureRegex(t *testing.T) {
 	}{
 		{
 			name:  "managed disk resource id",
-			input: "/subscriptions/ae337b64-e7ba-3387-b043-187289efe4e3/resourceGroups/mc_test_eastus2/providers/Microsoft.Compute/disks/pvc-8f38beb3",
-			want:  "pvc-8f38beb3",
+			input: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.Compute/disks/pvc-1",
+			want:  "pvc-1",
 		},
 		{
 			name:  "lowercase resource id",
-			input: "/subscriptions/ae337b64-e7ba-3387-b043-187289efe4e3/resourcegroups/mc_test_eastus2/providers/microsoft.compute/disks/pvc-8f38beb3",
-			want:  "pvc-8f38beb3",
+			input: "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/my-resource-group/providers/microsoft.compute/disks/pvc-1",
+			want:  "pvc-1",
 		},
 		{
 			name:  "non-disk resource does not match",
-			input: "/subscriptions/ae337b64-e7ba-3387-b043-187289efe4e3/resourceGroups/mc_test_eastus2/providers/Microsoft.Compute/snapshots/snap-1",
+			input: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.Compute/snapshots/snap-1",
 			want:  "",
 		},
 		{
 			name:  "azure file handle does not match",
-			input: "mc_test_eastus2#fileaccount#pvc-8f38beb3###default",
+			input: "my-resource-group#fileaccount#pvc-1###default",
 			want:  "",
 		},
 		{
