@@ -171,6 +171,102 @@ func Test_getPVProviderID(t *testing.T) {
 			want: "vol-csi-1",
 		},
 		{
+			name: "gcp pd csi zonal volume handle is parsed",
+			pv: &PersistentVolume{
+				Name: "pv-gcp-csi",
+				Spec: v1.PersistentVolumeSpec{
+					PersistentVolumeSource: v1.PersistentVolumeSource{
+						CSI: &v1.CSIPersistentVolumeSource{
+							VolumeHandle: "projects/guestbook-227502/zones/us-central1-a/disks/pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+						},
+					},
+				},
+			},
+			want: "pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+		},
+		{
+			name: "gcp pd csi regional volume handle is parsed",
+			pv: &PersistentVolume{
+				Name: "pv-gcp-csi",
+				Spec: v1.PersistentVolumeSpec{
+					PersistentVolumeSource: v1.PersistentVolumeSource{
+						CSI: &v1.CSIPersistentVolumeSource{
+							VolumeHandle: "projects/guestbook-227502/regions/us-central1/disks/pvc-71f28a15-54c6-4dcd-8a6a-15f46fe934d8",
+						},
+					},
+				},
+			},
+			want: "pvc-71f28a15-54c6-4dcd-8a6a-15f46fe934d8",
+		},
+		{
+			name: "azure disk csi volume handle is parsed",
+			pv: &PersistentVolume{
+				Name: "pv-azure-csi",
+				Spec: v1.PersistentVolumeSpec{
+					PersistentVolumeSource: v1.PersistentVolumeSource{
+						CSI: &v1.CSIPersistentVolumeSource{
+							VolumeHandle: "/subscriptions/ae337b64-e7ba-3387-b043-187289efe4e3/resourceGroups/mc_test_eastus2/providers/Microsoft.Compute/disks/pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+						},
+					},
+				},
+			},
+			want: "pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+		},
+		{
+			name: "azure disk csi lowercase volume handle is parsed",
+			pv: &PersistentVolume{
+				Name: "pv-azure-csi",
+				Spec: v1.PersistentVolumeSpec{
+					PersistentVolumeSource: v1.PersistentVolumeSource{
+						CSI: &v1.CSIPersistentVolumeSource{
+							VolumeHandle: "/subscriptions/ae337b64-e7ba-3387-b043-187289efe4e3/resourcegroups/mc_test_eastus2/providers/microsoft.compute/disks/pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+						},
+					},
+				},
+			},
+			want: "pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+		},
+		{
+			name: "azure file csi volume handle is left unchanged",
+			pv: &PersistentVolume{
+				Name: "pv-azure-file",
+				Spec: v1.PersistentVolumeSpec{
+					PersistentVolumeSource: v1.PersistentVolumeSource{
+						CSI: &v1.CSIPersistentVolumeSource{
+							VolumeHandle: "mc_test_eastus2#fileaccount#pvc-8f38beb3###default",
+						},
+					},
+				},
+			},
+			want: "mc_test_eastus2#fileaccount#pvc-8f38beb3###default",
+		},
+		{
+			name: "aws prefixed csi volume handle is parsed",
+			pv: &PersistentVolume{
+				Name: "pv-aws-csi",
+				Spec: v1.PersistentVolumeSpec{
+					PersistentVolumeSource: v1.PersistentVolumeSource{
+						CSI: &v1.CSIPersistentVolumeSource{VolumeHandle: "aws://us-east-2a/vol-0fc54c5e83b8d2b76"},
+					},
+				},
+			},
+			want: "vol-0fc54c5e83b8d2b76",
+		},
+		{
+			name: "gce pd name with full path is parsed",
+			pv: &PersistentVolume{
+				Name: "pv-gce",
+				Spec: v1.PersistentVolumeSpec{
+					PersistentVolumeSource: v1.PersistentVolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "projects/guestbook-227502/zones/us-central1-a/disks/gke-pd-1",
+						},
+					},
+				},
+			},
+			want: "gke-pd-1",
+		},
+		{
 			// Documents current behavior: a CSI source with an empty handle
 			// returns "" rather than falling back to pv.Name.
 			name: "csi with empty volume handle returns empty string",
@@ -259,6 +355,105 @@ func Test_persistentVolumeAWSRegex(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("persistentVolumeAWSRegex on %q = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_persistentVolumeGCPRegex(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string // expected capture group 1, or "" for no match
+	}{
+		{
+			name:  "zonal disk",
+			input: "projects/guestbook-227502/zones/us-central1-a/disks/pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+			want:  "pvc-8f38beb3-47ee-4fe0-978f-0ada2bb87eb1",
+		},
+		{
+			name:  "regional disk",
+			input: "projects/guestbook-227502/regions/us-central1/disks/pvc-71f28a15",
+			want:  "pvc-71f28a15",
+		},
+		{
+			name:  "self link prefix",
+			input: "https://www.googleapis.com/compute/v1/projects/guestbook-227502/zones/us-central1-a/disks/pvc-71f28a15",
+			want:  "pvc-71f28a15",
+		},
+		{
+			name:  "trailing path segment does not match",
+			input: "projects/guestbook-227502/zones/us-central1-a/disks/pvc-71f28a15/extra",
+			want:  "",
+		},
+		{
+			name:  "bare disk name does not match",
+			input: "pvc-71f28a15",
+			want:  "",
+		},
+		{
+			name:  "empty string does not match",
+			input: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			match := persistentVolumeGCPRegex.FindStringSubmatch(tt.input)
+			got := ""
+			if len(match) >= 2 {
+				got = match[1]
+			}
+			if got != tt.want {
+				t.Errorf("persistentVolumeGCPRegex on %q = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_persistentVolumeAzureRegex(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string // expected capture group 1, or "" for no match
+	}{
+		{
+			name:  "managed disk resource id",
+			input: "/subscriptions/ae337b64-e7ba-3387-b043-187289efe4e3/resourceGroups/mc_test_eastus2/providers/Microsoft.Compute/disks/pvc-8f38beb3",
+			want:  "pvc-8f38beb3",
+		},
+		{
+			name:  "lowercase resource id",
+			input: "/subscriptions/ae337b64-e7ba-3387-b043-187289efe4e3/resourcegroups/mc_test_eastus2/providers/microsoft.compute/disks/pvc-8f38beb3",
+			want:  "pvc-8f38beb3",
+		},
+		{
+			name:  "non-disk resource does not match",
+			input: "/subscriptions/ae337b64-e7ba-3387-b043-187289efe4e3/resourceGroups/mc_test_eastus2/providers/Microsoft.Compute/snapshots/snap-1",
+			want:  "",
+		},
+		{
+			name:  "azure file handle does not match",
+			input: "mc_test_eastus2#fileaccount#pvc-8f38beb3###default",
+			want:  "",
+		},
+		{
+			name:  "empty string does not match",
+			input: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			match := persistentVolumeAzureRegex.FindStringSubmatch(tt.input)
+			got := ""
+			if len(match) >= 2 {
+				got = match[1]
+			}
+			if got != tt.want {
+				t.Errorf("persistentVolumeAzureRegex on %q = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
