@@ -46,20 +46,6 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
-		// AKS does not charge for cluster management
-		ClusterPricing: []*pricing.ClusterPricing{
-			{
-				Properties: pricing.ClusterPricingProperties{
-					Provider: cloud.ProviderAzure,
-				},
-				Prices: pricing.Prices{
-					pricing.ResourceCluster: {
-						Unit:  unit.Hour,
-						Price: 0.0,
-					},
-				},
-			},
-		},
 		// Azure LoadBalancer services correspond to a Standard Static Public IP
 		// ($0.005/hr). This is not fetched from the API — it is consistent across
 		// all regions

@@ -34,6 +34,20 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
 		ServicePricing:          []*pricing.ServicePricing{},
+		// EKS charges $0.10/hr per cluster for cluster management
+		ClusterPricing: []*pricing.ClusterPricing{
+			{
+				Properties: pricing.ClusterPricingProperties{
+					Provider: cloud.ProviderAWS,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceCluster: {
+						Unit:  unit.Hour,
+						Price: 0.10,
+					},
+				},
+			},
+		},
 	}
 	skuToNodeKey := make(map[string]nodeKey)
 	seenNodeKeys := make(map[nodeKey]struct{})
