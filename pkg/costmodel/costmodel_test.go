@@ -3,6 +3,7 @@ package costmodel
 import (
 	"math"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/ovh"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/stretchr/testify/assert"
@@ -578,4 +580,67 @@ func TestCustomProviderGPUNodeUsesDefaultHourlyPricing(t *testing.T) {
 	assert.Equal(t, cfg.GPU, node.GPUCost)
 	assert.Equal(t, "2.000000", node.GPU)
 	assert.Empty(t, node.ProviderID)
+}
+
+func TestOVHNodeGPUCost(t *testing.T) {
+	t.Setenv(coreenv.ConfigPathEnvVar, t.TempDir())
+	confMan := config.NewConfigFileManager(storage.NewFileStorage("/"))
+	for _, tc := range []struct {
+		name        string
+		catalogGPUs int
+		nodeGPUs    string
+		wantGPUCost bool
+	}{
+		{name: "no GPUs", catalogGPUs: 0},
+		{name: "catalog GPU", catalogGPUs: 1, wantGPUCost: true},
+		{name: "node GPU overrides catalog", catalogGPUs: 0, nodeGPUs: "1", wantGPUCost: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			capacity := v1.ResourceList{
+				v1.ResourceCPU:    resource.MustParse("8"),
+				v1.ResourceMemory: resource.MustParse("32Gi"),
+			}
+			if tc.nodeGPUs != "" {
+				capacity["nvidia.com/gpu"] = resource.MustParse(tc.nodeGPUs)
+			}
+			costModel := &CostModel{
+				Provider: &ovh.OVH{
+					Config: provider.NewProviderConfig(confMan, "default.json"),
+					Pricing: map[string]*ovh.OVHFlavorPricing{
+						"test-flavor": {HourlyPrice: 0.5, VCPU: 8, RAM: 32, GPU: tc.catalogGPUs},
+					},
+				},
+				Cache: &clustercache.MockClusterCache{Nodes: []*clustercache.Node{{
+					Name: "ovh-node",
+					Labels: map[string]string{
+						v1.LabelTopologyRegion:     "GRA7",
+						v1.LabelInstanceTypeStable: "test-flavor",
+					},
+					Status: v1.NodeStatus{Capacity: capacity},
+				}}},
+			}
+
+			nodes, err := costModel.GetNodeCost()
+			require.NoError(t, err)
+			node := nodes["ovh-node"]
+			require.NotNil(t, node)
+			gpuCost := 0.0
+			if node.GPUCost != "" {
+				gpuCost, err = strconv.ParseFloat(node.GPUCost, 64)
+				require.NoError(t, err)
+			}
+			if tc.wantGPUCost {
+				assert.Positive(t, gpuCost)
+			} else {
+				assert.Zero(t, gpuCost)
+			}
+			cpuCost, err := strconv.ParseFloat(node.VCPUCost, 64)
+			require.NoError(t, err)
+			ramCost, err := strconv.ParseFloat(node.RAMCost, 64)
+			require.NoError(t, err)
+			gpuCount, err := strconv.ParseFloat(node.GPU, 64)
+			require.NoError(t, err)
+			assert.InDelta(t, 0.5, cpuCost*8+ramCost*32+gpuCost*gpuCount, 0.0001)
+		})
+	}
 }
