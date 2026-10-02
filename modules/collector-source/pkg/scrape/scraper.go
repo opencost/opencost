@@ -1,6 +1,9 @@
 package scrape
 
 import (
+	"time"
+
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 )
 
@@ -41,20 +44,27 @@ func (fs *filteredScraper) Scrape() []metric.Update {
 
 type ScrapeFunc func() []metric.Update
 
+// 2× the default scrape interval: a last resort for scrapers without their own timeout.
+var scrapeTimeout = time.Minute
+
 func concurrentScrape(scrapeFuncs ...ScrapeFunc) []metric.Update {
-	resultCh := make(chan []metric.Update)
-	defer close(resultCh)
+	resultCh := make(chan []metric.Update, len(scrapeFuncs))
 	for _, scrapeFunc := range scrapeFuncs {
 		go func() {
-			scrapeResults := scrapeFunc()
-			resultCh <- scrapeResults
+			resultCh <- scrapeFunc()
 		}()
 	}
 
+	timeout := time.After(scrapeTimeout)
 	var scrapeResults []metric.Update
 	for range scrapeFuncs {
-		targetResults := <-resultCh
-		scrapeResults = append(scrapeResults, targetResults...)
+		select {
+		case targetResults := <-resultCh:
+			scrapeResults = append(scrapeResults, targetResults...)
+		case <-timeout:
+			log.Warnf("scrape timed out after %s: dropping results from unfinished scrapers", scrapeTimeout)
+			return scrapeResults
+		}
 	}
 	return scrapeResults
 }
