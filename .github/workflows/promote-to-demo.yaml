@@ -1,6 +1,7 @@
 name: Promote to Demo
 
-on:
+# Privileged trigger: workflow_run is restricted to runs from this repository; see the job-level if.
+on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [Build and Publish Develop]
     types: [completed]
@@ -14,12 +15,19 @@ permissions: {}
 jobs:
   prep-image-name:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # See build-and-publish-develop.yml: only promote builds of pushes to this repo.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    permissions:
+      contents: read
     outputs:
       image_tag: ${{ steps.tags.outputs.IMAGE_TAG }}
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
       - name: Set SHA
         id: sha
         run: |
@@ -35,7 +43,7 @@ jobs:
  
   install-on-demo:
     needs: [prep-image-name]
-    uses: opencost/opencost-infra/.github/workflows/promote-to-oc-demo.yaml@main
+    uses: opencost/opencost-infra/.github/workflows/promote-to-oc-demo.yaml@main # zizmor: ignore[secrets-inherit] opencost-infra workflows do not declare their secrets yet
     secrets: inherit
     with:
       img-fqdn: ${{ needs.prep-image-name.outputs.image_tag }}
