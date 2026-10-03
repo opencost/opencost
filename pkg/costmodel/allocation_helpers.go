@@ -2556,6 +2556,17 @@ func calculateStartAndEnd(result []*util.Vector, resolution time.Duration, windo
 		e = now
 	}
 
+	// After all clamping, if start is after end, the data does not
+	// overlap with the query window. Return a zero-duration interval
+	// at the window start so that callers naturally compute zero
+	// minutes and zero cost, while keeping timestamps within the
+	// window. This can happen when a rolling window (e.g. "24h")
+	// clips into a daily store bucket that contains data from before
+	// the window start but none after it.
+	if s.After(e) {
+		return *window.Start(), *window.Start()
+	}
+
 	return s, e
 }
 
