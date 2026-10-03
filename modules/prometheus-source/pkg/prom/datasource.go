@@ -15,7 +15,32 @@ import (
 
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
+	prometheusModel "github.com/prometheus/common/model"
 )
+
+const rangeSemanticsProbe = "count_over_time(vector(1)[1m:1m])"
+
+func usesLeftOpenRangeSemantics(api prometheusAPI.API) (bool, error) {
+	// Align the evaluation time with the subquery step so Prometheus 2 includes
+	// both range boundaries (two samples), while Prometheus 3 includes only the
+	// right boundary (one sample).
+	value, _, err := api.Query(context.Background(), rangeSemanticsProbe, time.Now().Truncate(time.Minute))
+	if err != nil {
+		return false, err
+	}
+	vector, ok := value.(prometheusModel.Vector)
+	if !ok || len(vector) != 1 {
+		return false, fmt.Errorf("unexpected range-semantics probe result %T with %d samples", value, len(vector))
+	}
+	switch vector[0].Value {
+	case 1:
+		return true, nil
+	case 2:
+		return false, nil
+	default:
+		return false, fmt.Errorf("unexpected range-semantics probe value %s", vector[0].Value)
+	}
+}
 
 // creates a new help error which indicates the caller can retry and is non-fatal.
 func newHelpRetryError(format string, args ...any) error {
@@ -85,6 +110,13 @@ func NewPrometheusDataSource(infoProvider clusters.ClusterInfoProvider, promConf
 		v, err := semver.NewVersion(promConfig.Version)
 		if err != nil {
 			log.Warnf("Failed to parse prometheus version %s. Error: %s", promConfig.Version, err.Error())
+			// Prometheus-compatible backends such as Grafana Cloud and Mimir can
+			// expose non-semver build versions. Probe their actual range behavior
+			// instead of guessing from the version format.
+			promConfig.IsOffsetResolution, err = usesLeftOpenRangeSemantics(api)
+			if err != nil {
+				log.Warnf("Failed to detect prometheus range semantics. Error: %s", err.Error())
+			}
 		} else {
 			promConfig.IsOffsetResolution = v.Major() >= 3
 		}
