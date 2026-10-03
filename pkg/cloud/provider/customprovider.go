@@ -301,7 +301,7 @@ func (cp *CustomProvider) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	}, nil
 }
 
-func (cp *CustomProvider) NetworkPricing() (*models.Network, error) {
+func (cp *CustomProvider) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	cpricing, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -345,6 +345,10 @@ func parsePriceOrZero(field, value string) (float64, error) {
 		return 0, fmt.Errorf("invalid custom pricing value %q for %s: %w", value, field, err)
 	}
 	return price, nil
+}
+
+func (cp *CustomProvider) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
 }
 
 func (cp *CustomProvider) LoadBalancerPricing() (*models.LoadBalancer, error) {
