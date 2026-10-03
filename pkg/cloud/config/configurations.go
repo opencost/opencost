@@ -89,9 +89,9 @@ func (c *Configurations) UnmarshalJSON(bytes []byte) error {
 
 	// Attempt to unmarshal into old config object
 	multiConfig := &MultiCloudConfig{}
-	err = json.Unmarshal(bytes, multiConfig)
-	if err != nil {
-		return err
+	errOld := json.Unmarshal(bytes, multiConfig)
+	if errOld != nil {
+		return fmt.Errorf("new format: %v; legacy format: %v", err, errOld)
 	}
 	multiConfig.loadConfigurations(c)
 	return nil
