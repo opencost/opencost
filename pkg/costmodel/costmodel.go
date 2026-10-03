@@ -1226,7 +1226,10 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 					}
 				} else { // add case to use default pricing model when API data fails.
 					log.Debugf("No node price or CPUprice found, falling back to default")
-					nodePrice = defaultCPU*cpu + defaultRAM*ram + gpuc*defaultGPU
+					// defaultRAM is a price per GB-hour, so it is multiplied by ramGB,
+					// not by ram, which is a byte count. The non-GPU branch of this
+					// same fallback below already does this correctly.
+					nodePrice = defaultCPU*cpu + defaultRAM*ramGB + gpuc*defaultGPU
 				}
 				if math.IsNaN(nodePrice) {
 					log.Warnf("nodePrice parsed as NaN. Setting to 0.")
