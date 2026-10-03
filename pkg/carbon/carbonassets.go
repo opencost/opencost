@@ -191,10 +191,10 @@ func resolveProvider(asset opencost.Asset) string {
 		return props.Provider
 	}
 
-	return inferProviderFromProviderID(props.ProviderID)
+	return InferProviderFromProviderID(props.ProviderID)
 }
 
-// inferProviderFromProviderID is a best-effort fallback that matches the
+// InferProviderFromProviderID is a best-effort fallback that matches the
 // conventional shapes of Kubernetes Node `spec.providerID` values for the
 // cloud providers present in the embedded lookup data (AWS, GCP, Azure).
 //
@@ -202,7 +202,7 @@ func resolveProvider(asset opencost.Asset) string {
 //   - AWS:   aws:///<availability-zone>/<instance-id>  (or raw "i-…")
 //   - GCP:   gce://<project>/<zone>/<instance-name>
 //   - Azure: azure:///subscriptions/<sub>/resourceGroups/<rg>/…
-func inferProviderFromProviderID(providerID string) string {
+func InferProviderFromProviderID(providerID string) string {
 	id := strings.ToLower(strings.TrimSpace(providerID))
 	if id == "" {
 		return ""
@@ -217,4 +217,36 @@ func inferProviderFromProviderID(providerID string) string {
 		return opencost.AzureProvider
 	}
 	return ""
+}
+
+// LookupNodeCarbonCoeff resolves the carbon coefficient (tonnes CO2e per hour) for
+// the given provider, region, and instanceType, falling back to the provider-wide
+// average-region value when a specific region or instance type is not matched.
+func LookupNodeCarbonCoeff(provider, region, instanceType string) float64 {
+	switch strings.ToLower(provider) {
+	case "aws":
+		provider = opencost.AWSProvider
+	case "gcp", "gce":
+		provider = opencost.GCPProvider
+	case "azure":
+		provider = opencost.AzureProvider
+	}
+
+	if coeff, ok := carbonLookupNode[carbonLookupKeyNode{
+		provider:     provider,
+		region:       region,
+		instanceType: instanceType,
+	}]; ok {
+		return coeff
+	}
+
+	if coeff, ok := carbonLookupNode[carbonLookupKeyNode{
+		provider:     provider,
+		region:       averageRegionKey,
+		instanceType: "",
+	}]; ok {
+		return coeff
+	}
+
+	return 0
 }

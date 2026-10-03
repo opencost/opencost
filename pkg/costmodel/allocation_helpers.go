@@ -12,6 +12,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/pkg/carbon"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -1915,7 +1916,39 @@ func applyNodeDiscount(nodeMap map[nodeKey]*nodePricing, cm *CostModel) {
 	}
 }
 
-func (cm *CostModel) applyNodesToPod(podMap map[podKey]*pod, nodeMap map[nodeKey]*nodePricing) {
+func (cm *CostModel) getNodeCapacity(nodeName string) (float64, float64) {
+	if cm.Cache == nil {
+		return 0, 0
+	}
+	nodes := cm.Cache.GetAllNodes()
+	for _, n := range nodes {
+		if n.Name == nodeName {
+			cores := float64(n.Status.Capacity.Cpu().Value())
+			ramBytes := float64(n.Status.Capacity.Memory().Value())
+			ramGiB := ramBytes / 1024.0 / 1024.0 / 1024.0
+			return cores, ramGiB
+		}
+	}
+	return 0, 0
+}
+
+func getRegionFromLabels(labels map[string]string) string {
+	if r, ok := labels["topology.kubernetes.io/region"]; ok {
+		return r
+	}
+	if r, ok := labels["topology_kubernetes_io_region"]; ok {
+		return r
+	}
+	if r, ok := labels["failure-domain.beta.kubernetes.io/region"]; ok {
+		return r
+	}
+	if r, ok := labels["failure_domain_beta_kubernetes_io_region"]; ok {
+		return r
+	}
+	return ""
+}
+
+func (cm *CostModel) applyNodesToPod(podMap map[podKey]*pod, nodeMap map[nodeKey]*nodePricing, nodeLabels map[nodeKey]map[string]string) {
 	for _, pod := range podMap {
 		for _, alloc := range pod.Allocations {
 			cluster := alloc.Properties.Cluster
@@ -1927,6 +1960,57 @@ func (cm *CostModel) applyNodesToPod(podMap map[podKey]*pod, nodeMap map[nodeKey
 			alloc.CPUCost = alloc.CPUCoreHours * node.CostPerCPUHr
 			alloc.RAMCost = (alloc.RAMByteHours / 1024 / 1024 / 1024) * node.CostPerRAMGiBHr
 			alloc.GPUCost = alloc.GPUHours * node.CostPerGPUHr
+
+			// Carbon footprint allocation math
+			provider := carbon.InferProviderFromProviderID(node.ProviderID)
+			var region string
+			if nodeLabels != nil {
+				if labels, ok := nodeLabels[thisNodeKey]; ok {
+					region = getRegionFromLabels(labels)
+				}
+			}
+
+			instanceType := node.NodeType
+			if instanceType == "" && nodeLabels != nil {
+				if labels, ok := nodeLabels[thisNodeKey]; ok {
+					if it, ok := labels["node.kubernetes.io/instance-type"]; ok {
+						instanceType = it
+					} else if it, ok := labels["node_kubernetes_io_instance_type"]; ok {
+						instanceType = it
+					} else if it, ok := labels["beta.kubernetes.io/instance-type"]; ok {
+						instanceType = it
+					} else if it, ok := labels["beta_kubernetes_io_instance_type"]; ok {
+						instanceType = it
+					}
+				}
+			}
+
+			nodeCoeff := carbon.LookupNodeCarbonCoeff(provider, region, instanceType)
+			nodeCarbonRateKg := nodeCoeff * 1000.0
+
+			cores, ramGiB := cm.getNodeCapacity(nodeName)
+			if cores <= 0 {
+				cores = 4.0
+			}
+			if ramGiB <= 0 {
+				ramGiB = 16.0
+			}
+			gpuCount := 0.0
+			if node.CostPerGPUHr > 0 {
+				gpuCount = 1.0
+			}
+
+			totalNodeCostRate := node.CostPerCPUHr*cores + node.CostPerRAMGiBHr*ramGiB + node.CostPerGPUHr*gpuCount
+			var carbonKilograms float64
+			if totalNodeCostRate > 0 {
+				carbonKilograms = (alloc.CPUCost + alloc.RAMCost + alloc.GPUCost) * (nodeCarbonRateKg / totalNodeCostRate)
+			} else {
+				// Fallback: allocate carbon based on resource hour shares using standard 50% CPU / 50% RAM split
+				cpuCarbonRate := nodeCarbonRateKg * 0.5
+				ramCarbonRate := nodeCarbonRateKg * 0.5
+				carbonKilograms = alloc.CPUCoreHours*(cpuCarbonRate/cores) + (alloc.RAMByteHours/1024/1024/1024)*(ramCarbonRate/ramGiB)
+			}
+			alloc.CarbonKilograms = carbonKilograms
 		}
 	}
 }
