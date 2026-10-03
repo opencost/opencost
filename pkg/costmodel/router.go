@@ -4,10 +4,14 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/csv"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"path"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,6 +42,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/modules/collector-source/pkg/collector"
+	promenv "github.com/opencost/opencost/modules/prometheus-source/pkg/env"
 	"github.com/opencost/opencost/modules/prometheus-source/pkg/prom"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	clusterc "github.com/opencost/opencost/pkg/clustercache"
@@ -630,6 +635,7 @@ func Initialize(router *httprouter.Router, additionalConfigWatchers ...*watcher.
 	router.GET("/installInfo", a.GetInstallInfo)
 	router.POST("/serviceKey", adminAuthMiddleware(a.AddServiceKey))
 	router.GET("/helmValues", adminAuthMiddleware(a.GetHelmValues))
+	router.GET("/config/validate", adminAuthMiddleware(a.ValidateConfig))
 
 	return a
 }
@@ -679,4 +685,264 @@ func InitializeCustomCost(router *httprouter.Router) *customcost.PipelineService
 	router.GET("/customCost/timeseries", customCostQueryService.GetCustomCostTimeseriesHandler())
 
 	return customCostPipelineService
+}
+
+type PrometheusValidation struct {
+	Endpoint string `json:"endpoint"`
+	Status   string `json:"status"`
+	PingTime string `json:"pingTime,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
+type CSVValidation struct {
+	Enabled  bool   `json:"enabled"`
+	Path     string `json:"path,omitempty"`
+	Valid    bool   `json:"valid"`
+	RowCount int    `json:"rowCount"`
+	Error    string `json:"error,omitempty"`
+}
+
+type CustomCostPluginStatus struct {
+	Name  string `json:"name"`
+	Path  string `json:"path,omitempty"`
+	Valid bool   `json:"valid"`
+	Error string `json:"error,omitempty"`
+}
+
+type CustomCostPluginsValidation struct {
+	Enabled   bool                     `json:"enabled"`
+	ConfigDir string                   `json:"configDir,omitempty"`
+	ExecDir   string                   `json:"execDir,omitempty"`
+	Plugins   []CustomCostPluginStatus `json:"plugins,omitempty"`
+	Count     int                      `json:"count"`
+	Error     string                   `json:"error,omitempty"`
+}
+
+type ConfigValidationResponse struct {
+	Prometheus        PrometheusValidation        `json:"prometheus"`
+	CustomPricingCSV  CSVValidation               `json:"customPricingCSV"`
+	CustomCostPlugins CustomCostPluginsValidation `json:"customCostPlugins"`
+}
+
+func validatePrometheusEndpoint(endpoint string) PrometheusValidation {
+	if endpoint == "" {
+		endpoint = promenv.GetPrometheusServerEndpoint()
+	}
+	if endpoint == "" {
+		return PrometheusValidation{
+			Endpoint: "",
+			Status:   "not_configured",
+			Error:    "PROMETHEUS_SERVER_ENDPOINT is not set",
+		}
+	}
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	start := time.Now()
+	pingURL := endpoint
+	if !strings.HasSuffix(pingURL, "/") {
+		pingURL += "/"
+	}
+	healthyURL := pingURL + "-/healthy"
+
+	req, err := http.NewRequest(http.MethodGet, healthyURL, nil)
+	if err != nil {
+		return PrometheusValidation{
+			Endpoint: endpoint,
+			Status:   "error",
+			Error:    err.Error(),
+		}
+	}
+
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode >= 400 {
+		reqDirect, errDirect := http.NewRequest(http.MethodGet, endpoint, nil)
+		if errDirect == nil {
+			respDirect, errDirectDo := client.Do(reqDirect)
+			if errDirectDo == nil && respDirect.StatusCode < 400 {
+				respDirect.Body.Close()
+				return PrometheusValidation{
+					Endpoint: endpoint,
+					Status:   "connected",
+					PingTime: time.Since(start).String(),
+				}
+			}
+			if respDirect != nil {
+				respDirect.Body.Close()
+			}
+		}
+		errMsg := ""
+		if err != nil {
+			errMsg = err.Error()
+		} else {
+			errMsg = fmt.Sprintf("HTTP status code %d", resp.StatusCode)
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+		return PrometheusValidation{
+			Endpoint: endpoint,
+			Status:   "unreachable",
+			Error:    errMsg,
+		}
+	}
+	resp.Body.Close()
+
+	return PrometheusValidation{
+		Endpoint: endpoint,
+		Status:   "connected",
+		PingTime: time.Since(start).String(),
+	}
+}
+
+func validateCustomPricingCSV(csvPath string) CSVValidation {
+	if csvPath == "" {
+		csvPath = env.GetCSVPath()
+	}
+	enabled := env.IsUseCSVProvider() || csvPath != ""
+
+	if !enabled && csvPath == "" {
+		return CSVValidation{
+			Enabled:  false,
+			Valid:    true,
+			RowCount: 0,
+		}
+	}
+
+	if csvPath == "" {
+		return CSVValidation{
+			Enabled: enabled,
+			Valid:   false,
+			Error:   "CSV provider is enabled but CSV_PATH environment variable is not set",
+		}
+	}
+
+	f, err := os.Open(csvPath)
+	if err != nil {
+		return CSVValidation{
+			Enabled: enabled,
+			Path:    csvPath,
+			Valid:   false,
+			Error:   fmt.Sprintf("Failed to open CSV file: %v", err),
+		}
+	}
+	defer f.Close()
+
+	reader := csv.NewReader(f)
+	reader.FieldsPerRecord = -1
+
+	rowCount := 0
+	lineNum := 0
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		lineNum++
+		if err != nil {
+			return CSVValidation{
+				Enabled:  enabled,
+				Path:     csvPath,
+				Valid:    false,
+				RowCount: rowCount,
+				Error:    fmt.Sprintf("CSV syntax error on line %d: %v", lineNum, err),
+			}
+		}
+
+		if lineNum == 1 {
+			continue
+		}
+		if len(record) == 0 || (len(record) == 1 && strings.HasPrefix(strings.TrimSpace(record[0]), "#")) {
+			continue
+		}
+		rowCount++
+	}
+
+	return CSVValidation{
+		Enabled:  enabled,
+		Path:     csvPath,
+		Valid:    true,
+		RowCount: rowCount,
+	}
+}
+
+func validateCustomCostPlugins() CustomCostPluginsValidation {
+	configDir := env.GetPluginConfigDir()
+	execDir := env.GetPluginExecutableDir()
+	enabled := env.IsCustomCostEnabled()
+
+	if configDir == "" {
+		configDir = "/var/configs/plugins"
+	}
+	if execDir == "" {
+		execDir = "/var/configs/plugins/exec"
+	}
+
+	var pluginStatuses []CustomCostPluginStatus
+
+	entries, err := os.ReadDir(configDir)
+	if err != nil {
+		if !enabled && os.IsNotExist(err) {
+			return CustomCostPluginsValidation{
+				Enabled:   false,
+				ConfigDir: configDir,
+				ExecDir:   execDir,
+				Count:     0,
+			}
+		}
+		return CustomCostPluginsValidation{
+			Enabled:   enabled,
+			ConfigDir: configDir,
+			ExecDir:   execDir,
+			Error:     fmt.Sprintf("Failed to read plugin config dir: %v", err),
+		}
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		parts := strings.Split(entry.Name(), "_")
+		if len(parts) == 2 && parts[1] == "config.json" {
+			pluginName := parts[0]
+			cfgPath := path.Join(configDir, entry.Name())
+			execPath := fmt.Sprintf("%s/%s.ocplugin.%s.%s", execDir, pluginName, runtime.GOOS, runtime.GOARCH)
+
+			status := CustomCostPluginStatus{
+				Name:  pluginName,
+				Path:  cfgPath,
+				Valid: true,
+			}
+
+			if _, err := os.Stat(execPath); err != nil {
+				status.Valid = false
+				status.Error = fmt.Sprintf("Executable not found at %s: %v", execPath, err)
+			}
+
+			pluginStatuses = append(pluginStatuses, status)
+		}
+	}
+
+	return CustomCostPluginsValidation{
+		Enabled:   enabled,
+		ConfigDir: configDir,
+		ExecDir:   execDir,
+		Plugins:   pluginStatuses,
+		Count:     len(pluginStatuses),
+	}
+}
+
+func (a *Accesses) ValidateConfig(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	resp := ConfigValidationResponse{
+		Prometheus:        validatePrometheusEndpoint(""),
+		CustomPricingCSV:  validateCustomPricingCSV(""),
+		CustomCostPlugins: validateCustomCostPlugins(),
+	}
+
+	WriteData(w, resp, nil)
 }
