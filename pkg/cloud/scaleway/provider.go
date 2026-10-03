@@ -101,6 +101,12 @@ func (c *Scaleway) DownloadPricingData() error {
 	return nil
 }
 
+// RefreshCustomPricing is a no-op since Scaleway pricing comes from the instance API, not config.
+func (c *Scaleway) RefreshCustomPricing() error {
+	log.Infof("RefreshCustomPricing is not implemented for Scaleway; pricing is sourced from the instance API and cannot be refreshed via custom config")
+	return nil
+}
+
 func (c *Scaleway) AllNodePricing() (interface{}, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
