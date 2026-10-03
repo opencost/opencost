@@ -8,6 +8,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/pkg/env"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAdminAuthMiddleware(t *testing.T) {
@@ -112,6 +113,41 @@ func TestAdminAuthMiddleware(t *testing.T) {
 			if tt.wantCacheControl != "" && rec.Header().Get("Cache-Control") != tt.wantCacheControl {
 				t.Errorf("Cache-Control = %q, want %q", rec.Header().Get("Cache-Control"), tt.wantCacheControl)
 			}
+		})
+	}
+}
+
+// newCostDataModelRequest builds a GET request to /costDataModel with the
+// given timeWindow query param.
+func newCostDataModelRequest(window string) *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "/costDataModel", nil)
+	if window != "" {
+		q := r.URL.Query()
+		q.Set("timeWindow", window)
+		r.URL.RawQuery = q.Encode()
+	}
+	return r
+}
+
+func TestCostDataModel_InvalidWindow_Returns500(t *testing.T) {
+	tests := []struct {
+		name   string
+		window string
+	}{
+		// Parsing failures (err != nil)
+		{name: "unparseable", window: "notaduration"},
+		{name: "missing", window: ""},
+		// Semantic validation failures (DurationString == "")
+		{name: "zero minutes", window: "0m"},
+		{name: "negative", window: "-1h"},
+		{name: "sub-second", window: "1ms"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &Accesses{Model: nil}
+			w := httptest.NewRecorder()
+			a.CostDataModel(w, newCostDataModelRequest(tt.window), httprouter.Params{})
+			require.Equal(t, http.StatusInternalServerError, w.Code)
 		})
 	}
 }
