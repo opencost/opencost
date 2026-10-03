@@ -395,3 +395,78 @@ func TestMemoryStorage_WriteStream(t *testing.T) {
 	store := NewMemoryStorage()
 	TestStorageWriteStream(t, store)
 }
+
+// TestMemoryStorage_PathNormalization checks that a written file is reachable by every path that
+// refers to it. Callers build storage paths with path.Join, so on Windows the written path never
+// matched the normalized path the readers looked up, and every read of a written file failed.
+func TestMemoryStorage_PathNormalization(t *testing.T) {
+	testName := "path_normalization"
+	canonical := path.Join(testpath, testName, "dir0/file0.json")
+
+	// paths which all refer to the same file as canonical
+	equivalent := []string{
+		canonical,
+		"./" + canonical,
+		path.Join(testpath, testName) + "//dir0/file0.json",
+		path.Join(testpath, testName, "dir1/../dir0/file0.json"),
+	}
+
+	for _, written := range equivalent {
+		t.Run(written, func(t *testing.T) {
+			store := NewMemoryStorage()
+			if err := store.Write(written, []byte(written)); err != nil {
+				t.Fatalf("failed to write file '%s': %s", written, err)
+			}
+
+			for _, p := range equivalent {
+				b, err := store.Read(p)
+				if err != nil {
+					t.Errorf("failed to read '%s' after writing '%s': %s", p, written, err)
+				} else if string(b) != written {
+					t.Errorf("content of '%s' did not match written value: %s", p, string(b))
+				}
+
+				exists, err := store.Exists(p)
+				if err != nil {
+					t.Errorf("failed to check existence of '%s': %s", p, err)
+				}
+				if !exists {
+					t.Errorf("'%s' does not exist after writing '%s'", p, written)
+				}
+
+				if _, err = store.Stat(p); err != nil {
+					t.Errorf("failed to stat '%s' after writing '%s': %s", p, written, err)
+				}
+			}
+
+			files, err := store.List(path.Join(testpath, testName, "dir0"))
+			if err != nil {
+				t.Fatalf("failed to list files: %s", err)
+			}
+			if len(files) != 1 {
+				t.Fatalf("file list length does not match expected length, actual: %d, expected: %d", len(files), 1)
+			}
+
+			if err = store.Remove(canonical); err != nil {
+				t.Fatalf("failed to remove file '%s': %s", canonical, err)
+			}
+
+			// removal must clear both the file tree and the direct path lookup
+			exists, err := store.Exists(written)
+			if err != nil {
+				t.Fatalf("failed to check existence of '%s': %s", written, err)
+			}
+			if exists {
+				t.Errorf("'%s' still exists after removing '%s'", written, canonical)
+			}
+
+			files, err = store.List(path.Join(testpath, testName, "dir0"))
+			if err != nil {
+				t.Fatalf("failed to list files: %s", err)
+			}
+			if len(files) != 0 {
+				t.Errorf("file list length does not match expected length, actual: %d, expected: %d", len(files), 0)
+			}
+		})
+	}
+}
