@@ -37,12 +37,11 @@ const (
 
 /* Pod Helpers */
 
-func (cm *CostModel) buildPodMap(window opencost.Window, podMap map[podKey]*pod, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) error {
+func (cm *CostModel) buildPodMap(ds source.MetricsQuerier, window opencost.Window, podMap map[podKey]*pod, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) error {
 	// Assumes that window is positive and closed
 	start, end := *window.Start(), *window.End()
 
 	grp := source.NewQueryGroup()
-	ds := cm.DataSource.Metrics()
 	resolution := cm.DataSource.Resolution()
 
 	var resPods []*source.PodsResult
