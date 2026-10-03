@@ -16,6 +16,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/digitalocean"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/huawei"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
 	"github.com/opencost/opencost/pkg/cloud/otc"
@@ -113,6 +114,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			cp.configFileName = "scaleway.json"
 		case opencost.OTCProvider:
 			cp.configFileName = "otc.json"
+		case opencost.HuaweiProvider:
+			cp.configFileName = "huawei.json"
 		case opencost.OVHProvider:
 			cp.configFileName = "ovh.json"
 		case opencost.STACKITProvider:
@@ -211,6 +214,14 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Config:        NewProviderConfig(config, cp.configFileName),
 			ClusterRegion: cp.region,
 		}, nil
+	case opencost.HuaweiProvider:
+		log.Info("Found node label \"os.name\" starting with \"Huawei_Cloud\", using Huawei Cloud Provider")
+		return &huawei.Huawei{
+			Clientset:        cache,
+			ClusterRegion:    cp.region,
+			ClusterAccountID: cp.accountID,
+			Config:           NewProviderConfig(config, cp.configFileName),
+		}, nil
 	case opencost.OVHProvider:
 		log.Info("Found node label \"node.k8s.ovh/type\", using OVH Provider")
 		return &ovh.OVH{
@@ -307,6 +318,15 @@ func getClusterProperties(node *clustercache.Node) clusterProperties {
 		log.Debug("using Oracle provider")
 		cp.provider = opencost.OracleProvider
 		cp.configFileName = "oracle.json"
+	} else if osName, ok := node.Labels["os.name"]; ok && strings.HasPrefix(osName, "Huawei_Cloud") {
+		// Huawei Cloud CCE nodes also carry the "cce.cloud.com/cce-nodepool" label
+		// checked below for OTC, since OTC (Open Telekom Cloud) runs on the same CCE
+		// technology. The "os.name" label (e.g. "Huawei_Cloud_EulerOS_2.0_x86_64") is
+		// what actually distinguishes a native Huawei Cloud cluster, so this check must
+		// run before the OTC one.
+		log.Debug("using Huawei Cloud provider")
+		cp.provider = opencost.HuaweiProvider
+		cp.configFileName = "huawei.json"
 	} else if _, ok := node.Labels["cce.cloud.com/cce-nodepool"]; ok { // The node label "cce.cloud.com/cce-nodepool" exists
 		log.Debug("using OTC provider")
 		cp.provider = opencost.OTCProvider
