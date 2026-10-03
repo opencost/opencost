@@ -68,6 +68,8 @@ type Service struct {
 	Type         v1.ServiceType
 	Status       v1.ServiceStatus
 	ClusterIP    string
+	Labels       map[string]string
+	Annotations  map[string]string
 }
 
 type DaemonSet struct {
@@ -310,6 +312,8 @@ func TransformService(input *v1.Service) *Service {
 		Type:         input.Spec.Type,
 		Status:       input.Status,
 		ClusterIP:    input.Spec.ClusterIP,
+		Labels:       input.Labels,
+		Annotations:  input.Annotations,
 	}
 }
 

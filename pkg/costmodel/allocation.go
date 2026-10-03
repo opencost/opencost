@@ -534,7 +534,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyNodeSpot(nodeMap, resNodeIsSpot)
 	applyNodeDiscount(nodeMap, cm)
 	applyExtendedNodeData(nodeMap, nodeExtendedData)
-	cm.applyNodesToPod(podMap, nodeMap)
+	cm.applyNodesToPod(podMap, nodeMap, nodeLabels)
 
 	// (3) Build out AllocationSet from Pod map
 	for _, pod := range podMap {
