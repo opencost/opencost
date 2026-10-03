@@ -484,8 +484,9 @@ func TestNodeCostAnnotations(t *testing.T) {
 					"topology.kubernetes.io/region": "regionone",
 				},
 				Annotations: map[string]string{
-					"opencost.io/node-cpu-hourly-cost": "111",
-					"opencost.io/node-ram-hourly-cost": "222",
+					annotationNodeCPUCost: "111",
+					annotationNodeRAMCost: "222",
+					annotationNodeGPUCost: "333",
 				},
 			},
 		}},
@@ -505,17 +506,20 @@ func TestNodeCostAnnotations(t *testing.T) {
 		node     string
 		VCPUCost string
 		RAMCost  string
+		GPUCost  string
 	}
 	testCases := []testCase{
 		{
 			node:     "test-node-001",
 			VCPUCost: "+Inf",
 			RAMCost:  "+Inf",
+			GPUCost:  "",
 		},
 		{
 			node:     "test-node-002",
 			VCPUCost: "111",
 			RAMCost:  "222",
+			GPUCost:  "333",
 		},
 	}
 
@@ -528,6 +532,7 @@ func TestNodeCostAnnotations(t *testing.T) {
 
 			assert.Equal(t, tc.VCPUCost, nodeCost.VCPUCost)
 			assert.Equal(t, tc.RAMCost, nodeCost.RAMCost)
+			assert.Equal(t, tc.GPUCost, nodeCost.GPUCost)
 		})
 	}
 }
