@@ -3,12 +3,12 @@ package costmodel
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/opencost/opencost/pkg/costmodel"
-	"github.com/opencost/opencost/pkg/env"
 )
 
 func TestMCPServerGracefulShutdown(t *testing.T) {
@@ -16,19 +16,25 @@ func TestMCPServerGracefulShutdown(t *testing.T) {
 	defer cancel()
 
 	accesses := &costmodel.Accesses{}
-	port := env.GetMCPHTTPPort()
+
+	// Use an OS-assigned port to avoid collision with a running MCP server
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	addr := listener.Addr().String()
 
 	// Start MCP server
-	go func() {
-		_ = StartMCPServer(ctx, accesses, nil)
-	}()
+	if err := startMCPServerWithListener(ctx, listener, accesses, nil); err != nil {
+		t.Fatalf("failed to start MCP server: %v", err)
+	}
 
 	// Wait for server to be ready
 	serverUp := false
 	for i := 0; i < 10; i++ {
 		time.Sleep(100 * time.Millisecond)
 		client := &http.Client{Timeout: 1 * time.Second}
-		resp, err := client.Get(fmt.Sprintf("http://localhost:%d/", port))
+		resp, err := client.Get(fmt.Sprintf("http://%s/", addr))
 		if err == nil {
 			resp.Body.Close()
 			serverUp = true
@@ -46,7 +52,7 @@ func TestMCPServerGracefulShutdown(t *testing.T) {
 
 	// Verify server is no longer accepting connections
 	client := &http.Client{Timeout: 500 * time.Millisecond}
-	_, err := client.Get(fmt.Sprintf("http://localhost:%d/", port))
+	_, err = client.Get(fmt.Sprintf("http://%s/", addr))
 	if err == nil {
 		t.Error("Server still accepting connections after shutdown")
 	}
