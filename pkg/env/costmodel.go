@@ -11,9 +11,8 @@ import (
 const (
 	ClusterInfoFile = "cluster-info.json"
 	ClusterCacheFile
-	GCPAuthSecretFile        = "key.json"
-	MetricConfigFile         = "metrics.json"
-	DefaultLocalCollectorDir = "collector"
+	GCPAuthSecretFile = "key.json"
+	MetricConfigFile  = "metrics.json"
 )
 
 // Env Variables
@@ -40,6 +39,7 @@ const (
 	AzureRegionInfoEnvVar     = "AZURE_REGION_INFO"
 
 	DigitalOceanAccessTokenEnvVar = "DIGITALOCEAN_ACCESS_TOKEN"
+
 	// Azure rate card filter environment variables
 
 	// Currently being used for OCI and DigitalOcean
@@ -62,13 +62,6 @@ const (
 	CollectorDataSourceEnabledEnvVar = "COLLECTOR_DATA_SOURCE_ENABLED"
 	LocalCollectorDirectoryEnvVar    = "LOCAL_COLLECTOR_DIRECTORY"
 
-	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
-	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
-	EmitDeprecatedMetrics                = "EMIT_DEPRECATED_METRICS"
-
-	EmitKsmV1MetricsEnvVar = "EMIT_KSM_V1_METRICS"
-	EmitKsmV1MetricsOnly   = "EMIT_KSM_V1_METRICS_ONLY"
-
 	LogCollectionEnabledEnvVar    = "LOG_COLLECTION_ENABLED"
 	ProductAnalyticsEnabledEnvVar = "PRODUCT_ANALYTICS_ENABLED"
 	ErrorReportingEnabledEnvVar   = "ERROR_REPORTING_ENABLED"
@@ -82,8 +75,6 @@ const (
 	IngestPodUIDEnvVar = "INGEST_POD_UID"
 
 	AllocationNodeLabelsEnabled = "ALLOCATION_NODE_LABELS_ENABLED"
-
-	AssetIncludeLocalDiskCostEnvVar = "ASSET_INCLUDE_LOCAL_DISK_COST"
 
 	regionOverrideList = "REGION_OVERRIDE_LIST"
 
@@ -109,6 +100,13 @@ const (
 
 	// Metrics Emitter
 	MetricsEmitterQueryWindowEnvVar = "METRICS_EMITTER_QUERY_WINDOW"
+
+	// Inference Cost
+	InferenceCostEnabledEnvVar           = "INFERENCE_COST_ENABLED"
+	InferenceModelLabelEnvVar            = "INFERENCE_MODEL_LABEL"
+	InferenceSharedInfraLabelEnvVar      = "INFERENCE_SHARED_INFRA_LABEL"
+	InferenceSharedInfraLabelValueEnvVar = "INFERENCE_SHARED_INFRA_LABEL_VALUE"
+	InferenceCollectionIntervalEnvVar    = "INFERENCE_COLLECTION_INTERVAL"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -155,32 +153,6 @@ func GetPricingConfigmapName() string {
 
 func GetMetricsConfigmapName() string {
 	return env.Get(MetricsConfigmapName, "metrics-config")
-}
-
-// IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
-// containing the namespace annotations
-func IsEmitNamespaceAnnotationsMetric() bool {
-	return env.GetBool(EmitNamespaceAnnotationsMetricEnvVar, false)
-}
-
-// IsEmitPodAnnotationsMetric returns true if cost-model is configured to emit the kube_pod_annotations metric containing
-// pod annotations.
-func IsEmitPodAnnotationsMetric() bool {
-	return env.GetBool(EmitPodAnnotationsMetricEnvVar, false)
-}
-
-// IsEmitKsmV1Metrics returns true if cost-model is configured to emit all necessary KSM v1
-// metrics that were removed in KSM v2
-func IsEmitKsmV1Metrics() bool {
-	return env.GetBool(EmitKsmV1MetricsEnvVar, true)
-}
-
-func IsEmitKsmV1MetricsOnly() bool {
-	return env.GetBool(EmitKsmV1MetricsOnly, false)
-}
-
-func IsEmitDeprecatedMetrics() bool {
-	return env.GetBool(EmitDeprecatedMetrics, false)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -360,7 +332,7 @@ func IsAllocationNodeLabelsEnabled() bool {
 }
 
 func IsAssetIncludeLocalDiskCost() bool {
-	return env.GetBool(AssetIncludeLocalDiskCostEnvVar, true)
+	return env.IsAssetIncludeLocalDiskCost()
 }
 
 func GetRegionOverrideList() []string {
@@ -401,11 +373,6 @@ func GetCloudProvider() string {
 
 func GetMetricConfigFile() string {
 	return env.GetPathFromConfig(MetricConfigFile)
-}
-
-func GetLocalCollectorDirectory() string {
-	dir := env.Get(LocalCollectorDirectoryEnvVar, DefaultLocalCollectorDir)
-	return env.GetPathFromConfig(dir)
 }
 
 func GetDOKSPricingURL() string {
@@ -457,4 +424,30 @@ func GetMCPHTTPPort() int {
 // Default is 2m.
 func GetMetricsEmitterQueryWindow() time.Duration {
 	return env.GetDuration(MetricsEmitterQueryWindowEnvVar, 2*time.Minute)
+}
+
+// IsInferenceCostEnabled returns whether the inference cost collector is enabled.
+func IsInferenceCostEnabled() bool {
+	return env.GetBool(InferenceCostEnabledEnvVar, false)
+}
+
+// GetInferenceModelLabel returns the Kubernetes pod label used to identify model name.
+func GetInferenceModelLabel() string {
+	return env.Get(InferenceModelLabelEnvVar, "llm-d.ai/model")
+}
+
+// GetInferenceSharedInfraLabel returns the label key identifying shared inference infra pods.
+func GetInferenceSharedInfraLabel() string {
+	return env.Get(InferenceSharedInfraLabelEnvVar, "llm-d.ai/inference-shared")
+}
+
+// GetInferenceSharedInfraLabelValue returns the label value identifying shared inference infra pods.
+func GetInferenceSharedInfraLabelValue() string {
+	return env.Get(InferenceSharedInfraLabelValueEnvVar, "true")
+}
+
+// GetInferenceCollectionInterval returns the time interval for inference cost collection.
+// Default is 2 minutes to match the core metrics emitter query window.
+func GetInferenceCollectionInterval() time.Duration {
+	return env.GetDuration(InferenceCollectionIntervalEnvVar, 2*time.Minute)
 }

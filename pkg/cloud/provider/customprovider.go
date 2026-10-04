@@ -73,6 +73,8 @@ type customProviderKey struct {
 	SpotLabelValue string
 	GPULabel       string
 	GPULabelValue  string
+	GPUTypeName    string
+	GPUCountValue  int
 	Labels         map[string]string
 }
 
@@ -135,14 +137,25 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := make(map[string]string)
-	if conf.ClusterName != "" {
-		m["name"] = conf.ClusterName
+
+	const defaultClusterName = "Custom Cluster"
+	clusterID := coreenv.GetClusterID()
+	if clusterID == "" {
+		clusterID = "default-cluster"
 	}
+	clusterName := conf.ClusterName
+	if clusterName == "" {
+		if clusterName = coreenv.GetClusterID(); clusterName == "" {
+			clusterName = defaultClusterName
+		}
+	}
+
+	m := make(map[string]string)
+	m["name"] = clusterName
 	m["provider"] = opencost.CustomProvider
 	m["region"] = cp.ClusterRegion
 	m["account"] = cp.ClusterAccountID
-	m["id"] = coreenv.GetClusterID()
+	m["id"] = clusterID
 	return m, nil
 }
 
@@ -179,8 +192,12 @@ func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, models.Pric
 		k = "default"
 	}
 	if key.GPUType() != "" {
-		k += ",gpu"    // TODO: support multiple custom gpu types.
-		gpuCount = "1" // TODO: support more than one gpu.
+		k += ",gpu" // TODO: support multiple custom gpu types.
+		if key.GPUCount() > 0 {
+			gpuCount = strconv.Itoa(key.GPUCount())
+		} else {
+			gpuCount = "1"
+		}
 	}
 
 	var cpuCost, ramCost, gpuCost string
@@ -236,11 +253,25 @@ func (cp *CustomProvider) DownloadPricingData() error {
 }
 
 func (cp *CustomProvider) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
+	gpuTypeName := ""
+	gpuCount := 0
+	if n != nil {
+		if gpu, ok := n.Status.Capacity["nvidia.com/gpu"]; ok && gpu.Value() > 0 {
+			gpuTypeName = "nvidia.com/gpu"
+			gpuCount = int(gpu.Value())
+		} else if vgpu, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok && vgpu.Value() > 0 {
+			gpuTypeName = "k8s.amazonaws.com/vgpu"
+			gpuCount = int(vgpu.Value())
+		}
+	}
+
 	return &customProviderKey{
 		SpotLabel:      cp.SpotLabel,
 		SpotLabelValue: cp.SpotLabelValue,
 		GPULabel:       cp.GPULabel,
 		GPULabelValue:  cp.GPULabelValue,
+		GPUTypeName:    gpuTypeName,
+		GPUCountValue:  gpuCount,
 		Labels:         labels,
 	}
 }
@@ -305,20 +336,39 @@ func (cp *CustomProvider) NetworkPricing() (*models.Network, error) {
 	}, nil
 }
 
+func parsePriceOrZero(field, value string) (float64, error) {
+	if value == "" {
+		return 0, nil
+	}
+	price, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid custom pricing value %q for %s: %w", value, field, err)
+	}
+	return price, nil
+}
+
 func (cp *CustomProvider) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	cpricing, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
-	fffrc, err := strconv.ParseFloat(cpricing.FirstFiveForwardingRulesCost, 64)
+
+	firstFiveForwardingRulesCostField := "firstFiveForwardingRulesCost"
+	firstFiveForwardingRulesCost := cpricing.FirstFiveForwardingRulesCost
+	if firstFiveForwardingRulesCost == "" && cpricing.DefaultLBPrice != "" {
+		firstFiveForwardingRulesCostField = "defaultLBPrice"
+		firstFiveForwardingRulesCost = cpricing.DefaultLBPrice
+	}
+
+	fffrc, err := parsePriceOrZero(firstFiveForwardingRulesCostField, firstFiveForwardingRulesCost)
 	if err != nil {
 		return nil, err
 	}
-	afrc, err := strconv.ParseFloat(cpricing.AdditionalForwardingRuleCost, 64)
+	afrc, err := parsePriceOrZero("additionalForwardingRuleCost", cpricing.AdditionalForwardingRuleCost)
 	if err != nil {
 		return nil, err
 	}
-	lbidc, err := strconv.ParseFloat(cpricing.LBIngressDataCost, 64)
+	lbidc, err := parsePriceOrZero("LBIngressDataCost", cpricing.LBIngressDataCost)
 	if err != nil {
 		return nil, err
 	}
@@ -375,14 +425,16 @@ func (key *customPVKey) Features() string {
 }
 
 func (k *customProviderKey) GPUCount() int {
-	return 0
+	return k.GPUCountValue
 }
 
 func (cpk *customProviderKey) GPUType() string {
-	if t, ok := cpk.Labels[cpk.GPULabel]; ok {
-		return t
+	if cpk.GPULabel != "" {
+		if t, ok := cpk.Labels[cpk.GPULabel]; ok {
+			return t
+		}
 	}
-	return ""
+	return cpk.GPUTypeName
 }
 
 func (cpk *customProviderKey) ID() string {

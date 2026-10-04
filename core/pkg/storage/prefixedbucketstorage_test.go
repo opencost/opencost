@@ -21,3 +21,13 @@ func TestPrefixedBucketStorage_ReadStream(t *testing.T) {
 
 	TestStorageReadStream(t, store)
 }
+
+func TestPrefixedBucketStorage_WriteStream(t *testing.T) {
+	base := NewMemoryStorage()
+	store, err := NewPrefixedBucketStorage(base, "myprefix")
+	if err != nil {
+		t.Fatalf("failed to create prefixed storage: %s", err)
+	}
+
+	TestStorageWriteStream(t, store)
+}

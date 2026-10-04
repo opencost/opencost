@@ -33,7 +33,7 @@ func TestKubecostServiceCollector_Describe(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			sc := KubecostServiceCollector{
-				KubeClusterCache: NewFakeServiceCache([]*clustercache.Service{}),
+				KubeClusterCache: &clustercache.MockClusterCache{},
 				metricsConfig:    mc,
 			}
 
@@ -129,7 +129,7 @@ func TestKubecostServiceCollector_Collect(t *testing.T) {
 				DisabledMetrics: tt.disabledMetrics,
 			}
 			sc := KubecostServiceCollector{
-				KubeClusterCache: NewFakeServiceCache(tt.services),
+				KubeClusterCache: &clustercache.MockClusterCache{Services: tt.services},
 				metricsConfig:    mc,
 			}
 
@@ -213,21 +213,5 @@ func TestServiceSelectorLabelsMetric_EmptyLabels(t *testing.T) {
 	expectedCount := 3 // service, namespace, uid
 	if len(dtoMetric.Label) != expectedCount {
 		t.Errorf("Expected %d labels, got %d", expectedCount, len(dtoMetric.Label))
-	}
-}
-
-// FakeServiceCache implements ClusterCache interface for testing
-type FakeServiceCache struct {
-	clustercache.ClusterCache
-	services []*clustercache.Service
-}
-
-func (f FakeServiceCache) GetAllServices() []*clustercache.Service {
-	return f.services
-}
-
-func NewFakeServiceCache(services []*clustercache.Service) FakeServiceCache {
-	return FakeServiceCache{
-		services: services,
 	}
 }

@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	DefaultRootDir   string = "federated"
-	BaseStorageDir   string = "etl/bingen"
-	FinOpsAgentAppID string = "finops-agent"
+	DefaultRootDir string = "federated"
+	BaseStorageDir string = "etl/bingen"
 )
 
 // BingenStoragePathFormatter is an implementation of the StoragePathFormatter interface for
@@ -28,7 +27,7 @@ type BingenStoragePathFormatter struct {
 	resolution string
 }
 
-func NewDefaultStoragePathFormatter(clusterId, pipeline string, resolution *time.Duration) (StoragePathFormatter[opencost.Window], error) {
+func NewDefaultStoragePathFormatter(appName, clusterID, clusterName, pipeline string, resolution *time.Duration) (StoragePathFormatter[opencost.Window], error) {
 	res := "."
 	if resolution != nil {
 		res = timeutil.FormatStoreResolution(*resolution)
@@ -37,10 +36,10 @@ func NewDefaultStoragePathFormatter(clusterId, pipeline string, resolution *time
 	// KubeModel uses a distinct pathing pattern which breaks with the original
 	// Allocations and Assets bingen pathing.
 	if pipeline == pipelines.KubeModelPipelineName {
-		return NewKubeModelStoragePathFormatter(FinOpsAgentAppID, clusterId, res)
+		return NewKubeModelStoragePathFormatter(appName, clusterID, res)
 	}
 
-	return NewBingenStoragePathFormatter(DefaultRootDir, clusterId, pipeline, res)
+	return NewBingenStoragePathFormatter(DefaultRootDir, clusterName, pipeline, res)
 }
 
 // NewBingenStoragePathFormatter creates a StoragePathFormatter for a cluster separated storage path

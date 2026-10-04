@@ -96,6 +96,49 @@ func KubePrependQualifierToLabels(m map[string]string, qualifier string) ([]stri
 	return keys, values
 }
 
+// Prepends a qualifier string to the keys provided in the m map and returns a new map with the new
+// keys and values
+func KubePrependQualifierToLabelsMap(labels map[string]string, qualifier string) map[string]string {
+	result := make(map[string]string, len(labels))
+	for k, v := range labels {
+		result[qualifier+SanitizeLabelName(k)] = v
+	}
+	return result
+}
+
+// Prepends a qualifier string to the keys provided in the m1 and m2 maps and returns a new map with the new
+// keys and values merged. Any overlapping keys will be replaced by the second map parameter.
+func KubePrependQualifierToLabelsAndMerge(m1, m2 map[string]string, qualifier string) map[string]string {
+	size := len(m1) + len(m2)
+	if size == 0 {
+		return map[string]string{}
+	}
+
+	result := make(map[string]string, size)
+	for k, v := range m1 {
+		result[qualifier+SanitizeLabelName(k)] = v
+	}
+	for k, v := range m2 {
+		result[qualifier+SanitizeLabelName(k)] = v
+	}
+	return result
+}
+
+// Converts two sources of labels into a single map of prometheus labels
+func KubeLabelsToLabelsMerge(m1, m2 map[string]string) map[string]string {
+	return KubePrependQualifierToLabelsAndMerge(m1, m2, "label_")
+}
+
+// Converts kubernetes labels into a map of prometheus labels
+func KubeLabelsToLabelsMap(labels map[string]string) map[string]string {
+	return KubePrependQualifierToLabelsMap(labels, "label_")
+}
+
+// Converts kubernetes labels into a map of prometheus labels
+func KubeAnnotationsToLabelsMap(labels map[string]string) map[string]string {
+	return KubePrependQualifierToLabelsMap(labels, "annotation_")
+}
+
 // Converts kubernetes labels into prometheus labels.
 func KubeLabelsToLabels(labels map[string]string) ([]string, []string) {
 	return KubePrependQualifierToLabels(labels, "label_")

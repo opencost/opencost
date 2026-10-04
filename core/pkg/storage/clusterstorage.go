@@ -339,6 +339,38 @@ func (c *ClusterStorage) Write(path string, data []byte) error {
 	return nil
 }
 
+func (c *ClusterStorage) WriteStream(path string) (io.WriteCloser, error) {
+	log.Debugf("ClusterStorage::WriteStream::%s(%s)", strings.ToUpper(c.scheme()), path)
+
+	fn := func(resp *http.Response) error {
+		return nil
+	}
+
+	args := map[string]string{
+		"path": path,
+	}
+
+	r, w := io.Pipe()
+	doneCh := make(chan error, 1)
+
+	go func() {
+		err := c.makeRequest(
+			http.MethodPut,
+			c.getURL("clusterStorage/write", args),
+			r,
+			fn,
+		)
+		var uploadErr error
+		if err != nil {
+			uploadErr = fmt.Errorf("ClusterStorage: WriteStream: %w", err)
+			r.CloseWithError(uploadErr)
+		}
+		doneCh <- uploadErr
+	}()
+
+	return newAsyncPipeWriter(w, doneCh), nil
+}
+
 func (c *ClusterStorage) Remove(path string) error {
 	log.Debugf("ClusterStorage::Remove::%s(%s)", strings.ToUpper(c.scheme()), path)
 

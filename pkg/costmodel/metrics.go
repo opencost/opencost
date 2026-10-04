@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"maps"
 	"math"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -359,13 +361,13 @@ func NewCostModelMetricsEmitter(clusterCache clustercache.ClusterCache, provider
 	// init will only actually execute once to register the custom gauges
 	initCostModelMetrics(clusterInfo, metricsConfig)
 
-	metrics.InitKubeMetrics(clusterCache, metricsConfig, &metrics.KubeMetricsOpts{
+	metrics.InitKubeMetrics(clusterInfo, clusterCache, metricsConfig, &metrics.KubeMetricsOpts{
 		EmitKubecostControllerMetrics: true,
-		EmitNamespaceAnnotations:      env.IsEmitNamespaceAnnotationsMetric(),
-		EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),
-		EmitKubeStateMetrics:          env.IsEmitKsmV1Metrics(),
-		EmitKubeStateMetricsV1Only:    env.IsEmitKsmV1MetricsOnly(),
-		EmitDeprecatedMetrics:         env.IsEmitDeprecatedMetrics(),
+		EmitNamespaceAnnotations:      coreenv.IsEmitNamespaceAnnotationsMetric(),
+		EmitPodAnnotations:            coreenv.IsEmitPodAnnotationsMetric(),
+		EmitKubeStateMetrics:          coreenv.IsEmitKsmV1Metrics(),
+		EmitKubeStateMetricsV1Only:    coreenv.IsEmitKsmV1MetricsOnly(),
+		EmitDeprecatedMetrics:         coreenv.IsEmitDeprecatedMetrics(),
 	})
 
 	metrics.InitOpencostTelemetry(metricsConfig)
@@ -707,7 +709,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			storageClasses := cmme.KubeClusterCache.GetAllStorageClasses()
 			storageClassMap := make(map[string]map[string]string)
 			for _, storageClass := range storageClasses {
-				params := storageClass.Parameters
+				params := maps.Clone(storageClass.Parameters)
 				storageClassMap[storageClass.Name] = params
 				if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.Annotations["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 					storageClassMap["default"] = params

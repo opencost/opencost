@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -63,6 +64,30 @@ func NewBucketStorage(config []byte) (Storage, error) {
 	}
 
 	return storage, nil
+}
+
+// asyncPipeWriter wraps *io.PipeWriter so that Close() blocks until the
+// background upload goroutine finishes and surfaces any upload error to the caller.
+type asyncPipeWriter struct {
+	*io.PipeWriter
+	done <-chan error
+}
+
+// newAsyncPipeWriter creates a new async pipe writer that implements io.WriteCloser that
+// handles asynchronous closing of an io.PipeWriter
+func newAsyncPipeWriter(writer *io.PipeWriter, done <-chan error) *asyncPipeWriter {
+	return &asyncPipeWriter{
+		PipeWriter: writer,
+		done:       done,
+	}
+}
+
+// Close propagates any errors that were received on the pipewriter or reader.
+func (apw *asyncPipeWriter) Close() error {
+	if err := apw.PipeWriter.Close(); err != nil {
+		return err
+	}
+	return <-apw.done
 }
 
 // trimLeading removes a leading / from the file name

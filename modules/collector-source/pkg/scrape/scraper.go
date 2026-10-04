@@ -9,6 +9,36 @@ type Scraper interface {
 	Scrape() []metric.Update
 }
 
+// MetricFilter is a set of metric names to suppress from scrape output.
+// An empty or nil filter allows all metrics through.
+type MetricFilter map[string]struct{}
+
+// filteredScraper wraps a Scraper and removes any Update whose Name appears in the filter.
+type filteredScraper struct {
+	inner  Scraper
+	filter MetricFilter
+}
+
+// withFilter returns s wrapped with f so that denied metric names are stripped from Scrape output.
+// If f is empty, s is returned unchanged.
+func withFilter(s Scraper, f MetricFilter) Scraper {
+	if len(f) == 0 {
+		return s
+	}
+	return &filteredScraper{inner: s, filter: f}
+}
+
+func (fs *filteredScraper) Scrape() []metric.Update {
+	results := fs.inner.Scrape()
+	out := results[:0]
+	for _, u := range results {
+		if _, denied := fs.filter[u.Name]; !denied {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
 type ScrapeFunc func() []metric.Update
 
 func concurrentScrape(scrapeFuncs ...ScrapeFunc) []metric.Update {

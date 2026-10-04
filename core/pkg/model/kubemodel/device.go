@@ -1,89 +1,49 @@
 package kubemodel
 
 import (
-	"errors"
 	"fmt"
 	"time"
 )
 
+// Device holds identification for an accelerator device (e.g. an Nvidia GPU) attached to the
+// cluster via the k8s Device Plugin API or DRAs. The shape is vendor-agnostic, but the only
+// populating source currently implemented is the DCGM exporter. Usage of a Device by a specific
+// container is recorded on Container.DeviceUsages, keyed by Device.UUID.
 // @bingen:generate:Device
 type Device struct {
-	UID               string      `json:"uid"`            // Device UUID (hardware identifier)
-	Type              string      `json:"type,omitempty"` // Device type (e.g., "device", "tpu")
-	NodeUID           string      `json:"nodeUid"`        // Node hosting this device
-	DeviceNumber      int32       `json:"deviceNumber"`
-	ModelName         string      `json:"modelName"`
-	IsShared          bool        `json:"isShared"` // Device sharing information
-	SharePercentage   float64     `json:"sharePercentage"`
-	UsageSeconds      float64     `json:"usageSeconds"`      // Device seconds available
-	MemoryByteSeconds Measurement `json:"memoryByteSeconds"` // Device memory capacity in Byte-seconds
-	PowerWattSeconds  float64     `json:"powerWattSeconds"`  // Device power consumption in watt-seconds (Joules)
-	PowerWattMax      float64     `json:"powerWattMax"`      // Device max power consumption in watts
-	// Version 2 fields - Lifecycle tracking
-	Start           time.Time   `json:"start,omitempty"` // Device availability start
-	End             time.Time   `json:"end,omitempty"`   // Device availability end
-	DurationSeconds Measurement `json:"durationSeconds"` // Duration device was available
+	UUID      string    `json:"uuid"`
+	Start     time.Time `json:"start"`
+	End       time.Time `json:"end"`
+	Device    string    `json:"device"`
+	ModelName string    `json:"modelName"`
 }
 
-// Validate validates the Device fields
-func (d *Device) Validate() error {
-	if d.UID == "" {
-		return errors.New("UID is required")
+func (d *Device) ValidateDevice(window Window) error {
+	if d.UUID == "" {
+		return fmt.Errorf("UUID is missing for Device with device '%s'", d.Device)
 	}
-	if d.NodeUID == "" {
-		return errors.New("NodeUID is required")
+
+	if err := checkWindow(window, d.Start, d.End); err != nil {
+		return err
 	}
-	if d.SharePercentage < 0 || d.SharePercentage > 100 {
-		return fmt.Errorf("SharePercentage must be 0-100, got %.2f", d.SharePercentage)
-	}
-	if d.PowerWattSeconds < 0 {
-		return fmt.Errorf("PowerWattSeconds cannot be negative, got %.2f", d.PowerWattSeconds)
-	}
-	if d.PowerWattMax < 0 {
-		return fmt.Errorf("PowerWattMax cannot be negative, got %.2f", d.PowerWattMax)
-	}
+
 	return nil
 }
 
-// Clone creates a deep copy of the Device
-func (d *Device) Clone() *Device {
-	if d == nil {
-		return nil
-	}
-
-	cloned := &Device{
-		UID:               d.UID,
-		Type:              d.Type,
-		NodeUID:           d.NodeUID,
-		DeviceNumber:      d.DeviceNumber,
-		ModelName:         d.ModelName,
-		IsShared:          d.IsShared,
-		SharePercentage:   d.SharePercentage,
-		UsageSeconds:      d.UsageSeconds,
-		MemoryByteSeconds: d.MemoryByteSeconds,
-		PowerWattSeconds:  d.PowerWattSeconds,
-		PowerWattMax:      d.PowerWattMax,
-		DurationSeconds:   d.DurationSeconds,
-	}
-
-	cloned.Start = d.Start
-	cloned.End = d.End
-
-	return cloned
-}
-
-func (kms *KubeModelSet) RegisterDevice(uid, nodeUID string) error {
-	if uid == "" {
-		err := fmt.Errorf("UID is nil for Device")
+// RegisterDevice validates and adds a Device to the set, keyed by UUID.
+func (kms *KubeModelSet) RegisterDevice(device *Device) error {
+	if err := device.ValidateDevice(kms.Window); err != nil {
+		err = fmt.Errorf("RegisterDevice: invalid device: %w", err)
 		kms.Error(err)
 		return err
 	}
 
-	if _, ok := kms.Devices[uid]; !ok {
-		kms.Devices[uid] = &Device{
-			UID:     uid,
-			NodeUID: nodeUID,
+	if _, ok := kms.Devices[device.UUID]; !ok {
+		if kms.Cluster == nil {
+			kms.Warnf("RegisterDevice: Cluster is nil")
 		}
+
+		kms.Devices[device.UUID] = device
 
 		kms.Metadata.ObjectCount++
 	}

@@ -20,7 +20,7 @@ func TestWhitelist(t *testing.T) {
 
 	sampleStatefulSets := []*clustercache.StatefulSet{}
 
-	kc := NewFakeCache(sampleReplicaSets, sampleStatefulSets, sampleServices)
+	kc := &clustercache.MockClusterCache{ReplicaSets: sampleReplicaSets, StatefulSets: sampleStatefulSets, Services: sampleServices}
 	wl := map[string]bool{
 		"whitelistedlabel": true,
 	}
@@ -41,31 +41,4 @@ func TestWhitelist(t *testing.T) {
 		t.Errorf("Missing expected label %s", "servicewhitelistlabel1")
 	}
 
-}
-
-type FakeCache struct {
-	clustercache.ClusterCache
-	replicasets  []*clustercache.ReplicaSet
-	statefulsets []*clustercache.StatefulSet
-	services     []*clustercache.Service
-}
-
-func (f FakeCache) GetAllReplicaSets() []*clustercache.ReplicaSet {
-	return f.replicasets
-}
-
-func (f FakeCache) GetAllStatefulSets() []*clustercache.StatefulSet {
-	return f.statefulsets
-}
-
-func (f FakeCache) GetAllServices() []*clustercache.Service {
-	return f.services
-}
-
-func NewFakeCache(replicasets []*clustercache.ReplicaSet, statefulsets []*clustercache.StatefulSet, services []*clustercache.Service) FakeCache {
-	return FakeCache{
-		replicasets:  replicasets,
-		statefulsets: statefulsets,
-		services:     services,
-	}
 }

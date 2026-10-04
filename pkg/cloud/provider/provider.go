@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -22,6 +21,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/otc"
 	"github.com/opencost/opencost/pkg/cloud/ovh"
 	"github.com/opencost/opencost/pkg/cloud/scaleway"
+	"github.com/opencost/opencost/pkg/cloud/stackit"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
@@ -115,6 +115,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			cp.configFileName = "otc.json"
 		case opencost.OVHProvider:
 			cp.configFileName = "ovh.json"
+		case opencost.STACKITProvider:
+			cp.configFileName = "stackit.json"
 		case opencost.CSVProvider:
 			cp.configFileName = "default.json"
 		}
@@ -140,9 +142,6 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		}, nil
 	case opencost.GCPProvider:
 		log.Info("Found ProviderID starting with \"gce\", using GCP Provider")
-		if apiKey == "" {
-			return nil, errors.New("Supply a GCP Key to start getting data")
-		}
 		return &gcp.GCP{
 			Clientset:        cache,
 			APIKey:           apiKey,
@@ -215,6 +214,14 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	case opencost.OVHProvider:
 		log.Info("Found node label \"node.k8s.ovh/type\", using OVH Provider")
 		return &ovh.OVH{
+			Clientset:        cache,
+			ClusterRegion:    cp.region,
+			ClusterAccountID: cp.accountID,
+			Config:           NewProviderConfig(config, cp.configFileName),
+		}, nil
+	case opencost.STACKITProvider:
+		log.Info("Found STACKIT provider, using STACKIT Provider")
+		return &stackit.STACKIT{
 			Clientset:        cache,
 			ClusterRegion:    cp.region,
 			ClusterAccountID: cp.accountID,
@@ -312,6 +319,18 @@ func getClusterProperties(node *clustercache.Node) clusterProperties {
 		log.Debug("using DigitalOcean provider")
 		cp.provider = opencost.DigitalOceanProvider
 		cp.configFileName = "digitalocean.json"
+	} else if strings.HasPrefix(providerID, "stackit") || strings.Contains(providerID, "stackit") {
+		log.Debug("using STACKIT provider")
+		cp.provider = opencost.STACKITProvider
+		cp.configFileName = "stackit.json"
+	} else if _, ok := node.Labels["node.stackit.cloud/ske"]; ok {
+		log.Debug("using STACKIT provider (detected via node label)")
+		cp.provider = opencost.STACKITProvider
+		cp.configFileName = "stackit.json"
+	} else if _, ok := node.Labels["topology.block-storage.csi.stackit.cloud/zone"]; ok {
+		log.Debug("using STACKIT provider (detected via CSI topology label)")
+		cp.provider = opencost.STACKITProvider
+		cp.configFileName = "stackit.json"
 	}
 	// Override provider to CSV if CSVProvider is used and custom provider is not set
 	if env.IsUseCSVProvider() {

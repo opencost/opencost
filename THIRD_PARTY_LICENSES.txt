@@ -4742,6 +4742,28 @@ Copyright 2019 Scaleway.
 --------------------------------- (separator) ----------------------------------
 
 == Dependency
+github.com/stackitcloud/stackit-sdk-go/core
+
+== License Type
+SPDX:Apache-2.0
+
+== Copyright
+Copyright 2023 STACKIT GmbH & Co. KG
+
+--------------------------------- (separator) ----------------------------------
+
+== Dependency
+github.com/stackitcloud/stackit-sdk-go/services/cost
+
+== License Type
+SPDX:Apache-2.0
+
+== Copyright
+Copyright 2023 STACKIT GmbH & Co. KG
+
+--------------------------------- (separator) ----------------------------------
+
+== Dependency
 github.com/shopspring/decimal
 
 == License Type

@@ -8,6 +8,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
 	"github.com/opencost/opencost/core/pkg/diagnostics"
+	"github.com/opencost/opencost/core/pkg/external"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -32,6 +33,7 @@ func NewDefaultCollectorDataSource(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
+	externalLabelProvider external.LabelProvider,
 ) source.OpenCostDataSource {
 	config := NewOpenCostCollectorConfigFromEnv(clusterUID)
 	return NewCollectorDataSource(
@@ -40,6 +42,7 @@ func NewDefaultCollectorDataSource(
 		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
+		externalLabelProvider,
 	)
 }
 
@@ -49,6 +52,7 @@ func NewCollectorDataSource(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
+	externalLabelProvider external.LabelProvider,
 ) source.OpenCostDataSource {
 	var resolutions []*util.Resolution
 	for _, resconf := range config.Resolutions {
@@ -100,6 +104,7 @@ func NewCollectorDataSource(
 		clusterInfoProvider,
 		clusterCache,
 		statSummaryClient,
+		externalLabelProvider,
 	)
 	scrapeController.Start()
 

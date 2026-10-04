@@ -31,12 +31,26 @@ type ComputePipelineSource interface {
 // PipelinesExportConfig is a configuration struct that contains the export resolutions for
 // allocation, assets, and network insights pipelines.
 type PipelinesExportConfig struct {
+	AppName                           string
 	ClusterUID                        string
 	ClusterName                       string
 	AllocationPiplineResolutions      []time.Duration
 	AssetPipelineResolutons           []time.Duration
 	NetworkInsightPipelineResolutions []time.Duration
 	KubeModelPipelineResolutions      []time.Duration
+	Streaming                         bool
+	Compression                       ExportCompressionLevel
+}
+
+func (c PipelinesExportConfig) toControllerConfig(res time.Duration) ComputeExporterConfig {
+	return ComputeExporterConfig{
+		AppName:     c.AppName,
+		ClusterUID:  c.ClusterUID,
+		ClusterName: c.ClusterName,
+		Resolution:  res,
+		Streaming:   c.Streaming,
+		Compression: c.Compression,
+	}
 }
 
 // defaultPipelineExportResolutions returns the default export configuration for the pipeline
@@ -50,15 +64,24 @@ func defaultPipelineExportResolutions() []time.Duration {
 
 // NewPipelinesExportConfig returns the default export configuration for all pipelines
 // which is set to export hourly and daily for allocations, assets, and network insights.
-func NewPipelinesExportConfig(clusterUID, clusterName string) PipelinesExportConfig {
-	return PipelinesExportConfig{
-		ClusterUID:                        clusterUID,
-		ClusterName:                       clusterName,
-		AllocationPiplineResolutions:      defaultPipelineExportResolutions(),
-		AssetPipelineResolutons:           defaultPipelineExportResolutions(),
-		NetworkInsightPipelineResolutions: defaultPipelineExportResolutions(),
-		KubeModelPipelineResolutions:      defaultPipelineExportResolutions(),
+func NewPipelinesExportConfig(appName, clusterUID, clusterName string, exportLegacy, exportKubeModel bool) PipelinesExportConfig {
+	config := PipelinesExportConfig{
+		AppName:     appName,
+		ClusterUID:  clusterUID,
+		ClusterName: clusterName,
+		Compression: ExportCompressionLevelNone,
 	}
+	if exportLegacy {
+		config.AllocationPiplineResolutions = defaultPipelineExportResolutions()
+		config.AssetPipelineResolutons = defaultPipelineExportResolutions()
+		config.NetworkInsightPipelineResolutions = defaultPipelineExportResolutions()
+
+	}
+	if exportKubeModel {
+		config.KubeModelPipelineResolutions = defaultPipelineExportResolutions()
+	}
+
+	return config
 }
 
 // PipelineExportControllers is a facade that contains the export controllers for allocations, assets, and network insights.
@@ -90,8 +113,9 @@ func NewPipelineExportControllers(store storage.Storage, cm ComputePipelineSourc
 			continue
 		}
 
-		// Use ClusterName for "clusterId" here to maintain legacy pattern
-		allocController, err := NewComputePipelineExportController(config.ClusterName, store, allocSource, res)
+		controllerConfig := config.toControllerConfig(res)
+		allocController, err := NewComputePipelineExportController(controllerConfig, store, allocSource)
+
 		if err != nil {
 			log.Errorf("Failed to create allocation export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue
@@ -110,8 +134,9 @@ func NewPipelineExportControllers(store storage.Storage, cm ComputePipelineSourc
 			continue
 		}
 
-		// Use ClusterName for "clusterId" here to maintain legacy pattern
-		assetController, err := NewComputePipelineExportController(config.ClusterName, store, assetSource, res)
+		controllerConfig := config.toControllerConfig(res)
+		assetController, err := NewComputePipelineExportController(controllerConfig, store, assetSource)
+
 		if err != nil {
 			log.Errorf("Failed to create asset export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue
@@ -130,8 +155,9 @@ func NewPipelineExportControllers(store storage.Storage, cm ComputePipelineSourc
 			continue
 		}
 
-		// Use ClusterName for "clusterId" here to maintain legacy pattern
-		networkInsightController, err := NewComputePipelineExportController(config.ClusterName, store, networkInsightSource, res)
+		controllerConfig := config.toControllerConfig(res)
+		networkInsightController, err := NewComputePipelineExportController(controllerConfig, store, networkInsightSource)
+
 		if err != nil {
 			log.Errorf("Failed to create network insight export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue
@@ -150,7 +176,9 @@ func NewPipelineExportControllers(store storage.Storage, cm ComputePipelineSourc
 			continue
 		}
 
-		kubeModelController, err := NewComputePipelineExportController(config.ClusterUID, store, kubeModelSource, res)
+		controllerConfig := config.toControllerConfig(res)
+		kubeModelController, err := NewComputePipelineExportController(controllerConfig, store, kubeModelSource)
+
 		if err != nil {
 			log.Errorf("Failed to create KubeModel export controller for resolution: %s - %v", timeutil.DurationString(res), err)
 			continue
@@ -171,10 +199,12 @@ func (pec *PipelineExportControllers) Start(interval time.Duration) {
 	pec.AllocationExportController.Start(interval)
 	pec.AssetExportController.Start(interval)
 	pec.NetworkInsightExportController.Start(interval)
+	pec.KubeModelExportController.Start(interval)
 }
 
 func (pec *PipelineExportControllers) Stop() {
 	pec.AllocationExportController.Stop()
 	pec.AssetExportController.Stop()
 	pec.NetworkInsightExportController.Stop()
+	pec.KubeModelExportController.Stop()
 }

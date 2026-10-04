@@ -1,0 +1,180 @@
+nodePricing:
+  - properties:
+      provider: Azure
+      region: eastus
+      instanceType: Standard_D2s_v5
+      provisioning: on-demand
+    prices:
+      node:
+        unit: hr
+        price: 0.096
+  - properties:
+      provider: Azure
+      region: eastus
+      instanceType: Standard_D2s_v5
+      provisioning: spot
+    prices:
+      node:
+        unit: hr
+        price: 0.0288
+  - properties:
+      provider: Azure
+      region: eastus
+      instanceType: Standard_D4s_v5
+      provisioning: on-demand
+    prices:
+      node:
+        unit: hr
+        price: 0.192
+  - properties:
+      provider: Azure
+      region: eastus
+      instanceType: Standard_D4s_v5
+      provisioning: spot
+    prices:
+      node:
+        unit: hr
+        price: 0.0576
+  - properties:
+      provider: Azure
+      region: eastus
+      instanceType: Standard_E2s_v5
+      provisioning: on-demand
+    prices:
+      node:
+        unit: hr
+        price: 0.126
+  - properties:
+      provider: Azure
+      region: eastus
+      instanceType: Standard_E2s_v5
+      provisioning: spot
+    prices:
+      node:
+        unit: hr
+        price: 0.0378
+  - properties:
+      provider: Azure
+      region: westus2
+      instanceType: Standard_D2s_v5
+      provisioning: on-demand
+    prices:
+      node:
+        unit: hr
+        price: 0.109
+  - properties:
+      provider: Azure
+      region: westus2
+      instanceType: Standard_D2s_v5
+      provisioning: spot
+    prices:
+      node:
+        unit: hr
+        price: 0.0327
+  - properties:
+      provider: Azure
+      region: westus2
+      instanceType: Standard_D4s_v5
+      provisioning: on-demand
+    prices:
+      node:
+        unit: hr
+        price: 0.218
+  - properties:
+      provider: Azure
+      region: westus2
+      instanceType: Standard_D4s_v5
+      provisioning: spot
+    prices:
+      node:
+        unit: hr
+        price: 0.0654
+  - properties:
+      provider: Azure
+      region: westus2
+      instanceType: Standard_E2s_v5
+      provisioning: on-demand
+    prices:
+      node:
+        unit: hr
+        price: 0.143
+  - properties:
+      provider: Azure
+      region: westus2
+      instanceType: Standard_E2s_v5
+      provisioning: spot
+    prices:
+      node:
+        unit: hr
+        price: 0.0429
+persistentVolumePricing:
+  - properties:
+      provider: Azure
+      region: eastus
+      volumeType: Premium_LRS
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0002192
+  - properties:
+      provider: Azure
+      region: eastus
+      volumeType: StandardSSD_LRS
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0001096
+  - properties:
+      provider: Azure
+      region: eastus
+      volumeType: Standard_LRS
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0000685
+  - properties:
+      provider: Azure
+      region: westus2
+      volumeType: Premium_LRS
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0002466
+  - properties:
+      provider: Azure
+      region: westus2
+      volumeType: StandardSSD_LRS
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0001233
+  - properties:
+      provider: Azure
+      region: westus2
+      volumeType: Standard_LRS
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0000767
+networkPricing:
+  - properties:
+      provider: Azure
+    prices:
+      local-egress:
+        unit: GiB
+        price: 0.0
+      x-zone-egress:
+        unit: GiB
+        price: 0.01
+      x-region-egress:
+        unit: GiB
+        price: 0.02
+      internet-egress:
+        unit: GiB
+        price: 0.087
+      nat-egress:
+        unit: GiB
+        price: 0.045
+      nat-ingress:
+        unit: GiB
+        price: 0.045

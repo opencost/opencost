@@ -234,6 +234,44 @@ func TestAllocation_Add(t *testing.T) {
 	if act.RawAllocationOnly != nil {
 		t.Errorf("Allocation.Add: Raw only data must be nil after an add")
 	}
+
+	// Test GPUAllocation merging edge cases:
+	// Case A: Receiver has nil GPUAllocation, incoming has non-nil GPUAllocation
+	g1 := &Allocation{
+		Start:      s1,
+		End:        e1,
+		Window:     NewWindow(&s1, &e1),
+		Properties: &AllocationProperties{},
+	}
+	gpuReqVal := 1.0
+	gpuUseVal := 0.5
+	g2 := &Allocation{
+		Start:      s2,
+		End:        e2,
+		Window:     NewWindow(&s2, &e2),
+		Properties: &AllocationProperties{},
+		GPUAllocation: &GPUAllocation{
+			GPUDevice:         "nvidia-tesla-t4",
+			GPURequestAverage: &gpuReqVal,
+			GPUUsageAverage:   &gpuUseVal,
+		},
+	}
+	actG, err := g1.Add(g2)
+	if err != nil {
+		t.Fatalf("Allocation.Add: unexpected error: %s", err)
+	}
+	if actG.GPUAllocation == nil {
+		t.Fatalf("Allocation.Add: expected non-nil GPUAllocation from merge")
+	}
+	if actG.GPUAllocation.GPUDevice != "nvidia-tesla-t4" {
+		t.Errorf("Allocation.Add: expected GPUDevice 'nvidia-tesla-t4', got %s", actG.GPUAllocation.GPUDevice)
+	}
+	if actG.GPUAllocation.GPURequestAverage == nil || !util.IsApproximately(0.75, *actG.GPUAllocation.GPURequestAverage) {
+		t.Errorf("Allocation.Add: expected GPURequestAverage 0.75, got %v", actG.GPUAllocation.GPURequestAverage)
+	}
+	if actG.GPUAllocation.GPUUsageAverage == nil || !util.IsApproximately(0.375, *actG.GPUAllocation.GPUUsageAverage) {
+		t.Errorf("Allocation.Add: expected GPUUsageAverage 0.375, got %v", actG.GPUAllocation.GPUUsageAverage)
+	}
 }
 
 func TestAllocation_Share(t *testing.T) {
@@ -3955,4 +3993,80 @@ func checkAllFloat64sForNaN(t *testing.T, v reflect.Value, testCaseName string) 
 			}
 		}
 	}
+}
+
+// TestGPUAllocation_Equal verifies value semantics for the pointer fields:
+// two independently constructed GPUAllocations with equal contents must be
+// equal, regardless of pointer identity. Regression test for #3846.
+func TestGPUAllocation_Equal(t *testing.T) {
+	makeGPUAllocation := func() *GPUAllocation {
+		shared := true
+		usage := 0.5
+		request := 1.0
+		return &GPUAllocation{
+			GPUDevice:         "nvidia0",
+			GPUModel:          "Tesla T4",
+			GPUUUID:           "GPU-1",
+			IsGPUShared:       &shared,
+			GPUUsageAverage:   &usage,
+			GPURequestAverage: &request,
+		}
+	}
+
+	cases := map[string]struct {
+		a, b *GPUAllocation
+		want bool
+	}{
+		"both nil": {nil, nil, true},
+		"one nil":  {makeGPUAllocation(), nil, false},
+		"identical values, distinct pointers": {
+			makeGPUAllocation(), makeGPUAllocation(), true,
+		},
+		"different usage value": {
+			makeGPUAllocation(),
+			func() *GPUAllocation { g := makeGPUAllocation(); v := 0.9; g.GPUUsageAverage = &v; return g }(),
+			false,
+		},
+		"different shared value": {
+			makeGPUAllocation(),
+			func() *GPUAllocation { g := makeGPUAllocation(); v := false; g.IsGPUShared = &v; return g }(),
+			false,
+		},
+		"nil vs set pointer field": {
+			makeGPUAllocation(),
+			func() *GPUAllocation { g := makeGPUAllocation(); g.GPURequestAverage = nil; return g }(),
+			false,
+		},
+		"different device identity": {
+			makeGPUAllocation(),
+			func() *GPUAllocation { g := makeGPUAllocation(); g.GPUUUID = "GPU-2"; return g }(),
+			false,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := tc.a.Equal(tc.b); got != tc.want {
+				t.Errorf("Equal() = %v, want %v", got, tc.want)
+			}
+			if got := tc.b.Equal(tc.a); got != tc.want {
+				t.Errorf("Equal() reversed = %v, want %v", got, tc.want)
+			}
+		})
+	}
+
+	t.Run("binary roundtrip equals original", func(t *testing.T) {
+		orig := makeGPUAllocation()
+		bs, err := orig.MarshalBinary()
+		if err != nil {
+			t.Fatalf("MarshalBinary: %s", err)
+		}
+		decoded := new(GPUAllocation)
+		if err := decoded.UnmarshalBinary(bs); err != nil {
+			t.Fatalf("UnmarshalBinary: %s", err)
+		}
+		if !orig.Equal(decoded) {
+			t.Errorf("roundtrip-decoded GPUAllocation not Equal to original: %+v vs %+v", orig, decoded)
+		}
+	})
 }

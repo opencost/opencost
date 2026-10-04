@@ -9,7 +9,9 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/ibm"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
+	"github.com/opencost/opencost/pkg/cloud/stackit"
 )
 
 const (
@@ -18,6 +20,8 @@ const (
 	BigQueryConfigType     = "bigquery"
 	AzureStorageConfigType = "azurestorage"
 	UsageApiConfigType     = "usageapi"
+	STACKITCostConfigType  = "stackitcost"
+	IBMUsageConfigType     = "ibmusage"
 )
 
 func ConfigTypeFromConfig(config cloud.KeyedConfig) (string, error) {
@@ -32,6 +36,10 @@ func ConfigTypeFromConfig(config cloud.KeyedConfig) (string, error) {
 		return AzureStorageConfigType, nil
 	case *oracle.UsageApiConfiguration:
 		return UsageApiConfigType, nil
+	case *stackit.CostConfiguration:
+		return STACKITCostConfigType, nil
+	case *ibm.UsageConfiguration:
+		return IBMUsageConfigType, nil
 	}
 	return "", fmt.Errorf("failed to determine config type for config with key: %s, type %T", config.Key(), config)
 }
@@ -120,6 +128,10 @@ func (s *Status) UnmarshalJSON(b []byte) error {
 		config = &azure.StorageConfiguration{}
 	case UsageApiConfigType:
 		config = &oracle.UsageApiConfiguration{}
+	case STACKITCostConfigType:
+		config = &stackit.CostConfiguration{}
+	case IBMUsageConfigType:
+		config = &ibm.UsageConfiguration{}
 	default:
 		return fmt.Errorf("Status: UnmarshalJSON: config type '%s' is not recognized", configType)
 	}

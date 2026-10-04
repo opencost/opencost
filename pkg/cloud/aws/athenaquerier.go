@@ -11,9 +11,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/aws/aws-sdk-go-v2/service/athena/types"
+	"github.com/opencost/bingen/pkg/util/stringutil"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
-	"github.com/opencost/opencost/core/pkg/util/stringutil"
 	"github.com/opencost/opencost/pkg/cloud"
 )
 
@@ -111,6 +111,15 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 	// Only set if there is a value, the default input is nil
 	if aq.Workgroup != "" {
 		startQueryExecutionInput.WorkGroup = aws.String(aq.Workgroup)
+	}
+
+	if aq.ResultReuseMaxAgeMinutes > 0 {
+		startQueryExecutionInput.ResultReuseConfiguration = &types.ResultReuseConfiguration{
+			ResultReuseByAgeConfiguration: &types.ResultReuseByAgeConfiguration{
+				Enabled:         true,
+				MaxAgeInMinutes: aws.Int32(aq.ResultReuseMaxAgeMinutes),
+			},
+		}
 	}
 
 	// Create Athena Client

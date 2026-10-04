@@ -1,7 +1,10 @@
 package scrape
 
 import (
+	"fmt"
+
 	"github.com/opencost/opencost/core/pkg/clusters"
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 )
@@ -43,6 +46,7 @@ func (cis *ClusterInfoScrapper) Scrape() []metric.Update {
 		source.AccountIDLabel:       accountID,
 		source.ProvisionerNameLabel: provisioner,
 		source.RegionLabel:          region,
+		source.KubeModelVersion:     fmt.Sprintf("%d", kubemodel.DefaultCodecVersion),
 	}
 
 	scrapeResults = append(scrapeResults, metric.Update{

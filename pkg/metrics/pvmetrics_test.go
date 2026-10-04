@@ -58,7 +58,7 @@ func TestKubePVCollector_Collect(t *testing.T) {
 		},
 	}
 
-	cache := NewFakePVCache([]*clustercache.PersistentVolume{pv})
+	cache := &clustercache.MockClusterCache{PersistentVolumes: []*clustercache.PersistentVolume{pv}}
 	collector := KubePVCollector{
 		KubeClusterCache: cache,
 		metricsConfig:    MetricsConfig{},
@@ -106,19 +106,4 @@ func TestKubePVMetrics_UIDLabel(t *testing.T) {
 		}
 	}
 	t.Error("UID label not found in metric")
-}
-
-type FakePVCache struct {
-	clustercache.ClusterCache
-	pvs []*clustercache.PersistentVolume
-}
-
-func (f FakePVCache) GetAllPersistentVolumes() []*clustercache.PersistentVolume {
-	return f.pvs
-}
-
-func NewFakePVCache(pvs []*clustercache.PersistentVolume) FakePVCache {
-	return FakePVCache{
-		pvs: pvs,
-	}
 }

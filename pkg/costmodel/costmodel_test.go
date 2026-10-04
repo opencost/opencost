@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/pkg/cloud/models"
@@ -470,7 +471,7 @@ func TestNodeCostAnnotations(t *testing.T) {
 
 	costModel := &CostModel{
 		Provider: customProvider,
-		Cache: NewFakeNodeCache([]*clustercache.Node{
+		Cache: &clustercache.MockClusterCache{Nodes: []*clustercache.Node{
 			{
 				Name: "test-node-001",
 				Labels: map[string]string{
@@ -487,7 +488,7 @@ func TestNodeCostAnnotations(t *testing.T) {
 					"opencost.io/node-ram-hourly-cost": "222",
 				},
 			},
-		}),
+		}},
 	}
 	assert.NotNil(t, costModel)
 
@@ -531,18 +532,50 @@ func TestNodeCostAnnotations(t *testing.T) {
 	}
 }
 
-// FakeNodeCache implements ClusterCache interface for testing
-type FakeNodeCache struct {
-	clustercache.ClusterCache
-	nodes []*clustercache.Node
-}
+func TestCustomProviderGPUNodeUsesDefaultHourlyPricing(t *testing.T) {
+	configPath := t.TempDir()
+	t.Setenv(coreenv.ConfigPathEnvVar, configPath)
 
-func (f FakeNodeCache) GetAllNodes() []*clustercache.Node {
-	return f.nodes
-}
-
-func NewFakeNodeCache(nodes []*clustercache.Node) FakeNodeCache {
-	return FakeNodeCache{
-		nodes: nodes,
+	confMan := config.NewConfigFileManager(storage.NewFileStorage("/"))
+	customProvider := &provider.CustomProvider{
+		Config: provider.NewProviderConfig(confMan, "default.json"),
 	}
+	err := customProvider.DownloadPricingData()
+	require.NoError(t, err)
+
+	cfg, err := customProvider.GetConfig()
+	require.NoError(t, err)
+
+	costModel := &CostModel{
+		Provider: customProvider,
+		Cache: &clustercache.MockClusterCache{
+			Nodes: []*clustercache.Node{
+				{
+					Name: "on-prem-gpu-node",
+					Labels: map[string]string{
+						"kubernetes.io/arch": "amd64",
+					},
+					Status: v1.NodeStatus{
+						Capacity: v1.ResourceList{
+							v1.ResourceCPU:    resource.MustParse("16"),
+							v1.ResourceMemory: resource.MustParse("128Gi"),
+							"nvidia.com/gpu":  resource.MustParse("2"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	nodeCost, err := costModel.GetNodeCost()
+	require.NoError(t, err)
+
+	node, ok := nodeCost["on-prem-gpu-node"]
+	require.True(t, ok)
+
+	assert.Equal(t, cfg.CPU, node.VCPUCost)
+	assert.Equal(t, cfg.RAM, node.RAMCost)
+	assert.Equal(t, cfg.GPU, node.GPUCost)
+	assert.Equal(t, "2.000000", node.GPU)
+	assert.Empty(t, node.ProviderID)
 }

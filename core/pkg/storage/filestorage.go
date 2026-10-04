@@ -184,6 +184,25 @@ func (fs *FileStorage) Write(path string, data []byte) error {
 	return nil
 }
 
+// WriteStream uses the relative path of the storage combined with the provided path
+// to write a new file or overwrite an existing file.
+//
+// It takes advantage of flock() based locking to improve safety. The returned `io.WriteCloser`
+// must be closed.
+func (fs *FileStorage) WriteStream(path string) (io.WriteCloser, error) {
+	f, err := fs.prepare(path)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to prepare path")
+	}
+
+	w, err := fileutil.NewLockedFileWriter(f)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load file writer for: %s - %w", f, err)
+	}
+
+	return w, nil
+}
+
 // Remove uses the relative path of the storage combined with the provided path to
 // remove a file from storage permanently.
 func (fs *FileStorage) Remove(path string) error {

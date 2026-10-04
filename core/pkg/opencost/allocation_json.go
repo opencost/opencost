@@ -40,6 +40,8 @@ type AllocationJSON struct {
 	NetworkCrossZoneCost           *float64                        `json:"networkCrossZoneCost"`
 	NetworkCrossRegionCost         *float64                        `json:"networkCrossRegionCost"`
 	NetworkInternetCost            *float64                        `json:"networkInternetCost"`
+	NetworkNatGatewayEgressCost    *float64                        `json:"networkNatGatewayEgressCost"`
+	NetworkNatGatewayIngressCost   *float64                        `json:"networkNatGatewayIngressCost"`
 	NetworkCostAdjustment          *float64                        `json:"networkCostAdjustment"`
 	LoadBalancerCost               *float64                        `json:"loadBalancerCost"`
 	LoadBalancerCostAdjustment     *float64                        `json:"loadBalancerCostAdjustment"`
@@ -99,6 +101,8 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.NetworkCrossZoneCost = formatFloat64ForResponse(a.NetworkCrossZoneCost)
 	aj.NetworkCrossRegionCost = formatFloat64ForResponse(a.NetworkCrossRegionCost)
 	aj.NetworkInternetCost = formatFloat64ForResponse(a.NetworkInternetCost)
+	aj.NetworkNatGatewayEgressCost = formatFloat64ForResponse(a.NetworkNatGatewayEgressCost)
+	aj.NetworkNatGatewayIngressCost = formatFloat64ForResponse(a.NetworkNatGatewayIngressCost)
 	aj.NetworkCostAdjustment = formatFloat64ForResponse(a.NetworkCostAdjustment)
 	aj.LoadBalancerCost = formatFloat64ForResponse(a.LoadBalancerCost)
 	aj.LoadBalancerCostAdjustment = formatFloat64ForResponse(a.LoadBalancerCostAdjustment)

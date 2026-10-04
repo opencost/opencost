@@ -63,6 +63,9 @@ const (
 var (
 	// sizeRegEx parses a PV capacity string into a numeric part and an optional binary SI suffix (Ki, Mi, Gi, Ti).
 	sizeRegEx = regexp.MustCompile(`^(\d+(?:\.\d+)?)(Ki|Mi|Gi|Ti)?$`)
+
+	// generationRegEx extracts the numeric generation from an instance family name (e.g. 7 from "g7ne").
+	generationRegEx = regexp.MustCompile(`(\d+)`)
 )
 
 // Variable to keep track of instance families that fail in DescribePrice API due improper defaulting of systemDisk if the information is not available
@@ -1163,8 +1166,7 @@ func getInstanceFamilyFromType(instanceType string) string {
 func getInstanceFamilyGenerationFromType(instanceType string) int {
 	// FamilyName format: g7ne or g7 or r7 or r6e,
 	familyName := getInstanceFamilyFromType(instanceType)
-	re := regexp.MustCompile(`(\d+)`)
-	match := re.FindString(familyName)
+	match := generationRegEx.FindString(familyName)
 	if match != "" {
 		generation, err := strconv.Atoi(match)
 		if err != nil {

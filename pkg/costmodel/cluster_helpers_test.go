@@ -1057,10 +1057,10 @@ func TestAssetCustompricing(t *testing.T) {
 				"customPricesEnabled": "true",
 			},
 			expectedPricing: map[string]float64{
-				"CPU":     0.027397,              // 20.0 / 730
-				"RAM":     5.102716386318207e-12, // 4.0 / 730 / 1024^3
-				"GPU":     1.369864,              // 500.0 / 730 * 2
-				"Storage": 0.000137,              // 0.1 / 730 * (1073741824.0 / 1024 / 1024 / 1024) * (60 / 60) => 0.1 / 730 * 1 * 1
+				"CPU":     20.0,
+				"RAM":     4.0 / 1024.0 / 1024.0 / 1024.0,
+				"GPU":     1000.0, // 500.0 per GPU-hour * 2 GPUs
+				"Storage": 0.1,    // 0.1 per GiB-hour * 1 GiB * 1 hour
 			},
 			zeroCollector: false,
 		},
@@ -1075,10 +1075,10 @@ func TestAssetCustompricing(t *testing.T) {
 				// This tests the fallback behavior when collector returns 0
 			},
 			expectedPricing: map[string]float64{
-				"CPU":     0.027397,              // 20.0 / 730 (fallback from 0)
-				"RAM":     5.102716386318207e-12, // 4.0 / 730 / 1024^3 (fallback from 0)
-				"GPU":     0.0,                   // GPU doesn't have fallback logic
-				"Storage": 1.0,                   // Storage uses separate PV pricing (pvCostPromResult), not affected by node pricing
+				"CPU":     20.0,
+				"RAM":     4.0 / 1024.0 / 1024.0 / 1024.0,
+				"GPU":     0.0, // GPU doesn't have fallback logic
+				"Storage": 1.0, // Storage uses separate PV pricing (pvCostPromResult), not affected by node pricing
 			},
 			zeroCollector: true,
 		},

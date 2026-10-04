@@ -54,6 +54,31 @@ func TestGetKey(t *testing.T) {
 	}
 }
 
+func TestGetKeyFallsBackToOCIInstanceShapeLabel(t *testing.T) {
+	labels := map[string]string{
+		ociInstanceShapeLabel: "VM.Standard.E3.Flex",
+	}
+
+	key := (&Oracle{}).GetKey(labels, testNode(0))
+	features := strings.Split(key.Features(), ",")
+
+	assert.Len(t, features, 3)
+	assert.Equal(t, "VM.Standard.E3.Flex", features[0])
+}
+
+func TestGetKeyPrefersKubernetesInstanceTypeLabel(t *testing.T) {
+	labels := map[string]string{
+		v1.LabelInstanceTypeStable: "VM.Standard.E3.Flex.2o.32g.1_1b",
+		ociInstanceShapeLabel:      "VM.Standard.E3.Flex",
+	}
+
+	key := (&Oracle{}).GetKey(labels, testNode(0))
+	features := strings.Split(key.Features(), ",")
+
+	assert.Len(t, features, 3)
+	assert.Equal(t, "VM.Standard.E3.Flex.2o.32g.1_1b", features[0])
+}
+
 func TestGetPVKey(t *testing.T) {
 	storageClass := "xyz"
 	providerID := "ocid.abc"

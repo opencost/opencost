@@ -7,9 +7,12 @@ import (
 	"net/http"
 
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/pkg/cloud/httputil"
 )
 
-var otcHTTPClient = http.DefaultClient
+// http.DefaultClient has no timeout, so a hung pricing endpoint would block the
+// paginated fetch loop forever. Use the shared bounded client instead.
+var otcHTTPClient = httputil.BoundedClient()
 
 // Fetches and flattens all product entries across multiple services with pagination
 func (otc *OTC) fetchPaginatedProducts(serviceNames []string) ([]Product, error) {

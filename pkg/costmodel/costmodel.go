@@ -12,6 +12,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	km "github.com/opencost/opencost/core/pkg/compute/kubemodel"
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/filter/allocation"
 	"github.com/opencost/opencost/core/pkg/log"
@@ -21,7 +22,6 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
-	km "github.com/opencost/opencost/pkg/kubemodel"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -73,7 +73,8 @@ func NewCostModel(
 	var kubeModel *km.KubeModel
 	var err error
 	if dataSource != nil {
-		kubeModel, err = km.NewKubeModel(clusterUID, dataSource)
+
+		kubeModel, err = km.NewKubeModel(clusterUID, coreenv.IsKubeModelV1Forced(), dataSource)
 		if err != nil {
 			// KubeModel is required. Log a fatal error if we fail to init.
 			log.Fatalf("error initializing KubeModel: %s", err)
@@ -288,7 +289,7 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 			}
 
 			nsAnnotations := namespaceAnnotationsMapping[ns+","+clusterID]
-			podAnnotations := pod.Annotations
+			podAnnotations := maps.Clone(pod.Annotations)
 			if podAnnotations == nil {
 				podAnnotations = make(map[string]string)
 			}
@@ -820,7 +821,7 @@ func (cm *CostModel) addPVData(pvClaimMapping map[string]*PersistentVolumeClaimD
 	storageClasses := cache.GetAllStorageClasses()
 	storageClassMap := make(map[string]map[string]string)
 	for _, storageClass := range storageClasses {
-		params := storageClass.Parameters
+		params := maps.Clone(storageClass.Parameters)
 		storageClassMap[storageClass.Name] = params
 		if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.Annotations["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 			storageClassMap["default"] = params
@@ -951,7 +952,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 	}
 	for _, n := range nodeList {
 		name := n.Name
-		nodeLabels := n.Labels
+		nodeLabels := maps.Clone(n.Labels)
 		if nodeLabels == nil {
 			log.Warnf("GetNodeCost: Found node '%s' with no labels", name)
 			nodeLabels = make(map[string]string)
@@ -1377,15 +1378,7 @@ func (cm *CostModel) GetLBCost() (map[serviceKey]*costAnalyzerCloud.LoadBalancer
 				return nil, err
 			}
 			newLoadBalancer := *loadBalancer
-			for _, loadBalancerIngress := range service.Status.LoadBalancer.Ingress {
-				address := loadBalancerIngress.IP
-				// Some cloud providers use hostname rather than IP
-				if address == "" {
-					address = loadBalancerIngress.Hostname
-				}
-				newLoadBalancer.IngressIPAddresses = append(newLoadBalancer.IngressIPAddresses, address)
-
-			}
+			newLoadBalancer.IngressIPAddresses = clustercache.GetLoadBalancerIngressAddress(service)
 			loadBalancerMap[key] = &newLoadBalancer
 		}
 	}

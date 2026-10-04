@@ -6,12 +6,14 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	"github.com/opencost/opencost/core/pkg/external"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var Start1Str = "2025-01-01T00:00:00Z00:00"
@@ -59,6 +61,44 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
+					Name: metric.NodeInfo,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+				},
+				{
+					Name: metric.NodeResourceCapacities,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "cpu",
+						source.UnitLabel:       "core",
+					},
+					Value:          2.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.NodeResourceCapacities,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "memory",
+						source.UnitLabel:       "byte",
+					},
+					Value:          2048.0,
+					AdditionalInfo: nil,
+				},
+				{
 					Name: metric.KubeNodeStatusCapacityCPUCores,
 					Labels: map[string]string{
 						source.NodeLabel:       "node1",
@@ -76,6 +116,30 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 						source.UIDLabel:        "uuid1",
 					},
 					Value:          2048.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.NodeResourcesAllocatable,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "cpu",
+						source.UnitLabel:       "core",
+					},
+					Value:          1.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.NodeResourcesAllocatable,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "memory",
+						source.UnitLabel:       "byte",
+					},
+					Value:          1024.0,
 					AdditionalInfo: nil,
 				},
 				{
@@ -137,6 +201,202 @@ func Test_kubernetesScraper_scrapeNodes(t *testing.T) {
 	}
 }
 
+func Test_kubernetesScraper_scrapeNodesWithExternalLabels(t *testing.T) {
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+
+	const (
+		testSource             = "mock"
+		testExternalLabelKey   = "externalLabelKey"
+		testExternalLabelValue = "externalLabelValue"
+	)
+	mockLabelProvider := external.NewNodeLabelProvider()
+	err := mockLabelProvider.Update(testSource, map[string]string{testExternalLabelKey: testExternalLabelValue})
+	if err != nil {
+		t.Fatalf("failed to get test node labels: %s", err)
+	}
+	type scrape struct {
+		Nodes     []*clustercache.Node
+		Timestamp time.Time
+	}
+	tests := []struct {
+		name     string
+		scrapes  []scrape
+		expected []metric.Update
+	}{
+		{
+			name: "simple",
+			scrapes: []scrape{
+				{
+					Nodes: []*clustercache.Node{
+						{
+							Name:           "node1",
+							UID:            "uuid1",
+							SpecProviderID: "i-1",
+							Status: v1.NodeStatus{
+								Capacity: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse("2"),
+									v1.ResourceMemory: resource.MustParse("2048"),
+								},
+								Allocatable: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse("1"),
+									v1.ResourceMemory: resource.MustParse("1024"),
+								},
+							},
+							Labels: map[string]string{
+								"test1": "blah",
+								"test2": "blah2",
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.NodeInfo,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+				},
+				{
+					Name: metric.NodeResourceCapacities,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "cpu",
+						source.UnitLabel:       "core",
+					},
+					Value:          2.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.NodeResourceCapacities,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "memory",
+						source.UnitLabel:       "byte",
+					},
+					Value:          2048.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeNodeStatusCapacityCPUCores,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value:          2.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeNodeStatusCapacityMemoryBytes,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value:          2048.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.NodeResourcesAllocatable,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "cpu",
+						source.UnitLabel:       "core",
+					},
+					Value:          1.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.NodeResourcesAllocatable,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+						source.ResourceLabel:   "memory",
+						source.UnitLabel:       "byte",
+					},
+					Value:          1024.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeNodeStatusAllocatableCPUCores,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value:          1.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeNodeStatusAllocatableMemoryBytes,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value:          1024.0,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubeNodeLabels,
+					Labels: map[string]string{
+						source.NodeLabel:       "node1",
+						source.ProviderIDLabel: "i-1",
+						source.UIDLabel:        "uuid1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						"label_test1": "blah",
+						"label_test2": "blah2",
+						// need label key with prefix label_ so the decoder does not exclude.
+						"label_" + testExternalLabelKey: testExternalLabelValue,
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ks := &ClusterCacheScraper{
+				externalLabelProvider: mockLabelProvider,
+			}
+			var scrapeResults []metric.Update
+			for _, s := range tt.scrapes {
+				res := ks.scrapeNodes(s.Nodes)
+				scrapeResults = append(scrapeResults, res...)
+			}
+
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
+			}
+
+			for i, expected := range tt.expected {
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
+				}
+			}
+		})
+	}
+}
+
 func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 
 	start1, _ := time.Parse(time.RFC3339, Start1Str)
@@ -168,14 +428,55 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
+			// deploymentInfo map is shared across all 4 metrics and has namespace
+			// added to it before DeploymentMatchLabels is appended, so all 4 metrics
+			// reflect the final state: {uid, namespace_uid, deployment, namespace}.
 			expected: []metric.Update{
-
+				{
+					Name: metric.DeploymentInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.DeploymentLabel:   "deployment1",
+						source.NamespaceLabel:    "namespace1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.DeploymentLabel:   "deployment1",
+						source.NamespaceLabel:    "namespace1",
+					},
+				},
+				{
+					Name: metric.DeploymentLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.DeploymentLabel:   "deployment1",
+						source.NamespaceLabel:    "namespace1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.DeploymentAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.DeploymentLabel:   "deployment1",
+						source.NamespaceLabel:    "namespace1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
 				{
 					Name: metric.DeploymentMatchLabels,
 					Labels: map[string]string{
-						source.DeploymentLabel: "deployment1",
-						source.NamespaceLabel:  "namespace1",
-						source.UIDLabel:        "uuid1",
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.DeploymentLabel:   "deployment1",
+						source.NamespaceLabel:    "namespace1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -189,9 +490,11 @@ func Test_kubernetesScraper_scrapeDeployments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
+			nsIndex := make(map[string]types.UID, 0)
+			nsIndex["namespace1"] = "ns-uuid1"
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				res := ks.scrapeDeployments(s.Deployments)
+				res := ks.scrapeDeployments(s.Deployments, nsIndex)
 				scrapeResults = append(scrapeResults, res...)
 			}
 
@@ -317,6 +620,7 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -393,15 +697,41 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
+			// podInfo is mutated after PodInfo is appended (namespace/node/instance added),
+			// so PodInfo.Labels also reflects those fields at assertion time.
 			expected: []metric.Update{
+				{
+					Name: metric.PodInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+					},
+				},
 				{
 					Name: metric.KubePodLabels,
 					Labels: map[string]string{
-						source.PodLabel:       "pod1",
-						source.NamespaceLabel: "namespace1",
-						source.UIDLabel:       "uuid1",
-						source.NodeLabel:      "node1",
-						source.InstanceLabel:  "node1",
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -412,11 +742,13 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 				{
 					Name: metric.KubePodAnnotations,
 					Labels: map[string]string{
-						source.PodLabel:       "pod1",
-						source.NamespaceLabel: "namespace1",
-						source.UIDLabel:       "uuid1",
-						source.NodeLabel:      "node1",
-						source.InstanceLabel:  "node1",
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -427,41 +759,70 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 				{
 					Name: metric.KubePodOwner,
 					Labels: map[string]string{
-						source.PodLabel:       "pod1",
-						source.NamespaceLabel: "namespace1",
-						source.UIDLabel:       "uuid1",
-						source.NodeLabel:      "node1",
-						source.InstanceLabel:  "node1",
-						source.OwnerKindLabel: "deployment",
-						source.OwnerNameLabel: "deployment1",
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.OwnerKindLabel:    "deployment",
+						source.OwnerNameLabel:    "deployment1",
+						source.OwnerUIDLabel:     "",
+						source.ControllerLabel:   "false",
 					},
-					Value:          0,
-					AdditionalInfo: nil,
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.OwnerKindLabel:    "deployment",
+						source.OwnerNameLabel:    "deployment1",
+						source.OwnerUIDLabel:     "",
+						source.ControllerLabel:   "false",
+					},
 				},
 				{
 					Name: metric.KubePodContainerStatusRunning,
 					Labels: map[string]string{
-						source.PodLabel:       "pod1",
-						source.NamespaceLabel: "namespace1",
-						source.UIDLabel:       "uuid1",
-						source.NodeLabel:      "node1",
-						source.InstanceLabel:  "node1",
-						source.ContainerLabel: "container1",
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
 					},
-					Value:          0,
-					AdditionalInfo: nil,
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
+					},
 				},
 				{
 					Name: metric.KubePodContainerResourceRequests,
 					Labels: map[string]string{
-						source.PodLabel:       "pod1",
-						source.NamespaceLabel: "namespace1",
-						source.UIDLabel:       "uuid1",
-						source.NodeLabel:      "node1",
-						source.InstanceLabel:  "node1",
-						source.ContainerLabel: "container1",
-						source.ResourceLabel:  "cpu",
-						source.UnitLabel:      "core",
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
+						source.ResourceLabel:     "cpu",
+						source.UnitLabel:         "core",
 					},
 					Value:          0.5,
 					AdditionalInfo: nil,
@@ -469,14 +830,16 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 				{
 					Name: metric.KubePodContainerResourceRequests,
 					Labels: map[string]string{
-						source.PodLabel:       "pod1",
-						source.NamespaceLabel: "namespace1",
-						source.UIDLabel:       "uuid1",
-						source.NodeLabel:      "node1",
-						source.InstanceLabel:  "node1",
-						source.ContainerLabel: "container1",
-						source.ResourceLabel:  "memory",
-						source.UnitLabel:      "byte",
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
+						source.ResourceLabel:     "memory",
+						source.UnitLabel:         "byte",
 					},
 					Value:          512,
 					AdditionalInfo: nil,
@@ -484,14 +847,16 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 				{
 					Name: metric.KubePodContainerResourceLimits,
 					Labels: map[string]string{
-						source.PodLabel:       "pod1",
-						source.NamespaceLabel: "namespace1",
-						source.UIDLabel:       "uuid1",
-						source.NodeLabel:      "node1",
-						source.InstanceLabel:  "node1",
-						source.ContainerLabel: "container1",
-						source.ResourceLabel:  "cpu",
-						source.UnitLabel:      "core",
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
+						source.ResourceLabel:     "cpu",
+						source.UnitLabel:         "core",
 					},
 					Value:          1,
 					AdditionalInfo: nil,
@@ -499,14 +864,16 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 				{
 					Name: metric.KubePodContainerResourceLimits,
 					Labels: map[string]string{
-						source.PodLabel:       "pod1",
-						source.NamespaceLabel: "namespace1",
-						source.UIDLabel:       "uuid1",
-						source.NodeLabel:      "node1",
-						source.InstanceLabel:  "node1",
-						source.ContainerLabel: "container1",
-						source.ResourceLabel:  "memory",
-						source.UnitLabel:      "byte",
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
+						source.ResourceLabel:     "memory",
+						source.UnitLabel:         "byte",
 					},
 					Value:          1024,
 					AdditionalInfo: nil,
@@ -514,15 +881,202 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 				{
 					Name: metric.PodPVCAllocation,
 					Labels: map[string]string{
-						source.InstanceLabel:  "",
+						source.PodLabel:       unmountedPVsContainer,
 						source.NamespaceLabel: "namespace1",
-						source.NodeLabel:      "",
-						source.PVLabel:        "vol1",
 						source.PVCLabel:       "pvc1",
-						source.PodLabel:       "unmounted-pvs",
-						source.UIDLabel:       "",
+						source.PVLabel:        "vol1",
 					},
 					Value:          4096,
+					AdditionalInfo: nil,
+				},
+			},
+		},
+		{
+			name: "with namespace index",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					Pods: []*clustercache.Pod{
+						{
+							Name:      "pod1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+							Spec: clustercache.PodSpec{
+								NodeName: "node1",
+								Containers: []clustercache.Container{
+									{
+										Name: "container1",
+										Resources: v1.ResourceRequirements{
+											Requests: map[v1.ResourceName]resource.Quantity{
+												v1.ResourceCPU:    resource.MustParse("500m"),
+												v1.ResourceMemory: resource.MustParse("512"),
+											},
+											Limits: map[v1.ResourceName]resource.Quantity{
+												v1.ResourceCPU:    resource.MustParse("1"),
+												v1.ResourceMemory: resource.MustParse("1024"),
+											},
+										},
+									},
+								},
+							},
+							Status: clustercache.PodStatus{
+								ContainerStatuses: []v1.ContainerStatus{
+									{
+										Name: "container1",
+										State: v1.ContainerState{
+											Running: &v1.ContainerStateRunning{},
+										},
+									},
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.PodInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+					},
+				},
+				{
+					Name: metric.KubePodLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.KubePodAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.KubePodContainerStatusRunning,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
+					},
+				},
+				{
+					Name: metric.KubePodContainerResourceRequests,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
+						source.ResourceLabel:     "cpu",
+						source.UnitLabel:         "core",
+					},
+					Value:          0.5,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubePodContainerResourceRequests,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
+						source.ResourceLabel:     "memory",
+						source.UnitLabel:         "byte",
+					},
+					Value:          512,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubePodContainerResourceLimits,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
+						source.ResourceLabel:     "cpu",
+						source.UnitLabel:         "core",
+					},
+					Value:          1,
+					AdditionalInfo: nil,
+				},
+				{
+					Name: metric.KubePodContainerResourceLimits,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PodLabel:          "pod1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NodeUIDLabel:      "",
+						source.NamespaceLabel:    "namespace1",
+						source.NodeLabel:         "node1",
+						source.InstanceLabel:     "node1",
+						source.ContainerLabel:    "container1",
+						source.ResourceLabel:     "memory",
+						source.UnitLabel:         "byte",
+					},
+					Value:          1024,
 					AdditionalInfo: nil,
 				},
 			},
@@ -531,9 +1085,15 @@ func Test_kubernetesScraper_scrapePods(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
+			nodeIndex := make(map[string]types.UID, 0)
+			nsIndex := make(map[string]types.UID, 0)
+			if tt.nsSetup != nil {
+				tt.nsSetup(nsIndex)
+			}
+			pvcIndex := make(map[pvcKey]types.UID, 0)
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				res := ks.scrapePods(s.Pods, s.PVCs)
+				res := ks.scrapePods(s.Pods, s.PVCs, nodeIndex, nsIndex, pvcIndex)
 				scrapeResults = append(scrapeResults, res...)
 			}
 
@@ -561,6 +1121,7 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -591,22 +1152,99 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 				{
 					Name: metric.KubePersistentVolumeClaimInfo,
 					Labels: map[string]string{
-						source.PVCLabel:          "pvc1",
-						source.NamespaceLabel:    "namespace1",
 						source.UIDLabel:          "uuid1",
+						source.PVCLabel:          "pvc1",
+						source.NamespaceUIDLabel: "",
+						source.NamespaceLabel:    "namespace1",
 						source.VolumeNameLabel:   "vol1",
+						source.PVUIDLabel:        "",
 						source.StorageClassLabel: "storageClass1",
 					},
-					Value:          0,
-					AdditionalInfo: nil,
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PVCLabel:          "pvc1",
+						source.NamespaceUIDLabel: "",
+						source.NamespaceLabel:    "namespace1",
+						source.VolumeNameLabel:   "vol1",
+						source.PVUIDLabel:        "",
+						source.StorageClassLabel: "storageClass1",
+					},
 				},
 				{
 					Name: metric.KubePersistentVolumeClaimResourceRequestsStorageBytes,
 					Labels: map[string]string{
-						source.PVCLabel:          "pvc1",
-						source.NamespaceLabel:    "namespace1",
 						source.UIDLabel:          "uuid1",
+						source.PVCLabel:          "pvc1",
+						source.NamespaceUIDLabel: "",
+						source.NamespaceLabel:    "namespace1",
 						source.VolumeNameLabel:   "vol1",
+						source.PVUIDLabel:        "",
+						source.StorageClassLabel: "storageClass1",
+					},
+					Value:          4096,
+					AdditionalInfo: nil,
+				},
+			},
+		},
+		{
+			name: "with namespace index",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					PVCs: []*clustercache.PersistentVolumeClaim{
+						{
+							Name:      "pvc1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+							Spec: v1.PersistentVolumeClaimSpec{
+								VolumeName:       "vol1",
+								StorageClassName: util.Ptr("storageClass1"),
+								Resources: v1.VolumeResourceRequirements{
+									Requests: v1.ResourceList{
+										v1.ResourceStorage: resource.MustParse("4096"),
+									},
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.KubePersistentVolumeClaimInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PVCLabel:          "pvc1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NamespaceLabel:    "namespace1",
+						source.VolumeNameLabel:   "vol1",
+						source.PVUIDLabel:        "",
+						source.StorageClassLabel: "storageClass1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PVCLabel:          "pvc1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NamespaceLabel:    "namespace1",
+						source.VolumeNameLabel:   "vol1",
+						source.PVUIDLabel:        "",
+						source.StorageClassLabel: "storageClass1",
+					},
+				},
+				{
+					Name: metric.KubePersistentVolumeClaimResourceRequestsStorageBytes,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.PVCLabel:          "pvc1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.NamespaceLabel:    "namespace1",
+						source.VolumeNameLabel:   "vol1",
+						source.PVUIDLabel:        "",
 						source.StorageClassLabel: "storageClass1",
 					},
 					Value:          4096,
@@ -618,9 +1256,14 @@ func Test_kubernetesScraper_scrapePVCs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
+			nsIndex := make(map[string]types.UID, 0)
+			if tt.nsSetup != nil {
+				tt.nsSetup(nsIndex)
+			}
+			pvIndex := make(map[string]types.UID, 0)
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				res := ks.scrapePVCs(s.PVCs)
+				res := ks.scrapePVCs(s.PVCs, nsIndex, pvIndex)
 				scrapeResults = append(scrapeResults, res...)
 			}
 
@@ -679,24 +1322,208 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 				{
 					Name: metric.KubecostPVInfo,
 					Labels: map[string]string{
-						source.PVLabel:           "pv1",
-						source.ProviderIDLabel:   "vol-1",
-						source.StorageClassLabel: "storageClass1",
-						source.UIDLabel:          "uuid1",
+						source.UIDLabel:             "uuid1",
+						source.PVLabel:              "pv1",
+						source.StorageClassLabel:    "storageClass1",
+						source.ProviderIDLabel:      "vol-1",
+						source.CSIVolumeHandleLabel: "vol-1",
 					},
-					Value:          0,
-					AdditionalInfo: nil,
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:             "uuid1",
+						source.PVLabel:              "pv1",
+						source.StorageClassLabel:    "storageClass1",
+						source.ProviderIDLabel:      "vol-1",
+						source.CSIVolumeHandleLabel: "vol-1",
+					},
 				},
 				{
 					Name: metric.KubePersistentVolumeCapacityBytes,
 					Labels: map[string]string{
-						source.PVLabel:           "pv1",
-						source.ProviderIDLabel:   "vol-1",
-						source.StorageClassLabel: "storageClass1",
-						source.UIDLabel:          "uuid1",
+						source.UIDLabel:             "uuid1",
+						source.PVLabel:              "pv1",
+						source.StorageClassLabel:    "storageClass1",
+						source.ProviderIDLabel:      "vol-1",
+						source.CSIVolumeHandleLabel: "vol-1",
 					},
 					Value:          4096,
 					AdditionalInfo: nil,
+				},
+			},
+		},
+		{
+			// Non-CSI PV: provider ID comes from the in-tree AWS EBS source and
+			// the csi_volume_handle label must not be present at all.
+			name: "aws ebs non-csi pv omits csi_volume_handle label",
+			scrapes: []scrape{
+				{
+					PVs: []*clustercache.PersistentVolume{
+						{
+							Name: "pv-aws",
+							UID:  "uuid-aws",
+							Spec: v1.PersistentVolumeSpec{
+								StorageClassName: "gp2",
+								PersistentVolumeSource: v1.PersistentVolumeSource{
+									AWSElasticBlockStore: &v1.AWSElasticBlockStoreVolumeSource{
+										VolumeID: "aws://us-east-2a/vol-0fc54c5e83b8d2b76",
+									},
+								},
+								Capacity: v1.ResourceList{
+									v1.ResourceStorage: resource.MustParse("8192"),
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.KubecostPVInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid-aws",
+						source.PVLabel:           "pv-aws",
+						source.StorageClassLabel: "gp2",
+						source.ProviderIDLabel:   "vol-0fc54c5e83b8d2b76",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid-aws",
+						source.PVLabel:           "pv-aws",
+						source.StorageClassLabel: "gp2",
+						source.ProviderIDLabel:   "vol-0fc54c5e83b8d2b76",
+					},
+				},
+				{
+					Name: metric.KubePersistentVolumeCapacityBytes,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid-aws",
+						source.PVLabel:           "pv-aws",
+						source.StorageClassLabel: "gp2",
+						source.ProviderIDLabel:   "vol-0fc54c5e83b8d2b76",
+					},
+					Value:          8192,
+					AdditionalInfo: nil,
+				},
+			},
+		},
+		{
+			// GCE PD in-tree source: provider ID is the PD name, no csi label.
+			name: "gce pd non-csi pv omits csi_volume_handle label",
+			scrapes: []scrape{
+				{
+					PVs: []*clustercache.PersistentVolume{
+						{
+							Name: "pv-gce",
+							UID:  "uuid-gce",
+							Spec: v1.PersistentVolumeSpec{
+								StorageClassName: "standard",
+								PersistentVolumeSource: v1.PersistentVolumeSource{
+									GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+										PDName: "gke-pvc-abc123",
+									},
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.KubecostPVInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid-gce",
+						source.PVLabel:           "pv-gce",
+						source.StorageClassLabel: "standard",
+						source.ProviderIDLabel:   "gke-pvc-abc123",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid-gce",
+						source.PVLabel:           "pv-gce",
+						source.StorageClassLabel: "standard",
+						source.ProviderIDLabel:   "gke-pvc-abc123",
+					},
+				},
+			},
+		},
+		{
+			// CSI source present but VolumeHandle empty: csi_volume_handle label
+			// is omitted, and provider_id currently ends up empty (documents the
+			// gap where the old code fell back to pv.Name).
+			name: "csi pv with empty volume handle omits csi label and has empty provider id",
+			scrapes: []scrape{
+				{
+					PVs: []*clustercache.PersistentVolume{
+						{
+							Name: "pv-csi-empty",
+							UID:  "uuid-csi-empty",
+							Spec: v1.PersistentVolumeSpec{
+								StorageClassName: "gp3",
+								PersistentVolumeSource: v1.PersistentVolumeSource{
+									CSI: &v1.CSIPersistentVolumeSource{
+										VolumeHandle: "",
+									},
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.KubecostPVInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid-csi-empty",
+						source.PVLabel:           "pv-csi-empty",
+						source.StorageClassLabel: "gp3",
+						source.ProviderIDLabel:   "",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid-csi-empty",
+						source.PVLabel:           "pv-csi-empty",
+						source.StorageClassLabel: "gp3",
+						source.ProviderIDLabel:   "",
+					},
+				},
+			},
+		},
+		{
+			// No recognized volume source: provider ID falls back to pv.Name.
+			name: "pv with no known volume source falls back to name",
+			scrapes: []scrape{
+				{
+					PVs: []*clustercache.PersistentVolume{
+						{
+							Name: "pv-nfs",
+							UID:  "uuid-nfs",
+							Spec: v1.PersistentVolumeSpec{
+								StorageClassName: "nfs",
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.KubecostPVInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid-nfs",
+						source.PVLabel:           "pv-nfs",
+						source.StorageClassLabel: "nfs",
+						source.ProviderIDLabel:   "pv-nfs",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid-nfs",
+						source.PVLabel:           "pv-nfs",
+						source.StorageClassLabel: "nfs",
+						source.ProviderIDLabel:   "pv-nfs",
+					},
 				},
 			},
 		},
@@ -711,7 +1538,7 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 			}
 
 			if len(scrapeResults) != len(tt.expected) {
-				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
+				t.Fatalf("Expected result length of %d, got %d: %+v", len(tt.expected), len(scrapeResults), scrapeResults)
 			}
 
 			for i, expected := range tt.expected {
@@ -719,6 +1546,117 @@ func Test_kubernetesScraper_scrapePVs(t *testing.T) {
 				if !reflect.DeepEqual(expected, got) {
 					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
 				}
+				// csi_volume_handle must only be present for CSI volumes with a
+				// non-empty handle.
+				if _, ok := got.Labels[source.CSIVolumeHandleLabel]; ok {
+					if got.Labels[source.CSIVolumeHandleLabel] == "" {
+						t.Errorf("index %d: csi_volume_handle label present but empty", i)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestToResourceUnitValue(t *testing.T) {
+	tests := []struct {
+		name         string
+		resourceName v1.ResourceName
+		quantity     resource.Quantity
+		wantResource string
+		wantUnit     string
+		wantValue    float64
+	}{
+		{
+			name:         "cpu is reported in cores",
+			resourceName: v1.ResourceCPU,
+			quantity:     resource.MustParse("500m"),
+			wantResource: "cpu",
+			wantUnit:     "core",
+			wantValue:    0.5,
+		},
+		{
+			name:         "memory is reported in bytes",
+			resourceName: v1.ResourceMemory,
+			quantity:     resource.MustParse("1Ki"),
+			wantResource: "memory",
+			wantUnit:     "byte",
+			wantValue:    1024,
+		},
+		{
+			name:         "storage is reported in bytes",
+			resourceName: v1.ResourceStorage,
+			quantity:     resource.MustParse("2Ki"),
+			wantResource: "storage",
+			wantUnit:     "byte",
+			wantValue:    2048,
+		},
+		{
+			name:         "ephemeral storage is reported in bytes",
+			resourceName: v1.ResourceEphemeralStorage,
+			quantity:     resource.MustParse("3Ki"),
+			wantResource: "ephemeral-storage",
+			wantUnit:     "byte",
+			wantValue:    3072,
+		},
+		{
+			name:         "pods are reported as integers",
+			resourceName: v1.ResourcePods,
+			quantity:     resource.MustParse("10"),
+			wantResource: "pods",
+			wantUnit:     "integer",
+			wantValue:    10,
+		},
+		{
+			// Regression guard: the resource name is no longer sanitized, so the
+			// hyphen and case are preserved verbatim ("hugepages-2Mi", not
+			// "hugepages_2Mi").
+			name:         "huge pages keep their raw name and are bytes",
+			resourceName: v1.ResourceName(v1.ResourceHugePagesPrefix + "2Mi"),
+			quantity:     resource.MustParse("4Ki"),
+			wantResource: "hugepages-2Mi",
+			wantUnit:     "byte",
+			wantValue:    4096,
+		},
+		{
+			// Regression guard: extended resource names keep '.' and '/'
+			// ("nvidia.com/gpu", not "nvidia_com_gpu").
+			name:         "extended resource keeps dotted slashed name and is integer",
+			resourceName: v1.ResourceName("nvidia.com/gpu"),
+			quantity:     resource.MustParse("2"),
+			wantResource: "nvidia.com/gpu",
+			wantUnit:     "integer",
+			wantValue:    2,
+		},
+		{
+			name:         "attachable volume resource keeps raw name and is bytes",
+			resourceName: v1.ResourceName(v1.ResourceAttachableVolumesPrefix + "aws-ebs"),
+			quantity:     resource.MustParse("5"),
+			wantResource: "attachable-volumes-aws-ebs",
+			wantUnit:     "byte",
+			wantValue:    5,
+		},
+		{
+			name:         "unrecognized native resource returns empty",
+			resourceName: v1.ResourceName("kubernetes.io/somethingelse"),
+			quantity:     resource.MustParse("1"),
+			wantResource: "",
+			wantUnit:     "",
+			wantValue:    0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResource, gotUnit, gotValue := toResourceUnitValue(tt.resourceName, tt.quantity)
+			if gotResource != tt.wantResource {
+				t.Errorf("resource = %q, want %q", gotResource, tt.wantResource)
+			}
+			if gotUnit != tt.wantUnit {
+				t.Errorf("unit = %q, want %q", gotUnit, tt.wantUnit)
+			}
+			if gotValue != tt.wantValue {
+				t.Errorf("value = %v, want %v", gotValue, tt.wantValue)
 			}
 		})
 	}
@@ -734,6 +1672,7 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -757,11 +1696,34 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 			},
 			expected: []metric.Update{
 				{
+					Name: metric.ServiceInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
+					},
+				},
+				{
 					Name: metric.ServiceSelectorLabels,
 					Labels: map[string]string{
-						"service":             "service1",
-						source.NamespaceLabel: "namespace1",
-						source.UIDLabel:       "uuid1",
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -771,13 +1733,131 @@ func Test_kubernetesScraper_scrapeServices(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "with namespace index",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					Services: []*clustercache.Service{
+						{
+							Name:      "service1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.ServiceInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
+					},
+				},
+				{
+					Name: metric.ServiceSelectorLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "",
+						source.LBIngressAddress:  "",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+			},
+		},
+		{
+			name: "with LB ingress IP",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					Services: []*clustercache.Service{
+						{
+							Name:      "service1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+							Type:      v1.ServiceTypeLoadBalancer,
+							Status: v1.ServiceStatus{
+								LoadBalancer: v1.LoadBalancerStatus{
+									Ingress: []v1.LoadBalancerIngress{
+										{IP: "1.2.3.4"},
+									},
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.ServiceInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "LoadBalancer",
+						source.LBIngressAddress:  "1.2.3.4",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "LoadBalancer",
+						source.LBIngressAddress:  "1.2.3.4",
+					},
+				},
+				{
+					Name: metric.ServiceSelectorLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.ServiceLabel:      "service1",
+						source.NamespaceLabel:    "namespace1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ServiceTypeLabel:  "LoadBalancer",
+						source.LBIngressAddress:  "1.2.3.4",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
+			nsIndex := make(map[string]types.UID)
+			if tt.nsSetup != nil {
+				tt.nsSetup(nsIndex)
+			}
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				res := ks.scrapeServices(s.Services)
+				res := ks.scrapeServices(s.Services, nsIndex)
 				scrapeResults = append(scrapeResults, res...)
 			}
 
@@ -805,6 +1885,7 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -828,13 +1909,54 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 					Timestamp: start1,
 				},
 			},
+			// statefulSetInfo map is shared across all 4 metrics; namespace is added
+			// before StatefulSetMatchLabels is appended, so all 4 reflect the final state.
 			expected: []metric.Update{
+				{
+					Name: metric.StatefulSetInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.StatefulSetLabel:  "statefulSet1",
+						source.NamespaceLabel:    "namespace1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.StatefulSetLabel:  "statefulSet1",
+						source.NamespaceLabel:    "namespace1",
+					},
+				},
+				{
+					Name: metric.StatefulSetLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.StatefulSetLabel:  "statefulSet1",
+						source.NamespaceLabel:    "namespace1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.StatefulSetAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.StatefulSetLabel:  "statefulSet1",
+						source.NamespaceLabel:    "namespace1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
 				{
 					Name: metric.StatefulSetMatchLabels,
 					Labels: map[string]string{
-						source.StatefulSetLabel: "statefulSet1",
-						source.NamespaceLabel:   "namespace1",
-						source.UIDLabel:         "uuid1",
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.StatefulSetLabel:  "statefulSet1",
+						source.NamespaceLabel:    "namespace1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
@@ -844,13 +1966,89 @@ func Test_kubernetesScraper_scrapeStatefulSets(t *testing.T) {
 				},
 			},
 		},
+		{
+			// statefulSetInfo map is shared; NamespaceLabel is added before MatchLabels,
+			// so all 4 metrics reflect the final state including namespace_uid.
+			name: "with namespace index",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					StatefulSets: []*clustercache.StatefulSet{
+						{
+							Name:         "statefulSet1",
+							Namespace:    "namespace1",
+							UID:          "uuid1",
+							SpecSelector: &metav1.LabelSelector{},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.StatefulSetInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.StatefulSetLabel:  "statefulSet1",
+						source.NamespaceLabel:    "namespace1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.StatefulSetLabel:  "statefulSet1",
+						source.NamespaceLabel:    "namespace1",
+					},
+				},
+				{
+					Name: metric.StatefulSetLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.StatefulSetLabel:  "statefulSet1",
+						source.NamespaceLabel:    "namespace1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.StatefulSetAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.StatefulSetLabel:  "statefulSet1",
+						source.NamespaceLabel:    "namespace1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.StatefulSetMatchLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.StatefulSetLabel:  "statefulSet1",
+						source.NamespaceLabel:    "namespace1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
+			nsIndex := make(map[string]types.UID, 0)
+			if tt.nsSetup != nil {
+				tt.nsSetup(nsIndex)
+			}
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				res := ks.scrapeStatefulSets(s.StatefulSets)
+				res := ks.scrapeStatefulSets(s.StatefulSets, nsIndex)
 				scrapeResults = append(scrapeResults, res...)
 			}
 
@@ -878,6 +2076,7 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -908,27 +2107,194 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 				},
 			},
 			expected: []metric.Update{
+				// replicaSet1: info/labels/annotations use replicaSetInfo (uid, namespace_uid, replicaset)
+				{
+					Name: metric.ReplicaSetInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.ReplicaSetLabel:   "replicaSet1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.ReplicaSetLabel:   "replicaSet1",
+					},
+				},
+				{
+					Name: metric.ReplicaSetLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.ReplicaSetLabel:   "replicaSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.ReplicaSetAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.ReplicaSetLabel:   "replicaSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				// replicaSet1 owner: uses replicaSetOwnerInfo (replicaset, namespace, uid) + owner fields
 				{
 					Name: metric.KubeReplicasetOwner,
 					Labels: map[string]string{
-						"replicaset":          "replicaSet1",
-						source.NamespaceLabel: "namespace1",
-						source.UIDLabel:       "uuid1",
-						source.OwnerNameLabel: "rollout1",
-						source.OwnerKindLabel: "Rollout",
+						source.ReplicaSetLabel: "replicaSet1",
+						source.NamespaceLabel:  "namespace1",
+						source.UIDLabel:        "uuid1",
+						source.OwnerNameLabel:  "rollout1",
+						source.OwnerKindLabel:  "Rollout",
+						source.OwnerUIDLabel:   "",
+						source.ControllerLabel: "false",
 					},
 					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.ReplicaSetLabel: "replicaSet1",
+						source.NamespaceLabel:  "namespace1",
+						source.UIDLabel:        "uuid1",
+						source.OwnerNameLabel:  "rollout1",
+						source.OwnerKindLabel:  "Rollout",
+						source.OwnerUIDLabel:   "",
+						source.ControllerLabel: "false",
+					},
+				},
+				// pureReplicaSet: info/labels/annotations
+				{
+					Name: metric.ReplicaSetInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid2",
+						source.NamespaceUIDLabel: "",
+						source.ReplicaSetLabel:   "pureReplicaSet",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid2",
+						source.NamespaceUIDLabel: "",
+						source.ReplicaSetLabel:   "pureReplicaSet",
+					},
+				},
+				{
+					Name: metric.ReplicaSetLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid2",
+						source.NamespaceUIDLabel: "",
+						source.ReplicaSetLabel:   "pureReplicaSet",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.ReplicaSetAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid2",
+						source.NamespaceUIDLabel: "",
+						source.ReplicaSetLabel:   "pureReplicaSet",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				// pureReplicaSet owner: no owners path uses <none> sentinel, no owner_uid/controller
+				{
+					Name: metric.KubeReplicasetOwner,
+					Labels: map[string]string{
+						source.ReplicaSetLabel: "pureReplicaSet",
+						source.NamespaceLabel:  "namespace1",
+						source.UIDLabel:        "uuid2",
+						source.OwnerNameLabel:  source.NoneLabelValue,
+						source.OwnerKindLabel:  source.NoneLabelValue,
+						source.ControllerLabel: "false",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.ReplicaSetLabel: "pureReplicaSet",
+						source.NamespaceLabel:  "namespace1",
+						source.UIDLabel:        "uuid2",
+						source.OwnerNameLabel:  source.NoneLabelValue,
+						source.OwnerKindLabel:  source.NoneLabelValue,
+						source.ControllerLabel: "false",
+					},
+				},
+			},
+		},
+		{
+			name: "with namespace index",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					ReplicaSets: []*clustercache.ReplicaSet{
+						{
+							Name:            "replicaSet1",
+							Namespace:       "namespace1",
+							UID:             "uuid1",
+							OwnerReferences: []metav1.OwnerReference{},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.ReplicaSetInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ReplicaSetLabel:   "replicaSet1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ReplicaSetLabel:   "replicaSet1",
+					},
+				},
+				{
+					Name: metric.ReplicaSetLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ReplicaSetLabel:   "replicaSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.ReplicaSetAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.ReplicaSetLabel:   "replicaSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
 				},
 				{
 					Name: metric.KubeReplicasetOwner,
 					Labels: map[string]string{
-						"replicaset":          "pureReplicaSet",
-						source.NamespaceLabel: "namespace1",
-						source.UIDLabel:       "uuid2",
-						source.OwnerNameLabel: source.NoneLabelValue,
-						source.OwnerKindLabel: source.NoneLabelValue,
+						source.ReplicaSetLabel: "replicaSet1",
+						source.NamespaceLabel:  "namespace1",
+						source.UIDLabel:        "uuid1",
+						source.OwnerNameLabel:  source.NoneLabelValue,
+						source.OwnerKindLabel:  source.NoneLabelValue,
+						source.ControllerLabel: "false",
 					},
 					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.ReplicaSetLabel: "replicaSet1",
+						source.NamespaceLabel:  "namespace1",
+						source.UIDLabel:        "uuid1",
+						source.OwnerNameLabel:  source.NoneLabelValue,
+						source.OwnerKindLabel:  source.NoneLabelValue,
+						source.ControllerLabel: "false",
+					},
 				},
 			},
 		},
@@ -936,9 +2302,13 @@ func Test_kubernetesScraper_scrapeReplicaSets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
+			nsIndex := make(map[string]types.UID, 0)
+			if tt.nsSetup != nil {
+				tt.nsSetup(nsIndex)
+			}
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				res := ks.scrapeReplicaSets(s.ReplicaSets)
+				res := ks.scrapeReplicaSets(s.ReplicaSets, nsIndex)
 				scrapeResults = append(scrapeResults, res...)
 			}
 
@@ -965,6 +2335,7 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		nsSetup  func(map[string]types.UID)
 		scrapes  []scrape
 		expected []metric.Update
 	}{
@@ -1002,23 +2373,23 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 				{
 					Name: metric.ResourceQuotaInfo,
 					Labels: map[string]string{
-						source.ResourceQuotaLabel: "resourceQuota1",
-						source.NamespaceLabel:     "namespace1",
 						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "",
+						source.ResourceQuotaLabel: "resourceQuota1",
 					},
 					Value: 0,
 					AdditionalInfo: map[string]string{
-						source.ResourceQuotaLabel: "resourceQuota1",
-						source.NamespaceLabel:     "namespace1",
 						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "",
+						source.ResourceQuotaLabel: "resourceQuota1",
 					},
 				},
 				{
 					Name: metric.KubeResourceQuotaSpecResourceRequests,
 					Labels: map[string]string{
-						source.ResourceQuotaLabel: "resourceQuota1",
-						source.NamespaceLabel:     "namespace1",
 						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "",
+						source.ResourceQuotaLabel: "resourceQuota1",
 						source.ResourceLabel:      "cpu",
 						source.UnitLabel:          "core",
 					},
@@ -1028,9 +2399,9 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 				{
 					Name: metric.KubeResourceQuotaSpecResourceRequests,
 					Labels: map[string]string{
-						source.ResourceQuotaLabel: "resourceQuota1",
-						source.NamespaceLabel:     "namespace1",
 						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "",
+						source.ResourceQuotaLabel: "resourceQuota1",
 						source.ResourceLabel:      "memory",
 						source.UnitLabel:          "byte",
 					},
@@ -1040,9 +2411,9 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 				{
 					Name: metric.KubeResourceQuotaSpecResourceLimits,
 					Labels: map[string]string{
-						source.ResourceQuotaLabel: "resourceQuota1",
-						source.NamespaceLabel:     "namespace1",
 						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "",
+						source.ResourceQuotaLabel: "resourceQuota1",
 						source.ResourceLabel:      "cpu",
 						source.UnitLabel:          "core",
 					},
@@ -1052,9 +2423,9 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 				{
 					Name: metric.KubeResourceQuotaSpecResourceLimits,
 					Labels: map[string]string{
-						source.ResourceQuotaLabel: "resourceQuota1",
-						source.NamespaceLabel:     "namespace1",
 						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "",
+						source.ResourceQuotaLabel: "resourceQuota1",
 						source.ResourceLabel:      "memory",
 						source.UnitLabel:          "byte",
 					},
@@ -1064,9 +2435,9 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 				{
 					Name: metric.KubeResourceQuotaStatusUsedResourceRequests,
 					Labels: map[string]string{
-						source.ResourceQuotaLabel: "resourceQuota1",
-						source.NamespaceLabel:     "namespace1",
 						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "",
+						source.ResourceQuotaLabel: "resourceQuota1",
 						source.ResourceLabel:      "cpu",
 						source.UnitLabel:          "core",
 					},
@@ -1076,9 +2447,9 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 				{
 					Name: metric.KubeResourceQuotaStatusUsedResourceRequests,
 					Labels: map[string]string{
-						source.ResourceQuotaLabel: "resourceQuota1",
-						source.NamespaceLabel:     "namespace1",
 						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "",
+						source.ResourceQuotaLabel: "resourceQuota1",
 						source.ResourceLabel:      "memory",
 						source.UnitLabel:          "byte",
 					},
@@ -1088,9 +2459,9 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 				{
 					Name: metric.KubeResourceQuotaStatusUsedResourceLimits,
 					Labels: map[string]string{
-						source.ResourceQuotaLabel: "resourceQuota1",
-						source.NamespaceLabel:     "namespace1",
 						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "",
+						source.ResourceQuotaLabel: "resourceQuota1",
 						source.ResourceLabel:      "cpu",
 						source.UnitLabel:          "core",
 					},
@@ -1100,13 +2471,64 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 				{
 					Name: metric.KubeResourceQuotaStatusUsedResourceLimits,
 					Labels: map[string]string{
-						source.ResourceQuotaLabel: "resourceQuota1",
-						source.NamespaceLabel:     "namespace1",
 						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "",
+						source.ResourceQuotaLabel: "resourceQuota1",
 						source.ResourceLabel:      "memory",
 						source.UnitLabel:          "byte",
 					},
 					Value:          1024,
+					AdditionalInfo: nil,
+				},
+			},
+		},
+		{
+			name: "with namespace index",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					ResourceQuotas: []*clustercache.ResourceQuota{
+						{
+							Name:      "resourceQuota1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+							Spec: v1.ResourceQuotaSpec{
+								Hard: v1.ResourceList{
+									v1.ResourceRequestsCPU: resource.MustParse("1"),
+								},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.ResourceQuotaInfo,
+					Labels: map[string]string{
+						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "ns-uuid1",
+						source.ResourceQuotaLabel: "resourceQuota1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "ns-uuid1",
+						source.ResourceQuotaLabel: "resourceQuota1",
+					},
+				},
+				{
+					Name: metric.KubeResourceQuotaSpecResourceRequests,
+					Labels: map[string]string{
+						source.UIDLabel:           "uuid1",
+						source.NamespaceUIDLabel:  "ns-uuid1",
+						source.ResourceQuotaLabel: "resourceQuota1",
+						source.ResourceLabel:      "cpu",
+						source.UnitLabel:          "core",
+					},
+					Value:          1,
 					AdditionalInfo: nil,
 				},
 			},
@@ -1116,9 +2538,13 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ks := &ClusterCacheScraper{}
+			nsIndex := make(map[string]types.UID, 0)
+			if tt.nsSetup != nil {
+				tt.nsSetup(nsIndex)
+			}
 			var scrapeResults []metric.Update
 			for _, s := range tt.scrapes {
-				res := ks.scrapeResourceQuotas(s.ResourceQuotas)
+				res := ks.scrapeResourceQuotas(s.ResourceQuotas, nsIndex)
 				scrapeResults = append(scrapeResults, res...)
 			}
 
@@ -1133,5 +2559,579 @@ func Test_kubernetesScraper_scrapeResourceQuotas(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func Test_kubernetesScraper_scrapeDaemonSets(t *testing.T) {
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+
+	type scrape struct {
+		DaemonSets []*clustercache.DaemonSet
+		Timestamp  time.Time
+	}
+	tests := []struct {
+		name     string
+		nsSetup  func(map[string]types.UID)
+		scrapes  []scrape
+		expected []metric.Update
+	}{
+		{
+			name: "simple",
+			scrapes: []scrape{
+				{
+					DaemonSets: []*clustercache.DaemonSet{
+						{
+							Name:      "daemonSet1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.DaemonSetInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+				},
+				{
+					Name: metric.DaemonSetLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.DaemonSetAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+			},
+		},
+		{
+			name: "with namespace index",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					DaemonSets: []*clustercache.DaemonSet{
+						{
+							Name:      "daemonSet1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.DaemonSetInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+				},
+				{
+					Name: metric.DaemonSetLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.DaemonSetAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+			},
+		},
+		{
+			name: "with container arguments",
+			scrapes: []scrape{
+				{
+					DaemonSets: []*clustercache.DaemonSet{
+						{
+							Name:      "daemonSet1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+							SpecContainers: []v1.Container{
+								{Args: []string{"--vgpu=2", "--bare-flag"}},
+							},
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.DaemonSetInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+				},
+				{
+					Name: metric.DaemonSetLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.DaemonSetAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.DaemonSetArguments,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+						source.ArgLabel:          "bare-flag",
+						source.ValueLabel:        "",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+						source.ArgLabel:          "bare-flag",
+						source.ValueLabel:        "",
+					},
+				},
+				{
+					Name: metric.DaemonSetArguments,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+						source.ArgLabel:          "vgpu",
+						source.ValueLabel:        "2",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.DaemonSetLabel:    "daemonSet1",
+						source.ArgLabel:          "vgpu",
+						source.ValueLabel:        "2",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ks := &ClusterCacheScraper{}
+			nsIndex := make(map[string]types.UID, 0)
+			if tt.nsSetup != nil {
+				tt.nsSetup(nsIndex)
+			}
+			var scrapeResults []metric.Update
+			for _, s := range tt.scrapes {
+				res := ks.scrapeDaemonSets(s.DaemonSets, nsIndex)
+				scrapeResults = append(scrapeResults, res...)
+			}
+
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
+			}
+
+			for i, expected := range tt.expected {
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
+				}
+			}
+		})
+	}
+}
+
+func Test_kubernetesScraper_scrapeJobs(t *testing.T) {
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+
+	type scrape struct {
+		Jobs      []*clustercache.Job
+		Timestamp time.Time
+	}
+	tests := []struct {
+		name     string
+		nsSetup  func(map[string]types.UID)
+		scrapes  []scrape
+		expected []metric.Update
+	}{
+		{
+			name: "simple",
+			scrapes: []scrape{
+				{
+					Jobs: []*clustercache.Job{
+						{
+							Name:      "job1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.JobInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.JobLabel:          "job1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.JobLabel:          "job1",
+					},
+				},
+				{
+					Name: metric.JobLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.JobLabel:          "job1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.JobAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.JobLabel:          "job1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+			},
+		},
+		{
+			name: "with namespace index",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					Jobs: []*clustercache.Job{
+						{
+							Name:      "job1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.JobInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.JobLabel:          "job1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.JobLabel:          "job1",
+					},
+				},
+				{
+					Name: metric.JobLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.JobLabel:          "job1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.JobAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.JobLabel:          "job1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ks := &ClusterCacheScraper{}
+			nsIndex := make(map[string]types.UID, 0)
+			if tt.nsSetup != nil {
+				tt.nsSetup(nsIndex)
+			}
+			var scrapeResults []metric.Update
+			for _, s := range tt.scrapes {
+				res := ks.scrapeJobs(s.Jobs, nsIndex)
+				scrapeResults = append(scrapeResults, res...)
+			}
+
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
+			}
+
+			for i, expected := range tt.expected {
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
+				}
+			}
+		})
+	}
+}
+
+func Test_kubernetesScraper_scrapeCronJobs(t *testing.T) {
+	start1, _ := time.Parse(time.RFC3339, Start1Str)
+
+	type scrape struct {
+		CronJobs  []*clustercache.CronJob
+		Timestamp time.Time
+	}
+	tests := []struct {
+		name     string
+		nsSetup  func(map[string]types.UID)
+		scrapes  []scrape
+		expected []metric.Update
+	}{
+		{
+			name: "simple",
+			scrapes: []scrape{
+				{
+					CronJobs: []*clustercache.CronJob{
+						{
+							Name:      "cronJob1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.CronJobInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.CronJobLabel:      "cronJob1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.CronJobLabel:      "cronJob1",
+					},
+				},
+				{
+					Name: metric.CronJobLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.CronJobLabel:      "cronJob1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.CronJobAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "",
+						source.CronJobLabel:      "cronJob1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+			},
+		},
+		{
+			name: "with namespace index",
+			nsSetup: func(nsIndex map[string]types.UID) {
+				nsIndex["namespace1"] = "ns-uuid1"
+			},
+			scrapes: []scrape{
+				{
+					CronJobs: []*clustercache.CronJob{
+						{
+							Name:      "cronJob1",
+							Namespace: "namespace1",
+							UID:       "uuid1",
+						},
+					},
+					Timestamp: start1,
+				},
+			},
+			expected: []metric.Update{
+				{
+					Name: metric.CronJobInfo,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.CronJobLabel:      "cronJob1",
+					},
+					Value: 0,
+					AdditionalInfo: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.CronJobLabel:      "cronJob1",
+					},
+				},
+				{
+					Name: metric.CronJobLabels,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.CronJobLabel:      "cronJob1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+				{
+					Name: metric.CronJobAnnotations,
+					Labels: map[string]string{
+						source.UIDLabel:          "uuid1",
+						source.NamespaceUIDLabel: "ns-uuid1",
+						source.CronJobLabel:      "cronJob1",
+					},
+					Value:          0,
+					AdditionalInfo: map[string]string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ks := &ClusterCacheScraper{}
+			nsIndex := make(map[string]types.UID, 0)
+			if tt.nsSetup != nil {
+				tt.nsSetup(nsIndex)
+			}
+			var scrapeResults []metric.Update
+			for _, s := range tt.scrapes {
+				res := ks.scrapeCronJobs(s.CronJobs, nsIndex)
+				scrapeResults = append(scrapeResults, res...)
+			}
+
+			if len(scrapeResults) != len(tt.expected) {
+				t.Errorf("Expected result length of %d, got %d", len(tt.expected), len(scrapeResults))
+			}
+
+			for i, expected := range tt.expected {
+				got := scrapeResults[i]
+				if !reflect.DeepEqual(expected, got) {
+					t.Errorf("Result did not match expected at index %d: got %v, want %v", i, got, expected)
+				}
+			}
+		})
+	}
+}
+
+func TestClusterCacheScraper_Scrape_PodRetainsUIDsOfRemovedReferents(t *testing.T) {
+	cache := &clustercache.MockClusterCache{
+		Nodes:      []*clustercache.Node{{Name: "node-a", UID: "uid-node-a"}},
+		Namespaces: []*clustercache.Namespace{{Name: "ns-1", UID: "uid-ns-1"}},
+		Pods: []*clustercache.Pod{
+			{
+				Name:      "pod-a",
+				Namespace: "ns-1",
+				UID:       "uid-pod-a",
+				Spec:      clustercache.PodSpec{NodeName: "node-a"},
+			},
+		},
+	}
+	ccs := newClusterCacheScraper(cache, nil).(*ClusterCacheScraper)
+
+	podInfo := func(updates []metric.Update) map[string]string {
+		for _, u := range updates {
+			if u.Name == metric.PodInfo {
+				return u.AdditionalInfo
+			}
+		}
+		t.Fatalf("no %s update found", metric.PodInfo)
+		return nil
+	}
+
+	first := podInfo(ccs.Scrape())
+	if first[source.NodeUIDLabel] != "uid-node-a" || first[source.NamespaceUIDLabel] != "uid-ns-1" {
+		t.Fatalf("unexpected pod info on first scrape: %v", first)
+	}
+
+	// the node and namespace are removed from the cluster cache before the pod
+	cache.Nodes = nil
+	cache.Namespaces = nil
+
+	second := podInfo(ccs.Scrape())
+	if second[source.NodeUIDLabel] != "uid-node-a" {
+		t.Errorf("expected node UID to be retained, got %q", second[source.NodeUIDLabel])
+	}
+	if second[source.NamespaceUIDLabel] != "uid-ns-1" {
+		t.Errorf("expected namespace UID to be retained, got %q", second[source.NamespaceUIDLabel])
 	}
 }

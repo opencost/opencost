@@ -15,7 +15,7 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 
 	windowStr := qp.Get("window", "")
 	if windowStr == "" {
-		return nil, fmt.Errorf("missing require window param")
+		return nil, fmt.Errorf("missing required 'window' parameter")
 	}
 
 	window, err := opencost.ParseWindowUTC(windowStr)
@@ -49,7 +49,7 @@ func ParseCloudCostRequest(qp httputil.QueryParams) (*QueryRequest, error) {
 		parser := cloudcost.NewCloudCostFilterParser()
 		filter, err = parser.Parse(filterString)
 		if err != nil {
-			return nil, fmt.Errorf("Parsing 'filter' parameter: %s", err)
+			return nil, fmt.Errorf("invalid 'filter' parameter: %w", err)
 		}
 	}
 
@@ -96,6 +96,11 @@ func ParseCloudCostViewRequest(qp httputil.QueryParams) (*ViewQueryRequest, erro
 		return nil, fmt.Errorf("error parsing 'sortBy': %w", err)
 	}
 
+	// includeCount controls whether the (potentially very expensive) NumResults
+	// count is computed alongside the combined cost. Defaults to true; callers
+	// pass includeCount=false to skip it.
+	includeCount := qp.GetBool("includeCount", true)
+
 	return &ViewQueryRequest{
 		QueryRequest:     *qr,
 		CostMetricName:   costMetricName,
@@ -104,6 +109,7 @@ func ParseCloudCostViewRequest(qp httputil.QueryParams) (*ViewQueryRequest, erro
 		Offset:           offset,
 		SortDirection:    order,
 		SortColumn:       sortColumn,
+		SkipCount:        !includeCount,
 	}, nil
 }
 

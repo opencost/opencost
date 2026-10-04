@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	apiPrefix    = "/api/v1"
 	epQuery      = apiPrefix + "/query"
 	epQueryRange = apiPrefix + "/query_range"
 )

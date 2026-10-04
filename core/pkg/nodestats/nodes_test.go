@@ -125,6 +125,9 @@ func (tcc *NodesOnlyClusterCache) GetAllStorageClasses() []*clustercache.Storage
 // GetAllJobs returns all the cached jobs
 func (tcc *NodesOnlyClusterCache) GetAllJobs() []*clustercache.Job { return nil }
 
+// GetAllJobs returns all the cached cronjobs
+func (tcc *NodesOnlyClusterCache) GetAllCronJobs() []*clustercache.CronJob { return nil }
+
 // GetAllPodDisruptionBudgets returns all cached pod disruption budgets
 func (tcc *NodesOnlyClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
 	return nil

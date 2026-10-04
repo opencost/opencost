@@ -311,9 +311,25 @@ func (ing *CustomCostIngestor) Status() IngestorStatus {
 		LastRun:     ing.lastRun,
 		NextRun:     ing.lastRun.Add(ing.refreshRate).UTC(),
 		Runs:        ing.runs,
-		Coverage:    ing.coverage,
+		Coverage:    ing.copyCoverage(),
 		RefreshRate: ing.refreshRate,
 	}
+}
+
+// copyCoverage returns a shallow copy of the coverage map taken under the lock.
+// Returning ing.coverage directly hands a live reference to callers (the
+// /customCost/status handler serializes it, which iterates it), racing
+// expandCoverage() writing under coverageLock and risking a fatal "concurrent
+// map iteration and map write" crash. expandCoverage replaces Window values
+// wholesale, so a shallow copy is sufficient.
+func (ing *CustomCostIngestor) copyCoverage() map[string]opencost.Window {
+	ing.coverageLock.Lock()
+	defer ing.coverageLock.Unlock()
+	coverage := make(map[string]opencost.Window, len(ing.coverage))
+	for plugin, window := range ing.coverage {
+		coverage[plugin] = window
+	}
+	return coverage
 }
 
 func (ing *CustomCostIngestor) build(rebuild bool) {

@@ -64,15 +64,24 @@ func (usage *CpuUsageMetric) Value() float64 {
 		return 0.0
 	}
 
-	v1, t1 := usage.current.update.Value, usage.current.timestamp
-	v2, t2 := usage.prev.update.Value, usage.prev.timestamp
+	curr, t1 := usage.current.update.Value, usage.current.timestamp
+	prev, t2 := usage.prev.update.Value, usage.prev.timestamp
+
+	// handle case where current value is less than the previous value, signalling
+	// that the running total was reset, or overflowed.
+	if curr < prev {
+		return 0.0
+	}
+
 	seconds := t1.Sub(t2).Seconds()
+
+	// ensure positive non-zero duration between samples
 	if seconds <= 0.0 {
 		return 0.0
 	}
 
-	irate := (v1 - v2) / seconds
-	return irate
+	irate := (curr - prev) / seconds
+	return max(0.0, irate)
 }
 
 // Shift will set the previous to the current metric, and set the current metric to nil.

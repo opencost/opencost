@@ -78,6 +78,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid parameters (e.g. `window`, `step`, `accumulateBy`)"
+          },
+          "500": {
+            "description": "Internal server error — the allocation query failed"
           }
         }
       }
@@ -106,6 +112,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid `window` parameter"
+          },
+          "500": {
+            "description": "Internal server error — computing or filtering assets failed"
           }
         }
       }
@@ -113,7 +125,7 @@
     "/cloudCost": {
       "get": {
         "summary": "query for cloud provider billing data",
-        "description": "Retrieves non-K8s cloud provider costs via cloud integration.",
+        "description": "Retrieves non-K8s cloud provider costs via cloud integration. Requires `CLOUD_COST_ENABLED=true`; when disabled this route is not registered and requests return 404.",
         "parameters": [
           {
             "name": "window",
@@ -134,6 +146,346 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid parameters"
+          },
+          "500": {
+            "description": "Internal server error — the cloud cost query failed"
+          }
+        }
+      }
+    },
+    "/inferenceCost/total": {
+      "get": {
+        "summary": "query for aggregated AI inference costs",
+        "description": "Returns a single aggregated InferenceCostSet covering the full requested window. Costs are broken down per model/namespace with blended and differentiated (input/output) cost-per-million-token rates under the chosen cost basis. Requires `INFERENCE_COST_ENABLED=true`.",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": true,
+            "description": "Duration of time over which to query. Accepts durations like `7d`, `24h`, or RFC3339 date pairs like `2024-01-01T00:00:00Z,2024-01-02T00:00:00Z`.",
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "7days": {
+                "value": "7d"
+              },
+              "24hours": {
+                "value": "24h"
+              },
+              "range": {
+                "value": "2024-01-01T00:00:00Z,2024-01-08T00:00:00Z"
+              }
+            }
+          },
+          {
+            "name": "costBasis",
+            "in": "query",
+            "description": "`allocation` (default): max(request,usage) × price + idle + shared infra; reconciles to the infrastructure bill. `usage`: actual consumption only; idle and shared infra costs excluded; does not reconcile to the bill.",
+            "schema": {
+              "type": "string",
+              "enum": ["allocation", "usage"],
+              "default": "allocation"
+            }
+          },
+          {
+            "name": "aggregate",
+            "in": "query",
+            "description": "Comma-separated dimensions to aggregate by. Supported values: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "model_name"
+          },
+          {
+            "name": "accumulate",
+            "in": "query",
+            "description": "Step size used internally before accumulating into the total. Accepted values: `hour`, `day`, `week`, `month`. Optional for this endpoint.",
+            "schema": {
+              "type": "string",
+              "enum": ["hour", "day", "week", "month"]
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "description": "Filter results by property values. Format: `prop:value` for a single filter, `prop:value+prop:value` for AND logic. Supported properties: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "namespace:llm-d-prod+model_name:Qwen/Qwen3-32B"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferenceCostSetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid parameters"
+          },
+          "500": {
+            "description": "Internal server error — the inference cost query failed"
+          },
+          "501": {
+            "description": "Inference cost tracking is not enabled (`INFERENCE_COST_ENABLED` is not set to `true`)"
+          }
+        }
+      }
+    },
+    "/inferenceCost/timeseries": {
+      "get": {
+        "summary": "query for AI inference costs as a time series",
+        "description": "Returns one InferenceCostSet per time step within the requested window. The `accumulate` parameter is required and defines the step size. All other parameters are identical to `/inferenceCost/total`. Requires `INFERENCE_COST_ENABLED=true`.",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": true,
+            "description": "Duration of time over which to query. Accepts durations like `7d`, `24h`, or RFC3339 date pairs.",
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "7days": {
+                "value": "7d"
+              },
+              "range": {
+                "value": "2024-01-01T00:00:00Z,2024-01-08T00:00:00Z"
+              }
+            }
+          },
+          {
+            "name": "accumulate",
+            "in": "query",
+            "required": true,
+            "description": "Step size for each time-series data point. Required for this endpoint.",
+            "schema": {
+              "type": "string",
+              "enum": ["hour", "day", "week", "month"]
+            },
+            "example": "day"
+          },
+          {
+            "name": "costBasis",
+            "in": "query",
+            "description": "`allocation` (default) or `usage`. See `/inferenceCost/total` for details.",
+            "schema": {
+              "type": "string",
+              "enum": ["allocation", "usage"],
+              "default": "allocation"
+            }
+          },
+          {
+            "name": "aggregate",
+            "in": "query",
+            "description": "Comma-separated dimensions to aggregate by: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "model_name"
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "description": "Filter by property values. Format: `prop:value+prop:value` (AND logic). Supported properties: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferenceCostSetRangeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid parameters (including missing `accumulate`)"
+          },
+          "500": {
+            "description": "Internal server error — the inference cost query failed"
+          },
+          "501": {
+            "description": "Inference cost tracking is not enabled (`INFERENCE_COST_ENABLED` is not set to `true`)"
+          }
+        }
+      }
+    },
+    "/inferenceCost/total": {
+      "get": {
+        "summary": "query for aggregated AI inference costs",
+        "description": "Returns a single aggregated InferenceCostSet covering the full requested window. Costs are broken down per model/namespace with blended and differentiated (input/output) cost-per-million-token rates under the chosen cost basis. Requires `INFERENCE_COST_ENABLED=true`.",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": true,
+            "description": "Duration of time over which to query. Accepts durations like `7d`, `24h`, or RFC3339 date pairs like `2024-01-01T00:00:00Z,2024-01-02T00:00:00Z`.",
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "7days": {
+                "value": "7d"
+              },
+              "24hours": {
+                "value": "24h"
+              },
+              "range": {
+                "value": "2024-01-01T00:00:00Z,2024-01-08T00:00:00Z"
+              }
+            }
+          },
+          {
+            "name": "costBasis",
+            "in": "query",
+            "description": "`allocation` (default): max(request,usage) × price + idle + shared infra; reconciles to the infrastructure bill. `usage`: actual consumption only; idle and shared infra costs excluded; does not reconcile to the bill.",
+            "schema": {
+              "type": "string",
+              "enum": ["allocation", "usage"],
+              "default": "allocation"
+            }
+          },
+          {
+            "name": "aggregate",
+            "in": "query",
+            "description": "Comma-separated dimensions to aggregate by. Supported values: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "model_name"
+          },
+          {
+            "name": "accumulate",
+            "in": "query",
+            "description": "Step size used internally before accumulating into the total. Accepted values: `hour`, `day`, `week`, `month`. Optional for this endpoint.",
+            "schema": {
+              "type": "string",
+              "enum": ["hour", "day", "week", "month"]
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "description": "Filter results by property values. Format: `prop:value` for a single filter, `prop:value+prop:value` for AND logic. Supported properties: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "namespace:llm-d-prod+model_name:Qwen/Qwen3-32B"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferenceCostSetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid parameters"
+          },
+          "501": {
+            "description": "Inference cost tracking is not enabled (`INFERENCE_COST_ENABLED` is not set to `true`)"
+          }
+        }
+      }
+    },
+    "/inferenceCost/timeseries": {
+      "get": {
+        "summary": "query for AI inference costs as a time series",
+        "description": "Returns one InferenceCostSet per time step within the requested window. The `accumulate` parameter is required and defines the step size. All other parameters are identical to `/inferenceCost/total`. Requires `INFERENCE_COST_ENABLED=true`.",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": true,
+            "description": "Duration of time over which to query. Accepts durations like `7d`, `24h`, or RFC3339 date pairs.",
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "7days": {
+                "value": "7d"
+              },
+              "range": {
+                "value": "2024-01-01T00:00:00Z,2024-01-08T00:00:00Z"
+              }
+            }
+          },
+          {
+            "name": "accumulate",
+            "in": "query",
+            "required": true,
+            "description": "Step size for each time-series data point. Required for this endpoint.",
+            "schema": {
+              "type": "string",
+              "enum": ["hour", "day", "week", "month"]
+            },
+            "example": "day"
+          },
+          {
+            "name": "costBasis",
+            "in": "query",
+            "description": "`allocation` (default) or `usage`. See `/inferenceCost/total` for details.",
+            "schema": {
+              "type": "string",
+              "enum": ["allocation", "usage"],
+              "default": "allocation"
+            }
+          },
+          {
+            "name": "aggregate",
+            "in": "query",
+            "description": "Comma-separated dimensions to aggregate by: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "model_name"
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "description": "Filter by property values. Format: `prop:value+prop:value` (AND logic). Supported properties: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferenceCostSetRangeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — missing or invalid parameters (including missing `accumulate`)"
+          },
+          "501": {
+            "description": "Inference cost tracking is not enabled (`INFERENCE_COST_ENABLED` is not set to `true`)"
           }
         }
       }
@@ -198,17 +550,7 @@
             "type": "number"
           },
           "window": {
-            "type": "object",
-            "properties": {
-              "start": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "end": {
-                "type": "string",
-                "format": "date-time"
-              }
-            }
+            "$ref": "#/components/schemas/Window"
           },
           "properties": {
             "type": "object",
@@ -254,17 +596,7 @@
             "type": "string"
           },
           "window": {
-            "type": "object",
-            "properties": {
-              "start": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "end": {
-                "type": "string",
-                "format": "date-time"
-              }
-            }
+            "$ref": "#/components/schemas/Window"
           }
         }
       },
@@ -309,6 +641,180 @@
             "properties": {
               "cost": {
                 "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "Window": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InferenceCostProperties": {
+        "type": "object",
+        "properties": {
+          "modelName": {
+            "type": "string",
+            "description": "Name of the AI model (e.g. `Qwen/Qwen3-32B`)."
+          },
+          "modelVersion": {
+            "type": "string",
+            "description": "Version of the model. Omitted when not available."
+          },
+          "namespace": {
+            "type": "string",
+            "description": "Kubernetes namespace where the model is deployed."
+          },
+          "cluster": {
+            "type": "string",
+            "description": "Cluster identifier. Omitted when not available."
+          },
+          "pod": {
+            "type": "string",
+            "description": "Kubernetes pod name. Omitted when not available."
+          },
+          "controller": {
+            "type": "string",
+            "description": "Kubernetes controller name (e.g. deployment, statefulset). Omitted when not available."
+          },
+          "controllerKind": {
+            "type": "string",
+            "description": "Kubernetes controller kind (e.g. Deployment, StatefulSet). Omitted when not available."
+          },
+          "container": {
+            "type": "string",
+            "description": "Container name within the pod. Omitted when not available."
+          },
+          "workloadType": {
+            "type": "string",
+            "description": "Type of workload generating these costs. Currently always 'inference'. Future values may include 'training', 'fine-tuning', etc.",
+            "example": "inference"
+          }
+        }
+      },
+      "InferenceCostResponse": {
+        "type": "object",
+        "description": "Inference cost data for a single model/namespace combination within a time window.",
+        "properties": {
+          "properties": {
+            "$ref": "#/components/schemas/InferenceCostProperties"
+          },
+          "window": {
+            "$ref": "#/components/schemas/Window"
+          },
+          "costBasis": {
+            "type": "string",
+            "enum": ["allocation", "usage"],
+            "description": "The cost basis used for this response. `allocation`: max(request,usage) × price + idle + shared infra; reconciles to the bill. `usage`: actual consumption only; idle and shared infra costs excluded; does not reconcile to the bill."
+          },
+          "totalCost": {
+            "type": "number",
+            "description": "Total infrastructure cost for the window under the chosen cost basis, in USD."
+          },
+          "promptTokens": {
+            "type": "number",
+            "description": "Total prompt (input) tokens processed in the window."
+          },
+          "generationTokens": {
+            "type": "number",
+            "description": "Total generation (output) tokens produced in the window."
+          },
+          "totalTokens": {
+            "type": "number",
+            "description": "Total tokens delivered (prompt + generation)."
+          },
+          "costPerMillionTokens": {
+            "type": "number",
+            "description": "Blended infrastructure cost per 1M delivered tokens (input + output combined), in USD."
+          },
+          "inputCost": {
+            "type": "number",
+            "description": "Portion of totalCost attributed to input (prompt) processing, in USD."
+          },
+          "outputCost": {
+            "type": "number",
+            "description": "Portion of totalCost attributed to output (generation) processing, in USD."
+          },
+          "inputCostPerMillionTokens": {
+            "type": "number",
+            "description": "Infrastructure cost per 1M delivered input (prompt) tokens, in USD. Uses promptTokens as the denominator so the rate is meaningful regardless of KV cache hit rate. See cacheSavingsFraction for cache utilization."
+          },
+          "outputCostPerMillionTokens": {
+            "type": "number",
+            "description": "Infrastructure cost per 1M output (generation) tokens, in USD."
+          },
+          "cacheSavingsFraction": {
+            "type": "number",
+            "description": "Fraction of prompt tokens served from the KV cache (range 0–1). Sourced from vllm:prefix_cache_hits_total, which reports cached tokens directly. Zero when prefix caching is disabled (see allocationMethod), when no cache hits occurred in the window, or when the metric is unavailable."
+          },
+          "allocationMethod": {
+            "type": "string",
+            "enum": ["compute_time", "prefix_caching_off", "multiplier"],
+            "description": "Method used to split costs between input and output tokens. `compute_time`: split proportionally by vLLM prefill/decode time; KV cache savings are reflected in cacheSavingsFraction. `prefix_caching_off`: same time-based split but prefix caching is explicitly disabled on the vLLM instance — cacheSavingsFraction will be zero by configuration. `multiplier`: fixed output/input ratio (fallback when timing metrics are unavailable)."
+          }
+        }
+      },
+      "InferenceCostSet": {
+        "type": "object",
+        "description": "A collection of InferenceCostResponse entries for a single time window, keyed by aggregation key (e.g. `modelName:namespace`).",
+        "properties": {
+          "inferenceCosts": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/InferenceCostResponse"
+            }
+          },
+          "window": {
+            "$ref": "#/components/schemas/Window"
+          }
+        }
+      },
+      "InferenceCostSetResponse": {
+        "type": "object",
+        "description": "Response envelope for /inferenceCost/total.",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/InferenceCostSet"
+          }
+        }
+      },
+      "InferenceCostSetRangeResponse": {
+        "type": "object",
+        "description": "Response envelope for /inferenceCost/timeseries.",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "inferenceCostSets": {
+                "type": "array",
+                "description": "One InferenceCostSet per time step.",
+                "items": {
+                  "$ref": "#/components/schemas/InferenceCostSet"
+                }
+              },
+              "window": {
+                "$ref": "#/components/schemas/Window"
               }
             }
           }

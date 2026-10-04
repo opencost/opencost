@@ -5,42 +5,60 @@ import (
 	"time"
 )
 
-type Pod struct {
-	UID                  string            `json:"uid"`
-	NamespaceUID         string            `json:"namespaceUid"`
-	OwnerUID             string            `json:"ownerUid"` // Reference to Owner (Deployment, StatefulSet, etc.)
-	NodeUID              string            `json:"nodeUid"`
-	Name                 string            `json:"name"`
-	Labels               map[string]string `json:"labels,omitempty"`
-	Annotations          map[string]string `json:"annotations,omitempty"`
-	DurationSeconds      Measurement       `json:"durationSeconds"`
-	NetworkTransferBytes Measurement       `json:"networkTransferBytes"`
-	NetworkReceiveBytes  Measurement       `json:"networkReceiveBytes"`
-	Start                time.Time         `json:"start,omitempty"` // Pod creation/start timestamp
-	End                  time.Time         `json:"end,omitempty"`   // Pod deletion/end timestamp (nil if still running)
+// @bingen:generate:PodPVCVolume
+type PodPVCVolume struct {
+	Name                     string `json:"name"`
+	PersistentVolumeClaimUID string `json:"persistentVolumeClaimUid"`
 }
 
-func (kms *KubeModelSet) RegisterPod(uid, name, namespace string) error {
-	if uid == "" {
-		err := fmt.Errorf("UID is nil for Pod '%s'", name)
+// @bingen:generate:Pod
+type Pod struct {
+	UID                   string                 `json:"uid"`
+	NamespaceUID          string                 `json:"namespaceUid"`
+	NodeUID               string                 `json:"nodeUid"`
+	Name                  string                 `json:"name"`
+	Owners                []Owner                `json:"owners"`
+	PVCVolumes            []PodPVCVolume         `json:"pvcVolumes,omitempty"`
+	Labels                map[string]string      `json:"labels,omitempty"`
+	Annotations           map[string]string      `json:"annotations,omitempty"`
+	NetworkTrafficDetails []NetworkTrafficDetail `json:"networkTrafficDetails,omitempty"`
+	Start                 time.Time              `json:"start"`
+	End                   time.Time              `json:"end"`
+}
+
+func (p *Pod) ValidatePod(window Window) error {
+	if p.UID == "" {
+		return fmt.Errorf("UID is missing for Pod with name '%s'", p.Name)
+	}
+
+	if p.Name == "" {
+		return fmt.Errorf("Name is missing for Pod '%s'", p.UID)
+	}
+
+	if p.NamespaceUID == "" {
+		return fmt.Errorf("NamespaceUID is missing for Pod '%s'", p.UID)
+	}
+
+	if err := checkWindow(window, p.Start, p.End); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (kms *KubeModelSet) RegisterPod(pod *Pod) error {
+	if err := pod.ValidatePod(kms.Window); err != nil {
+		err = fmt.Errorf("RegisterPod: invalid pod: %w", err)
 		kms.Error(err)
 		return err
 	}
 
-	if _, ok := kms.Pods[uid]; !ok {
-		namespaceUID := ""
-
-		if ns, ok := kms.idx.namespaceByName[namespace]; !ok {
-			kms.Warnf("RegisterPod(%s, %s, %s): missing namespace '%s'", uid, name, namespace, namespace)
-		} else {
-			namespaceUID = ns.UID
+	if _, ok := kms.Pods[pod.UID]; !ok {
+		if kms.Cluster == nil {
+			kms.Warnf("RegisterPod: Cluster is nil")
 		}
 
-		kms.Pods[uid] = &Pod{
-			UID:          uid,
-			Name:         name,
-			NamespaceUID: namespaceUID,
-		}
+		kms.Pods[pod.UID] = pod
 
 		kms.Metadata.ObjectCount++
 	}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRCSForKey(t *testing.T) {
@@ -38,6 +39,10 @@ func TestRCSForKey(t *testing.T) {
 			"0.014000",
 			false,
 		},
+		"unknown-shape.2o.32g.1_2b": {
+			"0.600000",
+			false,
+		},
 		"unknown-shape": {
 			"0.600000",
 			false,
@@ -58,8 +63,59 @@ func TestRCSForKey(t *testing.T) {
 				Memory: "0.1",
 				GPU:    "0.3",
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assertFloatStrings(t, testCase.cost, node.Cost, 0.001)
+		})
+	}
+}
+
+func TestRCSForKey_KarpenterFlexShape(t *testing.T) {
+	rcs, server := testSetupRateCardStore(t)
+	defer server.Close()
+
+	defaultPricing := DefaultPricing{
+		OCPU:   "0.2",
+		Memory: "0.1",
+		GPU:    "0.3",
+	}
+
+	testCases := map[string]struct {
+		baseShape     string
+		flexShape     string
+		cpuMultiplier float64
+		assertCost    bool
+	}{
+		"baseline-1_1": {
+			baseShape:     "VM.Standard.E3.Flex",
+			flexShape:     "VM.Standard.E3.Flex.2o.32g.1_1b",
+			cpuMultiplier: 1,
+			assertCost:    true,
+		},
+		"baseline-1_2": {
+			baseShape:     "VM.Standard.E4.Flex",
+			flexShape:     "VM.Standard.E4.Flex.8o.32g.1_2b",
+			cpuMultiplier: 0.5,
+		},
+		"baseline-1_8": {
+			baseShape:     "VM.Standard.E4.Flex",
+			flexShape:     "VM.Standard.E4.Flex.8o.32g.1_8b",
+			cpuMultiplier: 0.125,
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			baseNode, _, err := rcs.ForKey(&oracleKey{instanceType: testCase.baseShape, labels: make(map[string]string)}, defaultPricing)
+			require.NoError(t, err)
+
+			flexNode, _, err := rcs.ForKey(&oracleKey{instanceType: testCase.flexShape, labels: make(map[string]string)}, defaultPricing)
+			require.NoError(t, err)
+
+			assertFloatStrings(t, baseNode.RAMCost, flexNode.RAMCost, 0.000001)
+			assert.InDelta(t, mustParseFloat(t, baseNode.VCPUCost)*testCase.cpuMultiplier, mustParseFloat(t, flexNode.VCPUCost), 0.000001)
+			if testCase.assertCost {
+				assertFloatStrings(t, baseNode.Cost, flexNode.Cost, 0.000001)
+			}
 		})
 	}
 }
@@ -90,7 +146,7 @@ func TestRCSForPVK(t *testing.T) {
 			pv, err := rcs.ForPVK(pvk, DefaultPricing{
 				Storage: "0.25",
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assertFloatStrings(t, testCase.cost, pv.Cost, 0.00001)
 		})
 	}
@@ -150,7 +206,7 @@ func TestRCSEgressForRegion(t *testing.T) {
 
 func testSetupRateCardStore(t *testing.T) (*RateCardStore, *httptest.Server) {
 	pricesUSDBytes, err := os.ReadFile("test/prices_usd.json")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write(pricesUSDBytes)
@@ -158,15 +214,23 @@ func testSetupRateCardStore(t *testing.T) (*RateCardStore, *httptest.Server) {
 
 	rcs := NewRateCardStore(server.URL, currencyCodeUSD)
 	store, err := rcs.Refresh()
-	assert.NoError(t, err)
-	assert.True(t, len(store) > 0)
+	require.NoError(t, err)
+	require.NotEmpty(t, store)
 	return rcs, server
 }
 
 func assertFloatStrings(t *testing.T, s1, s2 string, delta float64) {
+	t.Helper()
 	f1, err := strconv.ParseFloat(s1, 64)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	f2, err := strconv.ParseFloat(s2, 64)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.InDelta(t, f1, f2, delta)
+}
+
+func mustParseFloat(t *testing.T, s string) float64 {
+	t.Helper()
+	f, err := strconv.ParseFloat(s, 64)
+	require.NoError(t, err)
+	return f
 }

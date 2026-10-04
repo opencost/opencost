@@ -1,0 +1,336 @@
+package aws
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/opencost/opencost/core/pkg/cloud"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/pricing"
+	"github.com/opencost/opencost/core/pkg/unit"
+)
+
+type AWSPricingSourceConfig struct {
+	CurrencyCode string
+}
+
+type AWSPricingSource struct {
+	config AWSPricingSourceConfig
+}
+
+func NewAWSPricingSource(cfg AWSPricingSourceConfig) *AWSPricingSource {
+	return &AWSPricingSource{config: cfg}
+}
+
+func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
+	log.Infof("PricingSource (AWS): starting EC2 pricing list download (large file, this may take a while)")
+	start := time.Now()
+
+	ps := &pricing.PricingSet{
+		NodePricing:             []*pricing.NodePricing{},
+		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+		ServicePricing:          []*pricing.ServicePricing{},
+		// EKS charges $0.10/hr per cluster for cluster management
+		ClusterPricing: []*pricing.ClusterPricing{
+			{
+				Properties: pricing.ClusterPricingProperties{
+					Provider: cloud.ProviderAWS,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceCluster: {
+						Unit:  unit.Hour,
+						Price: 0.10,
+					},
+				},
+			},
+		},
+	}
+	skuToNodeKey := make(map[string]nodeKey)
+	seenNodeKeys := make(map[nodeKey]struct{})
+	skuToVolumeKey := make(map[string]volumeKey)
+	seenVolumeKeys := make(map[volumeKey]struct{})
+	skuToLBRegion := make(map[string]string)
+	seenLBRegions := make(map[string]struct{})
+
+	// Regions is used by the spotAPI to know what to query
+	regions := make(map[string]struct{})
+
+	var productCount, termCount int
+	const logInterval = 50000
+
+	region := ""
+	if strings.ToUpper(p.config.CurrencyCode) == "CNY" {
+		region = "cn-north-1"
+		log.Infof("PricingSource (AWS): Using China pricing endpoint for CNY currency")
+	}
+
+	// When parsing product we create keys based off of product attributes and link those to a SKU.
+	handleProduct := func(product *PriceListEC2Product) {
+		productCount++
+		if productCount%logInterval == 0 {
+			log.Infof("PricingSource (AWS): processed %d products...", productCount)
+		}
+		attr := product.Attributes
+		if attr.LocationType != "AWS Region" {
+			return
+		}
+
+		// Handle EC2 instances.
+		// We only want the base Linux on-demand price:
+		//   - UsageType must be a BoxUsage (compute hour charge)
+		//   - CapacityStatus must be "Used" (not a capacity reservation)
+		//   - MarketOption must be "OnDemand" (not Spot)
+		//   - OperatingSystem must be Linux (or not returned by API)
+		//   - PreInstalledSw must be "NA" (no paid software bundle)
+		// All of these can appear empty when the API omits the field, so we
+		// treat empty as "unknown" and require the affirmative value where it
+		// matters, except OperatingSystem where empty/NA is acceptable.
+		if (strings.HasPrefix(attr.UsageType, "BoxUsage") || strings.Contains(attr.UsageType, "-BoxUsage")) &&
+			(attr.CapacityStatus == "Used" || attr.CapacityStatus == "") &&
+			(attr.MarketOption == "OnDemand" || attr.MarketOption == "") {
+
+			// Skip non-Linux operating systems; allow empty/NA (field may not be returned).
+			if attr.OperatingSystem != "" && attr.OperatingSystem != "NA" && attr.OperatingSystem != "Linux" {
+				return
+			}
+
+			// Skip software bundles (SQL Server, etc.); allow empty (field may not be returned).
+			if attr.PreInstalledSw != "" && attr.PreInstalledSw != "NA" {
+				return
+			}
+
+			// Skip capacity reservations; allow empty (field may not be returned).
+			if attr.CapacityStatus != "" && attr.CapacityStatus != "Used" {
+				return
+			}
+
+			if attr.RegionCode == "" || attr.InstanceType == "" {
+				return
+			}
+
+			nk := nodeKey{
+				Region:       attr.RegionCode,
+				InstanceType: attr.InstanceType,
+			}
+			if _, seen := seenNodeKeys[nk]; seen {
+				return
+			}
+			seenNodeKeys[nk] = struct{}{}
+			regions[attr.RegionCode] = struct{}{}
+			skuToNodeKey[product.Sku] = nk
+			return
+		}
+
+		// Handle Network Load Balancer pricing
+		if strings.Contains(attr.UsageType, "LoadBalancerUsage") && attr.Operation == "LoadBalancing:Network" {
+			if attr.RegionCode == "" {
+				return
+			}
+			if _, seen := seenLBRegions[attr.RegionCode]; seen {
+				return
+			}
+			seenLBRegions[attr.RegionCode] = struct{}{}
+			skuToLBRegion[product.Sku] = attr.RegionCode
+			return
+		}
+
+		// Handle EBS volumes
+		if strings.Contains(attr.UsageType, "EBS:Volume") {
+			// Extract the volume type from the usage type (e.g., "USE1-EBS:VolumeUsage.gp3" -> "EBS:VolumeUsage.gp3")
+			usageTypeMatch := usageTypeRegex.FindStringSubmatch(attr.UsageType)
+			if len(usageTypeMatch) == 0 {
+				return
+			}
+			usageTypeNoRegion := usageTypeMatch[len(usageTypeMatch)-1]
+
+			// Map to volume type
+			volumeType, ok := awsVolumeTypes[usageTypeNoRegion]
+			if !ok {
+				return
+			}
+
+			if attr.RegionCode == "" {
+				return
+			}
+
+			vk := volumeKey{
+				Region:     attr.RegionCode,
+				VolumeType: volumeType,
+				UsageType:  usageTypeNoRegion,
+			}
+			if _, seen := seenVolumeKeys[vk]; seen {
+				return
+			}
+			seenVolumeKeys[vk] = struct{}{}
+			skuToVolumeKey[product.Sku] = vk
+		}
+	}
+
+	// Terms are used to define pricing and have the sku to look up the appropriate key.
+	handleTerm := func(term *PriceListEC2Term) {
+		termCount++
+		if termCount%logInterval == 0 {
+			log.Infof("PricingSource (AWS): processed %d terms, %d node pricing, %d volume pricing so far...",
+				termCount, len(ps.NodePricing), len(ps.PersistentVolumePricing))
+		}
+
+		// Check if this SKU is for a node, volume, or load balancer we're tracking
+		nk, isNode := skuToNodeKey[term.Sku]
+		vk, isVolume := skuToVolumeKey[term.Sku]
+		lbRegion, isLB := skuToLBRegion[term.Sku]
+
+		if !isNode && !isVolume && !isLB {
+			return
+		}
+
+		// Determine the hourly rate code based on the offer term
+		hourlyRateCode := HourlyRateCode
+		if _, ok := OnDemandRateCodes[term.OfferTermCode]; !ok {
+			if _, okCN := OnDemandRateCodesCn[term.OfferTermCode]; !okCN {
+				// Skip if term is not OnDemand
+				return
+			}
+			hourlyRateCode = HourlyRateCodeCn
+		}
+
+		priceDimensionKey := strings.Join([]string{term.Sku, term.OfferTermCode, hourlyRateCode}, ".")
+		pricingDimension, ok := term.PriceDimensions[priceDimensionKey]
+		if !ok {
+			return
+		}
+
+		priceStr := pricingDimension.PricePerUnit.ForCurrency(p.config.CurrencyCode)
+		price, err := strconv.ParseFloat(priceStr, 64)
+		if err != nil {
+			log.Errorf("failed to parse price '%s': %s", priceStr, err.Error())
+			return
+		}
+
+		// Handle node pricing
+		if isNode {
+			nodePricing := &pricing.NodePricing{
+				Properties: pricing.NodePricingProperties{
+					Provider:     cloud.ProviderAWS,
+					Region:       nk.Region,
+					InstanceType: nk.InstanceType,
+					Provisioning: pricing.ProvisioningOnDemand,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceNode: pricing.Price{
+						Unit:  unit.Hour,
+						Price: price,
+					},
+				},
+			}
+
+			ps.NodePricing = append(ps.NodePricing, nodePricing)
+		}
+
+		// Handle volume pricing
+		if isVolume {
+			// AWS volume pricing is per GB-month, convert to per GB-hour
+			hourlyPrice := price / 730.0
+
+			volumePricing := &pricing.PersistentVolumePricing{
+				Properties: pricing.PersistentVolumePricingProperties{
+					Provider:   cloud.ProviderAWS,
+					Region:     vk.Region,
+					VolumeType: vk.VolumeType,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceStorage: pricing.Price{
+						Unit:  unit.GiBHour,
+						Price: hourlyPrice,
+					},
+				},
+			}
+
+			ps.PersistentVolumePricing = append(ps.PersistentVolumePricing, volumePricing)
+		}
+
+		// Handle load balancer pricing
+		if isLB {
+			servicePricing := &pricing.ServicePricing{
+				Properties: pricing.ServicePricingProperties{
+					Provider: cloud.ProviderAWS,
+					Region:   lbRegion,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceService: pricing.Price{
+						Unit:  unit.Hour,
+						Price: price,
+					},
+				},
+			}
+
+			ps.ServicePricing = append(ps.ServicePricing, servicePricing)
+		}
+	}
+
+	err := QueryEC2PriceList(region, handleProduct, handleTerm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query list pricing data %w", err)
+	}
+
+	log.Infof("PricingSource (AWS): on-demand completed in %s — %d products, %d terms, %d node pricing, %d volume pricing",
+		time.Since(start).Round(time.Second), productCount, termCount, len(ps.NodePricing), len(ps.PersistentVolumePricing))
+
+	// China does not have the spotAPI endpoint
+	if strings.ToUpper(p.config.CurrencyCode) != "CNY" {
+		spotStart := time.Now()
+		ctx := context.Background()
+
+		type regionResult struct {
+			prices []SpotPrice
+			err    error
+			region string
+		}
+
+		resultCh := make(chan regionResult, len(regions))
+		var wg sync.WaitGroup
+		// TODO: Add separate credential path for aws gov regions. Current AWS account cannot hit it
+		for r := range regions {
+			wg.Add(1)
+			go func(r string) {
+				defer wg.Done()
+				prices, err := QuerySpotPrices(ctx, r)
+				resultCh <- regionResult{prices: prices, err: err, region: r}
+			}(r)
+		}
+		wg.Wait()
+		close(resultCh)
+
+		var spotCount int
+		for res := range resultCh {
+			if res.err != nil {
+				log.Warnf("PricingSource (AWS): failed to fetch spot prices for region %s: %v", res.region, res.err)
+				continue
+			}
+			for _, sp := range res.prices {
+				ps.NodePricing = append(ps.NodePricing, &pricing.NodePricing{
+					Properties: pricing.NodePricingProperties{
+						Provider:     cloud.ProviderAWS,
+						Region:       sp.Region,
+						InstanceType: sp.InstanceType,
+						Provisioning: pricing.ProvisioningSpot,
+					},
+					Prices: pricing.Prices{
+						pricing.ResourceNode: pricing.Price{
+							Unit:  unit.Hour,
+							Price: sp.Price,
+						},
+					},
+				})
+				spotCount++
+			}
+		}
+		log.Infof("PricingSource (AWS): spot pricing completed in %s — %d entries across %d regions",
+			time.Since(spotStart).Round(time.Second), spotCount, len(regions))
+	}
+
+	return ps, nil
+}

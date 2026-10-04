@@ -47,3 +47,9 @@ func TestFileStorage_ReadStream(t *testing.T) {
 	store := NewFileStorage(storeBaseDir)
 	TestStorageReadStream(t, store)
 }
+
+func TestFileStorage_WriteStream(t *testing.T) {
+	storeBaseDir := t.TempDir()
+	store := NewFileStorage(storeBaseDir)
+	TestStorageWriteStream(t, store)
+}

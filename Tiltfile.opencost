@@ -78,9 +78,9 @@ def run_opencost(options):
     local_resource(
         name='build-ui',
         dir='../opencost-ui',
-        cmd='npx parcel build src/index.html',
+        cmd='npm run build',
         deps=[
-            '../opencost-ui/src',
+            '../opencost-ui/app',
             '../opencost-ui/package.json',
         ],
         allow_parallel=True,
@@ -93,13 +93,14 @@ def run_opencost(options):
         context='../opencost-ui',
         dockerfile='../opencost-ui/Dockerfile.debug',
         only=[
-            'dist',
+            'build/client',
             'nginx.conf',
             'default.nginx.conf.template',
             'docker-entrypoint.sh',
+            'THIRD_PARTY_LICENSES.txt',
         ],
         live_update=[
-            sync('../opencost-ui/dist', '/var/www'),
+            sync('../opencost-ui/build/client', '/var/www'),
         ],
     )
 
