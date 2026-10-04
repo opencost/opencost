@@ -579,3 +579,60 @@ func TestCustomProviderGPUNodeUsesDefaultHourlyPricing(t *testing.T) {
 	assert.Equal(t, "2.000000", node.GPU)
 	assert.Empty(t, node.ProviderID)
 }
+
+type mockServiceLBProvider struct {
+	mockProvider
+}
+
+func (m *mockServiceLBProvider) ServiceLoadBalancerPricing(service *clustercache.Service) (*models.LoadBalancer, error) {
+	if service != nil && service.Annotations != nil {
+		if flavor, ok := service.Annotations["flavor"]; ok && flavor == "large" {
+			return &models.LoadBalancer{Cost: 0.0556}, nil
+		}
+	}
+	return &models.LoadBalancer{Cost: 0.0083}, nil
+}
+
+func TestGetLBCost_ServiceLoadBalancerPricing(t *testing.T) {
+	cm := &CostModel{
+		Provider: &mockServiceLBProvider{},
+		Cache: &clustercache.MockClusterCache{
+			Services: []*clustercache.Service{
+				{
+					Name:      "svc-small",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"flavor": "small",
+					},
+				},
+				{
+					Name:      "svc-large",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"flavor": "large",
+					},
+				},
+				{
+					Name:      "svc-clusterip",
+					Namespace: "default",
+					Type:      v1.ServiceTypeClusterIP,
+				},
+			},
+		},
+	}
+
+	lbMap, err := cm.GetLBCost()
+	require.NoError(t, err)
+	require.Len(t, lbMap, 2)
+
+	smallKey := serviceKey{Cluster: coreenv.GetClusterID(), Namespace: "default", Service: "svc-small"}
+	largeKey := serviceKey{Cluster: coreenv.GetClusterID(), Namespace: "default", Service: "svc-large"}
+
+	require.Contains(t, lbMap, smallKey)
+	require.Contains(t, lbMap, largeKey)
+
+	assert.Equal(t, 0.0083, lbMap[smallKey].Cost)
+	assert.Equal(t, 0.0556, lbMap[largeKey].Cost)
+}

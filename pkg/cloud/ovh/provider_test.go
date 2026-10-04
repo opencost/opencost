@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -63,7 +64,7 @@ func TestParseCatalog(t *testing.T) {
 		t.Fatalf("failed to read catalog fixture: %v", err)
 	}
 
-	pricing, volumePricing, err := parseCatalog(data)
+	pricing, volumePricing, lbPricing, err := parseCatalog(data)
 	if err != nil {
 		t.Fatalf("parseCatalog failed: %v", err)
 	}
@@ -119,6 +120,35 @@ func TestParseCatalog(t *testing.T) {
 		t.Fatal("classic volume type not found")
 	}
 	assertFloatClose(t, "classic", classic, 0.000059, 0.000001)
+
+	// Load balancer pricing
+	lbS, ok := lbPricing["small"]
+	if !ok {
+		t.Fatal("small load balancer flavor not found")
+	}
+	assertFloatClose(t, "lb small hourly", lbS.HourlyPrice, 0.0083, 0.0001)
+	assertFloatClose(t, "lb small monthly", lbS.MonthlyPrice, 6.0/730.0, 0.0001)
+
+	lbM, ok := lbPricing["medium"]
+	if !ok {
+		t.Fatal("medium load balancer flavor not found")
+	}
+	assertFloatClose(t, "lb medium hourly", lbM.HourlyPrice, 0.0208, 0.0001)
+	assertFloatClose(t, "lb medium monthly", lbM.MonthlyPrice, 15.0/730.0, 0.0001)
+
+	lbL, ok := lbPricing["large"]
+	if !ok {
+		t.Fatal("large load balancer flavor not found")
+	}
+	assertFloatClose(t, "lb large hourly", lbL.HourlyPrice, 0.0556, 0.0001)
+	assertFloatClose(t, "lb large monthly", lbL.MonthlyPrice, 40.0/730.0, 0.0001)
+
+	lbXL, ok := lbPricing["xl"]
+	if !ok {
+		t.Fatal("xl load balancer flavor not found")
+	}
+	assertFloatClose(t, "lb xl hourly", lbXL.HourlyPrice, 0.2083, 0.0001)
+	assertFloatClose(t, "lb xl monthly", lbXL.MonthlyPrice, 150.0/730.0, 0.0001)
 }
 
 func TestOVHKey(t *testing.T) {
@@ -408,12 +438,175 @@ func TestNetworkPricing(t *testing.T) {
 }
 
 func TestLoadBalancerPricing(t *testing.T) {
-	provider := &OVH{}
+	t.Run("default fallback without catalog", func(t *testing.T) {
+		provider := &OVH{}
 
-	lb, err := provider.LoadBalancerPricing()
-	if err != nil {
-		t.Fatalf("LoadBalancerPricing failed: %v", err)
-	}
+		lb, err := provider.LoadBalancerPricing()
+		if err != nil {
+			t.Fatalf("LoadBalancerPricing failed: %v", err)
+		}
 
-	assertFloatClose(t, "LB cost", lb.Cost, 0.012, 0.0001)
+		// Defaults to small flavor fallback price
+		assertFloatClose(t, "default fallback LB cost", lb.Cost, 0.0083, 0.0001)
+	})
+
+	t.Run("flavor-based pricing from catalog", func(t *testing.T) {
+		provider := newTestProvider(t, "testdata/ovh_catalog.json")
+
+		testCases := []struct {
+			name        string
+			service     *clustercache.Service
+			wantCost    float64
+			description string
+		}{
+			{
+				name:        "nil service defaults to small",
+				service:     nil,
+				wantCost:    0.0083,
+				description: "default small",
+			},
+			{
+				name: "unannotated service defaults to small",
+				service: &clustercache.Service{
+					Name:      "test-lb-default",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+				},
+				wantCost:    0.0083,
+				description: "unannotated service",
+			},
+			{
+				name: "MKS Free small flavor annotation",
+				service: &clustercache.Service{
+					Name:      "test-lb-s",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"loadbalancer.ovhcloud.com/flavor": "small",
+					},
+				},
+				wantCost:    0.0083,
+				description: "small flavor",
+			},
+			{
+				name: "MKS Free short flavor 's'",
+				service: &clustercache.Service{
+					Name:      "test-lb-s-short",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"loadbalancer.ovhcloud.com/flavor": "s",
+					},
+				},
+				wantCost:    0.0083,
+				description: "'s' flavor alias",
+			},
+			{
+				name: "MKS Free medium flavor annotation",
+				service: &clustercache.Service{
+					Name:      "test-lb-m",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"loadbalancer.ovhcloud.com/flavor": "medium",
+					},
+				},
+				wantCost:    0.0208,
+				description: "medium flavor",
+			},
+			{
+				name: "MKS Standard large flavor annotation via flavor-id",
+				service: &clustercache.Service{
+					Name:      "test-lb-l",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"loadbalancer.openstack.org/flavor-id": "large",
+					},
+				},
+				wantCost:    0.0556,
+				description: "large flavor via openstack flavor-id",
+			},
+			{
+				name: "OVH opencost flavor override for xl",
+				service: &clustercache.Service{
+					Name:      "test-lb-xl",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"ovh.opencost.io/flavor": "xl",
+					},
+				},
+				wantCost:    0.2083,
+				description: "xl flavor",
+			},
+			{
+				name: "monthly billing annotation",
+				service: &clustercache.Service{
+					Name:      "test-lb-monthly",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"loadbalancer.ovhcloud.com/flavor": "medium",
+						"ovh.opencost.io/billing":          "monthly",
+					},
+				},
+				wantCost:    15.0 / 730.0,
+				description: "monthly billing medium",
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				lb, err := provider.ServiceLoadBalancerPricing(tc.service)
+				if err != nil {
+					t.Fatalf("ServiceLoadBalancerPricing failed: %v", err)
+				}
+				assertFloatClose(t, tc.description, lb.Cost, tc.wantCost, 0.0001)
+			})
+		}
+	})
+
+	t.Run("regression test for incorrect fixed 0.012 pricing", func(t *testing.T) {
+		provider := newTestProvider(t, "testdata/ovh_catalog.json")
+
+		flavors := []struct {
+			flavor   string
+			expected float64
+		}{
+			{"small", 0.0083},
+			{"medium", 0.0208},
+			{"large", 0.0556},
+			{"xl", 0.2083},
+		}
+
+		costs := make(map[string]float64)
+		for _, f := range flavors {
+			svc := &clustercache.Service{
+				Name:      "svc-" + f.flavor,
+				Namespace: "default",
+				Type:      v1.ServiceTypeLoadBalancer,
+				Annotations: map[string]string{
+					"loadbalancer.ovhcloud.com/flavor": f.flavor,
+				},
+			}
+			lb, err := provider.ServiceLoadBalancerPricing(svc)
+			if err != nil {
+				t.Fatalf("ServiceLoadBalancerPricing(%s) failed: %v", f.flavor, err)
+			}
+			costs[f.flavor] = lb.Cost
+
+			// Verify it does NOT equal the old fixed 0.012 cost
+			if math.Abs(lb.Cost-0.012) < 0.0001 {
+				t.Errorf("flavor %s received old hardcoded 0.012 cost", f.flavor)
+			}
+			// Verify it matches expected catalog pricing
+			assertFloatClose(t, f.flavor, lb.Cost, f.expected, 0.0001)
+		}
+
+		// Ensure different flavors have distinct prices
+		if costs["small"] == costs["medium"] || costs["medium"] == costs["large"] || costs["large"] == costs["xl"] {
+			t.Errorf("different flavors must not have identical costs: %+v", costs)
+		}
+	})
 }
