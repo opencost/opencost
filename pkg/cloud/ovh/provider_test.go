@@ -515,30 +515,109 @@ func TestLoadBalancerPricing(t *testing.T) {
 				description: "medium flavor",
 			},
 			{
-				name: "MKS Standard large flavor annotation via flavor-id",
+				name: "MKS Free large flavor annotation",
 				service: &clustercache.Service{
 					Name:      "test-lb-l",
 					Namespace: "default",
 					Type:      v1.ServiceTypeLoadBalancer,
 					Annotations: map[string]string{
-						"loadbalancer.openstack.org/flavor-id": "large",
+						"loadbalancer.ovhcloud.com/flavor": "large",
 					},
 				},
 				wantCost:    0.0556,
-				description: "large flavor via openstack flavor-id",
+				description: "large flavor",
 			},
 			{
-				name: "OVH opencost flavor override for xl",
+				name: "ovhloadbalancer.ovhcloud.com/flavor annotation",
+				service: &clustercache.Service{
+					Name:      "test-lb-ovh-prefix",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"ovhloadbalancer.ovhcloud.com/flavor": "large",
+					},
+				},
+				wantCost:    0.0556,
+				description: "ovhloadbalancer annotation flavor",
+			},
+			{
+				name: "MKS Free xl flavor annotation",
 				service: &clustercache.Service{
 					Name:      "test-lb-xl",
 					Namespace: "default",
 					Type:      v1.ServiceTypeLoadBalancer,
 					Annotations: map[string]string{
-						"ovh.opencost.io/flavor": "xl",
+						"loadbalancer.ovhcloud.com/flavor": "xl",
 					},
 				},
 				wantCost:    0.2083,
 				description: "xl flavor",
+			},
+			{
+				name: "UUID in loadbalancer.ovhcloud.com/flavor-id is ignored and falls back to small",
+				service: &clustercache.Service{
+					Name:      "test-lb-uuid-flavor-id",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"loadbalancer.ovhcloud.com/flavor-id": "78a9c2b4-5678-4321-abcd-ef0123456789",
+					},
+				},
+				wantCost:    0.0083,
+				description: "flavor-id UUID ignored",
+			},
+			{
+				name: "UUID in loadbalancer.openstack.org/flavor-id is ignored and falls back to small",
+				service: &clustercache.Service{
+					Name:      "test-lb-openstack-uuid",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"loadbalancer.openstack.org/flavor-id": "123e4567-e89b-12d3-a456-426614174000",
+					},
+				},
+				wantCost:    0.0083,
+				description: "openstack flavor-id ignored",
+			},
+			{
+				name: "flavor annotation is used when flavor-id UUID is also present",
+				service: &clustercache.Service{
+					Name:      "test-lb-flavor-and-uuid",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"loadbalancer.ovhcloud.com/flavor-id": "78a9c2b4-5678-4321-abcd-ef0123456789",
+						"loadbalancer.ovhcloud.com/flavor":    "large",
+					},
+				},
+				wantCost:    0.0556,
+				description: "valid flavor used when flavor-id UUID present",
+			},
+			{
+				name: "unknown flavor annotation falls back to small",
+				service: &clustercache.Service{
+					Name:      "test-lb-unknown-flavor",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"loadbalancer.ovhcloud.com/flavor": "unknown-custom-flavor",
+					},
+				},
+				wantCost:    0.0083,
+				description: "unknown flavor fallback to small",
+			},
+			{
+				name: "unrelated annotations fall back to small",
+				service: &clustercache.Service{
+					Name:      "test-lb-unrelated-annotations",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"example.com/some-annotation": "value",
+					},
+				},
+				wantCost:    0.0083,
+				description: "unrelated annotations fallback to small",
 			},
 			{
 				name: "monthly billing annotation",
@@ -609,4 +688,89 @@ func TestLoadBalancerPricing(t *testing.T) {
 			t.Errorf("different flavors must not have identical costs: %+v", costs)
 		}
 	})
+}
+
+func TestExtractLBFlavor(t *testing.T) {
+	testCases := []struct {
+		name     string
+		service  *clustercache.Service
+		expected string
+	}{
+		{
+			name:     "nil service",
+			service:  nil,
+			expected: "",
+		},
+		{
+			name: "service without annotations",
+			service: &clustercache.Service{
+				Name: "svc-no-annotations",
+			},
+			expected: "",
+		},
+		{
+			name: "valid flavor annotation",
+			service: &clustercache.Service{
+				Annotations: map[string]string{
+					"loadbalancer.ovhcloud.com/flavor": "medium",
+				},
+			},
+			expected: "medium",
+		},
+		{
+			name: "valid ovhloadbalancer.ovhcloud.com/flavor annotation",
+			service: &clustercache.Service{
+				Annotations: map[string]string{
+					"ovhloadbalancer.ovhcloud.com/flavor": "medium",
+				},
+			},
+			expected: "medium",
+		},
+		{
+			name: "flavor-id with UUID is ignored",
+			service: &clustercache.Service{
+				Annotations: map[string]string{
+					"loadbalancer.ovhcloud.com/flavor-id": "78a9c2b4-5678-4321-abcd-ef0123456789",
+				},
+			},
+			expected: "",
+		},
+		{
+			name: "openstack flavor-id is ignored",
+			service: &clustercache.Service{
+				Annotations: map[string]string{
+					"loadbalancer.openstack.org/flavor-id": "123e4567-e89b-12d3-a456-426614174000",
+				},
+			},
+			expected: "",
+		},
+		{
+			name: "labels are not used for flavor detection",
+			service: &clustercache.Service{
+				Labels: map[string]string{
+					"loadbalancer.ovhcloud.com/flavor": "large",
+				},
+			},
+			expected: "",
+		},
+		{
+			name: "flavor annotation is used when flavor-id UUID is also present",
+			service: &clustercache.Service{
+				Annotations: map[string]string{
+					"loadbalancer.ovhcloud.com/flavor-id": "78a9c2b4-5678-4321-abcd-ef0123456789",
+					"loadbalancer.ovhcloud.com/flavor":    "large",
+				},
+			},
+			expected: "large",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractLBFlavor(tc.service)
+			if got != tc.expected {
+				t.Errorf("extractLBFlavor() = %q, want %q", got, tc.expected)
+			}
+		})
+	}
 }

@@ -27,8 +27,10 @@ import (
 const (
 	OVHCatalogPricing = "OVH Catalog Pricing"
 
-	BillingLabel  = "ovh.opencost.io/billing"
-	NodepoolLabel = "nodepool"
+	BillingLabel             = "ovh.opencost.io/billing"
+	NodepoolLabel            = "nodepool"
+	OVHLBFlavorAnnotation    = "loadbalancer.ovhcloud.com/flavor"
+	OVHLBFlavorAltAnnotation = "ovhloadbalancer.ovhcloud.com/flavor"
 
 	microcentsPerUnit = 100_000_000.0
 	hoursPerMonth     = 730.0
@@ -383,31 +385,17 @@ func normalizeFlavor(flavor string) string {
 	}
 }
 
-// extractLBFlavor retrieves the load balancer flavor from service annotations or labels.
+// extractLBFlavor retrieves the load balancer flavor from service annotations.
+// Only the annotations "ovhloadbalancer.ovhcloud.com/flavor" and "loadbalancer.ovhcloud.com/flavor"
+// are used for flavor detection. Labels and OpenStack flavor-id (UUID) are ignored.
 func extractLBFlavor(service *clustercache.Service) string {
-	if service == nil {
+	if service == nil || len(service.Annotations) == 0 {
 		return ""
 	}
-	if len(service.Annotations) > 0 {
-		if val, ok := service.Annotations["ovh.opencost.io/flavor"]; ok && val != "" {
-			return val
-		}
-		if val, ok := service.Annotations["loadbalancer.ovhcloud.com/flavor"]; ok && val != "" {
-			return val
-		}
-		if val, ok := service.Annotations["loadbalancer.openstack.org/flavor-id"]; ok && val != "" {
-			return val
-		}
+	if val, ok := service.Annotations[OVHLBFlavorAltAnnotation]; ok && val != "" {
+		return val
 	}
-	if len(service.Labels) > 0 {
-		if val, ok := service.Labels["ovh.opencost.io/flavor"]; ok && val != "" {
-			return val
-		}
-		if val, ok := service.Labels["loadbalancer.ovhcloud.com/flavor"]; ok && val != "" {
-			return val
-		}
-	}
-	return ""
+	return service.Annotations[OVHLBFlavorAnnotation]
 }
 
 // ovhKey implements models.Key for OVH nodes.
@@ -653,7 +641,14 @@ func (c *OVH) ServiceLoadBalancerPricing(service *clustercache.Service) (*models
 	if cost == 0 {
 		if defaultPricing, ok := defaultOVHLBPricing[flavor]; ok {
 			cost = defaultPricing
-		} else {
+		} else if smallPricing, ok := c.LBPricing["small"]; ok {
+			if isMonthly && smallPricing.MonthlyPrice > 0 {
+				cost = smallPricing.MonthlyPrice
+			} else if smallPricing.HourlyPrice > 0 {
+				cost = smallPricing.HourlyPrice
+			}
+		}
+		if cost == 0 {
 			cost = defaultOVHLBPricing["small"]
 		}
 	}
