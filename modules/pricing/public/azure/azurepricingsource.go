@@ -46,11 +46,28 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+		// Azure LoadBalancer services correspond to a Standard Static Public IP
+		// ($0.005/hr). This is not fetched from the API — it is consistent across
+		// all regions
+		ServicePricing: []*pricing.ServicePricing{
+			{
+				Properties: pricing.ServicePricingProperties{
+					Provider: cloud.ProviderAzure,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceService: {
+						Unit:  unit.Hour,
+						Price: 0.005,
+					},
+				},
+			},
+		},
 	}
 
 	// Fetch VM pricing
 	url := a.buildVMURL()
 	pageCount := 0
+	seenNodes := make(map[nodeKey]struct{})
 
 	for url != "" {
 		resp, err := azureHTTPClient.Get(url)
@@ -67,7 +84,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 			return nil, fmt.Errorf("PricingSource (Azure): unexpected status %d on VM page %d: %s", resp.StatusCode, pageCount, string(body))
 		}
 
-		next, err := a.parseVMPage(resp.Body, ps)
+		next, err := a.parseVMPage(resp.Body, ps, seenNodes)
 		closeErr := resp.Body.Close()
 		if closeErr != nil {
 			log.Warnf("failed to close response body: %v", closeErr)
@@ -138,7 +155,7 @@ func (a *AzurePricingSource) buildDiskURL() string {
 	return u
 }
 
-func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet) (nextURL string, err error) {
+func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet, seen map[nodeKey]struct{}) (nextURL string, err error) {
 	data, err := io.ReadAll(body)
 	if err != nil {
 		return "", fmt.Errorf("reading response body: %w", err)
@@ -154,12 +171,23 @@ func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet)
 			continue
 		}
 
+		provisioning := pricing.ProvisioningOnDemand
+		if isSpotItem(item) {
+			provisioning = pricing.ProvisioningSpot
+		}
+
+		nk := nodeKey{Region: item.ArmRegionName, InstanceType: item.ArmSkuName, Provisioning: provisioning}
+		if _, ok := seen[nk]; ok {
+			continue
+		}
+		seen[nk] = struct{}{}
+
 		nodePricing := &pricing.NodePricing{
 			Properties: pricing.NodePricingProperties{
 				Provider:     cloud.ProviderAzure,
 				Region:       item.ArmRegionName,
 				InstanceType: item.ArmSkuName,
-				Provisioning: pricing.ProvisioningOnDemand,
+				Provisioning: provisioning,
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceNode: pricing.Price{
@@ -207,7 +235,7 @@ func (a *AzurePricingSource) parseDiskPage(body io.Reader, ps *pricing.PricingSe
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceStorage: pricing.Price{
-					Unit:  unit.Hour,
+					Unit:  unit.GiBHour,
 					Price: hourlyPrice,
 				},
 			},
@@ -232,8 +260,17 @@ func (a *AzurePricingSource) includeItem(item AzurePricingAttributes) bool {
 		return false
 	}
 
+	// The Azure API appends an exact suffix to SkuName for non-on-demand rows.
+	// We want on-demand and Spot Linux pricing, so only reject Low Priority
+	// (a deprecated pricing model with no corresponding ProvisioningType).
 	skuLower := strings.ToLower(item.SkuName)
-	return !strings.Contains(skuLower, "low priority")
+	return !strings.HasSuffix(skuLower, " low priority")
+}
+
+// isSpotItem returns true if the pricing item represents Spot VM pricing.
+// The Azure Retail Prices API denotes Spot rows with a " Spot" suffix on SkuName.
+func isSpotItem(item AzurePricingAttributes) bool {
+	return strings.HasSuffix(strings.ToLower(item.SkuName), " spot")
 }
 
 // includeDiskItem filters disk items to include only managed disks.

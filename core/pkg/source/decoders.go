@@ -63,6 +63,8 @@ const (
 	SameRegionLabel      = "same_region"
 	NatGatewayLabel      = "nat_gateway"
 	KubeModelVersion     = "kubemodel_version"
+	ArgLabel             = "arg"
+	ValueLabel           = "value"
 )
 
 const (
@@ -1801,6 +1803,29 @@ func DecodeDaemonSetInfoResult(result *QueryResult) *DaemonSetInfoResult {
 		Cluster:      cluster,
 		NamespaceUID: namespaceUID,
 		DaemonSet:    daemonSet,
+	}
+}
+
+// DaemonSetArgumentResult represents a single "--key=value" container argument parsed off a
+// DaemonSet. One row is emitted per argument, so a DaemonSet with N arguments produces N results.
+type DaemonSetArgumentResult struct {
+	UID     string
+	Cluster string
+	Arg     string
+	Value   string
+}
+
+func DecodeDaemonSetArgumentResult(result *QueryResult) *DaemonSetArgumentResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	arg, _ := result.GetString(ArgLabel)
+	value, _ := result.GetString(ValueLabel)
+
+	return &DaemonSetArgumentResult{
+		UID:     uid,
+		Cluster: cluster,
+		Arg:     arg,
+		Value:   value,
 	}
 }
 

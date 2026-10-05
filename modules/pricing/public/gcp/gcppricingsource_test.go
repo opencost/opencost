@@ -365,6 +365,38 @@ func TestParsePage(t *testing.T) {
 			wantNextPageToken: "",
 			wantErr:           false,
 		},
+		{
+			name: "Commitment SKU is skipped",
+			response: GCPPricingResponse{
+				Skus: []*GCPPricing{
+					{
+						Description: "Commitment v1: T2D AMD CPU running in Americas for 1 Year",
+						Category: &GCPResourceInfo{
+							ResourceGroup: "CPU",
+							UsageType:     "OnDemand",
+						},
+						ServiceRegions: []string{"us-central1"},
+						PricingInfo: []*PricingInfo{
+							{
+								PricingExpression: &PricingExpression{
+									TieredRates: []*TieredRates{
+										{
+											UnitPrice: &UnitPriceInfo{
+												Units: "0",
+												Nanos: 19801600,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				NextPageToken: "",
+			},
+			wantNextPageToken: "",
+			wantErr:           false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -383,9 +415,10 @@ func TestParsePage(t *testing.T) {
 
 			nodeCPUCosts := make(map[nodeKey]float64)
 			nodeRAMCosts := make(map[nodeKey]float64)
+			nodeGPUCosts := make(map[gpuKey]float64)
 			volumeCosts := make(map[volumeKey]float64)
 
-			nextToken, err := source.parsePage(bytes.NewReader(data), nodeCPUCosts, nodeRAMCosts, volumeCosts)
+			nextToken, err := source.parsePage(bytes.NewReader(data), nodeCPUCosts, nodeRAMCosts, nodeGPUCosts, volumeCosts)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parsePage() error = %v, wantErr %v", err, tt.wantErr)
@@ -656,14 +689,14 @@ func TestBuildNodePricing(t *testing.T) {
 			currencyCode: "USD",
 		},
 		{
-			name: "Preemptible instance - excluded",
+			name: "Preemptible instance - included as spot",
 			cpuCosts: map[nodeKey]float64{
 				{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.007583,
 			},
 			ramCosts: map[nodeKey]float64{
 				{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.001017,
 			},
-			wantNodes:    0,
+			wantNodes:    1,
 			currencyCode: "USD",
 		},
 		{
@@ -693,13 +726,65 @@ func TestBuildNodePricing(t *testing.T) {
 				PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
 			}
 
-			source.buildNodePricing(ps, tt.cpuCosts, tt.ramCosts)
+			source.buildNodePricing(ps, tt.cpuCosts, tt.ramCosts, map[gpuKey]float64{})
 
 			if len(ps.NodePricing) != tt.wantNodes {
 				t.Errorf("buildNodePricing() created %d nodes, want %d", len(ps.NodePricing), tt.wantNodes)
 			}
 
 		})
+	}
+}
+
+func TestBuildNodePricing_SpotProvisioning(t *testing.T) {
+	source := &GCPPricingSource{
+		config: GCPPricingSourceConfig{
+			CurrencyCode: "USD",
+		},
+	}
+	ps := &pricing.PricingSet{
+		NodePricing:             []*pricing.NodePricing{},
+		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+	}
+
+	cpuCosts := map[nodeKey]float64{
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "ondemand"}:    0.031611,
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.007583,
+	}
+	ramCosts := map[nodeKey]float64{
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "ondemand"}:    0.004237,
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.001017,
+	}
+
+	source.buildNodePricing(ps, cpuCosts, ramCosts, map[gpuKey]float64{})
+
+	if len(ps.NodePricing) != 2 {
+		t.Fatalf("buildNodePricing() created %d nodes, want 2", len(ps.NodePricing))
+	}
+
+	var sawOnDemand, sawSpot bool
+	for _, np := range ps.NodePricing {
+		switch np.Properties.Provisioning {
+		case pricing.ProvisioningOnDemand:
+			sawOnDemand = true
+			if np.Prices[pricing.ResourceCPU].Price != 0.031611 {
+				t.Errorf("on-demand CPU price = %v, want 0.031611", np.Prices[pricing.ResourceCPU].Price)
+			}
+		case pricing.ProvisioningSpot:
+			sawSpot = true
+			if np.Prices[pricing.ResourceCPU].Price != 0.007583 {
+				t.Errorf("spot CPU price = %v, want 0.007583", np.Prices[pricing.ResourceCPU].Price)
+			}
+		default:
+			t.Errorf("unexpected provisioning type: %v", np.Properties.Provisioning)
+		}
+	}
+
+	if !sawOnDemand {
+		t.Error("expected an on-demand node pricing entry")
+	}
+	if !sawSpot {
+		t.Error("expected a spot node pricing entry")
 	}
 }
 
@@ -1136,10 +1221,37 @@ func TestIsStorageResource(t *testing.T) {
 	}
 }
 
+func TestNormalizeGPUProduct(t *testing.T) {
+	tests := []struct {
+		desc string
+		want string
+	}{
+		{"Nvidia Tesla T4 GPU running in Americas", "Tesla-T4"},
+		{"Tesla T4 GPU", "Tesla-T4"},
+		{"Nvidia Tesla V100 GPU running in Americas", "Tesla-V100"},
+		{"Nvidia Tesla P100 GPU running in Melbourne", "Tesla-P100"},
+		{"Nvidia Tesla P4 GPU", "Tesla-P4"},
+		{"Nvidia Tesla K80 GPU", "Tesla-K80"},
+		{"Nvidia Tesla A100 80GB GPU (SXM4) in region us-central1", "NVIDIA-A100-80GB-PCIe"},
+		{"Nvidia Tesla A100 GPU attached", "Tesla-A100"},
+		{"Nvidia Tesla A100 40GB GPU", "Tesla-A100"},
+		{"Nvidia L4 GPU running in Americas", "NVIDIA-L4"},
+		{"Unknown GPU Device", ""},
+		{"N2 Instance Core running in Americas", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			got := normalizeGPUProduct(tt.desc)
+			if got != tt.want {
+				t.Errorf("normalizeGPUProduct(%q) = %q, want %q", tt.desc, got, tt.want)
+			}
+		})
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && (s[0:len(substr)] == substr || contains(s[1:], substr))))
 }
-
-// Made with Bob

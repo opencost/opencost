@@ -3,8 +3,10 @@ package kubemodel
 import (
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 )
 
@@ -21,10 +23,10 @@ func (km *KubeModel) computePersistentVolumes(kms *kubemodel.KubeModelSet, start
 	pvInfoResult, _ := pvInfoResultFuture.Await()
 	for _, res := range pvInfoResult {
 		pvMap[res.UID] = &kubemodel.PersistentVolume{
-			UID:             res.UID,
-			Name:            res.PersistentVolume,
-			StorageClass:    res.StorageClass,
-			CSIVolumeHandle: res.CSIVolumeHandle,
+			UID:          res.UID,
+			Name:         res.PersistentVolume,
+			StorageClass: res.StorageClass,
+			ProviderID:   res.ProviderID,
 		}
 	}
 
@@ -52,7 +54,14 @@ func (km *KubeModel) computePersistentVolumes(kms *kubemodel.KubeModelSet, start
 
 	}
 
+	// Local PVs are backed by node local disks, so exclude them along with node
+	// local storage when local disk costs are disabled.
+	includeLocalDisk := env.IsAssetIncludeLocalDiskCost()
+
 	for _, pv := range pvMap {
+		if !includeLocalDisk && opencost.IsLocalPersistentVolume(pv.Name) {
+			continue
+		}
 		err := kms.RegisterPersistentVolume(pv)
 		if err != nil {
 			log.Warnf("Failed to register persistent volume: %s", err.Error())

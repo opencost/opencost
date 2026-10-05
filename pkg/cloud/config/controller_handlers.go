@@ -14,6 +14,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/ibm"
 )
 
 var protocol = proto.HTTP()
@@ -154,6 +155,13 @@ func ParseConfig(configType string, body io.Reader) (cloud.KeyedConfig, error) {
 		err = json.Unmarshal(bytes, config)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshalling Azure Storage Configuration: %w", err)
+		}
+		return config, nil
+	case IBMUsageConfigType:
+		config := &ibm.UsageConfiguration{}
+		err = json.Unmarshal(bytes, config)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling IBM Usage Configuration: %w", err)
 		}
 		return config, nil
 

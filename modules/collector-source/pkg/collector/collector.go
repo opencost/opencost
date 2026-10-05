@@ -121,6 +121,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewDaemonSetUptimeMetricCollector())
 	memStore.Register(NewDaemonSetLabelsMetricCollector())
 	memStore.Register(NewDaemonSetAnnotationsMetricCollector())
+	memStore.Register(NewDaemonSetArgumentsMetricCollector())
 	memStore.Register(NewJobInfoMetricCollector())
 	memStore.Register(NewJobUptimeMetricCollector())
 	memStore.Register(NewJobLabelsMetricCollector())
@@ -2522,6 +2523,19 @@ func NewDaemonSetAnnotationsMetricCollector() *metric.MetricCollector {
 		metric.DaemonSetAnnotations,
 		[]string{
 			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDaemonSetArgumentsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DaemonSetArgumentsID,
+		metric.DaemonSetArguments,
+		[]string{
+			source.UIDLabel,
+			source.ArgLabel,
 		},
 		aggregator.Info,
 		nil,

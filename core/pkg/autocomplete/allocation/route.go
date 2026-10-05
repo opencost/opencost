@@ -11,6 +11,7 @@ const (
 	RouteLabelValue
 	RouteNamespaceLabelKeys
 	RouteNamespaceLabelValue
+	RouteAlias
 )
 
 // RouteField maps a normalized field to a query route and label key when applicable.
@@ -30,6 +31,10 @@ func RouteField(field string) (Route, string, error) {
 		case autocomplete.LabelFieldValue:
 			return RouteNamespaceLabelValue, key, nil
 		}
+	}
+	switch field {
+	case "department", "environment", "owner", "product", "team":
+		return RouteAlias, "", nil
 	}
 	return RouteDefault, "", nil
 }
