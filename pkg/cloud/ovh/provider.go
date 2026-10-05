@@ -27,10 +27,9 @@ import (
 const (
 	OVHCatalogPricing = "OVH Catalog Pricing"
 
-	BillingLabel             = "ovh.opencost.io/billing"
-	NodepoolLabel            = "nodepool"
-	OVHLBFlavorAnnotation    = "loadbalancer.ovhcloud.com/flavor"
-	OVHLBFlavorAltAnnotation = "ovhloadbalancer.ovhcloud.com/flavor"
+	BillingLabel          = "ovh.opencost.io/billing"
+	NodepoolLabel         = "nodepool"
+	OVHLBFlavorAnnotation = "loadbalancer.ovhcloud.com/flavor"
 
 	microcentsPerUnit = 100_000_000.0
 	hoursPerMonth     = 730.0
@@ -386,14 +385,10 @@ func normalizeFlavor(flavor string) string {
 }
 
 // extractLBFlavor retrieves the load balancer flavor from service annotations.
-// Only the annotations "ovhloadbalancer.ovhcloud.com/flavor" and "loadbalancer.ovhcloud.com/flavor"
-// are used for flavor detection. Labels and OpenStack flavor-id (UUID) are ignored.
+// Only the annotation "loadbalancer.ovhcloud.com/flavor" is used for flavor detection.
 func extractLBFlavor(service *clustercache.Service) string {
 	if service == nil || len(service.Annotations) == 0 {
 		return ""
-	}
-	if val, ok := service.Annotations[OVHLBFlavorAltAnnotation]; ok && val != "" {
-		return val
 	}
 	return service.Annotations[OVHLBFlavorAnnotation]
 }

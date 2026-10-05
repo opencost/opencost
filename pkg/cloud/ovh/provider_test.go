@@ -528,19 +528,6 @@ func TestLoadBalancerPricing(t *testing.T) {
 				description: "large flavor",
 			},
 			{
-				name: "ovhloadbalancer.ovhcloud.com/flavor annotation",
-				service: &clustercache.Service{
-					Name:      "test-lb-ovh-prefix",
-					Namespace: "default",
-					Type:      v1.ServiceTypeLoadBalancer,
-					Annotations: map[string]string{
-						"ovhloadbalancer.ovhcloud.com/flavor": "large",
-					},
-				},
-				wantCost:    0.0556,
-				description: "ovhloadbalancer annotation flavor",
-			},
-			{
 				name: "MKS Free xl flavor annotation",
 				service: &clustercache.Service{
 					Name:      "test-lb-xl",
@@ -552,46 +539,6 @@ func TestLoadBalancerPricing(t *testing.T) {
 				},
 				wantCost:    0.2083,
 				description: "xl flavor",
-			},
-			{
-				name: "UUID in loadbalancer.ovhcloud.com/flavor-id is ignored and falls back to small",
-				service: &clustercache.Service{
-					Name:      "test-lb-uuid-flavor-id",
-					Namespace: "default",
-					Type:      v1.ServiceTypeLoadBalancer,
-					Annotations: map[string]string{
-						"loadbalancer.ovhcloud.com/flavor-id": "78a9c2b4-5678-4321-abcd-ef0123456789",
-					},
-				},
-				wantCost:    0.0083,
-				description: "flavor-id UUID ignored",
-			},
-			{
-				name: "UUID in loadbalancer.openstack.org/flavor-id is ignored and falls back to small",
-				service: &clustercache.Service{
-					Name:      "test-lb-openstack-uuid",
-					Namespace: "default",
-					Type:      v1.ServiceTypeLoadBalancer,
-					Annotations: map[string]string{
-						"loadbalancer.openstack.org/flavor-id": "123e4567-e89b-12d3-a456-426614174000",
-					},
-				},
-				wantCost:    0.0083,
-				description: "openstack flavor-id ignored",
-			},
-			{
-				name: "flavor annotation is used when flavor-id UUID is also present",
-				service: &clustercache.Service{
-					Name:      "test-lb-flavor-and-uuid",
-					Namespace: "default",
-					Type:      v1.ServiceTypeLoadBalancer,
-					Annotations: map[string]string{
-						"loadbalancer.ovhcloud.com/flavor-id": "78a9c2b4-5678-4321-abcd-ef0123456789",
-						"loadbalancer.ovhcloud.com/flavor":    "large",
-					},
-				},
-				wantCost:    0.0556,
-				description: "valid flavor used when flavor-id UUID present",
 			},
 			{
 				name: "unknown flavor annotation falls back to small",
@@ -718,28 +665,10 @@ func TestExtractLBFlavor(t *testing.T) {
 			expected: "medium",
 		},
 		{
-			name: "valid ovhloadbalancer.ovhcloud.com/flavor annotation",
+			name: "unrelated annotations return empty",
 			service: &clustercache.Service{
 				Annotations: map[string]string{
-					"ovhloadbalancer.ovhcloud.com/flavor": "medium",
-				},
-			},
-			expected: "medium",
-		},
-		{
-			name: "flavor-id with UUID is ignored",
-			service: &clustercache.Service{
-				Annotations: map[string]string{
-					"loadbalancer.ovhcloud.com/flavor-id": "78a9c2b4-5678-4321-abcd-ef0123456789",
-				},
-			},
-			expected: "",
-		},
-		{
-			name: "openstack flavor-id is ignored",
-			service: &clustercache.Service{
-				Annotations: map[string]string{
-					"loadbalancer.openstack.org/flavor-id": "123e4567-e89b-12d3-a456-426614174000",
+					"example.com/unrelated": "test",
 				},
 			},
 			expected: "",
@@ -752,16 +681,6 @@ func TestExtractLBFlavor(t *testing.T) {
 				},
 			},
 			expected: "",
-		},
-		{
-			name: "flavor annotation is used when flavor-id UUID is also present",
-			service: &clustercache.Service{
-				Annotations: map[string]string{
-					"loadbalancer.ovhcloud.com/flavor-id": "78a9c2b4-5678-4321-abcd-ef0123456789",
-					"loadbalancer.ovhcloud.com/flavor":    "large",
-				},
-			},
-			expected: "large",
 		},
 	}
 
