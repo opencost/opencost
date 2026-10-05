@@ -44,6 +44,20 @@ func (g *GCPPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+		// GKE charges $0.10/hr per cluster for cluster management
+		ClusterPricing: []*pricing.ClusterPricing{
+			{
+				Properties: pricing.ClusterPricingProperties{
+					Provider: cloud.ProviderGCP,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceCluster: {
+						Unit:  unit.Hour,
+						Price: 0.10,
+					},
+				},
+			},
+		},
 	}
 
 	// Maps to accumulate CPU, RAM, and per-GPU costs.
