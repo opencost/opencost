@@ -1811,3 +1811,24 @@ func getMockAssetSet(f float64) AssetSet {
 
 	return as
 }
+
+func TestIsLocalPersistentVolume(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{"local-pv-1a2b3c4d", true},
+		{"local-pv-", true},
+		{"pvc-00000000-0000-0000-0000-000000000001", false},
+		{"my-local-pv-1", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsLocalPersistentVolume(tt.name); got != tt.want {
+				t.Errorf("IsLocalPersistentVolume(%q) = %v, want %v", tt.name, got, tt.want)
+			}
+		})
+	}
+}
