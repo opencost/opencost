@@ -27,8 +27,9 @@ import (
 const (
 	OVHCatalogPricing = "OVH Catalog Pricing"
 
-	BillingLabel          = "ovh.opencost.io/billing"
-	NodepoolLabel         = "nodepool"
+	BillingLabel  = "ovh.opencost.io/billing"
+	NodepoolLabel = "nodepool"
+	// OVHLBFlavorAnnotation is the only supported annotation for OVH load balancer flavor detection.
 	OVHLBFlavorAnnotation = "loadbalancer.ovhcloud.com/flavor"
 
 	microcentsPerUnit = 100_000_000.0

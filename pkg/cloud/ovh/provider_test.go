@@ -567,6 +567,19 @@ func TestLoadBalancerPricing(t *testing.T) {
 				description: "unrelated annotations fallback to small",
 			},
 			{
+				name: "empty flavor annotation falls back to small",
+				service: &clustercache.Service{
+					Name:      "test-lb-empty-flavor",
+					Namespace: "default",
+					Type:      v1.ServiceTypeLoadBalancer,
+					Annotations: map[string]string{
+						"loadbalancer.ovhcloud.com/flavor": "",
+					},
+				},
+				wantCost:    0.0083,
+				description: "empty flavor fallback to small",
+			},
+			{
 				name: "monthly billing annotation",
 				service: &clustercache.Service{
 					Name:      "test-lb-monthly",
@@ -669,6 +682,15 @@ func TestExtractLBFlavor(t *testing.T) {
 			service: &clustercache.Service{
 				Annotations: map[string]string{
 					"example.com/unrelated": "test",
+				},
+			},
+			expected: "",
+		},
+		{
+			name: "empty flavor annotation returns empty",
+			service: &clustercache.Service{
+				Annotations: map[string]string{
+					"loadbalancer.ovhcloud.com/flavor": "",
 				},
 			},
 			expected: "",
