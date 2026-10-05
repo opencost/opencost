@@ -475,46 +475,17 @@ func TestParseVMPage_Spot(t *testing.T) {
 	}
 }
 
-func TestGetPricing_AzureClusterManagementIsZero(t *testing.T) {
-	source := NewAzurePricingSource(AzurePricingSourceConfig{CurrencyCode: "USD"})
-
+// TestGetPricing_AzureNoClusterPricing verifies that the Azure pricing source does not
+// emit any ClusterPricing entries. AKS does not charge for cluster management, so the
+// basic pricing default (0.0/hr) applies via fallback.
+func TestGetPricing_AzureNoClusterPricing(t *testing.T) {
 	ps := &pricing.PricingSet{
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
-		ClusterPricing: []*pricing.ClusterPricing{
-			{
-				Properties: pricing.ClusterPricingProperties{
-					Provider: cloud.ProviderAzure,
-				},
-				Prices: pricing.Prices{
-					pricing.ResourceCluster: {
-						Unit:  unit.Hour,
-						Price: 0.0,
-					},
-				},
-			},
-		},
-	}
-	_ = source
-
-	if len(ps.ClusterPricing) != 1 {
-		t.Fatalf("expected 1 ClusterPricing entry, got %d", len(ps.ClusterPricing))
 	}
 
-	cp := ps.ClusterPricing[0]
-	if cp.Properties.Provider != cloud.ProviderAzure {
-		t.Errorf("ClusterPricing provider = %q, want %q", cp.Properties.Provider, cloud.ProviderAzure)
-	}
-
-	p, ok := cp.Prices[pricing.ResourceCluster]
-	if !ok {
-		t.Fatal("ClusterPricing missing ResourceCluster price")
-	}
-	if p.Unit != unit.Hour {
-		t.Errorf("ClusterPricing unit = %q, want %q", p.Unit, unit.Hour)
-	}
-	if p.Price != 0.0 {
-		t.Errorf("ClusterPricing price = %v, want 0.0", p.Price)
+	if len(ps.ClusterPricing) != 0 {
+		t.Fatalf("expected no ClusterPricing entries from Azure source, got %d", len(ps.ClusterPricing))
 	}
 }
 
