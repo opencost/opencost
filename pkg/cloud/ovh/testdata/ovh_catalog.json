@@ -229,7 +229,7 @@
     },
     {
       "planCode": "octavia-loadbalancer.loadbalancer-s.month.consumption",
-      "pricings": [{"price": 600000000, "type": "monthly.postpaid"}],
+      "pricings": [{"price": 600000000, "type": "consumption"}],
       "blobs": {"technical": {"name": "small"}}
     },
     {
@@ -239,7 +239,7 @@
     },
     {
       "planCode": "octavia-loadbalancer.loadbalancer-m.month.consumption",
-      "pricings": [{"price": 1500000000, "type": "monthly.postpaid"}],
+      "pricings": [{"price": 1500000000, "type": "consumption"}],
       "blobs": {"technical": {"name": "medium"}}
     },
     {
@@ -249,7 +249,7 @@
     },
     {
       "planCode": "octavia-loadbalancer.loadbalancer-l.month.consumption",
-      "pricings": [{"price": 4000000000, "type": "monthly.postpaid"}],
+      "pricings": [{"price": 4000000000, "type": "consumption"}],
       "blobs": {"technical": {"name": "large"}}
     },
     {
@@ -259,7 +259,7 @@
     },
     {
       "planCode": "octavia-loadbalancer.loadbalancer-xl.month.consumption",
-      "pricings": [{"price": 15000000000, "type": "monthly.postpaid"}],
+      "pricings": [{"price": 15000000000, "type": "consumption"}],
       "blobs": {"technical": {"name": "xl"}}
     }
   ]
