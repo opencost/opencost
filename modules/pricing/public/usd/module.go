@@ -24,6 +24,14 @@ func NewPricingModule() (*PricingModule, error) {
 	return &PricingModule{}, nil
 }
 
+func (pm *PricingModule) newClusterReader() (reader.Reader[*pricing.ClusterPricing], error) {
+	f, err := embeddedFS.Open("clusters.jsonl")
+	if err != nil {
+		return nil, fmt.Errorf("opening embedded clusters.jsonl: %w", err)
+	}
+	return reader.NewJSONLinesReader[*pricing.ClusterPricing](f), nil
+}
+
 func (pm *PricingModule) newNodeReader() (reader.Reader[*pricing.NodePricing], error) {
 	f, err := embeddedFS.Open("nodes.jsonl")
 	if err != nil {
@@ -57,7 +65,7 @@ func (pm *PricingModule) NewPersistentVolumePricingReader(ctx context.Context) (
 }
 
 func (pm *PricingModule) NewClusterPricingReader(ctx context.Context) (reader.Reader[*pricing.ClusterPricing], error) {
-	return nil, fmt.Errorf("cluster pricing not provided by public pricing module")
+	return pm.newClusterReader()
 }
 
 func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*pricing.NetworkPricing], error) {
@@ -70,6 +78,23 @@ func (pm *PricingModule) NewServicePricingReader(ctx context.Context) (reader.Re
 
 func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{}
+
+	clusterReader, err := pm.newClusterReader()
+	if err != nil {
+		return nil, err
+	}
+	defer clusterReader.Close()
+	clusterDst := make([]*pricing.ClusterPricing, 64)
+	for {
+		n, err := clusterReader.Read(ctx, clusterDst)
+		ps.ClusterPricing = append(ps.ClusterPricing, clusterDst[:n]...)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	nodeReader, err := pm.newNodeReader()
 	if err != nil {

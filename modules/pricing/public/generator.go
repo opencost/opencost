@@ -80,6 +80,7 @@ func GeneratePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 
 	// Create a combined pricing set
 	combinedSet := &pricing.PricingSet{
+		ClusterPricing:          []*pricing.ClusterPricing{},
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
 		ServicePricing:          []*pricing.ServicePricing{},
@@ -90,20 +91,22 @@ func GeneratePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AWS pricing: %w", err)
 	}
+	combinedSet.ClusterPricing = append(combinedSet.ClusterPricing, awsSet.ClusterPricing...)
 	combinedSet.NodePricing = append(combinedSet.NodePricing, awsSet.NodePricing...)
 	combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, awsSet.PersistentVolumePricing...)
 	combinedSet.ServicePricing = append(combinedSet.ServicePricing, awsSet.ServicePricing...)
-	log.Infof("Added %d AWS node pricing entries, %d service pricing entries", len(awsSet.NodePricing), len(awsSet.ServicePricing))
+	log.Infof("Added %d AWS node pricing entries, %d service pricing entries, %d cluster pricing entries", len(awsSet.NodePricing), len(awsSet.ServicePricing), len(awsSet.ClusterPricing))
 
 	// Fetch Azure pricing
 	azureSet, err := GenerateAzurePricing(currency)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Azure pricing: %w", err)
 	}
+	combinedSet.ClusterPricing = append(combinedSet.ClusterPricing, azureSet.ClusterPricing...)
 	combinedSet.NodePricing = append(combinedSet.NodePricing, azureSet.NodePricing...)
 	combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, azureSet.PersistentVolumePricing...)
 	combinedSet.ServicePricing = append(combinedSet.ServicePricing, azureSet.ServicePricing...)
-	log.Infof("Added %d Azure node pricing entries, %d service pricing entries", len(azureSet.NodePricing), len(azureSet.ServicePricing))
+	log.Infof("Added %d Azure node pricing entries, %d service pricing entries, %d cluster pricing entries", len(azureSet.NodePricing), len(azureSet.ServicePricing), len(azureSet.ClusterPricing))
 
 	// GCP does NOT support CNY
 	if currency != "CNY" {
@@ -111,17 +114,18 @@ func GeneratePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get GCP pricing: %w", err)
 		}
+		combinedSet.ClusterPricing = append(combinedSet.ClusterPricing, gcpSet.ClusterPricing...)
 		combinedSet.NodePricing = append(combinedSet.NodePricing, gcpSet.NodePricing...)
 		combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, gcpSet.PersistentVolumePricing...)
 		combinedSet.ServicePricing = append(combinedSet.ServicePricing, gcpSet.ServicePricing...)
-		log.Infof("Added %d GCP node pricing entries, %d service pricing entries", len(gcpSet.NodePricing), len(gcpSet.ServicePricing))
+		log.Infof("Added %d GCP node pricing entries, %d service pricing entries, %d cluster pricing entries", len(gcpSet.NodePricing), len(gcpSet.ServicePricing), len(gcpSet.ClusterPricing))
 	}
 
 	// Sort the combined set to ensure deterministic output
 	combinedSet.Sort()
 
-	log.Infof("Generated combined pricing set with %d total node entries, %d volume entries, %d service entries",
-		len(combinedSet.NodePricing), len(combinedSet.PersistentVolumePricing), len(combinedSet.ServicePricing))
+	log.Infof("Generated combined pricing set with %d cluster entries, %d node entries, %d volume entries, %d service entries",
+		len(combinedSet.ClusterPricing), len(combinedSet.NodePricing), len(combinedSet.PersistentVolumePricing), len(combinedSet.ServicePricing))
 
 	return combinedSet, nil
 }
