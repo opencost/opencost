@@ -189,6 +189,12 @@ func GetAssetKey(a Asset, aggregateBy []string) (string, error) {
 	return key(a, aggregateBy, nil)
 }
 
+// GetAssetKeyWithLabelConfig returns the key an AssetSet with the given aggregation and label
+// config would store a under, so results keyed outside an AssetSet can be joined onto one.
+func GetAssetKeyWithLabelConfig(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error) {
+	return key(a, aggregateBy, labelConfig)
+}
+
 func toString(a Asset) string {
 	return fmt.Sprintf("%s{%s}%s=%.2f", a.Type().String(), a.GetProperties(), a.GetWindow(), a.TotalCost())
 }
