@@ -9,6 +9,7 @@ func TestGetAssetKeyWithLabelConfig(t *testing.T) {
 	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
 	window := NewWindow(&start, &end)
+	aggregateBy := []string{string(AssetClusterProp), string(AssetTeamProp)}
 
 	node := NewNode("node1", "cluster1", "i-node1", start, end, window)
 	node.SetLabels(AssetLabels{"my_team": "infra"})
@@ -17,12 +18,10 @@ func TestGetAssetKeyWithLabelConfig(t *testing.T) {
 	labelConfig.TeamExternalLabel = "my_team"
 
 	t.Run("matches the key an AssetSet stores the asset under", func(t *testing.T) {
-		aggregateBy := []string{string(AssetClusterProp), string(AssetTeamProp)}
-
-		set := NewAssetSet(start, end)
-		set.AggregationKeys = aggregateBy
-		if err := set.Insert(node, labelConfig); err != nil {
-			t.Fatalf("Insert: %v", err)
+		set := NewAssetSet(start, end, node)
+		opts := &AssetAggregationOptions{LabelConfig: labelConfig}
+		if err := set.AggregateBy(aggregateBy, opts); err != nil {
+			t.Fatalf("AggregateBy: %v", err)
 		}
 
 		got, err := GetAssetKeyWithLabelConfig(node, aggregateBy, labelConfig)
@@ -30,39 +29,35 @@ func TestGetAssetKeyWithLabelConfig(t *testing.T) {
 			t.Fatalf("GetAssetKeyWithLabelConfig: %v", err)
 		}
 
-		if _, ok := set.Assets[got]; !ok {
-			t.Fatalf("key %q is not the key the set used; set has %v", got, keysOf(set))
-		}
-
 		if want := "cluster1/infra"; got != want {
 			t.Fatalf("got %q, want %q", got, want)
 		}
+		if set.Assets[got] != node {
+			t.Fatalf("set does not hold node under %q", got)
+		}
 	})
 
-	t.Run("nil config behaves like GetAssetKey", func(t *testing.T) {
-		aggregateBy := []string{string(AssetClusterProp), string(AssetNameProp)}
-
-		withConfig, err := GetAssetKeyWithLabelConfig(node, aggregateBy, nil)
+	t.Run("nil config means the default label names", func(t *testing.T) {
+		got, err := GetAssetKeyWithLabelConfig(node, aggregateBy, nil)
 		if err != nil {
 			t.Fatalf("GetAssetKeyWithLabelConfig: %v", err)
 		}
 
-		plain, err := GetAssetKey(node, aggregateBy)
-		if err != nil {
-			t.Fatalf("GetAssetKey: %v", err)
+		// my_team is not the default team label, so the node is unallocated under nil.
+		if want := "cluster1/" + UnallocatedSuffix; got != want {
+			t.Fatalf("got %q, want %q", got, want)
 		}
 
-		if withConfig != plain {
-			t.Fatalf("nil config gave %q, GetAssetKey gave %q", withConfig, plain)
+		defaultNode := NewNode("node2", "cluster1", "i-node2", start, end, window)
+		defaultNode.SetLabels(AssetLabels{NewLabelConfig().TeamExternalLabel: "platform"})
+
+		got, err = GetAssetKeyWithLabelConfig(defaultNode, aggregateBy, nil)
+		if err != nil {
+			t.Fatalf("GetAssetKeyWithLabelConfig: %v", err)
+		}
+
+		if want := "cluster1/platform"; got != want {
+			t.Fatalf("got %q, want %q", got, want)
 		}
 	})
-}
-
-func keysOf(set *AssetSet) []string {
-	keys := make([]string, 0, len(set.Assets))
-	for key := range set.Assets {
-		keys = append(keys, key)
-	}
-
-	return keys
 }

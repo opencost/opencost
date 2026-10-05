@@ -143,7 +143,7 @@ func key(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error
 			if labelKey := strings.TrimPrefix(s, "label:"); labelKey != "" {
 				labelVal := a.GetLabels()[labelKey]
 				if labelVal == "" {
-					key = "__undefined__"
+					key = UndefinedKey
 				} else {
 					key = fmt.Sprintf("%s=%s", labelKey, labelVal)
 				}
@@ -186,11 +186,11 @@ func getKeyFromLabelConfig(a Asset, labelConfig *LabelConfig, label string) stri
 }
 
 func GetAssetKey(a Asset, aggregateBy []string) (string, error) {
-	return key(a, aggregateBy, nil)
+	return GetAssetKeyWithLabelConfig(a, aggregateBy, nil)
 }
 
-// GetAssetKeyWithLabelConfig returns the key an AssetSet with the given aggregation and label
-// config would store a under, so results keyed outside an AssetSet can be joined onto one.
+// GetAssetKeyWithLabelConfig returns the key AssetSet.Insert stores the asset under for the
+// same aggregateBy and label config. A nil labelConfig means the NewLabelConfig defaults.
 func GetAssetKeyWithLabelConfig(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error) {
 	return key(a, aggregateBy, labelConfig)
 }
