@@ -361,6 +361,7 @@
 {"properties":{"provider":"Azure","region":"southafricawest","volumeType":"Standard_LRS"},"prices":{"storage":{"unit":"GiB-hr","price":2.0547944686394696e-8}}}
 {"properties":{"provider":"Azure","region":"southcentralus","volumeType":"Standard_LRS"},"prices":{"storage":{"unit":"GiB-hr","price":1.5068493268376038e-8}}}
 {"properties":{"provider":"Azure","region":"southcentralus","volumeType":"Standard_LRS"},"prices":{"storage":{"unit":"GiB-hr","price":2.4657535118733418e-8}}}
+{"properties":{"provider":"Azure","region":"southeastasia3","volumeType":"Standard_LRS"},"prices":{"storage":{"unit":"GiB-hr","price":1.643835674582228e-8}}}
 {"properties":{"provider":"Azure","region":"southeastasia","volumeType":"Standard_LRS"},"prices":{"storage":{"unit":"GiB-hr","price":1.5068493268376038e-8}}}
 {"properties":{"provider":"Azure","region":"southeastasia","volumeType":"Standard_LRS"},"prices":{"storage":{"unit":"GiB-hr","price":2.6027396104413354e-8}}}
 {"properties":{"provider":"Azure","region":"southindia","volumeType":"Standard_LRS"},"prices":{"storage":{"unit":"GiB-hr","price":1.5068493268376038e-8}}}

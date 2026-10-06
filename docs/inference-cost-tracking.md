@@ -290,7 +290,8 @@ curl "localhost:9003/allocation?window=1h&aggregate=label:llm-d.ai/model&namespa
   | jq '.data[0] | keys'
 
 # Check what model_name vLLM is reporting in Prometheus
-curl "http://prometheus:9090/api/v1/query?query=vllm:prompt_tokens_total{namespace=\"<ns>\"}" \
+curl --get "http://prometheus:9090/api/v1/query" \
+  --data-urlencode 'query=vllm:prompt_tokens_total{namespace="<ns>"}' \
   | jq '.data.result[].metric.model_name'
 ```
 
@@ -409,7 +410,8 @@ curl "localhost:9003/allocation?window=1h&aggregate=label:llm-d.ai/model&namespa
   | jq '.data[0] | keys'
 
 # What model_name does vLLM report?
-curl "http://prometheus:9090/api/v1/query?query=vllm:prompt_tokens_total{namespace=\"<ns>\"}" \
+curl --get "http://prometheus:9090/api/v1/query" \
+  --data-urlencode 'query=vllm:prompt_tokens_total{namespace="<ns>"}' \
   | jq '.data.result[].metric.model_name'
 ```
 
