@@ -218,34 +218,40 @@ func TestExpandInstanceTypes(t *testing.T) {
 		want          []string
 	}{
 		{
-			name:          "E2 CPU expands",
+			name:          "E2 expands to all sub-families",
 			instanceType:  "e2",
 			resourceGroup: "CPU",
-			want:          []string{"e2-micro", "e2-small", "e2-medium", "e2-standard", "e2-custom"},
+			want:          []string{"e2-micro", "e2-small", "e2-medium", "e2-standard", "e2-highcpu", "e2-highmem", "e2-custom"},
 		},
 		{
-			name:          "E2 RAM expands",
-			instanceType:  "e2",
-			resourceGroup: "RAM",
-			want:          []string{"e2-micro", "e2-small", "e2-medium", "e2-standard", "e2-custom"},
-		},
-		{
-			name:          "A2 CPU expands",
-			instanceType:  "a2",
-			resourceGroup: "CPU",
-			want:          []string{"a2-highgpu", "a2-megagpu", "a2-ultragpu"},
-		},
-		{
-			name:          "A2 RAM expands",
+			name:          "A2 expands to GPU variants",
 			instanceType:  "a2",
 			resourceGroup: "RAM",
 			want:          []string{"a2-highgpu", "a2-megagpu", "a2-ultragpu"},
 		},
 		{
-			name:          "N2 does not expand",
+			name:          "N1 expands to sub-families",
+			instanceType:  "n1-standard",
+			resourceGroup: "CPU",
+			want:          []string{"n1-standard", "n1-highmem", "n1-highcpu"},
+		},
+		{
+			name:          "N2 expands to sub-families",
 			instanceType:  "n2-standard",
 			resourceGroup: "CPU",
-			want:          []string{"n2-standard"},
+			want:          []string{"n2-standard", "n2-highmem", "n2-highcpu"},
+		},
+		{
+			name:          "N2D expands to sub-families",
+			instanceType:  "n2d-standard",
+			resourceGroup: "RAM",
+			want:          []string{"n2d-standard", "n2d-highmem", "n2d-highcpu"},
+		},
+		{
+			name:          "N4 expands to sub-families",
+			instanceType:  "n4-standard",
+			resourceGroup: "CPU",
+			want:          []string{"n4-standard", "n4-highmem", "n4-highcpu"},
 		},
 		{
 			name:          "Custom does not expand",
@@ -573,7 +579,7 @@ func TestParseComputeSKU(t *testing.T) {
 				},
 			},
 			usageType:    "ondemand",
-			wantCPUCosts: 1,
+			wantCPUCosts: 3, // n2-standard, n2-highmem, n2-highcpu
 			wantRAMCosts: 0,
 		},
 		{
@@ -601,7 +607,7 @@ func TestParseComputeSKU(t *testing.T) {
 			},
 			usageType:    "ondemand",
 			wantCPUCosts: 0,
-			wantRAMCosts: 1,
+			wantRAMCosts: 3, // n2-standard, n2-highmem, n2-highcpu
 		},
 		{
 			name: "E2 CPU expands to multiple types",
@@ -627,7 +633,7 @@ func TestParseComputeSKU(t *testing.T) {
 				},
 			},
 			usageType:    "ondemand",
-			wantCPUCosts: 5, // e2-micro, e2-small, e2-medium, e2-standard, e2-custom
+			wantCPUCosts: 7, // e2-micro, e2-small, e2-medium, e2-standard, e2-highcpu, e2-highmem, e2-custom
 			wantRAMCosts: 0,
 		},
 	}
@@ -929,19 +935,22 @@ func TestGetPricing_Integration(t *testing.T) {
 		t.Fatalf("GetPricing() unexpected error: %v", err)
 	}
 
-	if len(ps.NodePricing) != 1 {
-		t.Errorf("NodePricing len = %d, want 1", len(ps.NodePricing))
+	// The N2 SKU expands to n2-standard, n2-highmem, n2-highcpu.
+	if len(ps.NodePricing) != 3 {
+		t.Errorf("NodePricing len = %d, want 3", len(ps.NodePricing))
 	}
 	if len(ps.PersistentVolumePricing) != 1 {
 		t.Errorf("PersistentVolumePricing len = %d, want 1", len(ps.PersistentVolumePricing))
 	}
 
-	node := ps.NodePricing[0]
-	if node.Properties.Region != "us-central1" {
-		t.Errorf("NodePricing region = %q, want us-central1", node.Properties.Region)
-	}
-	if node.Properties.InstanceType != "n2-standard" {
-		t.Errorf("NodePricing instance type = %q, want n2-standard", node.Properties.InstanceType)
+	wantTypes := map[string]bool{"n2-standard": true, "n2-highmem": true, "n2-highcpu": true}
+	for _, node := range ps.NodePricing {
+		if node.Properties.Region != "us-central1" {
+			t.Errorf("NodePricing region = %q, want us-central1", node.Properties.Region)
+		}
+		if !wantTypes[node.Properties.InstanceType] {
+			t.Errorf("NodePricing unexpected instance type %q", node.Properties.InstanceType)
+		}
 	}
 }
 
@@ -1038,20 +1047,22 @@ func TestNormalizeInstanceType(t *testing.T) {
 		description   string
 		want          string
 	}{
+		// Custom
 		{
 			name:          "Custom instance",
 			resourceGroup: "CPU",
 			description:   "Custom Instance Core running in Americas",
 			want:          "custom",
 		},
+		// N families — one SKU per family covers all sub-variants (standard/highmem/highcpu)
 		{
-			name:          "N2 standard",
+			name:          "N2 instance",
 			resourceGroup: "RAM",
 			description:   "N2 Instance Ram running in Americas",
 			want:          "n2-standard",
 		},
 		{
-			name:          "N2D AMD",
+			name:          "N2D instance",
 			resourceGroup: "CPU",
 			description:   "N2D AMD Instance Core running in Americas",
 			want:          "n2d-standard",
@@ -1063,6 +1074,13 @@ func TestNormalizeInstanceType(t *testing.T) {
 			want:          "n4-standard",
 		},
 		{
+			name:          "N1 instance",
+			resourceGroup: "CPU",
+			description:   "N1 Instance Core running in Americas",
+			want:          "n1-standard",
+		},
+		// Other families
+		{
 			name:          "A2 instance",
 			resourceGroup: "RAM",
 			description:   "A2 Instance Ram running in Americas",
@@ -1073,6 +1091,12 @@ func TestNormalizeInstanceType(t *testing.T) {
 			resourceGroup: "CPU",
 			description:   "Compute Optimized Core running in Americas",
 			want:          "c2-standard",
+		},
+		{
+			name:          "C2D compute optimized",
+			resourceGroup: "CPU",
+			description:   "C2D Compute Optimized Core running in Americas",
+			want:          "c2d-standard",
 		},
 		{
 			name:          "E2 instance",
@@ -1092,6 +1116,14 @@ func TestNormalizeInstanceType(t *testing.T) {
 			description:   "T2A ARM Instance Core running in Americas",
 			want:          "t2a-standard",
 		},
+		// Premium SKUs pass through without a match
+		{
+			name:          "Sole tenancy premium skipped",
+			resourceGroup: "CPU",
+			description:   "Sole Tenancy Premium for N2 Instance Core running in Americas",
+			want:          "cpu",
+		},
+		// Non-cpu/ram resource groups pass through unchanged
 		{
 			name:          "Unknown type defaults to resource group",
 			resourceGroup: "SomeType",
