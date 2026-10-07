@@ -733,8 +733,17 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					}
 				}
 
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N4 INSTANCE") {
+				description := strings.ToUpper(product.Description)
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(description, "N4 INSTANCE") {
 					instanceType = "n4standard"
+				}
+				if instanceType == "ram" || instanceType == "cpu" {
+					switch {
+					case strings.HasPrefix(description, "N4A INSTANCE "), strings.HasPrefix(description, "SPOT PREEMPTIBLE N4A INSTANCE "):
+						instanceType = "n4astandard"
+					case strings.HasPrefix(description, "N4D INSTANCE "), strings.HasPrefix(description, "SPOT PREEMPTIBLE N4D INSTANCE "):
+						instanceType = "n4dstandard"
+					}
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "A2 INSTANCE") {
@@ -1562,6 +1571,10 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n2standard"
 		} else if instanceType == "n4highmem" || instanceType == "n4highcpu" {
 			instanceType = "n4standard" // N4 variants are priced the same per vCPU and RAM
+		} else if instanceType == "n4ahighmem" || instanceType == "n4ahighcpu" {
+			instanceType = "n4astandard"
+		} else if instanceType == "n4dhighmem" || instanceType == "n4dhighcpu" {
+			instanceType = "n4dstandard"
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
 		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
@@ -1703,7 +1716,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	discount := defaultDiscount
 	switch class {
-	case "e2", "f1", "g1", "n4":
+	case "e2", "f1", "g1", "n4", "n4a", "n4d":
 		discount = 0.0
 	case "n2", "n2d":
 		discount = 0.2
