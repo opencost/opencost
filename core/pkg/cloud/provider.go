@@ -2,10 +2,6 @@ package cloud
 
 import "strings"
 
-// TODO: reconsider "shared" as a package name
-// TODO: for this file, maybe core/pkg/model/cloud?
-// TODO: maybe even core/pkg/cloud?
-
 type Provider string
 
 const (
@@ -53,6 +49,6 @@ func ParseProvider(provider string) Provider {
 	case "csv":
 		return ProviderCSV
 	default:
-		return ProviderEmpty
+		return ProviderCustom
 	}
 }
