@@ -51,10 +51,10 @@ func TestParseProvider(t *testing.T) {
 		{"ovhcloud", ProviderOVH},
 		{"ovh-mks", ProviderOVH},
 		{"ske", ProviderSTACKIT},
-		// Unknown input returns empty
-		{"", ProviderEmpty},
-		{"unknown", ProviderEmpty},
-		{"ibm", ProviderEmpty},
+		// Unknown input returns Custom
+		{"", ProviderCustom},
+		{"unknown", ProviderCustom},
+		{"ibm", ProviderCustom},
 	}
 
 	for _, tt := range tests {

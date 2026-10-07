@@ -38,10 +38,11 @@ func TestComputeCluster(t *testing.T) {
 				},
 			},
 			want: &kubemodel.Cluster{
-				UID:   testClusterUID,
-				Name:  "my-cluster",
-				Start: start,
-				End:   end,
+				UID:      testClusterUID,
+				Name:     "my-cluster",
+				Provider: cloud.ProviderCustom,
+				Start:    start,
+				End:      end,
 			},
 		},
 		{
@@ -85,10 +86,11 @@ func TestComputeCluster(t *testing.T) {
 				},
 			},
 			want: &kubemodel.Cluster{
-				UID:   testClusterUID,
-				Name:  "my-cluster",
-				Start: start,
-				End:   end,
+				UID:      testClusterUID,
+				Name:     "my-cluster",
+				Provider: cloud.ProviderCustom,
+				Start:    start,
+				End:      end,
 			},
 		},
 	}

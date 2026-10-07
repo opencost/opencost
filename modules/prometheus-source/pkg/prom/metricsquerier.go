@@ -663,7 +663,7 @@ func (pds *PrometheusMetricsQuerier) QueryClusterInfo(start, end time.Time) *sou
 
 func (pds *PrometheusMetricsQuerier) QueryClusterKubeModelVersion(start, end time.Time) *source.Future[source.ClusterKubeModelVersionResult] {
 	const queryName = "QueryClusterKubeModelVersion"
-	const queryFmtClusterCompleteKubeModel = `avg(avg_over_time(cluster_info{%s}[%s])) by (%s, uid, complete_kubemodel)`
+	const queryFmtClusterCompleteKubeModel = `avg(avg_over_time(cluster_info{%s}[%s])) by (%s, uid, kubemodel_version)`
 
 	cfg := pds.promConfig
 

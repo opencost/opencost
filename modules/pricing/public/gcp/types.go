@@ -114,64 +114,70 @@ func mapGCPVolumeType(resourceGroup, description string) (pricing.VolumeType, bo
 	return pricing.VolumeTypeNil, false
 }
 
-// normalizeInstanceType maps GCP resource groups and descriptions to instance type families
+// descriptionPrefixes maps known GCP Billing API description prefixes to the
+// instance-type family token written into node_pricing. The prefix is
+// everything before " Instance" in the SKU description, uppercased.
+//
+// Entries must be ordered most-specific first so the first match wins
+// (e.g. "N2D AMD" before "N2").
+var descriptionPrefixes = []struct {
+	prefix string
+	family string
+}{
+	{"N2D AMD", "n2d-standard"},
+	{"N2", "n2-standard"},
+	{"N4", "n4-standard"},
+	{"N1", "n1-standard"},
+	{"A2", "a2"},
+	{"C3D", "c3d-standard"},
+	{"C3", "c3-standard"},
+	{"E2", "e2"},
+	{"M1", "m1-megamem"},
+	{"M2", "m2-ultramem"},
+	{"M3", "m3-ultramem"},
+	{"T2D AMD", "t2d-standard"},
+	{"T2A ARM", "t2a-standard"},
+	{"Z3", "z3-standard"},
+}
+
+// normalizeInstanceType maps GCP Billing API resource groups and descriptions
+// to the instance-type family prefix stored in node_pricing. The prefix must
+// match what stage-02 derivation produces by stripping the trailing
+// dash-separated size segment from the node's InstanceType label
+// (e.g. "n2-highmem-4" → "n2-highmem").
 func normalizeInstanceType(resourceGroup, description string) string {
 	resourceGroupLower := strings.ToLower(resourceGroup)
+	if resourceGroupLower != "cpu" && resourceGroupLower != "ram" {
+		return resourceGroupLower
+	}
+
 	descriptionUpper := strings.ToUpper(description)
 
-	// Handle custom instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "CUSTOM") {
+	// Custom instances (any family) collapse to a single key.
+	if strings.Contains(descriptionUpper, "CUSTOM") {
 		return "custom"
 	}
 
-	// Handle N2 instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "N2") &&
-		!strings.Contains(descriptionUpper, "PREMIUM") {
-		if strings.Contains(descriptionUpper, "N2D AMD") {
-			return "n2d-standard"
+	// Commitment and sole-tenancy premium SKUs should not reach here (filtered
+	// upstream), but guard anyway
+	if strings.Contains(descriptionUpper, "PREMIUM") {
+		return resourceGroupLower
+	}
+
+	// C2/C2D use "Compute Optimized" as their description prefix, not "C2 Instance".
+	if strings.Contains(descriptionUpper, "COMPUTE OPTIMIZED") {
+		if strings.Contains(descriptionUpper, "C2D") {
+			return "c2d-standard"
 		}
-		return "n2-standard"
-	}
-
-	// Handle N4 instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "N4 INSTANCE") {
-		return "n4-standard"
-	}
-
-	// Handle A2 instances (GPU-optimized)
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "A2 INSTANCE") {
-		return "a2"
-	}
-
-	// Handle C2 instances (compute-optimized)
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "COMPUTE OPTIMIZED") {
 		return "c2-standard"
 	}
 
-	// Handle E2 instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "E2 INSTANCE") {
-		return "e2"
+	for _, p := range descriptionPrefixes {
+		if strings.Contains(descriptionUpper, p.prefix+" INSTANCE") {
+			return p.family
+		}
 	}
 
-	// Handle T2D instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "T2D AMD") {
-		return "t2d-standard"
-	}
-
-	// Handle T2A instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "T2A ARM") {
-		return "t2a-standard"
-	}
-
-	// Default to the resource group as-is
 	return resourceGroupLower
 }
 

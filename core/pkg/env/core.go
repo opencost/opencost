@@ -79,7 +79,7 @@ func IsKubeModelExported() bool {
 // export the legacy v1 (cluster, namespaces, resource quotas only) shape,
 // regardless of whether the source reports a complete kubemodel.
 func IsKubeModelV1Forced() bool {
-	return GetBool(ForceKubeModelV1EnvVar, true)
+	return GetBool(ForceKubeModelV1EnvVar, false)
 }
 
 // IsAssetIncludeLocalDiskCost returns true if node local disks, and PVs created by
