@@ -846,7 +846,7 @@ func NewClusterInfoMetricCollector() *metric.MetricCollector {
 //		cluster_info{
 //			<some_custom_filter>
 //		}
-//	) by (uid, complete_kubemodel)[%s:%dm]
+//	) by (uid, kubemodel_version)[%s:%dm]
 
 func NewClusterCompleteKubeModelMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
