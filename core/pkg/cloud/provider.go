@@ -21,7 +21,7 @@ const (
 )
 
 // ParseProvider converts a string to a Provider type, performing case-insensitive matching.
-// Returns ProviderEmpty if the provider string is not recognized.
+// Returns ProviderCustom if the provider string is not recognized.
 func ParseProvider(provider string) Provider {
 	switch strings.ToLower(provider) {
 	case "aws", "amazon":
