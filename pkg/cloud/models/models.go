@@ -281,8 +281,8 @@ type Provider interface {
 	NodePricing(Key) (*Node, PricingMetadata, error)
 	GpuPricing(map[string]string) (string, error)
 	PVPricing(PVKey) (*PV, error)
-	NetworkPricing() (*Network, error)           // TODO: add key interface arg for dynamic price fetching
-	LoadBalancerPricing() (*LoadBalancer, error) // TODO: add key interface arg for dynamic price fetching
+	NetworkPricing(NetworkKey) (*Network, error)
+	LoadBalancerPricing(LBKey) (*LoadBalancer, error)
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
 	GetKey(map[string]string, *clustercache.Node) Key
