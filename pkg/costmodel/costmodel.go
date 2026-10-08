@@ -1134,7 +1134,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 			newCnode.RAMCost = fmt.Sprintf("%f", defaultRAMPrice)
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
-		} else if newCnode.GPU != "" && newCnode.GPUCost == "" {
+		} else if gpuc > 0 && newCnode.GPUCost == "" {
 			// was the big thing to investigate. All the funky ratio math
 			// we were doing was messing with their default pricing. for SUSE Rancher.
 
