@@ -733,8 +733,17 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					}
 				}
 
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N4 INSTANCE") {
+				description := strings.ToUpper(product.Description)
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(description, "N4 INSTANCE") {
 					instanceType = "n4standard"
+				}
+				if instanceType == "ram" || instanceType == "cpu" {
+					switch {
+					case strings.HasPrefix(description, "N4A INSTANCE "), strings.HasPrefix(description, "SPOT PREEMPTIBLE N4A INSTANCE "):
+						instanceType = "n4astandard"
+					case strings.HasPrefix(description, "N4D INSTANCE "), strings.HasPrefix(description, "SPOT PREEMPTIBLE N4D INSTANCE "):
+						instanceType = "n4dstandard"
+					}
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "A2 INSTANCE") {
@@ -747,6 +756,28 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "E2 INSTANCE") {
 					instanceType = "e2"
+				}
+
+				// Sole-tenancy SKUs (including "Sole Tenancy Premium" surcharge
+				// SKUs) are excluded so they do not overwrite the standard
+				// on-demand/spot per-vCPU/per-GB rates.
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C3D") && !strings.Contains(strings.ToUpper(product.Description), "SOLE") {
+					instanceType = "c3dstandard"
+				}
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C4A") && !strings.Contains(strings.ToUpper(product.Description), "SOLE") {
+					instanceType = "c4astandard"
+				}
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C3 INSTANCE") && !strings.Contains(strings.ToUpper(product.Description), "SOLE") {
+					// Matching "C3 INSTANCE" — with the space between "C3" and
+					// "INSTANCE" — excludes C3D SKUs, whose descriptions read
+					// "C3D Instance ..." ("C3D" has no space before "INSTANCE",
+					// so it fails this substring check).
+					instanceType = "c3standard"
+				}
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "G2 INSTANCE") && !strings.Contains(strings.ToUpper(product.Description), "SOLE") {
+					// Exclude "Sole Tenancy Premium for G2 Instance ..." SKUs so
+					// they don't overwrite the real g2 vCPU/RAM rates.
+					instanceType = "g2standard"
 				}
 				partialCPUMap := make(map[string]float64)
 				partialCPUMap["e2micro"] = 0.25
@@ -1562,10 +1593,20 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n2standard"
 		} else if instanceType == "n4highmem" || instanceType == "n4highcpu" {
 			instanceType = "n4standard" // N4 variants are priced the same per vCPU and RAM
+		} else if instanceType == "n4ahighmem" || instanceType == "n4ahighcpu" {
+			instanceType = "n4astandard"
+		} else if instanceType == "n4dhighmem" || instanceType == "n4dhighcpu" {
+			instanceType = "n4dstandard"
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
 		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
 			instanceType = "n2dstandard"
+		} else if instanceType == "c3dhighmem" || instanceType == "c3dhighcpu" {
+			instanceType = "c3dstandard" // C3D variants are priced the same per vCPU and RAM
+		} else if instanceType == "c4ahighmem" || instanceType == "c4ahighcpu" {
+			instanceType = "c4astandard" // C4A (Arm) variants are priced the same per vCPU and RAM
+		} else if instanceType == "c3highmem" || instanceType == "c3highcpu" {
+			instanceType = "c3standard" // C3 variants are priced the same per vCPU and RAM
 		} else if strings.HasPrefix(instanceType, "custom") {
 			instanceType = "custom" // The suffix of custom does not matter
 		}
@@ -1703,7 +1744,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	discount := defaultDiscount
 	switch class {
-	case "e2", "f1", "g1", "n4":
+	case "e2", "f1", "g1", "n4", "c3d", "c4a", "c3", "g2", "n4a", "n4d":
 		discount = 0.0
 	case "n2", "n2d":
 		discount = 0.2
