@@ -24,6 +24,14 @@ func NewPricingModule() (*PricingModule, error) {
 	return &PricingModule{}, nil
 }
 
+func (pm *PricingModule) newClusterReader() (reader.Reader[*pricing.ClusterPricing], error) {
+	f, err := embeddedFS.Open("clusters.jsonl")
+	if err != nil {
+		return nil, fmt.Errorf("opening embedded clusters.jsonl: %w", err)
+	}
+	return reader.NewJSONLinesReader[*pricing.ClusterPricing](f), nil
+}
+
 func (pm *PricingModule) newNodeReader() (reader.Reader[*pricing.NodePricing], error) {
 	f, err := embeddedFS.Open("nodes.jsonl")
 	if err != nil {
@@ -49,19 +57,44 @@ func (pm *PricingModule) NewPersistentVolumePricingReader(ctx context.Context) (
 }
 
 func (pm *PricingModule) NewClusterPricingReader(ctx context.Context) (reader.Reader[*pricing.ClusterPricing], error) {
-	return nil, fmt.Errorf("cluster pricing not yet implemented")
+	return pm.newClusterReader()
 }
 
 func (pm *PricingModule) NewNetworkPricingReader(ctx context.Context) (reader.Reader[*pricing.NetworkPricing], error) {
 	return nil, fmt.Errorf("network pricing not yet implemented")
 }
 
+func (pm *PricingModule) newServiceReader() (reader.Reader[*pricing.ServicePricing], error) {
+	f, err := embeddedFS.Open("services.jsonl")
+	if err != nil {
+		return nil, fmt.Errorf("opening embedded services.jsonl: %w", err)
+	}
+	return reader.NewJSONLinesReader[*pricing.ServicePricing](f), nil
+}
+
 func (pm *PricingModule) NewServicePricingReader(ctx context.Context) (reader.Reader[*pricing.ServicePricing], error) {
-	return nil, fmt.Errorf("service pricing not yet implemented")
+	return pm.newServiceReader()
 }
 
 func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{}
+
+	clusterReader, err := pm.newClusterReader()
+	if err != nil {
+		return nil, err
+	}
+	defer clusterReader.Close()
+	clusterDst := make([]*pricing.ClusterPricing, 64)
+	for {
+		n, err := clusterReader.Read(ctx, clusterDst)
+		ps.ClusterPricing = append(ps.ClusterPricing, clusterDst[:n]...)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	nodeReader, err := pm.newNodeReader()
 	if err != nil {
@@ -89,6 +122,23 @@ func (pm *PricingModule) GetPricingSet(ctx context.Context) (*pricing.PricingSet
 	for {
 		n, err := pvReader.Read(ctx, pvDst)
 		ps.PersistentVolumePricing = append(ps.PersistentVolumePricing, pvDst[:n]...)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	svcReader, err := pm.newServiceReader()
+	if err != nil {
+		return nil, err
+	}
+	defer svcReader.Close()
+	svcDst := make([]*pricing.ServicePricing, 64)
+	for {
+		n, err := svcReader.Read(ctx, svcDst)
+		ps.ServicePricing = append(ps.ServicePricing, svcDst[:n]...)
 		if err == io.EOF {
 			break
 		}

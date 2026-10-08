@@ -28,12 +28,20 @@ const unmountedPVsContainer = "unmounted-pvs"
 type ClusterCacheScraper struct {
 	clusterCache          clustercache.ClusterCache
 	externalLabelProvider external.LabelProvider
+	nodeIndex             *persistedIndex[string]
+	namespaceIndex        *persistedIndex[string]
+	pvcIndex              *persistedIndex[pvcKey]
+	pvIndex               *persistedIndex[string]
 }
 
 func newClusterCacheScraper(clusterCache clustercache.ClusterCache, externalLabelProvider external.LabelProvider) Scraper {
 	return &ClusterCacheScraper{
 		clusterCache:          clusterCache,
 		externalLabelProvider: externalLabelProvider,
+		nodeIndex:             newPersistedIndex[string]("node"),
+		namespaceIndex:        newPersistedIndex[string]("namespace"),
+		pvcIndex:              newPersistedIndex[pvcKey]("pvc"),
+		pvIndex:               newPersistedIndex[string]("pv"),
 	}
 }
 
@@ -54,11 +62,12 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 	resourceQuotas := ccs.clusterCache.GetAllResourceQuotas()
 
 	// create scrape indexes. While the pairs being mapped here don't have a 1 to 1 relationship in the general case,
-	// we are assuming that in the context of a single snapshot of the cluster they are 1 to 1.
-	nodeNameToUID := buildNodeIndex(nodes)
-	namespaceNameToUID := buildNamespaceIndex(namespaces)
-	pvcNameToUID := buildPVCIndex(pvcs)
-	pvNameToUID := buildPVIndex(pvs)
+	// we are assuming that in the context of a single snapshot of the cluster they are 1 to 1. Entries are retained
+	// across scrapes so that objects which outlive their referent in the cluster cache still resolve a UID.
+	nodeNameToUID := ccs.nodeIndex.update(buildNodeIndex(nodes))
+	namespaceNameToUID := ccs.namespaceIndex.update(buildNamespaceIndex(namespaces))
+	pvcNameToUID := ccs.pvcIndex.update(buildPVCIndex(pvcs))
+	pvNameToUID := ccs.pvIndex.update(buildPVIndex(pvs))
 
 	scrapeFuncs := []ScrapeFunc{
 		ccs.GetScrapeNodes(nodes),

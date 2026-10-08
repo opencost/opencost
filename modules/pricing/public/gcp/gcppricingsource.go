@@ -44,6 +44,20 @@ func (g *GCPPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+		// GKE charges $0.10/hr per cluster for cluster management
+		ClusterPricing: []*pricing.ClusterPricing{
+			{
+				Properties: pricing.ClusterPricingProperties{
+					Provider: cloud.ProviderGCP,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceCluster: {
+						Unit:  unit.Hour,
+						Price: 0.10,
+					},
+				},
+			},
+		},
 	}
 
 	// Maps to accumulate CPU, RAM, and per-GPU costs.
@@ -251,18 +265,30 @@ func (g *GCPPricingSource) parseGPUSKU(sku *GCPPricing, usageType string, nodeGP
 	}
 }
 
-// expandInstanceTypes handles special cases like E2 and A2 families that map to multiple instance types
+// expandInstanceTypes fans a single billing SKU out to all the node_pricing
+// InstanceType keys it should cover. GCP bills N-series sub-families
+// (highmem, highcpu) at the same per-vCPU and per-GiB-RAM rate as the
+// standard variant, so a single "N2 Instance" SKU must produce rows for
+// n2-standard, n2-highmem, and n2-highcpu.
 func (g *GCPPricingSource) expandInstanceTypes(instanceType, resourceGroup string) []string {
 	resourceGroupLower := strings.ToLower(resourceGroup)
-
-	// E2 family expands to multiple instance types
-	if instanceType == "e2" && (resourceGroupLower == "cpu" || resourceGroupLower == "ram") {
-		return []string{"e2-micro", "e2-small", "e2-medium", "e2-standard", "e2-custom"}
+	if resourceGroupLower != "cpu" && resourceGroupLower != "ram" {
+		return []string{instanceType}
 	}
 
-	// A2 family expands to multiple GPU-optimized instance types
-	if instanceType == "a2" && (resourceGroupLower == "cpu" || resourceGroupLower == "ram") {
+	switch instanceType {
+	case "e2":
+		return []string{"e2-micro", "e2-small", "e2-medium", "e2-standard", "e2-highcpu", "e2-highmem", "e2-custom"}
+	case "a2":
 		return []string{"a2-highgpu", "a2-megagpu", "a2-ultragpu"}
+	case "n1-standard":
+		return []string{"n1-standard", "n1-highmem", "n1-highcpu"}
+	case "n2-standard":
+		return []string{"n2-standard", "n2-highmem", "n2-highcpu"}
+	case "n2d-standard":
+		return []string{"n2d-standard", "n2d-highmem", "n2d-highcpu"}
+	case "n4-standard":
+		return []string{"n4-standard", "n4-highmem", "n4-highcpu"}
 	}
 
 	return []string{instanceType}
