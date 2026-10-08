@@ -24,6 +24,19 @@
             "volume.high-speed.consumption",
             "volume.classic.consumption"
           ]
+        },
+        {
+          "name": "octavia-loadbalancer",
+          "addons": [
+            "octavia-loadbalancer.loadbalancer-s.hour.consumption",
+            "octavia-loadbalancer.loadbalancer-s.month.consumption",
+            "octavia-loadbalancer.loadbalancer-m.hour.consumption",
+            "octavia-loadbalancer.loadbalancer-m.month.consumption",
+            "octavia-loadbalancer.loadbalancer-l.hour.consumption",
+            "octavia-loadbalancer.loadbalancer-l.month.consumption",
+            "octavia-loadbalancer.loadbalancer-xl.hour.consumption",
+            "octavia-loadbalancer.loadbalancer-xl.month.consumption"
+          ]
         }
       ]
     }
@@ -208,6 +221,46 @@
           "type": "consumption"
         }
       ]
+    },
+    {
+      "planCode": "octavia-loadbalancer.loadbalancer-s.hour.consumption",
+      "pricings": [{"price": 830000, "type": "consumption"}],
+      "blobs": {"technical": {"name": "small"}}
+    },
+    {
+      "planCode": "octavia-loadbalancer.loadbalancer-s.month.consumption",
+      "pricings": [{"price": 600000000, "type": "consumption"}],
+      "blobs": {"technical": {"name": "small"}}
+    },
+    {
+      "planCode": "octavia-loadbalancer.loadbalancer-m.hour.consumption",
+      "pricings": [{"price": 2080000, "type": "consumption"}],
+      "blobs": {"technical": {"name": "medium"}}
+    },
+    {
+      "planCode": "octavia-loadbalancer.loadbalancer-m.month.consumption",
+      "pricings": [{"price": 1500000000, "type": "consumption"}],
+      "blobs": {"technical": {"name": "medium"}}
+    },
+    {
+      "planCode": "octavia-loadbalancer.loadbalancer-l.hour.consumption",
+      "pricings": [{"price": 5560000, "type": "consumption"}],
+      "blobs": {"technical": {"name": "large"}}
+    },
+    {
+      "planCode": "octavia-loadbalancer.loadbalancer-l.month.consumption",
+      "pricings": [{"price": 4000000000, "type": "consumption"}],
+      "blobs": {"technical": {"name": "large"}}
+    },
+    {
+      "planCode": "octavia-loadbalancer.loadbalancer-xl.hour.consumption",
+      "pricings": [{"price": 20830000, "type": "consumption"}],
+      "blobs": {"technical": {"name": "xl"}}
+    },
+    {
+      "planCode": "octavia-loadbalancer.loadbalancer-xl.month.consumption",
+      "pricings": [{"price": 15000000000, "type": "consumption"}],
+      "blobs": {"technical": {"name": "xl"}}
     }
   ]
 }
