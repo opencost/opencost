@@ -60,6 +60,18 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 			input:    "n4-highmem-16",
 			expected: "n4standard",
 		},
+		{
+			input:    "c4a-highmem-8",
+			expected: "c4astandard",
+		},
+		{
+			input:    "c4a-highcpu-8",
+			expected: "c4astandard",
+		},
+		{
+			input:    "c4a-standard-4",
+			expected: "c4astandard",
+		},
 	}
 
 	for _, test := range cases {
@@ -257,6 +269,19 @@ func TestParsePage(t *testing.T) {
 						"topology.kubernetes.io/region":    "asia-southeast1",
 					},
 				},
+				"us-central1,c4astandard,ondemand": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c4a-standard-4",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+				"us-central1,c4astandard,preemptible": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c4a-standard-4",
+						"cloud.google.com/gke-spot":        "true",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
 			},
 			pvKeys: map[string]models.PVKey{},
 			expectedPrices: map[string]*GCPPricing{
@@ -361,6 +386,40 @@ func TestParsePage(t *testing.T) {
 						RAMCost:          "68.204999658",
 						UsesBaseCPUPrice: false,
 						UsageType:        "ondemand",
+					},
+				},
+				// The "Sole Tenancy Premium for C4A Instance Core" SKU must be
+				// excluded, so no additional keys are created from it.
+				"us-central1,c4astandard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.025",
+						RAMCost:          "0.004",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c4astandard,ondemand,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.025",
+						RAMCost:          "0.004",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c4astandard,preemptible": {
+					Node: &models.Node{
+						VCPUCost:         "0.008",
+						RAMCost:          "0.001",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
+				"us-central1,c4astandard,preemptible,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.008",
+						RAMCost:          "0.001",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
 					},
 				},
 			},
@@ -1036,6 +1095,13 @@ func TestSustainedUseDiscount(t *testing.T) {
 			defaultDiscount: 0.30,
 			isPreemptible:   false,
 			expected:        0.30,
+		},
+		{
+			name:            "C4A instance",
+			class:           "c4a",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
 		},
 	}
 
