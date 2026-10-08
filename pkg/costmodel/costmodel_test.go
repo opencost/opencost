@@ -3,6 +3,7 @@ package costmodel
 import (
 	"math"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
@@ -578,4 +579,78 @@ func TestCustomProviderGPUNodeUsesDefaultHourlyPricing(t *testing.T) {
 	assert.Equal(t, cfg.GPU, node.GPUCost)
 	assert.Equal(t, "2.000000", node.GPU)
 	assert.Empty(t, node.ProviderID)
+}
+
+// gpuNodeWithoutGPUPricing wraps CustomProvider so that NodePricing reports a
+// GPU on the node but no price for it. That is the shape -- GPU set, GPUCost
+// empty -- that sends GetNodeCost down its ratio-based default-pricing
+// fallback, which CustomProvider's own pricing map never produces.
+type gpuNodeWithoutGPUPricing struct {
+	*provider.CustomProvider
+}
+
+func (p *gpuNodeWithoutGPUPricing) NodePricing(models.Key) (*models.Node, models.PricingMetadata, error) {
+	return &models.Node{GPU: "1"}, models.PricingMetadata{}, nil
+}
+
+// TestDefaultPricingFallbackGPUNodeUsesRAMGigabytes pins the units of the
+// ratio-based fallback in GetNodeCost. defaultRAM is a price per GB-hour, so
+// the fallback node price has to be built from the node's memory in GB; built
+// from its memory in bytes it is inflated by ~1.07e9x, and because
+// gpuToRAMRatio then claims the bulk of ramMultiple, nearly all of that lands
+// on the GPU price.
+func TestDefaultPricingFallbackGPUNodeUsesRAMGigabytes(t *testing.T) {
+	configPath := t.TempDir()
+	t.Setenv(coreenv.ConfigPathEnvVar, configPath)
+
+	confMan := config.NewConfigFileManager(storage.NewFileStorage("/"))
+	customProvider := &provider.CustomProvider{
+		Config: provider.NewProviderConfig(confMan, "default.json"),
+	}
+	require.NoError(t, customProvider.DownloadPricingData())
+
+	cfg, err := customProvider.GetConfig()
+	require.NoError(t, err)
+
+	costModel := &CostModel{
+		Provider: &gpuNodeWithoutGPUPricing{CustomProvider: customProvider},
+		Cache: &clustercache.MockClusterCache{
+			Nodes: []*clustercache.Node{
+				{
+					Name:   "gpu-node-without-gpu-price",
+					Labels: map[string]string{"kubernetes.io/arch": "amd64"},
+					Status: v1.NodeStatus{
+						Capacity: v1.ResourceList{
+							v1.ResourceCPU:    resource.MustParse("4"),
+							v1.ResourceMemory: resource.MustParse("16Gi"),
+							"nvidia.com/gpu":  resource.MustParse("1"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	nodeCost, err := costModel.GetNodeCost()
+	require.NoError(t, err)
+
+	node, ok := nodeCost["gpu-node-without-gpu-price"]
+	require.True(t, ok)
+
+	// Distributing the fallback node price back over the same ratios it was
+	// built from has to return the per-unit default prices unchanged.
+	assertPriceEquals(t, cfg.CPU, node.VCPUCost, "vCPU")
+	assertPriceEquals(t, cfg.RAM, node.RAMCost, "RAM")
+	assertPriceEquals(t, cfg.GPU, node.GPUCost, "GPU")
+}
+
+func assertPriceEquals(t *testing.T, want, got, resourceName string) {
+	t.Helper()
+
+	wantF, err := strconv.ParseFloat(want, 64)
+	require.NoError(t, err)
+	gotF, err := strconv.ParseFloat(got, 64)
+	require.NoError(t, err)
+
+	assert.InDelta(t, wantF, gotF, wantF*1e-6, "%s price", resourceName)
 }
