@@ -400,16 +400,34 @@ func TestParsePage(t *testing.T) {
 
 }
 func TestGCP_GetConfig(t *testing.T) {
-	gcp := &GCP{
-		Config: &mockConfig{},
-	}
+	t.Run("success", func(t *testing.T) {
+		gcp := &GCP{Config: &mockConfig{}}
+		c, err := gcp.GetConfig()
+		assert.NoError(t, err)
+		assert.NotNil(t, c)
+		assert.Equal(t, "30%", c.Discount)
+		assert.Equal(t, "0%", c.NegotiatedDiscount)
+		assert.Equal(t, "USD", c.CurrencyCode)
+	})
 
-	config, err := gcp.GetConfig()
-	assert.NoError(t, err)
-	assert.NotNil(t, config)
-	assert.Equal(t, "30%", config.Discount)
-	assert.Equal(t, "0%", config.NegotiatedDiscount)
-	assert.Equal(t, "USD", config.CurrencyCode)
+	t.Run("config error still returns defaults not nil", func(t *testing.T) {
+		gcp := &GCP{Config: &mockConfigWriteError{}}
+		c, err := gcp.GetConfig()
+		assert.Error(t, err)
+		assert.NotNil(t, c)
+		assert.Equal(t, "30%", c.Discount)
+		assert.Equal(t, "0%", c.NegotiatedDiscount)
+		assert.Equal(t, "USD", c.CurrencyCode)
+	})
+	t.Run("nil Config returns defaults and error", func(t *testing.T) {
+		gcp := &GCP{Config: nil}
+		c, err := gcp.GetConfig()
+		assert.Error(t, err)
+		assert.NotNil(t, c)
+		assert.Equal(t, "30%", c.Discount)
+		assert.Equal(t, "0%", c.NegotiatedDiscount)
+		assert.Equal(t, "USD", c.CurrencyCode)
+	})
 }
 
 func TestGCP_GetManagementPlatform(t *testing.T) {
@@ -519,26 +537,51 @@ func TestGCP_UpdateConfig(t *testing.T) {
 }
 
 func TestGCP_ClusterInfo(t *testing.T) {
-	gcp := &GCP{
-		Config:             &mockConfig{},
-		ClusterRegion:      "us-central1",
-		ClusterAccountID:   "test-account",
-		ClusterProjectID:   "test-project",
-		clusterProvisioner: "gke",
-	}
-
-	// The function will panic due to nil metadata client, so we need to handle this
-	defer func() {
-		if r := recover(); r != nil {
-			// Expected panic due to nil metadata client
-			assert.Contains(t, fmt.Sprintf("%v", r), "invalid memory address")
+	t.Run("nil MetadataClient does not panic and falls back to default name", func(t *testing.T) {
+		gcp := &GCP{
+			Config:             &mockConfig{},
+			ClusterRegion:      "us-central1",
+			ClusterAccountID:   "test-account",
+			ClusterProjectID:   "test-project",
+			clusterProvisioner: "gke",
+			MetadataClient:     nil,
 		}
-	}()
+		info, err := gcp.ClusterInfo()
+		assert.NoError(t, err)
+		assert.NotNil(t, info)
+		assert.Equal(t, "GKE Cluster #1", info["name"])
+		assert.Equal(t, "us-central1", info["region"])
+	})
 
-	info, err := gcp.ClusterInfo()
-	// This line should not be reached due to panic
-	assert.Error(t, err)
-	assert.Nil(t, info)
+	t.Run("config write error does not panic and falls back to default name", func(t *testing.T) {
+		gcp := &GCP{
+			Config:             &mockConfigWriteError{},
+			ClusterRegion:      "us-central1",
+			ClusterAccountID:   "test-account",
+			ClusterProjectID:   "test-project",
+			clusterProvisioner: "gke",
+			MetadataClient:     nil,
+		}
+		info, err := gcp.ClusterInfo()
+		assert.NoError(t, err)
+		assert.NotNil(t, info)
+		assert.Equal(t, "GKE Cluster #1", info["name"])
+	})
+
+	t.Run("config ClusterName overrides default name", func(t *testing.T) {
+		gcp := &GCP{
+			Config:             &mockConfigWithClusterName{},
+			ClusterRegion:      "us-central1",
+			ClusterAccountID:   "test-account",
+			ClusterProjectID:   "test-project",
+			clusterProvisioner: "gke",
+			MetadataClient:     nil,
+		}
+		info, err := gcp.ClusterInfo()
+		assert.NoError(t, err)
+		assert.NotNil(t, info)
+		assert.Equal(t, "my-cluster", info["name"])
+	})
 }
 
 func TestGCP_ClusterManagementPricing(t *testing.T) {
@@ -1367,5 +1410,47 @@ func (m *mockConfig) Update(updateFn func(*models.CustomPricing) error) (*models
 }
 
 func (m *mockConfig) ConfigFileManager() *config.ConfigFileManager {
+	return nil
+}
+
+// mockConfigWriteError simulates ProviderConfig.loadConfig returning a non-nil
+// *CustomPricing alongside an error (e.g. mkdir /var/configs: permission denied).
+// This is the exact scenario described in issue #3868.
+type mockConfigWriteError struct{}
+
+func (m *mockConfigWriteError) GetCustomPricingData() (*models.CustomPricing, error) {
+	return &models.CustomPricing{}, fmt.Errorf("Failed to prepare path: mkdir /var/configs: permission denied")
+}
+
+func (m *mockConfigWriteError) UpdateFromMap(a map[string]string) (*models.CustomPricing, error) {
+	return &models.CustomPricing{}, nil
+}
+
+func (m *mockConfigWriteError) Update(updateFn func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	cp := &models.CustomPricing{}
+	return cp, updateFn(cp)
+}
+
+func (m *mockConfigWriteError) ConfigFileManager() *config.ConfigFileManager {
+	return nil
+}
+
+// mockConfigWithClusterName returns a config with a non-empty ClusterName.
+type mockConfigWithClusterName struct{}
+
+func (m *mockConfigWithClusterName) GetCustomPricingData() (*models.CustomPricing, error) {
+	return &models.CustomPricing{ClusterName: "my-cluster"}, nil
+}
+
+func (m *mockConfigWithClusterName) UpdateFromMap(a map[string]string) (*models.CustomPricing, error) {
+	return &models.CustomPricing{}, nil
+}
+
+func (m *mockConfigWithClusterName) Update(updateFn func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	cp := &models.CustomPricing{}
+	return cp, updateFn(cp)
+}
+
+func (m *mockConfigWithClusterName) ConfigFileManager() *config.ConfigFileManager {
 	return nil
 }
