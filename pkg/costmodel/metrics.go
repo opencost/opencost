@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 //--------------------------------------------------------------------------
@@ -411,6 +412,20 @@ type NodeCostAverages struct {
 	NumRamDataPoints float64
 }
 
+type podMetricMetadata struct {
+	uid   string
+	phase v1.PodPhase
+}
+
+func buildPodMetricMetadata(pods []*clustercache.Pod) map[types.NamespacedName]podMetricMetadata {
+	metadata := make(map[types.NamespacedName]podMetricMetadata, len(pods))
+	for _, pod := range pods {
+		key := types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}
+		metadata[key] = podMetricMetadata{uid: string(pod.UID), phase: pod.Status.Phase}
+	}
+	return metadata
+}
+
 // StartCostModelMetricRecording starts the go routine that emits metrics used to determine
 // cluster costs.
 func (cmme *CostModelMetricsEmitter) Start() bool {
@@ -452,13 +467,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 		for {
 			log.Debugf("Recording prices...")
-			podlist := cmme.KubeClusterCache.GetAllPods()
-			podStatus := make(map[string]v1.PodPhase)
-			podUIDs := make(map[string]string)
-			for _, pod := range podlist {
-				podStatus[pod.Name] = pod.Status.Phase
-				podUIDs[pod.Name] = string(pod.UID)
-			}
+			podMetadata := buildPodMetricMetadata(cmme.KubeClusterCache.GetAllPods())
 
 			// Create node UID lookup map
 			nodeList := cmme.KubeClusterCache.GetAllNodes()
@@ -651,6 +660,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				namespace := costs.Namespace
 				podName := costs.PodName
 				containerName := costs.Name
+				pod := podMetadata[types.NamespacedName{Namespace: namespace, Name: podName}]
+				podUID := pod.uid
 
 				if costs.PVCData != nil {
 					for _, pvc := range costs.PVCData {
@@ -659,7 +670,6 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 							if timesClaimed == 0 {
 								timesClaimed = 1 // unallocated PVs are unclaimed but have a full allocation
 							}
-							podUID := podUIDs[podName]
 							cmme.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName, podUID).Set(pvc.Values[0].Value / float64(timesClaimed))
 							labelKey := getKeyFromLabelStrings(namespace, podName, pvc.Claim, pvc.VolumeName, podUID)
 							pvcSeen[labelKey] = true
@@ -668,11 +678,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 
 				if len(costs.RAMAllocation) > 0 {
-					podUID := podUIDs[podName]
 					cmme.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName, podUID).Set(costs.RAMAllocation[0].Value)
 				}
 				if len(costs.CPUAllocation) > 0 {
-					podUID := podUIDs[podName]
 					cmme.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName, podUID).Set(costs.CPUAllocation[0].Value)
 				}
 				if len(costs.GPUReq) > 0 {
@@ -694,12 +702,10 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 						gpualloc = gpualloc * (gpu / vgpu)
 					}
 
-					podUID := podUIDs[podName]
 					cmme.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName, podUID).Set(gpualloc)
 				}
-				podUID := podUIDs[podName]
 				labelKey := getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName, podUID)
-				if podStatus[podName] == v1.PodRunning { // Only report data for current pods
+				if pod.phase == v1.PodRunning { // Only report data for current pods
 					containerSeen[labelKey] = true
 				} else {
 					containerSeen[labelKey] = false
