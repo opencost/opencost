@@ -1,0 +1,93 @@
+# Hetzner Cloud Pricing for OpenCost CSV Provider
+# Prices in EUR per hour (EU locations - Germany/Finland)
+# Last updated: January 2026
+# Source: https://www.hetzner.com/cloud/
+#
+# Note: Prices exclude VAT. Monthly caps apply (hourly billing never exceeds monthly max).
+# For US/Singapore locations, prices may differ slightly.
+#
+# ==================== CLOUD SERVERS ====================
+# Format: EndTimestamp,InstanceID,Region,AssetClass,InstanceIDField,InstanceType,MarketPriceHourly,Version
+#
+# --- CAX Series (ARM - Ampere Altra, Shared vCPU) ---
+# Best price-performance ratio, ARM-based
+EndTimestamp,InstanceID,Region,AssetClass,InstanceIDField,InstanceType,MarketPriceHourly,Version
+,cax11,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cax11,0.0061,2026.01
+,cax11,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cax11,0.0061,2026.01
+,cax11,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cax11,0.0061,2026.01
+,cax21,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cax21,0.0098,2026.01
+,cax21,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cax21,0.0098,2026.01
+,cax21,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cax21,0.0098,2026.01
+,cax31,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cax31,0.0188,2026.01
+,cax31,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cax31,0.0188,2026.01
+,cax31,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cax31,0.0188,2026.01
+,cax41,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cax41,0.0369,2026.01
+,cax41,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cax41,0.0369,2026.01
+,cax41,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cax41,0.0369,2026.01
+# --- CPX Series (AMD EPYC, Shared vCPU) ---
+# Good balance for production workloads with variable demand
+,cpx11,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cpx11,0.0066,2026.01
+,cpx11,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cpx11,0.0066,2026.01
+,cpx11,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cpx11,0.0066,2026.01
+,cpx21,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cpx21,0.0114,2026.01
+,cpx21,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cpx21,0.0114,2026.01
+,cpx21,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cpx21,0.0114,2026.01
+,cpx31,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cpx31,0.0213,2026.01
+,cpx31,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cpx31,0.0213,2026.01
+,cpx31,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cpx31,0.0213,2026.01
+,cpx41,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cpx41,0.0375,2026.01
+,cpx41,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cpx41,0.0375,2026.01
+,cpx41,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cpx41,0.0375,2026.01
+,cpx51,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cpx51,0.0711,2026.01
+,cpx51,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cpx51,0.0711,2026.01
+,cpx51,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cpx51,0.0711,2026.01
+# --- CX Series (Intel, Shared vCPU) ---
+# Intel-based shared instances
+,cx22,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cx22,0.0066,2026.01
+,cx22,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cx22,0.0066,2026.01
+,cx22,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cx22,0.0066,2026.01
+,cx32,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cx32,0.0116,2026.01
+,cx32,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cx32,0.0116,2026.01
+,cx32,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cx32,0.0116,2026.01
+,cx42,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cx42,0.0221,2026.01
+,cx42,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cx42,0.0221,2026.01
+,cx42,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cx42,0.0221,2026.01
+,cx52,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,cx52,0.0549,2026.01
+,cx52,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,cx52,0.0549,2026.01
+,cx52,hel1,node,metadata.labels.node.kubernetes.io/instance-type,cx52,0.0549,2026.01
+# --- CCX Series (AMD EPYC, Dedicated vCPU) ---
+# Dedicated vCPUs for production workloads requiring consistent performance
+,ccx13,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,ccx13,0.0188,2026.01
+,ccx13,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,ccx13,0.0188,2026.01
+,ccx13,hel1,node,metadata.labels.node.kubernetes.io/instance-type,ccx13,0.0188,2026.01
+,ccx23,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,ccx23,0.0369,2026.01
+,ccx23,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,ccx23,0.0369,2026.01
+,ccx23,hel1,node,metadata.labels.node.kubernetes.io/instance-type,ccx23,0.0369,2026.01
+,ccx33,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,ccx33,0.0729,2026.01
+,ccx33,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,ccx33,0.0729,2026.01
+,ccx33,hel1,node,metadata.labels.node.kubernetes.io/instance-type,ccx33,0.0729,2026.01
+,ccx43,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,ccx43,0.1449,2026.01
+,ccx43,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,ccx43,0.1449,2026.01
+,ccx43,hel1,node,metadata.labels.node.kubernetes.io/instance-type,ccx43,0.1449,2026.01
+,ccx53,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,ccx53,0.2889,2026.01
+,ccx53,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,ccx53,0.2889,2026.01
+,ccx53,hel1,node,metadata.labels.node.kubernetes.io/instance-type,ccx53,0.2889,2026.01
+,ccx63,fsn1,node,metadata.labels.node.kubernetes.io/instance-type,ccx63,0.4349,2026.01
+,ccx63,nbg1,node,metadata.labels.node.kubernetes.io/instance-type,ccx63,0.4349,2026.01
+,ccx63,hel1,node,metadata.labels.node.kubernetes.io/instance-type,ccx63,0.4349,2026.01
+# ==================== LOAD BALANCERS ====================
+# Hetzner Load Balancer pricing
+,lb11,fsn1,node,metadata.labels.load-balancer.hetzner.cloud/type,lb11,0.0081,2026.01
+,lb11,nbg1,node,metadata.labels.load-balancer.hetzner.cloud/type,lb11,0.0081,2026.01
+,lb11,hel1,node,metadata.labels.load-balancer.hetzner.cloud/type,lb11,0.0081,2026.01
+,lb21,fsn1,node,metadata.labels.load-balancer.hetzner.cloud/type,lb21,0.0189,2026.01
+,lb21,nbg1,node,metadata.labels.load-balancer.hetzner.cloud/type,lb21,0.0189,2026.01
+,lb21,hel1,node,metadata.labels.load-balancer.hetzner.cloud/type,lb21,0.0189,2026.01
+,lb31,fsn1,node,metadata.labels.load-balancer.hetzner.cloud/type,lb31,0.0369,2026.01
+,lb31,nbg1,node,metadata.labels.load-balancer.hetzner.cloud/type,lb31,0.0369,2026.01
+,lb31,hel1,node,metadata.labels.load-balancer.hetzner.cloud/type,lb31,0.0369,2026.01
+# ==================== VOLUMES (STORAGE) ====================
+# SSD Block Storage - price per GB per hour (€0.052/GB/month = €0.000072/GB/hour)
+,ssd,fsn1,pv,spec.storageClassName,hcloud-volumes,0.000072,2026.01
+,ssd,nbg1,pv,spec.storageClassName,hcloud-volumes,0.000072,2026.01
+,ssd,hel1,pv,spec.storageClassName,hcloud-volumes,0.000072,2026.01
