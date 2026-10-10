@@ -207,6 +207,81 @@ func TestCustomProviderNodePricingUsesDetectedGPUCount(t *testing.T) {
 	}
 }
 
+func TestCustomProviderNodePricingReportsSpotUsageType(t *testing.T) {
+	customProvider := &CustomProvider{
+		SpotLabel:      "opencost.node-type",
+		SpotLabelValue: "worker",
+		Pricing: map[string]*NodePrice{
+			"default": {
+				CPU: "0.01213",
+				RAM: "0.00273",
+			},
+			"default,spot": {
+				CPU: "0.32455",
+				RAM: "0.08114",
+			},
+		},
+	}
+
+	cases := []struct {
+		name          string
+		labels        map[string]string
+		wantCPU       string
+		wantRAM       string
+		wantSpot      bool
+		wantUsageType string
+	}{
+		{
+			name:          "node matching spot label is spot",
+			labels:        map[string]string{"opencost.node-type": "worker"},
+			wantCPU:       "0.32455",
+			wantRAM:       "0.08114",
+			wantSpot:      true,
+			wantUsageType: "spot",
+		},
+		{
+			name:          "node with different spot label value is on-demand",
+			labels:        map[string]string{"opencost.node-type": "master"},
+			wantCPU:       "0.01213",
+			wantRAM:       "0.00273",
+			wantSpot:      false,
+			wantUsageType: "",
+		},
+		{
+			name:          "node without spot label is on-demand",
+			labels:        map[string]string{},
+			wantCPU:       "0.01213",
+			wantRAM:       "0.00273",
+			wantSpot:      false,
+			wantUsageType: "",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			key := customProvider.GetKey(tt.labels, &clustercache.Node{Labels: tt.labels})
+
+			node, _, err := customProvider.NodePricing(key)
+			if err != nil {
+				t.Fatalf("NodePricing returned error: %v", err)
+			}
+
+			if node.VCPUCost != tt.wantCPU {
+				t.Errorf("VCPUCost = %q, want %q", node.VCPUCost, tt.wantCPU)
+			}
+			if node.RAMCost != tt.wantRAM {
+				t.Errorf("RAMCost = %q, want %q", node.RAMCost, tt.wantRAM)
+			}
+			if node.UsageType != tt.wantUsageType {
+				t.Errorf("UsageType = %q, want %q", node.UsageType, tt.wantUsageType)
+			}
+			if got := node.IsSpot(); got != tt.wantSpot {
+				t.Errorf("IsSpot() = %t, want %t", got, tt.wantSpot)
+			}
+		})
+	}
+}
+
 func TestCustomProviderClusterInfoUsesStaticDefaultName(t *testing.T) {
 	t.Setenv(coreenv.ClusterIDEnvVar, "")
 
