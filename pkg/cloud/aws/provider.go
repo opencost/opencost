@@ -973,13 +973,55 @@ func (aws *AWS) DownloadPricingData() error {
 	// If athenaBucketName is unconfigured, the ReservedInstanceData and SavingsPlanData watchers
 	// are skipped. Note: These watchers are less commonly used. It is recommended to use the full
 	// CloudCosts feature via athenaintegration.go.
+	var (
+		riErr        error
+		spErr        error
+		pricingResp  *http.Response
+		pricingURL   string
+		pricingDLErr error
+	)
+	var startupWG sync.WaitGroup
+
 	if !aws.RIDataRunning {
-		err = aws.GetReservationDataFromAthena() // Block until one run has completed.
-		if err != nil {
-			if errors.Is(err, ErrNoAthenaBucket) {
+		startupWG.Add(1)
+		go func() {
+			defer startupWG.Done()
+			riErr = aws.GetReservationDataFromAthena()
+		}()
+	}
+	if !aws.SavingsPlanDataRunning {
+		startupWG.Add(1)
+		go func() {
+			defer startupWG.Done()
+			spErr = aws.GetSavingsPlanDataFromAthena()
+		}()
+	}
+	if aws.FargatePricing == nil {
+		startupWG.Add(1)
+		go func() {
+			defer startupWG.Done()
+			fargatePricing := NewFargatePricing()
+			initErr := fargatePricing.Initialize(nodeList)
+			aws.FargatePricing = fargatePricing
+			aws.FargatePricingError = initErr
+			if initErr != nil {
+				log.Errorf("Failed to initialize fargate pricing: %s", initErr.Error())
+			}
+		}()
+	}
+	startupWG.Add(1)
+	go func() {
+		defer startupWG.Done()
+		pricingResp, pricingURL, pricingDLErr = aws.getRegionPricing(nodeList)
+	}()
+	startupWG.Wait()
+
+	if !aws.RIDataRunning {
+		if riErr != nil {
+			if errors.Is(riErr, ErrNoAthenaBucket) {
 				log.Debugf("No \"athenaBucketName\" configured, ReservedInstanceData watcher will not run")
 			} else {
-				log.Warnf("Failed to lookup reserved instance data: %s", err.Error())
+				log.Warnf("Failed to lookup reserved instance data: %s", riErr.Error())
 			}
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
@@ -998,12 +1040,11 @@ func (aws *AWS) DownloadPricingData() error {
 		}
 	}
 	if !aws.SavingsPlanDataRunning {
-		err = aws.GetSavingsPlanDataFromAthena()
-		if err != nil {
-			if errors.Is(err, ErrNoAthenaBucket) {
+		if spErr != nil {
+			if errors.Is(spErr, ErrNoAthenaBucket) {
 				log.Debugf("No \"athenaBucketName\" configured, SavingsPlanData watcher will not run")
 			} else {
-				log.Errorf("Failed to lookup savings plan data: %s", err.Error())
+				log.Errorf("Failed to lookup savings plan data: %s", spErr.Error())
 			}
 		} else {
 			go func() {
@@ -1021,22 +1062,12 @@ func (aws *AWS) DownloadPricingData() error {
 		}
 	}
 
-	// Initialize fargate pricing if it's not initialized yet
-	if aws.FargatePricing == nil {
-		aws.FargatePricing = NewFargatePricing()
-		aws.FargatePricingError = aws.FargatePricing.Initialize(nodeList)
-		if aws.FargatePricingError != nil {
-			log.Errorf("Failed to initialize fargate pricing: %s", aws.FargatePricingError.Error())
-		}
-	}
-
 	aws.ValidPricingKeys = make(map[string]bool)
 
-	resp, pricingURL, err := aws.getRegionPricing(nodeList)
-	if err != nil {
-		return err
+	if pricingDLErr != nil {
+		return pricingDLErr
 	}
-	err = aws.populatePricing(resp, inputkeys)
+	err = aws.populatePricing(pricingResp, inputkeys)
 	if err != nil {
 		return err
 	}
