@@ -162,7 +162,7 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMeta
 	return nil, meta, fmt.Errorf("Unable to find node pricing matching thes features `%s`", key.Features())
 }
 
-func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
+func (c *Scaleway) LoadBalancerPricing(key models.LBKey) (*models.LoadBalancer, error) {
 	// Different LB types, lets take the cheaper for now, we can't get the type
 	// without a service specifying the type in the annotations
 	return &models.LoadBalancer{
@@ -170,7 +170,7 @@ func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	}, nil
 }
 
-func (c *Scaleway) NetworkPricing() (*models.Network, error) {
+func (c *Scaleway) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	// it's free baby!
 	return &models.Network{
 		ZoneNetworkEgressCost:     0,
