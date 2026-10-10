@@ -278,7 +278,6 @@ func parseVolumeAddon(addon ovhAddon, volumePricing map[string]float64) {
 			return
 		}
 	}
-	volumePricing[volumeType] = float64(addon.Pricings[0].Price) / microcentsPerUnit
 }
 
 // ovhKey implements models.Key for OVH nodes.

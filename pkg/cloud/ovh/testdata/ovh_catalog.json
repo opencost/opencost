@@ -21,6 +21,7 @@
           "name": "volume",
           "addons": [
             "volume.high-speed-gen2.consumption",
+            "volume.high-speed-gen2.monthly.postpaid",
             "volume.high-speed.consumption",
             "volume.classic.consumption"
           ]
@@ -182,6 +183,18 @@
         {
           "price": 11900,
           "type": "consumption"
+        }
+      ]
+    },
+    {
+      "planCode": "volume.high-speed-gen2.monthly.postpaid",
+      "invoiceName": "Volume High Speed Gen2 - Monthly",
+      "product": "publiccloud-volume",
+      "pricingType": "consumption",
+      "pricings": [
+        {
+          "price": 8687000,
+          "type": "monthly.postpaid"
         }
       ]
     },
