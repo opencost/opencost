@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,25 +40,66 @@ type Scaleway struct {
 	ClusterRegion           string
 	ClusterAccountID        string
 	DownloadPricingDataLock sync.RWMutex
+
+	// Catalog is the catalog-backed pricing store (see catalog.go). It is
+	// swapped in atomically under DownloadPricingDataLock and is nil until
+	// the first successful fetch (edge case 1: a failed fetch never wipes it).
+	Catalog        *catalogStore
+	catalogFetched bool // true iff the last full catalog fetch completed
+	catalogError   string
 }
 
 // PricingSourceSummary returns the pricing source summary for the provider.
 // The summary represents what was _parsed_ from the pricing source, not
 // everything that was _available_ in the pricing source.
-func (c *Scaleway) PricingSourceSummary() interface{} {
-	return c.Pricing
+func (c *Scaleway) PricingSourceSummary() any {
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
+	// The existing per-zone parsed pricing is returned unchanged; the catalog
+	// section is additive (contracts/pricing-source-status.md §2).
+	summary := make(map[string]any, len(c.Pricing)+1)
+	for zone, pricing := range c.Pricing {
+		summary[zone] = pricing
+	}
+	if c.Catalog != nil {
+		summary["catalog"] = c.Catalog.summary()
+	}
+	return summary
 }
+
 func (c *Scaleway) DownloadPricingData() error {
 	c.DownloadPricingDataLock.Lock()
 	defer c.DownloadPricingDataLock.Unlock()
 
-	// TODO wait for an official Pricing API from Scaleway
-	// Let's use a static map and an old API
+	// The Product Catalog is the primary pricing source. It is re-fetched on
+	// every download — at startup and via the manual refresh trigger (FR-001,
+	// SC-002). A failure keeps the previous store and never blocks the legacy
+	// sources below (edge case 1, FR-007).
+	cfg, _ := c.GetConfig()
+	currency := "EUR"
+	if cfg != nil && cfg.CurrencyCode != "" {
+		currency = cfg.CurrencyCode
+	}
+	catalog, err := fetchCatalog(currency)
+	if err != nil {
+		c.catalogFetched = false
+		c.catalogError = err.Error()
+		log.Errorf("Could not fetch Scaleway Product Catalog, keeping previous pricing: %s", err)
+	} else {
+		c.Catalog = catalog
+		c.catalogFetched = true
+		c.catalogError = ""
+		registerCatalogCarbonCoefficients(catalog)
+	}
 
 	if len(c.Pricing) != 0 {
-		// Already initialized
+		// Legacy pricing already initialized on a previous download.
 		return nil
 	}
+
+	// TODO wait for an official Pricing API from Scaleway
+	// Let's use a static map and an old API
 
 	// PV pricing per AZ
 	pvPrice := map[string]float64{
@@ -77,6 +119,9 @@ func (c *Scaleway) DownloadPricingData() error {
 	// The endpoint we are trying to hit does not have authentication
 	client, err := scw.NewClient(scw.WithoutAuth())
 	if err != nil {
+		if c.Catalog == nil {
+			return fmt.Errorf("no Scaleway pricing data available: catalog fetch failed: %s; instance client creation failed: %w", c.catalogError, err)
+		}
 		return err
 	}
 
@@ -93,9 +138,11 @@ func (c *Scaleway) DownloadPricingData() error {
 			NodesInfos: map[string]*instance.ServerType{},
 		}
 
-		for name, infos := range resp.Servers {
-			c.Pricing[zone.String()].NodesInfos[name] = infos
-		}
+		maps.Copy(c.Pricing[zone.String()].NodesInfos, resp.Servers)
+	}
+
+	if len(c.Pricing) == 0 && c.Catalog == nil {
+		return fmt.Errorf("no Scaleway pricing data available: catalog fetch failed: %s; instance API returned no zones", c.catalogError)
 	}
 
 	return nil
@@ -141,33 +188,94 @@ func (c *Scaleway) NodePricing(key models.Key) (*models.Node, models.PricingMeta
 
 	// There is only the zone and the instance ID in the providerID, hence we must use the features
 	split := strings.Split(key.Features(), ",")
-	if pricing, ok := c.Pricing[split[0]]; ok {
-		if info, ok := pricing.NodesInfos[split[1]]; ok {
-			return &models.Node{
-				Cost:        fmt.Sprintf("%f", info.HourlyPrice),
-				PricingType: models.DefaultPrices,
-				VCPU:        fmt.Sprintf("%d", info.Ncpus),
-				RAM:         fmt.Sprintf("%d", info.RAM),
-				// This is tricky, as instances can have local volumes or not
-				Storage:      fmt.Sprintf("%d", info.PerVolumeConstraint.LSSD.MinSize),
-				GPU:          fmt.Sprintf("%d", *info.Gpu),
-				InstanceType: split[1],
-				Region:       split[0],
+	zone, instanceType := split[0], split[1]
+
+	var node *models.Node
+
+	// FR-002: the catalog is the primary node pricing source. Hardware
+	// details (VCPU/RAM/Storage/GPU) are enriched from the instance API when
+	// that entry exists for the same (zone, type).
+	if c.Catalog != nil {
+		if catalogPrice, ok := c.Catalog.instancePrice(zone, instanceType); ok {
+			node = &models.Node{
+				Cost:         formatPrice(catalogPrice),
+				PricingType:  models.DefaultPrices,
+				InstanceType: instanceType,
+				Region:       zone,
 				GPUName:      key.GPUType(),
-			}, meta, nil
-
+			}
+			if pricing, ok := c.Pricing[zone]; ok {
+				if info, ok := pricing.NodesInfos[instanceType]; ok {
+					node.VCPU = fmt.Sprintf("%d", info.Ncpus)
+					node.RAM = fmt.Sprintf("%d", info.RAM)
+					// This is tricky, as instances can have local volumes or not
+					node.Storage = fmt.Sprintf("%d", info.PerVolumeConstraint.LSSD.MinSize)
+					node.GPU = fmt.Sprintf("%d", *info.Gpu)
+				}
+			}
 		}
-
 	}
-	return nil, meta, fmt.Errorf("Unable to find node pricing matching thes features `%s`", key.Features())
+
+	if node == nil {
+		// FR-007: fall back to the existing per-instance pricing source (edge case 2).
+		if pricing, ok := c.Pricing[zone]; ok {
+			if info, ok := pricing.NodesInfos[instanceType]; ok {
+				log.DedupedWarningf(10, "Scaleway: no catalog pricing for %s in zone %s, falling back to instance API pricing", instanceType, zone)
+				node = &models.Node{
+					Cost:        fmt.Sprintf("%f", info.HourlyPrice),
+					PricingType: models.DefaultPrices,
+					VCPU:        fmt.Sprintf("%d", info.Ncpus),
+					RAM:         fmt.Sprintf("%d", info.RAM),
+					// This is tricky, as instances can have local volumes or not
+					Storage:      fmt.Sprintf("%d", info.PerVolumeConstraint.LSSD.MinSize),
+					GPU:          fmt.Sprintf("%d", *info.Gpu),
+					InstanceType: instanceType,
+					Region:       zone,
+					GPUName:      key.GPUType(),
+				}
+			}
+		}
+	}
+
+	if node == nil {
+		return nil, meta, fmt.Errorf("Unable to find node pricing matching thes features `%s`", key.Features())
+	}
+	return node, meta, nil
 }
 
 func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
-	// Different LB types, lets take the cheaper for now, we can't get the type
-	// without a service specifying the type in the annotations
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
+	// Different LB types exist in the catalog, but we can't get the type without
+	// a service specifying the type in the annotations (R7), so we use the
+	// smallest (cheapest) catalog LB node price for the cluster's zone.
+	if c.Catalog != nil {
+		zone := c.clusterZone()
+		if price, ok := c.Catalog.loadBalancerPrice(zone); ok {
+			return &models.LoadBalancer{
+				Cost: price,
+			}, nil
+		}
+		log.DedupedWarningf(10, "Scaleway: no catalog load balancer pricing for zone %s, falling back to static pricing", zone)
+	}
 	return &models.LoadBalancer{
 		Cost: 0.014,
 	}, nil
+}
+
+// clusterZone resolves the cluster's zone from cached node labels, when
+// available (used for catalog lookups that require a zone).
+func (c *Scaleway) clusterZone() string {
+	if c.Clientset == nil {
+		return ""
+	}
+	for _, n := range c.Clientset.GetAllNodes() {
+		if zone, ok := util.GetZone(n.Labels); ok {
+			return zone
+		}
+	}
+	return ""
 }
 
 func (c *Scaleway) NetworkPricing() (*models.Network, error) {
@@ -234,14 +342,32 @@ func (c *Scaleway) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 
-	pricing, ok := c.Pricing[pvk.Features()]
+	zone := pvk.Features()
+	class := pvk.GetStorageClass()
+
+	// FR-003: the catalog is the primary volume pricing source. A miss
+	// (unknown class or zone) falls back to the static per-zone price,
+	// preserving today's behavior exactly (edge case 3, FR-007).
+	if c.Catalog != nil {
+		if price, ok := c.Catalog.volumePrice(zone, class); ok {
+			return &models.PV{
+				Cost:  formatPrice(price),
+				Class: class,
+			}, nil
+		}
+	}
+
+	pricing, ok := c.Pricing[zone]
 	if !ok {
-		log.Debugf("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+		log.Debugf("Persistent Volume pricing not found for %s: %s", class, zone)
 		return &models.PV{}, nil
+	}
+	if c.Catalog != nil {
+		log.DedupedWarningf(10, "Scaleway: no catalog volume pricing for class %s in zone %s, falling back to static pricing", class, zone)
 	}
 	return &models.PV{
 		Cost:  fmt.Sprintf("%f", pricing.PVCost),
-		Class: pvk.GetStorageClass(),
+		Class: class,
 	}, nil
 }
 
@@ -251,7 +377,30 @@ func (c *Scaleway) ServiceAccountStatus() *models.ServiceAccountStatus {
 	}
 }
 
-func (*Scaleway) ClusterManagementPricing() (string, float64, error) {
+func (c *Scaleway) ClusterManagementPricing() (string, float64, error) {
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
+	platform, _ := c.GetManagementPlatform()
+	if platform != "kapsule" {
+		// Not a managed control plane we price: keep the previous zero-cost
+		// behavior (contract: ClusterManagementPricing §4).
+		return "", 0.0, nil
+	}
+
+	region := c.ClusterRegion
+	if region == "" {
+		region = regionFromZone(c.clusterZone())
+	}
+
+	// FR-004: the catalog Kapsule mutualized control plane price is the value;
+	// 0 is a valid catalog-sourced price for the mutualized tier (R8).
+	if c.Catalog != nil {
+		if price, ok := c.Catalog.controlPlanePrice(region); ok {
+			return "kapsule", price, nil
+		}
+	}
+	log.DedupedWarningf(10, "Scaleway: no catalog control plane pricing for region %s, reporting zero", region)
 	return "", 0.0, nil
 }
 
@@ -365,6 +514,9 @@ func (scw *Scaleway) GetConfig() (*models.CustomPricing, error) {
 }
 
 func (scw *Scaleway) GetManagementPlatform() (string, error) {
+	if scw.Clientset == nil {
+		return "", nil
+	}
 	nodes := scw.Clientset.GetAllNodes()
 
 	if len(nodes) > 0 {
@@ -380,11 +532,25 @@ func (scw *Scaleway) GetManagementPlatform() (string, error) {
 }
 
 func (c *Scaleway) PricingSourceStatus() map[string]*models.PricingSource {
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
 	return map[string]*models.PricingSource{
 		InstanceAPIPricing: {
 			Name:      InstanceAPIPricing,
 			Enabled:   true,
 			Available: true,
+		},
+		// FR-011: report the catalog as a distinct, always-enabled source.
+		// Available is true iff the last full fetch completed (contract
+		// pricing-source-status.md §1 state table); the last fetch error is
+		// surfaced when unavailable (edge case 1: last-good data is still
+		// served from the store, so degradation is observable without logs).
+		ProductCatalogPricing: {
+			Name:      ProductCatalogPricing,
+			Enabled:   true,
+			Available: c.catalogFetched,
+			Error:     c.catalogError,
 		},
 	}
 }
