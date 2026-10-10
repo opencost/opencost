@@ -496,6 +496,12 @@ func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourc
 			GPUProportionalCost:          curr.GPUProportionalCost + parc.GPUProportionalCost,
 			PVProportionalCost:           curr.PVProportionalCost + parc.PVProportionalCost,
 			LoadBalancerProportionalCost: curr.LoadBalancerProportionalCost + parc.LoadBalancerProportionalCost,
+			// Preserve total costs during aggregation to prevent NaN values in ComputePercentages
+			CPUTotalCost:          curr.CPUTotalCost + parc.CPUTotalCost,
+			RAMTotalCost:          curr.RAMTotalCost + parc.RAMTotalCost,
+			GPUTotalCost:          curr.GPUTotalCost + parc.GPUTotalCost,
+			PVTotalCost:           curr.PVTotalCost + parc.PVTotalCost,
+			LoadBalancerTotalCost: curr.LoadBalancerTotalCost + parc.LoadBalancerTotalCost,
 		}
 
 		ComputePercentages(&toInsert)
@@ -1458,9 +1464,28 @@ func (a *Allocation) add(that *Allocation) {
 	// Sum LoadBalancer Allocations
 	a.LoadBalancers = a.LoadBalancers.Add(that.LoadBalancers)
 
-	// Any data that is in a "raw allocation only" is not valid in any
-	// sort of cumulative Allocation (like one that is added).
-	a.RawAllocationOnly = nil
+	// Aggregate RawAllocationOnly data by taking the maximum of max values
+	// Max values represent peak usage at a point in time, so when combining
+	// allocations, we want the highest peak among all combined allocations.
+	if a.RawAllocationOnly != nil && that.RawAllocationOnly != nil {
+		// Both have RawAllocationOnly data, take max of each field
+		if that.RawAllocationOnly.CPUCoreUsageMax > a.RawAllocationOnly.CPUCoreUsageMax {
+			a.RawAllocationOnly.CPUCoreUsageMax = that.RawAllocationOnly.CPUCoreUsageMax
+		}
+		if that.RawAllocationOnly.RAMBytesUsageMax > a.RawAllocationOnly.RAMBytesUsageMax {
+			a.RawAllocationOnly.RAMBytesUsageMax = that.RawAllocationOnly.RAMBytesUsageMax
+		}
+		// Handle GPU max (pointer)
+		if that.RawAllocationOnly.GPUUsageMax != nil {
+			if a.RawAllocationOnly.GPUUsageMax == nil || *that.RawAllocationOnly.GPUUsageMax > *a.RawAllocationOnly.GPUUsageMax {
+				a.RawAllocationOnly.GPUUsageMax = that.RawAllocationOnly.GPUUsageMax
+			}
+		}
+	} else if that.RawAllocationOnly != nil {
+		// Only 'that' has RawAllocationOnly data, adopt it
+		a.RawAllocationOnly = that.RawAllocationOnly.Clone()
+	}
+	// If only 'a' has RawAllocationOnly data, keep it as-is
 }
 
 func (thisLbAllocs LbAllocations) Add(thatLbAllocs LbAllocations) LbAllocations {
