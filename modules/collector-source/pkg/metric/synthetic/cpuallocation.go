@@ -94,10 +94,20 @@ func (usage *CpuUsageMetric) Shift() {
 	usage.current = nil
 }
 
+// maxRequestMetricAge is the number of consecutive Cycle() calls a requestMetric is allowed
+// to persist without being refreshed before it is dropped. The request-side scrape
+// (clusterCacheScraper.scrapePods()) and the usage-side scrape (statSummaryScraper) run
+// concurrently and independently, so a given tick's UpdateSet is not guaranteed to contain
+// a fresh request sample even though the pod's request hasn't changed. Without this grace
+// period, a single missed request-scrape tick would fall back to usage-only allocation and
+// then bounce back once the request reappears.
+const maxRequestMetricAge = 3
+
 // ContainerCpuAllocationMetric is the grouping unit for cpu usage and cpu request metrics.
 type ContainerCpuAllocationMetric struct {
-	requestMetric *metric.Update
-	usageMetric   *CpuUsageMetric
+	requestMetric    *metric.Update
+	requestMetricAge int
+	usageMetric      *CpuUsageMetric
 }
 
 // IsValid returns true if we can synthesize an update from the samples available
@@ -169,10 +179,21 @@ func (cmam *ContainerCpuAllocationMetric) IsEmpty() bool {
 	return cmam.requestMetric == nil && cmam.usageMetric.IsEmpty()
 }
 
-// Cycle will advance the usage sample buffer and clear the request sample.
+// Cycle will advance the usage sample buffer. The request sample is retained across missed
+// scrapes for up to maxRequestMetricAge cycles, since it is scraped independently of usage
+// and a missing tick doesn't mean the request itself changed.
 func (cmam *ContainerCpuAllocationMetric) Cycle() {
-	cmam.requestMetric = nil
 	cmam.usageMetric.Shift()
+
+	if cmam.requestMetric == nil {
+		return
+	}
+
+	cmam.requestMetricAge++
+	if cmam.requestMetricAge > maxRequestMetricAge {
+		cmam.requestMetric = nil
+		cmam.requestMetricAge = 0
+	}
 }
 
 // ContainerCpuAllocationSynthesizer is a MetricSynthesizer that leverages pod uid and container name grouping
@@ -248,6 +269,7 @@ func (cmas *ContainerCpuAllocationSynthesizer) addRequestsMetric(update *metric.
 		}
 	} else {
 		cmas.byPod[podUID][container].requestMetric = update
+		cmas.byPod[podUID][container].requestMetricAge = 0
 	}
 }
 
