@@ -191,6 +191,16 @@ func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, models.Pric
 		// An interesting case is if the default values weren't loaded.
 		k = "default"
 	}
+
+	// Mark nodes priced from the spot entry as spot so that consumers relying
+	// on models.Node.IsSpot (e.g. the kubecost_node_is_spot metric, which the
+	// allocation pipeline uses to choose spot vs. on-demand custom prices)
+	// agree with the prices returned here.
+	var usageType string
+	if k == "default,spot" {
+		usageType = "spot"
+	}
+
 	if key.GPUType() != "" {
 		k += ",gpu" // TODO: support multiple custom gpu types.
 		if key.GPUCount() > 0 {
@@ -213,10 +223,11 @@ func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, models.Pric
 	}
 
 	return &models.Node{
-		VCPUCost: cpuCost,
-		RAMCost:  ramCost,
-		GPUCost:  gpuCost,
-		GPU:      gpuCount,
+		VCPUCost:  cpuCost,
+		RAMCost:   ramCost,
+		GPUCost:   gpuCost,
+		GPU:       gpuCount,
+		UsageType: usageType,
 	}, meta, nil
 }
 
