@@ -29,8 +29,8 @@ type PrometheusClusterMap struct {
 	stop           chan struct{}
 }
 
-// newPrometheusClusterMap creates a new ClusterMap implementation using prometheus
-func newPrometheusClusterMap(contextFactory *ContextFactory, cip clusters.ClusterInfoProvider, refresh time.Duration) clusters.ClusterMap {
+// NewPrometheusClusterMap creates a new ClusterMap implementation using prometheus
+func NewPrometheusClusterMap(contextFactory *ContextFactory, cip clusters.ClusterInfoProvider, refresh time.Duration) clusters.ClusterMap {
 	stop := make(chan struct{})
 
 	cm := &PrometheusClusterMap{

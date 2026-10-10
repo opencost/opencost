@@ -4,6 +4,7 @@ replace (
 	github.com/golang/lint => golang.org/x/lint v0.0.0-20180702182130-06c8688daad7
 	github.com/opencost/opencost/core => ./core
 	github.com/opencost/opencost/modules/collector-source => ./modules/collector-source
+	github.com/opencost/opencost/modules/prometheus-otel-source => ./modules/prometheus-otel-source
 	github.com/opencost/opencost/modules/prometheus-source => ./modules/prometheus-source
 )
 
@@ -44,7 +45,8 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
 	github.com/opencost/opencost/modules/collector-source v0.0.0-00010101000000-000000000000
-	github.com/opencost/opencost/modules/prometheus-source v0.0.0-00010101000000-000000000000
+	github.com/opencost/opencost/modules/prometheus-otel-source v0.0.0-00010101000000-000000000000
+	github.com/opencost/opencost/modules/prometheus-source v0.0.0-20241211165149-ee44b80e2fd0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
