@@ -1,0 +1,8 @@
+# zizmor (https://docs.zizmor.sh) configuration. Run in CI by zizmor.yaml.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        # Reusable workflows in our own org intentionally track main.
+        "opencost/*": ref-pin
+        "*": hash-pin

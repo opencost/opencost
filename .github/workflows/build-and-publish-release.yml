@@ -66,8 +66,9 @@ jobs:
           echo "BRANCH_NAME=v${RELEASE_VERSION%.*}" >> $GITHUB_OUTPUT
 
       - name: Checkout Repo
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
 
       - name: Set SHA
@@ -87,7 +88,7 @@ jobs:
           echo "IMAGE_TAG_VERSION=ghcr.io/$REPO_OWNER/opencost:$RELEASE_VERSION" >> $GITHUB_OUTPUT
 
       - name: Build and publish container
-        uses: ./.github/actions/build-container 
+        uses: $/.github/actions/build-container 
         with:
           actor: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -95,14 +96,14 @@ jobs:
           release_version: ${{ steps.version_number.outputs.RELEASE_VERSION }}
 
       - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
             registry: ${{ env.REGISTRY }}
             username: ${{ github.actor }}
             password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install crane
-        uses: imjasonh/setup-crane@v0.6
+        uses: imjasonh/setup-crane@59c71e96a00b28651f10369ba3359a6d730740a0 # v0.6
 
       - name: Copy tags
         env:
@@ -118,7 +119,7 @@ jobs:
         # non-tag GITHUB_REF, so the Fulcio certificate identity would not
         # match the `refs/tags/vX.Y.Z` pattern documented in SECURITY.md.
         if: github.event_name == 'push'
-        uses: ./.github/actions/sign-image
+        uses: $/.github/actions/sign-image
         with:
           image: ${{ steps.tags.outputs.IMAGE_TAG_VERSION }}
           workflow-path: .github/workflows/build-and-publish-release.yml
