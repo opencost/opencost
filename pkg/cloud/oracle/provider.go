@@ -87,7 +87,7 @@ func (o *Oracle) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	return o.RateCardStore.ForPVK(pvk, o.DefaultPricing)
 }
 
-func (o *Oracle) NetworkPricing() (*models.Network, error) {
+func (o *Oracle) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	if err := o.ensurePricingData(); err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func (o *Oracle) NetworkPricing() (*models.Network, error) {
 	return o.RateCardStore.ForEgressRegion(o.ClusterRegion, o.DefaultPricing)
 }
 
-func (o *Oracle) LoadBalancerPricing() (*models.LoadBalancer, error) {
+func (o *Oracle) LoadBalancerPricing(key models.LBKey) (*models.LoadBalancer, error) {
 	if err := o.ensurePricingData(); err != nil {
 		return nil, err
 	}
