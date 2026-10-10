@@ -28,3 +28,30 @@ func TestIsPromMtlsAuthEnabled(t *testing.T) {
 		}
 	})
 }
+
+// TestIsPrometheusDisableHTTP2 verifies the env var defaults to false and
+// can be enabled by setting PROMETHEUS_DISABLE_HTTP2=true.
+func TestIsPrometheusDisableHTTP2(t *testing.T) {
+	t.Run("defaults to false when env var is not set", func(t *testing.T) {
+		got := IsPrometheusDisableHTTP2()
+		if got != false {
+			t.Errorf("IsPrometheusDisableHTTP2() = %v, want false", got)
+		}
+	})
+
+	t.Run("returns true when PROMETHEUS_DISABLE_HTTP2=true", func(t *testing.T) {
+		t.Setenv(PrometheusDisableHTTP2EnvVar, "true")
+		got := IsPrometheusDisableHTTP2()
+		if got != true {
+			t.Errorf("IsPrometheusDisableHTTP2() = %v, want true", got)
+		}
+	})
+
+	t.Run("returns false when PROMETHEUS_DISABLE_HTTP2=false", func(t *testing.T) {
+		t.Setenv(PrometheusDisableHTTP2EnvVar, "false")
+		got := IsPrometheusDisableHTTP2()
+		if got != false {
+			t.Errorf("IsPrometheusDisableHTTP2() = %v, want false", got)
+		}
+	})
+}

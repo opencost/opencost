@@ -41,6 +41,10 @@ func (kpmc KubePodLabelsCollector) Describe(ch chan<- *prometheus.Desc) {
 
 func (kpmc *KubePodLabelsCollector) UpdateControllerSelectorsCache() {
 	for _, r := range kpmc.KubeClusterCache.GetAllReplicaSets() {
+		// SpecSelector is a pointer; guard against nil before ranging its fields.
+		if r.SpecSelector == nil {
+			continue
+		}
 		for k := range r.SpecSelector.MatchLabels {
 			kpmc.labelsWhitelist[k] = true
 		}
@@ -49,6 +53,10 @@ func (kpmc *KubePodLabelsCollector) UpdateControllerSelectorsCache() {
 		}
 	}
 	for _, ss := range kpmc.KubeClusterCache.GetAllStatefulSets() {
+		// SpecSelector is a pointer; guard against nil before ranging its fields.
+		if ss.SpecSelector == nil {
+			continue
+		}
 		for k := range ss.SpecSelector.MatchLabels {
 			kpmc.labelsWhitelist[k] = true
 		}
