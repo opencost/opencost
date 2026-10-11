@@ -231,16 +231,6 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) err
 
 // StartMCPServer starts the MCP server as a background service
 func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCostQuerier cloudcost.Querier) error {
-	port := env.GetMCPHTTPPort()
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		return fmt.Errorf("failed to listen on MCP port %d: %w", port, err)
-	}
-	return startMCPServerWithListener(ctx, listener, accesses, cloudCostQuerier)
-}
-
-// startMCPServerWithListener initializes the MCP server and serves it on the provided listener
-func startMCPServerWithListener(ctx context.Context, listener net.Listener, accesses *costmodel.Accesses, cloudCostQuerier cloudcost.Querier) error {
 	log.Info("Initializing MCP server...")
 
 	// Create MCP server using existing OpenCost dependencies
@@ -413,11 +403,22 @@ func startMCPServerWithListener(ctx context.Context, listener net.Listener, acce
 	})
 
 	// Start HTTP server on configured port
-	log.Infof("Starting MCP HTTP server on %s...", listener.Addr())
+	port := env.GetMCPHTTPPort()
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return fmt.Errorf("failed to listen on MCP port %d: %w", port, err)
+	}
 
+	log.Infof("Starting MCP HTTP server on port %d...", port)
+	startMCPHTTPServer(ctx, listener, loggingHandler)
+
+	log.Info("MCP server started successfully")
+	return nil
+}
+
+func startMCPHTTPServer(ctx context.Context, listener net.Listener, handler http.Handler) {
 	server := &http.Server{
-		Addr:    listener.Addr().String(),
-		Handler: loggingHandler,
+		Handler: handler,
 	}
 
 	// Start server in a goroutine
@@ -439,9 +440,6 @@ func startMCPServerWithListener(ctx context.Context, listener net.Listener, acce
 			log.Info("MCP server shut down successfully")
 		}
 	}()
-
-	log.Info("MCP server started successfully")
-	return nil
 }
 
 // Tool argument structures for MCP server
