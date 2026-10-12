@@ -86,16 +86,18 @@ func GeneratePricing(currency unit.Currency) (*pricing.PricingSet, error) {
 		ServicePricing:          []*pricing.ServicePricing{},
 	}
 
-	// Fetch AWS pricing
-	awsSet, err := GenerateAWSPricing(currency)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get AWS pricing: %w", err)
+	// AWS only publishes USD and CNY natively, omit all others
+	if currency == unit.USD || currency == unit.CNY {
+		awsSet, err := GenerateAWSPricing(currency)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get AWS pricing: %w", err)
+		}
+		combinedSet.ClusterPricing = append(combinedSet.ClusterPricing, awsSet.ClusterPricing...)
+		combinedSet.NodePricing = append(combinedSet.NodePricing, awsSet.NodePricing...)
+		combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, awsSet.PersistentVolumePricing...)
+		combinedSet.ServicePricing = append(combinedSet.ServicePricing, awsSet.ServicePricing...)
+		log.Infof("Added %d AWS node pricing entries, %d service pricing entries, %d cluster pricing entries", len(awsSet.NodePricing), len(awsSet.ServicePricing), len(awsSet.ClusterPricing))
 	}
-	combinedSet.ClusterPricing = append(combinedSet.ClusterPricing, awsSet.ClusterPricing...)
-	combinedSet.NodePricing = append(combinedSet.NodePricing, awsSet.NodePricing...)
-	combinedSet.PersistentVolumePricing = append(combinedSet.PersistentVolumePricing, awsSet.PersistentVolumePricing...)
-	combinedSet.ServicePricing = append(combinedSet.ServicePricing, awsSet.ServicePricing...)
-	log.Infof("Added %d AWS node pricing entries, %d service pricing entries, %d cluster pricing entries", len(awsSet.NodePricing), len(awsSet.ServicePricing), len(awsSet.ClusterPricing))
 
 	// Fetch Azure pricing
 	azureSet, err := GenerateAzurePricing(currency)

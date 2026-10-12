@@ -44,7 +44,7 @@ func (g *GCPPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
-		// GKE charges $0.10/hr per cluster for cluster management
+		// GKE charges $0.10/hr USD per cluster for cluster management
 		ClusterPricing: []*pricing.ClusterPricing{
 			{
 				Properties: pricing.ClusterPricingProperties{
