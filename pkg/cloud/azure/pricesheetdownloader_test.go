@@ -3,19 +3,19 @@ package azure
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/2020-09-01/commerce/mgmt/commerce"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDownloader(t *testing.T) {
 	d := PriceSheetDownloader{
-		TenantID:         "test-tenant-id",
-		ClientID:         "test-client-id",
-		ClientSecret:     "test-client-secret",
 		BillingAccount:   "test-billing-account",
 		OfferID:          "my-offer-id",
 		ConvertMeterInfo: convertMeter,
@@ -50,12 +50,9 @@ func TestDownloader(t *testing.T) {
 
 	t.Run("no matching prices", func(t *testing.T) {
 		d := PriceSheetDownloader{
-			TenantID:       "test-tenant-id",
-			ClientID:       "test-client-id",
-			ClientSecret:   "test-client-secret",
 			BillingAccount: "test-billing-account",
 			OfferID:        "my-offer-id",
-			ConvertMeterInfo: func(commerce.MeterInfo) (map[string]*AzurePricing, error) {
+			ConvertMeterInfo: func(meterInfo) (map[string]*AzurePricing, error) {
 				return nil, nil
 			},
 		}
@@ -64,8 +61,8 @@ func TestDownloader(t *testing.T) {
 	})
 }
 
-func convertMeter(info commerce.MeterInfo) (map[string]*AzurePricing, error) {
-	switch *info.MeterName {
+func convertMeter(info meterInfo) (map[string]*AzurePricing, error) {
+	switch info.MeterName {
 	case "skip-this":
 		return nil, nil
 	case "multiple-prices":
@@ -77,8 +74,8 @@ func convertMeter(info commerce.MeterInfo) (map[string]*AzurePricing, error) {
 		return nil, fmt.Errorf("there was an error handling this row!")
 	default:
 		return map[string]*AzurePricing{
-			*info.MeterName + " " + *info.Unit: {
-				Node: &models.Node{Cost: fmt.Sprintf("%0.3f", *info.MeterRates["0"])},
+			info.MeterName + " " + info.Unit: {
+				Node: &models.Node{Cost: fmt.Sprintf("%0.3f", info.MeterRates["0"])},
 			},
 		}, nil
 	}
@@ -97,3 +94,24 @@ d4236f8f-3ba6-5a9a-8c6b-14556538c44c,skip-this,Virtual Machines,DCasv4 Series,US
 d4236f8f-3ba6-5a9a-8c6b-14556538c44c,multiple-prices,Virtual Machines,DCasv4 Series,US East,10 Hours,10 Hours,AAF-70822,105.050000000000000,USD,0.00,my-offer-id,,Consumption
 d4236f8f-3ba6-5a9a-8c6b-14556538c44c,error,Virtual Machines,DCasv4 Series,US East,10 Hours,10 Hours,AAF-70822,105.050000000000000,USD,0.00,my-offer-id,,Consumption
 `
+
+func TestDownloaderUsesCredentialAndCloud(t *testing.T) {
+	billing := &fakeTransport{handle: func(r *http.Request, _ string) (int, string) {
+		return http.StatusOK, `{"status":"Completed","properties":{"downloadUrl":"https://download.example/pricesheet.csv"}}`
+	}}
+	d := PriceSheetDownloader{
+		Credential: &mockCredential{},
+		ClientOptions: &arm.ClientOptions{ClientOptions: azcore.ClientOptions{
+			Cloud:     cloud.AzureChina,
+			Transport: billing,
+		}},
+		BillingAccount: "test-billing-account",
+	}
+
+	downloadURL, err := d.getDownloadURL(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "https://download.example/pricesheet.csv", downloadURL)
+	require.Len(t, billing.requests, 1)
+	require.Equal(t, "management.chinacloudapi.cn", billing.requests[0].url.Host)
+	require.Equal(t, "Bearer mock-token", billing.requests[0].header.Get("Authorization"))
+}

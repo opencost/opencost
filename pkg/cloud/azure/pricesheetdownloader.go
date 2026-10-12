@@ -13,21 +13,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/2020-09-01/commerce/mgmt/commerce"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud/httputil"
 )
 
 type PriceSheetDownloader struct {
-	TenantID         string
-	ClientID         string
-	ClientSecret     string
+	Credential       azcore.TokenCredential
+	ClientOptions    *arm.ClientOptions
 	BillingAccount   string
 	OfferID          string
-	ConvertMeterInfo func(info commerce.MeterInfo) (map[string]*AzurePricing, error)
+	ConvertMeterInfo func(info meterInfo) (map[string]*AzurePricing, error)
 }
 
 func (d *PriceSheetDownloader) GetPricing(ctx context.Context) (map[string]*AzurePricing, error) {
@@ -52,11 +51,7 @@ func (d *PriceSheetDownloader) GetPricing(ctx context.Context) (map[string]*Azur
 }
 
 func (d *PriceSheetDownloader) getDownloadURL(ctx context.Context) (string, error) {
-	cred, err := azidentity.NewClientSecretCredential(d.TenantID, d.ClientID, d.ClientSecret, nil)
-	if err != nil {
-		return "", fmt.Errorf("creating credential: %w", err)
-	}
-	client, err := NewPriceSheetClient(d.BillingAccount, cred, nil)
+	client, err := NewPriceSheetClient(d.BillingAccount, d.Credential, d.ClientOptions)
 	if err != nil {
 		return "", fmt.Errorf("creating pricesheet client: %w", err)
 	}
@@ -182,7 +177,7 @@ func (d *PriceSheetDownloader) readPricesheet(ctx context.Context, data io.Reade
 		}
 
 		if pricings != nil {
-			units[*meterInfo.Unit] = true
+			units[meterInfo.Unit] = true
 		}
 
 		for key, pricing := range pricings {
@@ -218,19 +213,19 @@ func checkPricesheetHeader(header []string) error {
 	return nil
 }
 
-func makeMeterInfo(row []string) (commerce.MeterInfo, error) {
+func makeMeterInfo(row []string) (meterInfo, error) {
 	price, err := strconv.ParseFloat(row[pricesheetUnitPrice], 64)
 	if err != nil {
-		return commerce.MeterInfo{}, fmt.Errorf("parsing unit price: %w", err)
+		return meterInfo{}, fmt.Errorf("parsing unit price: %w", err)
 	}
 	newPrice, unit := normalisePrice(price, row[pricesheetUnit])
-	return commerce.MeterInfo{
-		MeterName:        ptr(row[pricesheetMeterName]),
-		MeterCategory:    ptr(row[pricesheetMeterCategory]),
-		MeterSubCategory: ptr(row[pricesheetMeterSubCategory]),
-		Unit:             &unit,
-		MeterRegion:      ptr(row[pricesheetMeterRegion]),
-		MeterRates:       map[string]*float64{"0": &newPrice},
+	return meterInfo{
+		MeterName:        row[pricesheetMeterName],
+		MeterCategory:    row[pricesheetMeterCategory],
+		MeterSubCategory: row[pricesheetMeterSubCategory],
+		Unit:             unit,
+		MeterRegion:      row[pricesheetMeterRegion],
+		MeterRates:       map[string]float64{"0": newPrice},
 	}, nil
 }
 
@@ -266,10 +261,6 @@ const (
 
 func currentBillingPeriod() string {
 	return time.Now().Format("200601")
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }
 
 // conversions lists all the units seen from the price sheet for

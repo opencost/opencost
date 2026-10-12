@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
-	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v8"
 	"github.com/stretchr/testify/require"
 
 	"github.com/opencost/opencost/core/pkg/util/mathutil"
@@ -56,18 +56,18 @@ func TestConvertMeterToPricings(t *testing.T) {
 	}
 	baseCPUPrice := "0.30000"
 
-	meterInfo := func(category, subcategory, name, region string, rate float64) commerce.MeterInfo {
-		return commerce.MeterInfo{
-			MeterCategory:    &category,
-			MeterSubCategory: &subcategory,
-			MeterName:        &name,
-			MeterRegion:      &region,
-			MeterRates:       map[string]*float64{"0": &rate},
+	newMeter := func(category, subcategory, name, region string, rate float64) meterInfo {
+		return meterInfo{
+			MeterCategory:    category,
+			MeterSubCategory: subcategory,
+			MeterName:        name,
+			MeterRegion:      region,
+			MeterRates:       map[string]float64{"0": rate},
 		}
 	}
 
 	t.Run("windows", func(t *testing.T) {
-		info := meterInfo("Virtual Machines", "D2 Series Windows", "D2s v3", "AU Southeast", 0.3)
+		info := newMeter("Virtual Machines", "D2 Series Windows", "D2s v3", "AU Southeast", 0.3)
 		results, err := convertMeterToPricings(info, regions, baseCPUPrice)
 		require.NoError(t, err)
 		key := "australiasoutheast,Standard_D2s_v3,ondemand,windows"
@@ -80,7 +80,7 @@ func TestConvertMeterToPricings(t *testing.T) {
 	})
 
 	t.Run("storage", func(t *testing.T) {
-		info := meterInfo("Storage", "Premium SSD Managed Disks", "P4 LRS Disk", "US East", 2000)
+		info := newMeter("Storage", "Premium SSD Managed Disks", "P4 LRS Disk", "US East", 2000)
 		results, err := convertMeterToPricings(info, regions, baseCPUPrice)
 		require.NoError(t, err)
 
@@ -97,7 +97,7 @@ func TestConvertMeterToPricings(t *testing.T) {
 	})
 
 	t.Run("virtual machines", func(t *testing.T) {
-		info := meterInfo("Virtual Machines", "Eav4/Easv4 Series", "E96a v4/E96as v4 Low Priority", "JA West", 10)
+		info := newMeter("Virtual Machines", "Eav4/Easv4 Series", "E96a v4/E96as v4 Low Priority", "JA West", 10)
 		results, err := convertMeterToPricings(info, regions, baseCPUPrice)
 		require.NoError(t, err)
 
@@ -199,21 +199,21 @@ func TestConvertMeterToPricings_PremiumSSDIgnoresDiskMount(t *testing.T) {
 	}
 	baseCPUPrice := "0.30000"
 
-	meterInfo := func(category, subcategory, name, region string, rate float64) commerce.MeterInfo {
-		return commerce.MeterInfo{
-			MeterCategory:    &category,
-			MeterSubCategory: &subcategory,
-			MeterName:        &name,
-			MeterRegion:      &region,
-			MeterRates:       map[string]*float64{"0": &rate},
+	newMeter := func(category, subcategory, name, region string, rate float64) meterInfo {
+		return meterInfo{
+			MeterCategory:    category,
+			MeterSubCategory: subcategory,
+			MeterName:        name,
+			MeterRegion:      region,
+			MeterRates:       map[string]float64{"0": rate},
 		}
 	}
 
 	// Order matters: Disk first, Disk Mount second mirrors the Azure Rate Card
 	// sort order and reproduces the overwrite bug.
-	meters := []commerce.MeterInfo{
-		meterInfo("Storage", "Premium SSD Managed Disks", "P4 LRS Disk", "US Central", 5.2795),
-		meterInfo("Storage", "Premium SSD Managed Disks", "P4 LRS Disk Mount", "US Central", 0.32),
+	meters := []meterInfo{
+		newMeter("Storage", "Premium SSD Managed Disks", "P4 LRS Disk", "US Central", 5.2795),
+		newMeter("Storage", "Premium SSD Managed Disks", "P4 LRS Disk Mount", "US Central", 0.32),
 	}
 
 	result := map[string]*AzurePricing{}
@@ -478,12 +478,12 @@ func TestFindCostForDisk_TierAware(t *testing.T) {
 			"centralus,premium_ssd,LRS,P10": tierHourlyFromMonthly(19.71),
 		},
 	}
-	cost, err := az.findCostForDisk(&compute.Disk{
+	cost, err := az.findCostForDisk(&armcompute.Disk{
 		Location: &loc,
-		Sku: &compute.DiskSku{
-			Name: "Premium_LRS",
+		SKU: &armcompute.DiskSKU{
+			Name: to.Ptr(armcompute.DiskStorageAccountTypes("Premium_LRS")),
 		},
-		DiskProperties: &compute.DiskProperties{
+		Properties: &armcompute.DiskProperties{
 			DiskSizeGB: &size,
 		},
 	})
@@ -511,7 +511,7 @@ func TestAzure_findCostForDisk(t *testing.T) {
 
 	testCases := []struct {
 		name   string
-		disk   *compute.Disk
+		disk   *armcompute.Disk
 		exp    float64
 		expErr error
 	}{
@@ -523,12 +523,12 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"nil location",
-			&compute.Disk{
+			&armcompute.Disk{
 				Location: nil,
-				Sku: &compute.DiskSku{
-					Name: "ssd",
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("ssd")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: &size,
 				},
 			},
@@ -537,24 +537,24 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"nil disk properties",
-			&compute.Disk{
+			&armcompute.Disk{
 				Location: &loc,
-				Sku: &compute.DiskSku{
-					Name: "ssd",
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("ssd")),
 				},
-				DiskProperties: nil,
+				Properties: nil,
 			},
 			0.0,
 			fmt.Errorf("disk properties are nil"),
 		},
 		{
 			"nil disk size",
-			&compute.Disk{
+			&armcompute.Disk{
 				Location: &loc,
-				Sku: &compute.DiskSku{
-					Name: "ssd",
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("ssd")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: nil,
 				},
 			},
@@ -563,12 +563,12 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"sku does not exist",
-			&compute.Disk{
+			&armcompute.Disk{
 				Location: &loc,
-				Sku: &compute.DiskSku{
-					Name: "doesnotexist",
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("doesnotexist")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: &size,
 				},
 			},
@@ -577,11 +577,11 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"pricing is nil",
-			&compute.Disk{
-				Sku: &compute.DiskSku{
-					Name: "nil",
+			&armcompute.Disk{
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("nil")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: &size,
 				},
 			},
@@ -590,11 +590,11 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"pricing.PV is nil",
-			&compute.Disk{
-				Sku: &compute.DiskSku{
-					Name: "nilpv",
+			&armcompute.Disk{
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("nilpv")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: &size,
 				},
 			},
@@ -603,12 +603,12 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"valid (ssd)",
-			&compute.Disk{
+			&armcompute.Disk{
 				Location: &loc,
-				Sku: &compute.DiskSku{
-					Name: "ssd",
+				SKU: &armcompute.DiskSKU{
+					Name: to.Ptr(armcompute.DiskStorageAccountTypes("ssd")),
 				},
-				DiskProperties: &compute.DiskProperties{
+				Properties: &armcompute.DiskProperties{
 					DiskSizeGB: &size,
 				},
 			},
@@ -617,10 +617,10 @@ func TestAzure_findCostForDisk(t *testing.T) {
 		},
 		{
 			"nil sku",
-			&compute.Disk{
-				Location:       nil,
-				Sku:            nil,
-				DiskProperties: nil,
+			&armcompute.Disk{
+				Location:   nil,
+				SKU:        nil,
+				Properties: nil,
 			},
 			0.0,
 			fmt.Errorf("disk sku is nil"),
@@ -1178,4 +1178,16 @@ func TestAzureRefreshCustomPricingNilNode(t *testing.T) {
 	if err := az.RefreshCustomPricing(); err != nil {
 		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
 	}
+}
+
+func TestAzure_isDiskOrphaned(t *testing.T) {
+	az := &Azure{}
+	withState := func(s armcompute.DiskState) *armcompute.Disk {
+		return &armcompute.Disk{Properties: &armcompute.DiskProperties{DiskState: to.Ptr(s)}}
+	}
+	require.True(t, az.isDiskOrphaned(withState(armcompute.DiskStateUnattached)))
+	require.True(t, az.isDiskOrphaned(withState(armcompute.DiskStateReserved)))
+	require.False(t, az.isDiskOrphaned(withState(armcompute.DiskStateAttached)))
+	require.False(t, az.isDiskOrphaned(&armcompute.Disk{Properties: &armcompute.DiskProperties{}}))
+	require.False(t, az.isDiskOrphaned(&armcompute.Disk{}))
 }
