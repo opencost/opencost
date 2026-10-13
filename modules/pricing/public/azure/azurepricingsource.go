@@ -47,7 +47,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
 		// Azure LoadBalancer services correspond to a Standard Static Public IP
-		// ($0.005/hr). This is not fetched from the API — it is consistent across
+		// ($0.005/hr USD). This is not fetched from the API — it is consistent across
 		// all regions
 		ServicePricing: []*pricing.ServicePricing{
 			{
@@ -57,7 +57,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 				Prices: pricing.Prices{
 					pricing.ResourceService: {
 						Unit:  unit.Hour,
-						Price: 0.005,
+						Price: azureLoadBalancerPrice(a.config.CurrencyCode),
 					},
 				},
 			},
@@ -320,4 +320,16 @@ type AzurePricingAttributes struct {
 	Type                 string     `json:"type"`
 	IsPrimaryMeterRegion bool       `json:"isPrimaryMeterRegion"`
 	ArmSkuName           string     `json:"armSkuName"`
+}
+
+const azureLoadBalancerPriceUSD float64 = 0.005
+const azureLoadBalancerPriceCNY float64 = 0.036
+
+// azureLoadBalancerPrice returns the Azure Standard Static Public IP hourly
+// fee in the requested currency
+func azureLoadBalancerPrice(currencyCode string) float64 {
+	if strings.ToUpper(currencyCode) == "CNY" {
+		return azureLoadBalancerPriceCNY
+	}
+	return azureLoadBalancerPriceUSD
 }
