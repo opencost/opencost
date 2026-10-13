@@ -1654,3 +1654,179 @@ func (m *mockConfig) Update(updateFn func(*models.CustomPricing) error) (*models
 func (m *mockConfig) ConfigFileManager() *config.ConfigFileManager {
 	return nil
 }
+
+type mockClusterCache struct {
+	nodes []*clustercache.Node
+	pvs   []*clustercache.PersistentVolume
+	scs   []*clustercache.StorageClass
+}
+
+func (m *mockClusterCache) GetAllNodes() []*clustercache.Node {
+	return m.nodes
+}
+
+func (m *mockClusterCache) GetAllDaemonSets() []*clustercache.DaemonSet {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllDeployments() []*clustercache.Deployment {
+	return nil
+}
+
+func (m *mockClusterCache) Run()                                                      {}
+func (m *mockClusterCache) Stop()                                                     {}
+func (m *mockClusterCache) GetAllNamespaces() []*clustercache.Namespace               { return nil }
+func (m *mockClusterCache) GetAllPods() []*clustercache.Pod                           { return nil }
+func (m *mockClusterCache) GetAllServices() []*clustercache.Service                   { return nil }
+func (m *mockClusterCache) GetAllStatefulSets() []*clustercache.StatefulSet           { return nil }
+func (m *mockClusterCache) GetAllReplicaSets() []*clustercache.ReplicaSet             { return nil }
+func (m *mockClusterCache) GetAllPersistentVolumes() []*clustercache.PersistentVolume { return m.pvs }
+func (m *mockClusterCache) GetAllPersistentVolumeClaims() []*clustercache.PersistentVolumeClaim {
+	return nil
+}
+func (m *mockClusterCache) GetAllStorageClasses() []*clustercache.StorageClass { return m.scs }
+func (m *mockClusterCache) GetAllJobs() []*clustercache.Job                    { return nil }
+func (m *mockClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
+	return nil
+}
+func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
+	return nil
+}
+
+type mockMetadataClient struct{}
+
+func (m *mockMetadataClient) InstanceAttributeValue(attr string) (string, error) {
+	if attr == "cluster-name" {
+		return "test-cluster", nil
+	}
+	return "", fmt.Errorf("attribute not found")
+}
+
+func (m *mockMetadataClient) ProjectID() (string, error) {
+	return "test-project", nil
+}
+
+func TestParsePage_SkipsNonBaseSKUVariants(t *testing.T) {
+	// Region set kept small so we can assert exact keys.
+	skuJSON := `{
+      "skus": [
+        {
+          "name": "services/6F81-5844-456A/skus/BASE-SPOT-RAM",
+          "skuId": "BASE-SPOT-RAM",
+          "description": "Spot Preemptible N2D AMD Custom Instance Ram running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"Preemptible"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":1000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/EXT-SPOT-RAM",
+          "skuId": "EXT-SPOT-RAM",
+          "description": "Spot Preemptible N2D AMD Custom Extended Instance Ram running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"Preemptible"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":5000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/PREMIUM-CUD-RAM",
+          "skuId": "PREMIUM-CUD-RAM",
+          "description": "Committed Use Discount Premium for N2D AMD Custom Instance Ram running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"OnDemand"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":8000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/BASE-OD-RAM",
+          "skuId": "BASE-OD-RAM",
+          "description": "N2D AMD Custom Instance Ram running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"OnDemand"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":3000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/BASE-SPOT-CPU",
+          "skuId": "BASE-SPOT-CPU",
+          "description": "Spot Preemptible N2D AMD Custom Instance Core running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"CPU","usageType":"Preemptible"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":6000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/SOLE-TENANT-RAM",
+          "skuId": "SOLE-TENANT-RAM",
+          "description": "N2D AMD Sole Tenancy Instance Ram running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"OnDemand"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":9000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/RESERVED-RAM",
+          "skuId": "RESERVED-RAM",
+          "description": "Reserved N2D AMD Custom Ram in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"OnDemand"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":7500000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/DWS-CPU",
+          "skuId": "DWS-CPU",
+          "description": "DWS Defined Duration N2D AMD Custom Core running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"CPU","usageType":"OnDemand"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":12000000}}]}}]
+        }
+      ]
+    }`
+
+	inputKeys := map[string]models.Key{
+		"us-west1,n2dcustom,preemptible": &gcpKey{
+			Labels: map[string]string{
+				"node.kubernetes.io/instance-type": "n2d-custom-16-16384",
+				"topology.kubernetes.io/region":    "us-west1",
+				"cloud.google.com/gke-spot":        "true",
+			},
+		},
+		"us-west1,n2dcustom,ondemand": &gcpKey{
+			Labels: map[string]string{
+				"node.kubernetes.io/instance-type": "n2d-custom-16-16384",
+				"topology.kubernetes.io/region":    "us-west1",
+			},
+		},
+	}
+
+	testGcp := &GCP{}
+	prices, _, err := testGcp.parsePage(bytes.NewReader([]byte(skuJSON)), inputKeys, map[string]models.PVKey{})
+	if err != nil {
+		t.Fatalf("parsePage returned error: %v", err)
+	}
+
+	// Base spot RAM must win (not overwritten by Extended)
+	spotKey := "us-west1,n2dcustom,preemptible"
+	spotPricing, ok := prices[spotKey]
+	if !ok {
+		t.Fatalf("expected key %q in prices, got: %v", spotKey, prices)
+	}
+	assert.Equal(t, "0.001", spotPricing.Node.RAMCost, "spot RAM must reflect base SKU, not Extended")
+	assert.Equal(t, "0.006", spotPricing.Node.VCPUCost, "spot CPU must reflect base SKU")
+
+	// Base on-demand RAM must win (not overwritten by CUD Premium)
+	odKey := "us-west1,n2dcustom,ondemand"
+	odPricing, ok := prices[odKey]
+	if !ok {
+		t.Fatalf("expected key %q in prices, got: %v", odKey, prices)
+	}
+	assert.Equal(t, "0.003", odPricing.Node.RAMCost, "on-demand RAM must reflect base SKU, not CUD Premium")
+
+	// The Extended SKU is kept on its own key so NodePricing can price the
+	// memory an extended-memory custom shape carries above the family cap.
+	extKey := "us-west1,n2dcustom,preemptible,extended"
+	extPricing, ok := prices[extKey]
+	if !ok {
+		t.Fatalf("expected key %q in prices, got: %v", extKey, prices)
+	}
+	assert.Equal(t, "0.005", extPricing.Node.RAMCost, "extended RAM price must be stored under the ,extended key")
+	assert.Equal(t, "", extPricing.Node.VCPUCost)
+}

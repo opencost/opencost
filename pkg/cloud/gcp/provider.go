@@ -596,6 +596,108 @@ type GCPResourceInfo struct {
 	UsageType          string `json:"usageType"`
 }
 
+// customFamilyFromDescription maps the description of a custom-shape SKU
+// (upper-cased) to its pricing family key. Descriptions without a family
+// token are N1 ("Custom Instance Core running in ..."). Returns "" when the
+// description is not a custom SKU at all.
+func customFamilyFromDescription(descUpper string) string {
+	if !strings.Contains(descUpper, "CUSTOM") {
+		return ""
+	}
+	switch {
+	case strings.Contains(descUpper, "N2D AMD CUSTOM"):
+		return "n2dcustom"
+	case strings.Contains(descUpper, "N4A CUSTOM"):
+		return "n4acustom"
+	case strings.Contains(descUpper, "N4D CUSTOM"):
+		return "n4dcustom"
+	case strings.Contains(descUpper, "N2 CUSTOM"):
+		return "n2custom"
+	case strings.Contains(descUpper, "N4 CUSTOM"):
+		return "n4custom"
+	case strings.Contains(descUpper, "E2 CUSTOM"):
+		return "e2custom"
+	case strings.Contains(descUpper, "G2 CUSTOM"):
+		return "g2custom"
+	default:
+		return "n1custom"
+	}
+}
+
+// lastTierHourlyPrice returns the list price of a SKU's last pricing tier
+// (whole currency units + nanos), the convention used throughout parsePage.
+func lastTierHourlyPrice(product *GCPPricing) (float64, bool) {
+	if len(product.PricingInfo) == 0 {
+		return 0, false
+	}
+	tiers := product.PricingInfo[0].PricingExpression.TieredRates
+	if len(tiers) == 0 {
+		return 0, false
+	}
+	last := tiers[len(tiers)-1].UnitPrice
+	units, err := strconv.Atoi(last.Units)
+	if err != nil {
+		return 0, false
+	}
+	return last.Nanos*math.Pow10(-9) + float64(units), true
+}
+
+// withExtendedMemory returns node pricing adjusted for a custom shape whose
+// memory exceeds the family's standard cap. The RAM above the cap bills the
+// Extended RAM SKU (about 2x the base rate), so the node's true hourly RAM
+// cost is standardGiB*base + extendedGiB*extended. Downstream multiplies
+// RAMCost by the node's reported capacity, so the result is expressed as a
+// blended rate per GiB of that capacity to keep the node total exact. Nodes
+// without extended memory (including "-ext" shapes within the cap) are
+// returned unchanged.
+func (gcp *GCP) withExtendedMemory(key models.Key, node *models.Node) *models.Node {
+	gk, ok := key.(*gcpKey)
+	if !ok || gk.extMemMiB == 0 || node == nil {
+		return node
+	}
+	capPerVCPU, ok := extendedMemoryCapGiB[gk.extFamily]
+	if !ok {
+		return node
+	}
+	nominalGiB := float64(gk.extMemMiB) / 1024
+	standardGiB := math.Min(nominalGiB, float64(gk.extVCPUs)*capPerVCPU)
+	extendedGiB := nominalGiB - standardGiB
+	if extendedGiB <= 0 {
+		return node
+	}
+	extKey := key.Features() + ",extended"
+	extPricing, ok := gcp.getPricingByFeatures(extKey)
+	if !ok || extPricing.Node == nil {
+		log.DedupedWarningf(5, "GCP: %s carries %.1f GiB of extended memory but no Extended RAM SKU was found for %s; pricing all RAM at the base rate", key.Features(), extendedGiB, extKey)
+		return node
+	}
+	baseRate, err := strconv.ParseFloat(node.RAMCost, 64)
+	if err != nil {
+		return node
+	}
+	extRate, err := strconv.ParseFloat(extPricing.Node.RAMCost, 64)
+	if err != nil {
+		return node
+	}
+	hourlyRAM := standardGiB*baseRate + extendedGiB*extRate
+	denomGiB := nominalGiB
+	if gk.capacityBytes > 0 {
+		denomGiB = float64(gk.capacityBytes) / (1024 * 1024 * 1024)
+	}
+	blended := *node
+	blended.RAMCost = strconv.FormatFloat(hourlyRAM/denomGiB, 'f', -1, 64)
+	log.Debugf("GCP: extended memory for %s: %.1f GiB standard @ %f + %.1f GiB extended @ %f (SKU %s) = %f/h -> blended %s/GiB over %.1f GiB",
+		key.Features(), standardGiB, baseRate, extendedGiB, extRate, extPricing.SKUID, hourlyRAM, blended.RAMCost, denomGiB)
+	return &blended
+}
+
+func (gcp *GCP) getPricingByFeatures(features string) (*GCPPricing, bool) {
+	gcp.DownloadPricingDataLock.RLock()
+	defer gcp.DownloadPricingDataLock.RUnlock()
+	n, ok := gcp.Pricing[features]
+	return n, ok
+}
+
 func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, string, error) {
 	gcpPricingList := make(map[string]*GCPPricing)
 	var nextPageToken string
@@ -721,25 +823,90 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					continue
 				}
 
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "CUSTOM") {
-					desc := strings.ToUpper(product.Description)
-					if strings.Contains(desc, "N2D AMD CUSTOM") {
-						instanceType = "n2dcustom"
-					} else if strings.Contains(desc, "N4A CUSTOM") {
-						instanceType = "n4acustom"
-					} else if strings.Contains(desc, "N4D CUSTOM") {
-						instanceType = "n4dcustom"
-					} else if strings.Contains(desc, "N2 CUSTOM") {
-						instanceType = "n2custom"
-					} else if strings.Contains(desc, "N4 CUSTOM") {
-						instanceType = "n4custom"
-					} else if strings.Contains(desc, "E2 CUSTOM") {
-						instanceType = "e2custom"
-					} else if strings.Contains(desc, "G2 CUSTOM") {
-						instanceType = "g2custom"
-					} else {
-						instanceType = "n1custom"
+				// Skip SKU variants that opencost does not model as separate line items
+				// when pricing a node. GCP publishes multiple compute (CPU / RAM) SKUs
+				// per (region, family, usage) tuple, e.g.:
+				//   - "N2D AMD Custom Instance Ram running in Americas"                        (base)
+				//   - "N2D AMD Custom Extended Ram running in Americas"                        (extended memory)
+				//   - "Committed Use Discount Premium for N2D AMD Custom Instance Ram ..."    (CUD premium)
+				//   - "N2D AMD Sole Tenancy Instance Ram running in Belgium"                   (sole tenant hosts)
+				//   - "Reserved N4D Custom Ram in Belgium"                                     (calendar-mode reservations)
+				//   - "DWS Defined Duration Custom Core running in Seoul"                      (Dynamic Workload Scheduler)
+				//
+				// The family classification below produces a single candidateKey per
+				// (region, family, usage). Downstream code overwrites (not merges) the
+				// price at that key as each matching SKU is processed. When multiple SKUs
+				// collide on the same key, whichever is processed last wins — and GCP's
+				// catalog API doesn't guarantee order, so nodes could be silently over-
+				// or under-priced. With a real catalog the Extended memory SKU was seen
+				// overwriting the base RAM price of a custom family, roughly doubling
+				// the RAM rate of every node on that key.
+				//
+				// Skipping these variants lets the base SKU determine the family price,
+				// which is correct for the majority of nodes (those not on sole tenants,
+				// without extended memory, without calendar reservations, and without
+				// DWS scheduling). Extended memory is priced separately below; sole
+				// tenancy, calendar reservations and DWS are not modelled per node.
+				//
+				// The guard tokens below were determined by running a real GCP Cloud
+				// Billing catalog dump through the classification logic and identifying
+				// every SKU that collided with a base SKU on a real node key. Adding a
+				// token here without validating it against the catalog risks either
+				// missing a collision (false negative) or dropping legitimate SKUs
+				// (false positive) — do that validation before extending this list.
+				// Applies to every remaining SKU, not just the CPU/RAM resource groups:
+				// the legacy groups (N1Standard, F1Micro, G1Small) and GPUs have the
+				// same DWS / Reserved / Sole Tenancy variants, which previously competed
+				// with the base SKU for the same key.
+				{
+					descUpper := strings.ToUpper(product.Description)
+					skipReason := ""
+					for _, token := range []string{"PREMIUM", "SOLE TENANCY", "RESERVED", "DWS"} {
+						if strings.Contains(descUpper, token) {
+							skipReason = token
+							break
+						}
 					}
+					if skipReason != "" {
+						log.Debugf("GCP Billing API: skipping non-base SKU %s (%s) - matched %q", product.SKUID, product.Description, skipReason)
+						continue
+					}
+					if strings.Contains(descUpper, "EXTENDED") {
+						// Extended-memory RAM SKU ("N2D AMD Custom Extended Ram", "Custom Extended
+						// Instance Ram" for N1, ...). It must never overwrite the base RAM price,
+						// so it is stored under its own "<base key>,extended" entry; NodePricing
+						// uses it to price the RAM a custom node carries above the family cap.
+						if fam := customFamilyFromDescription(descUpper); instanceType == "ram" && fam != "" {
+							if hourly, ok := lastTierHourlyPrice(product); ok {
+								for _, region := range product.ServiceRegions {
+									baseKey := region + "," + fam + "," + usageType
+									_, wanted := inputKeys[baseKey]
+									_, wantedGPU := inputKeys[baseKey+",gpu"]
+									if !wanted && !wantedGPU {
+										continue
+									}
+									extKey := baseKey + ",extended"
+									log.Debugf("GCP Billing API: key '%s': extended RAM price: %f (%s)", extKey, hourly, product.Description)
+									gcpPricingList[extKey] = &GCPPricing{
+										Name:        product.Name,
+										SKUID:       product.SKUID,
+										Description: product.Description,
+										Node: &models.Node{
+											RAMCost:   strconv.FormatFloat(hourly, 'f', -1, 64),
+											UsageType: usageType,
+										},
+									}
+								}
+							}
+						} else {
+							log.Debugf("GCP Billing API: skipping non-base SKU %s (%s) - matched %q", product.SKUID, product.Description, "EXTENDED")
+						}
+						continue
+					}
+				}
+
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "CUSTOM") {
+					instanceType = customFamilyFromDescription(strings.ToUpper(product.Description))
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N2") && !strings.Contains(strings.ToUpper(product.Description), "PREMIUM") {
@@ -814,11 +981,17 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 				for _, region := range product.ServiceRegions {
 					switch instanceType {
 					case "e2":
+						// The "E2 Instance" SKU covers the fixed E2 shapes (micro/small/medium/standard).
+						// E2 CUSTOM has its own dedicated SKU that classifies to instanceType "e2custom"
+						// on its own; including "e2custom" here caused an overwrite collision — either the
+						// E2 Instance SKU expansion clobbered the E2 Custom price, or vice versa,
+						// depending on GCP catalog API ordering. Audited on the full Compute catalog:
+						// every region publishing "E2 Instance" also publishes "E2 Custom", so removing
+						// e2custom from this expansion has no coverage cost.
 						candidateKeys = append(candidateKeys, region+","+"e2micro"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2small"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2medium"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2standard"+","+usageType)
-						candidateKeys = append(candidateKeys, region+","+"e2custom"+","+usageType)
 					case "a2":
 						candidateKeys = append(candidateKeys, region+","+"a2highgpu"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"a2megagpu"+","+usageType)
@@ -909,7 +1082,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 							if hourlyPrice == 0 {
 								continue
 							} else if strings.Contains(strings.ToUpper(product.Description), "RAM") {
-								if instanceType == "custom" {
+								if strings.HasSuffix(instanceType, "custom") {
 									log.Debugf("GCP Billing API: RAM custom sku '%s'", product.Name)
 								}
 								if _, ok := gcpPricingList[candidateKey]; ok {
@@ -1559,12 +1732,51 @@ func (key *pvKey) Features() string {
 
 type gcpKey struct {
 	Labels map[string]string
+
+	// Set only for extended-memory custom shapes (<family>-custom-<vCPUs>-<MiB>-ext):
+	// the shape and the node's reported RAM capacity, so NodePricing can split
+	// the RAM price into the standard and extended portions. Zero otherwise.
+	extFamily     string
+	extVCPUs      int
+	extMemMiB     int
+	capacityBytes int64
+}
+
+// extendedCustomTypeRegex matches the custom machine types that can carry
+// extended memory. N1 custom shapes are named without the family prefix
+// ("custom-4-32768-ext"). E2 custom shapes cannot carry extended memory.
+var extendedCustomTypeRegex = regexp.MustCompile(`^(?:(n1|n2|n2d|n4|n4d|n4a)-)?custom-(\d+)-(\d+)-ext$`)
+
+// extendedMemoryCapGiB is the memory per vCPU up to which a custom shape bills
+// the family's custom RAM SKU; anything above bills the Extended RAM SKU.
+// Source: GCE "create a VM with a custom machine type" docs, memory ranges per family.
+var extendedMemoryCapGiB = map[string]float64{
+	"n1":  6.5,
+	"n2":  8,
+	"n2d": 8,
+	"n4":  8,
+	"n4d": 8,
+	"n4a": 8,
 }
 
 func (gcp *GCP) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
-	return &gcpKey{
+	key := &gcpKey{
 		Labels: labels,
 	}
+	if it, _ := util.GetInstanceType(labels); it != "" {
+		if m := extendedCustomTypeRegex.FindStringSubmatch(strings.ToLower(it)); m != nil {
+			key.extFamily = m[1]
+			if key.extFamily == "" {
+				key.extFamily = "n1"
+			}
+			key.extVCPUs, _ = strconv.Atoi(m[2])
+			key.extMemMiB, _ = strconv.Atoi(m[3])
+			if n != nil {
+				key.capacityBytes = n.Status.Capacity.Memory().Value()
+			}
+		}
+	}
+	return key
 }
 
 func (gcp *gcpKey) ID() string {
@@ -1625,10 +1837,8 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n4astandard"
 		} else if instanceType == "n4dhighmem" || instanceType == "n4dhighcpu" {
 			instanceType = "n4dstandard"
-		} else if strings.Contains(instanceType, "custom") {
-			if strings.HasPrefix(instanceType, "custom") {
-				instanceType = "n1custom"
-			}
+		} else if strings.HasPrefix(instanceType, "custom") {
+			instanceType = "n1custom" // N1 custom shapes carry no family prefix; other families keep theirs (n2custom, ...)
 		}
 	}
 
@@ -1696,7 +1906,7 @@ func (gcp *GCP) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 
-		return n.Node, meta, nil
+		return gcp.withExtendedMemory(key, n.Node), meta, nil
 	} else if ok := gcp.isValidPricingKey(key); ok {
 		meta.Warnings = append(meta.Warnings, fmt.Sprintf("No pricing found, but key is valid: %s", key.Features()))
 
@@ -1716,7 +1926,7 @@ func (gcp *GCP) NodePricing(key models.Key) (*models.Node, models.PricingMetadat
 
 			n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 
-			return n.Node, meta, nil
+			return gcp.withExtendedMemory(key, n.Node), meta, nil
 		}
 
 		log.Warnf("no pricing data found for %s", key.Features())
