@@ -314,6 +314,84 @@
             "node": null,
             "pv": null
         }
+        ,{
+            "name": "services/6F81-5844-456A/skus/C3D1-CORE-TEST",
+            "skuId": "C3D1-CORE-TEST",
+            "description": "C3D Instance Core running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "CPU",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "us-central1",
+                "us-east1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "h",
+                        "usageUnitDescription": "hour",
+                        "baseUnit": "s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 29440000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "EffectiveTime": "2024-01-15T10:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google"
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/C3D1-RAM0-TEST",
+            "skuId": "C3D1-RAM0-TEST",
+            "description": "C3D Instance Ram running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "RAM",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "us-central1",
+                "us-east1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "GiBy.h",
+                        "usageUnitDescription": "gibibyte hour",
+                        "baseUnit": "By.s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 3945000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "EffectiveTime": "2024-01-15T10:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google"
+        }
     ],
     "nextPageToken": "APKCS1HVa0YpwgyTFbqbJ1eGwzKZmsPwLqzMZPTSNia5ck1Hc54Tx_Kz3oBxwSnRIdGVxXoSPdf-XlDpyNBf4QuxKcIEgtrQ1LDLWAgZowI0ns7HjrGta2s="
 }
