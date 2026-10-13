@@ -2,10 +2,6 @@ package cloud
 
 import "strings"
 
-// TODO: reconsider "shared" as a package name
-// TODO: for this file, maybe core/pkg/model/cloud?
-// TODO: maybe even core/pkg/cloud?
-
 type Provider string
 
 const (
@@ -25,7 +21,7 @@ const (
 )
 
 // ParseProvider converts a string to a Provider type, performing case-insensitive matching.
-// Returns ProviderEmpty if the provider string is not recognized.
+// Returns ProviderCustom if the provider string is not recognized.
 func ParseProvider(provider string) Provider {
 	switch strings.ToLower(provider) {
 	case "aws", "amazon":
@@ -53,6 +49,6 @@ func ParseProvider(provider string) Provider {
 	case "csv":
 		return ProviderCSV
 	default:
-		return ProviderEmpty
+		return ProviderCustom
 	}
 }

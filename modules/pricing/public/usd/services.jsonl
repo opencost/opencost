@@ -21,3 +21,4 @@
 {"properties":{"provider":"AWS","region":"us-gov-west-1"},"prices":{"service":{"unit":"hr","price":0.032}}}
 {"properties":{"provider":"AWS","region":"us-west-1"},"prices":{"service":{"unit":"hr","price":0.0252}}}
 {"properties":{"provider":"AWS","region":"us-west-2"},"prices":{"service":{"unit":"hr","price":0.0225}}}
+{"properties":{"provider":"Azure"},"prices":{"service":{"unit":"hr","price":0.005}}}
