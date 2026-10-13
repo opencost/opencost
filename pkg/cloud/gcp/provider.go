@@ -722,7 +722,24 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "CUSTOM") {
-					instanceType = "custom"
+					desc := strings.ToUpper(product.Description)
+					if strings.Contains(desc, "N2D AMD CUSTOM") {
+						instanceType = "n2dcustom"
+					} else if strings.Contains(desc, "N4A CUSTOM") {
+						instanceType = "n4acustom"
+					} else if strings.Contains(desc, "N4D CUSTOM") {
+						instanceType = "n4dcustom"
+					} else if strings.Contains(desc, "N2 CUSTOM") {
+						instanceType = "n2custom"
+					} else if strings.Contains(desc, "N4 CUSTOM") {
+						instanceType = "n4custom"
+					} else if strings.Contains(desc, "E2 CUSTOM") {
+						instanceType = "e2custom"
+					} else if strings.Contains(desc, "G2 CUSTOM") {
+						instanceType = "g2custom"
+					} else {
+						instanceType = "n1custom"
+					}
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N2") && !strings.Contains(strings.ToUpper(product.Description), "PREMIUM") {
@@ -733,6 +750,12 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					}
 				}
 
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N4A INSTANCE") {
+					instanceType = "n4astandard"
+				}
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N4D INSTANCE") {
+					instanceType = "n4dstandard"
+				}
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N4 INSTANCE") {
 					instanceType = "n4standard"
 				}
@@ -743,6 +766,24 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "COMPUTE OPTIMIZED") {
 					instanceType = "c2standard"
+				}
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C2D AMD") {
+					instanceType = "c2dstandard"
+				}
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C3D INSTANCE") {
+					instanceType = "c3dstandard"
+				}
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C3 INSTANCE") {
+					instanceType = "c3standard"
+				}
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C4D INSTANCE") {
+					instanceType = "c4dstandard"
+				}
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C4A ARM") {
+					instanceType = "c4astandard"
+				}
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C4 INSTANCE") {
+					instanceType = "c4standard"
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "E2 INSTANCE") {
@@ -1566,8 +1607,28 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "e2standard"
 		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
 			instanceType = "n2dstandard"
-		} else if strings.HasPrefix(instanceType, "custom") {
-			instanceType = "custom" // The suffix of custom does not matter
+		} else if instanceType == "c2highmem" || instanceType == "c2highcpu" {
+			instanceType = "c2standard"
+		} else if instanceType == "c3highmem" || instanceType == "c3highcpu" {
+			instanceType = "c3standard"
+		} else if instanceType == "c3dhighmem" || instanceType == "c3dhighcpu" {
+			instanceType = "c3dstandard"
+		} else if instanceType == "c4highmem" || instanceType == "c4highcpu" {
+			instanceType = "c4standard"
+		} else if instanceType == "c4ahighmem" || instanceType == "c4ahighcpu" {
+			instanceType = "c4astandard"
+		} else if instanceType == "c4dhighmem" || instanceType == "c4dhighcpu" {
+			instanceType = "c4dstandard"
+		} else if instanceType == "c2dhighmem" || instanceType == "c2dhighcpu" {
+			instanceType = "c2dstandard"
+		} else if instanceType == "n4ahighmem" || instanceType == "n4ahighcpu" {
+			instanceType = "n4astandard"
+		} else if instanceType == "n4dhighmem" || instanceType == "n4dhighcpu" {
+			instanceType = "n4dstandard"
+		} else if strings.Contains(instanceType, "custom") {
+			if strings.HasPrefix(instanceType, "custom") {
+				instanceType = "n1custom"
+			}
 		}
 	}
 
@@ -1703,9 +1764,12 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	discount := defaultDiscount
 	switch class {
-	case "e2", "f1", "g1", "n4":
+	case "e2",
+		"c2d", "c3", "c3d", "c4", "c4a", "c4d",
+		"n4", "n4a", "n4d",
+		"t2d", "t2a", "a2":
 		discount = 0.0
-	case "n2", "n2d":
+	case "n2", "n2d", "c2":
 		discount = 0.2
 	}
 	return discount

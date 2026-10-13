@@ -42,7 +42,7 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		},
 		{
 			input:    "custom-n1-standard-2",
-			expected: "custom",
+			expected: "n1custom",
 		},
 		{
 			input:    "n2d-highmem-8",
@@ -59,6 +59,110 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		{
 			input:    "n4-highmem-16",
 			expected: "n4standard",
+		},
+		{
+			input:    "c2-standard-8",
+			expected: "c2standard",
+		},
+		{
+			input:    "c3-standard-4",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3-highmem-8",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3-highcpu-16",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3d-standard-8",
+			expected: "c3dstandard",
+		},
+		{
+			input:    "c3d-highmem-16",
+			expected: "c3dstandard",
+		},
+		{
+			input:    "c3d-highcpu-32",
+			expected: "c3dstandard",
+		},
+		{
+			input:    "c4-standard-8",
+			expected: "c4standard",
+		},
+		{
+			input:    "c4-highmem-16",
+			expected: "c4standard",
+		},
+		{
+			input:    "c4a-standard-8",
+			expected: "c4astandard",
+		},
+		{
+			input:    "c4d-standard-16",
+			expected: "c4dstandard",
+		},
+		{
+			input:    "c4d-highmem-32",
+			expected: "c4dstandard",
+		},
+		{
+			input:    "c2d-standard-8",
+			expected: "c2dstandard",
+		},
+		{
+			input:    "c2d-highmem-16",
+			expected: "c2dstandard",
+		},
+		{
+			input:    "n4a-standard-4",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4a-highmem-8",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4d-standard-4",
+			expected: "n4dstandard",
+		},
+		{
+			input:    "n4d-highmem-8",
+			expected: "n4dstandard",
+		},
+		{
+			input:    "n2-custom-8-32768",
+			expected: "n2custom",
+		},
+		{
+			input:    "n2d-custom-8-16384",
+			expected: "n2dcustom",
+		},
+		{
+			input:    "e2-custom-4-8192",
+			expected: "e2custom",
+		},
+		{
+			input:    "n4-custom-8-32768",
+			expected: "n4custom",
+		},
+		{
+			input:    "n4a-custom-4-16384",
+			expected: "n4acustom",
+		},
+		{
+			input:    "n4d-custom-8-32768",
+			expected: "n4dcustom",
+		},
+		{
+			input:    "n1-custom-4-8192",
+			expected: "n1custom",
+		},
+		{
+			input:    "custom-4-8192",
+			expected: "n1custom",
 		},
 	}
 
@@ -190,6 +294,88 @@ func TestKeyFeatures(t *testing.T) {
 			},
 			exp: "asia-southeast1,t2dstandard,ondemand",
 		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "c3d-standard-8",
+					"topology.kubernetes.io/region":    "us-east1",
+				},
+			},
+			exp: "us-east1,c3dstandard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "c3-highmem-16",
+					"topology.kubernetes.io/region":    "us-central1",
+				},
+			},
+			exp: "us-central1,c3standard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "c4-standard-8",
+					"topology.kubernetes.io/region":    "europe-west1",
+					"cloud.google.com/gke-spot":        "true",
+				},
+			},
+			exp: "europe-west1,c4standard,preemptible",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n2-custom-8-32768",
+					"topology.kubernetes.io/region":    "us-central1",
+				},
+			},
+			exp: "us-central1,n2custom,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n2d-custom-8-16384",
+					"topology.kubernetes.io/region":    "us-west1",
+				},
+			},
+			exp: "us-west1,n2dcustom,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "c4d-standard-16",
+					"topology.kubernetes.io/region":    "us-east1",
+				},
+			},
+			exp: "us-east1,c4dstandard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "c2d-standard-8",
+					"topology.kubernetes.io/region":    "europe-west4",
+				},
+			},
+			exp: "europe-west4,c2dstandard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n4a-standard-4",
+					"topology.kubernetes.io/region":    "us-central1",
+				},
+			},
+			exp: "us-central1,n4astandard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n4d-highmem-8",
+					"topology.kubernetes.io/region":    "asia-east1",
+				},
+			},
+			exp: "asia-east1,n4dstandard,ondemand",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -255,6 +441,12 @@ func TestParsePage(t *testing.T) {
 					Labels: map[string]string{
 						"node.kubernetes.io/instance-type": "t2d-standard-1",
 						"topology.kubernetes.io/region":    "asia-southeast1",
+					},
+				},
+				"us-central1,c3dstandard,ondemand": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c3d-standard-8",
+						"topology.kubernetes.io/region":    "us-central1",
 					},
 				},
 			},
@@ -359,6 +551,22 @@ func TestParsePage(t *testing.T) {
 					Node: &models.Node{
 						VCPUCost:         "508.934997455",
 						RAMCost:          "68.204999658",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c3dstandard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.02944",
+						RAMCost:          "0.003945000000000001",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c3dstandard,ondemand,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.02944",
+						RAMCost:          "0.003945000000000001",
 						UsesBaseCPUPrice: false,
 						UsageType:        "ondemand",
 					},
@@ -1036,6 +1244,83 @@ func TestSustainedUseDiscount(t *testing.T) {
 			defaultDiscount: 0.30,
 			isPreemptible:   false,
 			expected:        0.30,
+		},
+		{
+			name:            "C2 instance",
+			class:           "c2",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.2,
+		},
+		{
+			name:            "C3 instance",
+			class:           "c3",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C3D instance",
+			class:           "c3d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C4 instance",
+			class:           "c4",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C4A instance",
+			class:           "c4a",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "T2D instance",
+			class:           "t2d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "A2 instance",
+			class:           "a2",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C4D instance",
+			class:           "c4d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C2D instance",
+			class:           "c2d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "N4A instance",
+			class:           "n4a",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "N4D instance",
+			class:           "n4d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
 		},
 	}
 
