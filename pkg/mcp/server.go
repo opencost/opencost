@@ -593,10 +593,50 @@ func (s *MCPServer) QueryAllocations(query *OpenCostQueryRequest) (*AllocationRe
 	}
 
 	// 6. Transform the result to MCP format
-	// If we have multiple sets, we'll combine them or return the first one
-	// For now, let's return the first allocation set
-	firstSet := asr.Allocations[0]
-	return transformAllocationSet(firstSet), nil
+	return transformAllocationSetRange(asr), nil
+}
+
+// transformAllocationSetRange converts every set in the range into the MCP's
+// AllocationResponse format. A single set keeps the "allocations" key; when
+// step < window without accumulation there is one set per step, and each is
+// keyed by its window so no step is dropped.
+func transformAllocationSetRange(asr *opencost.AllocationSetRange) *AllocationResponse {
+	if asr == nil {
+		return &AllocationResponse{Allocations: make(map[string]*AllocationSet)}
+	}
+
+	sets := make([]*opencost.AllocationSet, 0, len(asr.Allocations))
+	for _, set := range asr.Allocations {
+		if set != nil {
+			sets = append(sets, set)
+		}
+	}
+
+	if len(sets) <= 1 {
+		if len(sets) == 0 {
+			return &AllocationResponse{Allocations: make(map[string]*AllocationSet)}
+		}
+		return transformAllocationSet(sets[0])
+	}
+
+	mcpAllocations := make(map[string]*AllocationSet, len(sets))
+	for i, set := range sets {
+		mcpSet := transformAllocationSet(set).Allocations["allocations"]
+		key := allocationSetKey(set.Window, i)
+		mcpSet.Name = key
+		mcpAllocations[key] = mcpSet
+	}
+
+	return &AllocationResponse{Allocations: mcpAllocations}
+}
+
+// allocationSetKey returns the window as an RFC 3339 interval ("start/end"),
+// falling back to an index when the window is open-ended.
+func allocationSetKey(window opencost.Window, i int) string {
+	if window.Start() == nil || window.End() == nil {
+		return fmt.Sprintf("allocations-%d", i)
+	}
+	return window.Start().UTC().Format(time.RFC3339) + "/" + window.End().UTC().Format(time.RFC3339)
 }
 
 // transformAllocationSet converts an opencost.AllocationSet into the MCP's AllocationResponse format.
