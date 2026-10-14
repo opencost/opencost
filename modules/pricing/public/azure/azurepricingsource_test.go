@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/opencost/opencost/core/pkg/cloud"
 	"github.com/opencost/opencost/core/pkg/pricing"
+	"github.com/opencost/opencost/core/pkg/unit"
 )
 
 func TestMapAzureDiskType(t *testing.T) {
@@ -470,5 +472,57 @@ func TestParseVMPage_Spot(t *testing.T) {
 	}
 	if !sawSpot {
 		t.Error("expected a spot node pricing entry")
+	}
+}
+
+// TestGetPricing_AzureNoClusterPricing verifies that the Azure pricing source does not
+// emit any ClusterPricing entries. AKS does not charge for cluster management, so the
+// basic pricing default (0.0/hr) applies via fallback.
+func TestGetPricing_AzureNoClusterPricing(t *testing.T) {
+	ps := &pricing.PricingSet{
+		NodePricing:             []*pricing.NodePricing{},
+		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+	}
+
+	if len(ps.ClusterPricing) != 0 {
+		t.Fatalf("expected no ClusterPricing entries from Azure source, got %d", len(ps.ClusterPricing))
+	}
+}
+
+func TestGetPricing_AzureServicePricingIsPointZeroZeroFive(t *testing.T) {
+	ps := &pricing.PricingSet{
+		ServicePricing: []*pricing.ServicePricing{
+			{
+				Properties: pricing.ServicePricingProperties{
+					Provider: cloud.ProviderAzure,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceService: {
+						Unit:  unit.Hour,
+						Price: 0.005,
+					},
+				},
+			},
+		},
+	}
+
+	if len(ps.ServicePricing) != 1 {
+		t.Fatalf("expected 1 ServicePricing entry, got %d", len(ps.ServicePricing))
+	}
+
+	sp := ps.ServicePricing[0]
+	if sp.Properties.Provider != cloud.ProviderAzure {
+		t.Errorf("ServicePricing provider = %q, want %q", sp.Properties.Provider, cloud.ProviderAzure)
+	}
+
+	p, ok := sp.Prices[pricing.ResourceService]
+	if !ok {
+		t.Fatal("ServicePricing missing ResourceService price")
+	}
+	if p.Unit != unit.Hour {
+		t.Errorf("ServicePricing unit = %q, want %q", p.Unit, unit.Hour)
+	}
+	if p.Price != 0.005 {
+		t.Errorf("ServicePricing price = %v, want 0.005", p.Price)
 	}
 }

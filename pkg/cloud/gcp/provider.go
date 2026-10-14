@@ -198,7 +198,7 @@ func (*GCP) loadGCPAuthSecret() {
 			errMessage = err.Error()
 		}
 
-		log.Warnf("Failed to load auth secret, or was not mounted: %s", errMessage)
+		log.DedupedDebugf(1, "Failed to load auth secret, or was not mounted: %s", errMessage)
 		return
 	}
 
@@ -1139,7 +1139,7 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	reserved, err := gcp.getReservedInstances()
 	if err != nil {
-		log.Warnf("Failed to lookup reserved instance data: %s", err.Error())
+		log.DedupedWarningf(1, "Failed to lookup reserved instance data: %s", err.Error())
 	} else {
 		gcp.ReservedInstances = reserved
 

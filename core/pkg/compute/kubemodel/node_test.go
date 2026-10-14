@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/source"
 )
@@ -322,4 +323,47 @@ func TestComputeNodes(t *testing.T) {
 			assert.Equal(t, tt.want, kms.Nodes)
 		})
 	}
+}
+
+func TestComputeNodes_ExcludeLocalDiskCost(t *testing.T) {
+	t.Setenv(env.AssetIncludeLocalDiskCostEnvVar, "false")
+
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(time.Hour)
+
+	ds := source.NewMockOpenCostDataSource()
+	ds.ResolutionValue = 5 * time.Minute
+	seedCluster(ds, start, end)
+	ds.Querier.SetOverride(source.QueryNodeInfo, []*source.NodeInfoResult{
+		{UID: "node-1", Node: "node-a"},
+	})
+	ds.Querier.SetOverride(source.QueryNodeUptime, []*source.UptimeResult{
+		{UID: "node-1", First: start, Last: end},
+	})
+	ds.Querier.SetOverride(source.QueryKMLocalStorageBytes, []*source.UIDValueResult{
+		{UID: "node-1", Value: 500 * 1024 * 1024 * 1024},
+	})
+	ds.Querier.SetOverride(source.QueryKMLocalStorageUsedAvg, []*source.NodeUIDValueResult{
+		{UID: "node-1", Value: 100 * 1024 * 1024 * 1024},
+	})
+	ds.Querier.SetOverride(source.QueryKMLocalStorageUsedMax, []*source.NodeUIDValueResult{
+		{UID: "node-1", Value: 200 * 1024 * 1024 * 1024},
+	})
+
+	km, err := NewKubeModel(testClusterUID, false, ds)
+	require.NoError(t, err)
+
+	kms, err := km.ComputeKubeModelSet(start, end)
+	require.NoError(t, err)
+
+	want := map[string]*kubemodel.Node{
+		"node-1": {
+			UID: "node-1", Name: "node-a",
+			Start:                start,
+			End:                  end,
+			ResourceCapacities:   kubemodel.ResourceQuantities{},
+			ResourcesAllocatable: kubemodel.ResourceQuantities{},
+		},
+	}
+	assert.Equal(t, want, kms.Nodes)
 }

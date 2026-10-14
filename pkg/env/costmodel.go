@@ -76,8 +76,6 @@ const (
 
 	AllocationNodeLabelsEnabled = "ALLOCATION_NODE_LABELS_ENABLED"
 
-	AssetIncludeLocalDiskCostEnvVar = "ASSET_INCLUDE_LOCAL_DISK_COST"
-
 	regionOverrideList = "REGION_OVERRIDE_LIST"
 
 	ExportCSVFile       = "EXPORT_CSV_FILE"
@@ -334,7 +332,7 @@ func IsAllocationNodeLabelsEnabled() bool {
 }
 
 func IsAssetIncludeLocalDiskCost() bool {
-	return env.GetBool(AssetIncludeLocalDiskCostEnvVar, true)
+	return env.IsAssetIncludeLocalDiskCost()
 }
 
 func GetRegionOverrideList() []string {
