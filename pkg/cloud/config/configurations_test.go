@@ -363,6 +363,22 @@ func TestConfigurations_UnmarshalJSON_Issue4048(t *testing.T) {
   ],
   "alibaba": []
 }`,
+		"legacy MultiCloudConfig with uppercase provider keys": `{
+  "Azure": [],
+  "GCP": [],
+  "AWS": [
+    {
+      "athenaBucketName": "s3://my-cost-usage-report-bucket",
+      "athenaRegion": "eu-west-1",
+      "athenaDatabase": "cost_and_usage_report",
+      "athenaCatalog": "AwsDataCatalog",
+      "athenaTable": "cost_and_usage_report",
+      "athenaWorkgroup": "primary",
+      "projectID": "123456789012"
+    }
+  ],
+  "Alibaba": []
+}`,
 		"new Configurations format": `{
   "aws": {
     "athena": [

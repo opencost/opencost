@@ -96,10 +96,13 @@ func (c *Configurations) UnmarshalJSON(bytes []byte) error {
 	}
 
 	legacyFields := make(map[string]json.RawMessage)
-	for _, key := range []string{"aws", "azure", "gcp", "alibaba"} {
-		if raw, ok := rawFields[key]; ok && strings.HasPrefix(strings.TrimSpace(string(raw)), "[") {
-			legacyFields[key] = raw
-			delete(rawFields, key)
+	for rawKey, raw := range rawFields {
+		for _, legacyKey := range []string{"aws", "azure", "gcp", "alibaba"} {
+			if strings.EqualFold(rawKey, legacyKey) && strings.HasPrefix(strings.TrimSpace(string(raw)), "[") {
+				legacyFields[rawKey] = raw
+				delete(rawFields, rawKey)
+				break
+			}
 		}
 	}
 
