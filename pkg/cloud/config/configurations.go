@@ -79,19 +79,38 @@ func (c *Configurations) UnmarshalJSON(bytes []byte) error {
 	// This has been tested for backwards compatability, and it works in both config formats.
 	// It also coincidentally works if you mix-and-match both the old format and the new
 	// format.
-	// Create defined type to gain access to default Unmarshalling, then convert to pointer
+	// Create defined type to gain access to default Unmarshalling without recursing into UnmarshalJSON.
 	type confUnmarshaller Configurations
-	err := json.Unmarshal(bytes, (*confUnmarshaller)(c))
+	var unwrapped confUnmarshaller
+	unmarshalErr := json.Unmarshal(bytes, &unwrapped)
 	// If unmarshal is successful, return
-	if err == nil {
+	if unmarshalErr == nil {
+		*c = Configurations(unwrapped)
 		return nil
+	}
+
+	// Ensure provider fields not present in MultiCloudConfig are valid before falling back,
+	// so invalid new-format payloads (e.g. {"oci":"invalid"}) fail instead of wiping *c.
+	type nonLegacyConfigs struct {
+		OCI     *OCIConfigs     `json:"oci,omitempty"`
+		STACKIT *STACKITConfigs `json:"stackit,omitempty"`
+		IBM     *IBMConfigs     `json:"ibm,omitempty"`
+	}
+	var nonLegacy nonLegacyConfigs
+	if err := json.Unmarshal(bytes, &nonLegacy); err != nil {
+		return unmarshalErr
 	}
 
 	// Attempt to unmarshal into old config object
 	multiConfig := &MultiCloudConfig{}
-	err = json.Unmarshal(bytes, multiConfig)
+	err := json.Unmarshal(bytes, multiConfig)
 	if err != nil {
 		return err
+	}
+	*c = Configurations{
+		OCI:     nonLegacy.OCI,
+		STACKIT: nonLegacy.STACKIT,
+		IBM:     nonLegacy.IBM,
 	}
 	multiConfig.loadConfigurations(c)
 	return nil
