@@ -69,6 +69,15 @@ type nodeKey struct {
 	UsageType    string // OnDemand, Preemptible, Spot
 }
 
+// gpuKey identifies the hourly price of one GPU product in a GCP region and
+// purchase option. GPU SKUs do not include a machine type, so they are joined
+// with completed CPU/RAM node prices when the PricingSet is built.
+type gpuKey struct {
+	Region    string
+	Product   string
+	UsageType string // OnDemand, Preemptible, Spot
+}
+
 // volumeKey is used internally to track volume metadata during parsing
 type volumeKey struct {
 	Region     string
@@ -105,65 +114,77 @@ func mapGCPVolumeType(resourceGroup, description string) (pricing.VolumeType, bo
 	return pricing.VolumeTypeNil, false
 }
 
-// normalizeInstanceType maps GCP resource groups and descriptions to instance type families
+// descriptionPrefixes maps known GCP Billing API description prefixes to the
+// instance-type family token written into node_pricing. The prefix is
+// everything before " Instance" in the SKU description, uppercased.
+//
+// Entries must be ordered most-specific first so the first match wins
+// (e.g. "N2D AMD" before "N2").
+var descriptionPrefixes = []struct {
+	prefix string
+	family string
+}{
+	{"N2D AMD", "n2d-standard"},
+	{"N2", "n2-standard"},
+	{"N4", "n4-standard"},
+	{"N1", "n1-standard"},
+	{"A2", "a2"},
+	{"C3D", "c3d-standard"},
+	{"C3", "c3-standard"},
+	{"E2", "e2"},
+	{"M1", "m1-megamem"},
+	{"M2", "m2-ultramem"},
+	{"M3", "m3-ultramem"},
+	{"T2D AMD", "t2d-standard"},
+	{"T2A ARM", "t2a-standard"},
+	{"Z3", "z3-standard"},
+}
+
+// normalizeInstanceType maps GCP Billing API resource groups and descriptions
+// to the instance-type family prefix stored in node_pricing. The prefix must
+// match what stage-02 derivation produces by stripping the trailing
+// dash-separated size segment from the node's InstanceType label
+// (e.g. "n2-highmem-4" → "n2-highmem").
 func normalizeInstanceType(resourceGroup, description string) string {
 	resourceGroupLower := strings.ToLower(resourceGroup)
+	if resourceGroupLower != "cpu" && resourceGroupLower != "ram" {
+		return resourceGroupLower
+	}
+
 	descriptionUpper := strings.ToUpper(description)
 
-	// Handle custom instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "CUSTOM") {
+	// Custom instances (any family) collapse to a single key.
+	if strings.Contains(descriptionUpper, "CUSTOM") {
 		return "custom"
 	}
 
-	// Handle N2 instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "N2") &&
-		!strings.Contains(descriptionUpper, "PREMIUM") {
-		if strings.Contains(descriptionUpper, "N2D AMD") {
-			return "n2d-standard"
+	// Commitment and sole-tenancy premium SKUs should not reach here (filtered
+	// upstream), but guard anyway
+	if strings.Contains(descriptionUpper, "PREMIUM") {
+		return resourceGroupLower
+	}
+
+	// C2/C2D use "Compute Optimized" as their description prefix, not "C2 Instance".
+	if strings.Contains(descriptionUpper, "COMPUTE OPTIMIZED") {
+		if strings.Contains(descriptionUpper, "C2D") {
+			return "c2d-standard"
 		}
-		return "n2-standard"
-	}
-
-	// Handle N4 instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "N4 INSTANCE") {
-		return "n4-standard"
-	}
-
-	// Handle A2 instances (GPU-optimized)
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "A2 INSTANCE") {
-		return "a2"
-	}
-
-	// Handle C2 instances (compute-optimized)
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "COMPUTE OPTIMIZED") {
 		return "c2-standard"
 	}
 
-	// Handle E2 instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "E2 INSTANCE") {
-		return "e2"
+	for _, p := range descriptionPrefixes {
+		if strings.Contains(descriptionUpper, p.prefix+" INSTANCE") {
+			return p.family
+		}
 	}
 
-	// Handle T2D instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "T2D AMD") {
-		return "t2d-standard"
-	}
-
-	// Handle T2A instances
-	if (resourceGroupLower == "ram" || resourceGroupLower == "cpu") &&
-		strings.Contains(descriptionUpper, "T2A ARM") {
-		return "t2a-standard"
-	}
-
-	// Default to the resource group as-is
 	return resourceGroupLower
+}
+
+// isCommitmentOrReservedSKU checks whether a SKU is for committed use discounts (CUD) or reserved instances
+func isCommitmentOrReservedSKU(description string) bool {
+	d := strings.ToUpper(description)
+	return strings.Contains(d, "COMMITMENT") || strings.Contains(d, "RESERVATION")
 }
 
 // isComputeResource checks if a SKU is for compute resources (CPU/RAM)
@@ -180,4 +201,47 @@ func isStorageResource(resourceGroup string) bool {
 		resourceGroupLower == "pdbalanced" ||
 		resourceGroupLower == "pdextreme" ||
 		strings.HasPrefix(resourceGroupLower, "hyperdisk")
+}
+
+// isGPUResource checks whether a Catalog SKU is priced per attached GPU.
+func isGPUResource(resourceGroup string) bool {
+	return strings.EqualFold(resourceGroup, "GPU")
+}
+
+const gpuProductLabel = "nvidia.com/gpu.product"
+
+// normalizeGPUProduct maps recognized Catalog SKU descriptions to the
+// nvidia.com/gpu.product node-label values used by the KCM GPU-pricing path.
+// The returned string must match the exact case-sensitive value stamped on
+// nodes by the NVIDIA device plugin (e.g. "Tesla-T4", "NVIDIA-A100-SXM4-40GB")
+// because ClickHouse stage 02 derivation matches via exact FNV-32a bitmap hashes.
+// Unknown descriptions are intentionally skipped rather than emitting a price
+// that could match the wrong GPU model.
+func normalizeGPUProduct(description string) string {
+	desc := strings.ToLower(description)
+
+	// A100 must be checked first: the 80 GB variant has a distinct product string.
+	if strings.Contains(desc, "a100") {
+		if strings.Contains(desc, "80gb") || strings.Contains(desc, "80 gb") {
+			return "NVIDIA-A100-80GB-PCIe"
+		}
+		return "Tesla-A100"
+	}
+
+	switch {
+	case strings.Contains(desc, "l4"):
+		return "NVIDIA-L4"
+	case strings.Contains(desc, "t4"):
+		return "Tesla-T4"
+	case strings.Contains(desc, "v100"):
+		return "Tesla-V100"
+	case strings.Contains(desc, "p100"):
+		return "Tesla-P100"
+	case strings.Contains(desc, "p4"):
+		return "Tesla-P4"
+	case strings.Contains(desc, "k80"):
+		return "Tesla-K80"
+	default:
+		return ""
+	}
 }
