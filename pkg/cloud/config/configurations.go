@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud"
@@ -89,29 +90,42 @@ func (c *Configurations) UnmarshalJSON(bytes []byte) error {
 		return nil
 	}
 
-	// Ensure provider fields not present in MultiCloudConfig are valid before falling back,
-	// so invalid new-format payloads (e.g. {"oci":"invalid"}) fail instead of wiping *c.
-	type nonLegacyConfigs struct {
-		OCI     *OCIConfigs     `json:"oci,omitempty"`
-		STACKIT *STACKITConfigs `json:"stackit,omitempty"`
-		IBM     *IBMConfigs     `json:"ibm,omitempty"`
-	}
-	var nonLegacy nonLegacyConfigs
-	if err := json.Unmarshal(bytes, &nonLegacy); err != nil {
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(bytes, &rawFields); err != nil {
 		return unmarshalErr
 	}
 
-	// Attempt to unmarshal into old config object
+	legacyFields := make(map[string]json.RawMessage)
+	for _, key := range []string{"aws", "azure", "gcp", "alibaba"} {
+		if raw, ok := rawFields[key]; ok && strings.HasPrefix(strings.TrimSpace(string(raw)), "[") {
+			legacyFields[key] = raw
+			delete(rawFields, key)
+		}
+	}
+
+	var remaining confUnmarshaller
+	if len(rawFields) > 0 {
+		remainingBytes, err := json.Marshal(rawFields)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(remainingBytes, &remaining); err != nil {
+			return err
+		}
+	}
+
 	multiConfig := &MultiCloudConfig{}
-	err := json.Unmarshal(bytes, multiConfig)
-	if err != nil {
-		return err
+	if len(legacyFields) > 0 {
+		legacyBytes, err := json.Marshal(legacyFields)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(legacyBytes, multiConfig); err != nil {
+			return err
+		}
 	}
-	*c = Configurations{
-		OCI:     nonLegacy.OCI,
-		STACKIT: nonLegacy.STACKIT,
-		IBM:     nonLegacy.IBM,
-	}
+
+	*c = Configurations(remaining)
 	multiConfig.loadConfigurations(c)
 	return nil
 }

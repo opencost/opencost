@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/opencost/opencost/pkg/cloud/aws"
@@ -409,15 +410,22 @@ func TestConfigurations_UnmarshalJSON_Issue4048(t *testing.T) {
 	}
 
 	t.Run("invalid non-legacy provider returns error and preserves receiver", func(t *testing.T) {
-		actual := &Configurations{
-			Azure: azureConfiguration.Azure,
-		}
-		if err := json.Unmarshal([]byte(`{"oci":"invalid"}`), actual); err == nil {
-			t.Fatalf("expected error unmarshalling invalid oci config, got nil")
-		}
-		if !azureConfiguration.Equals(actual) {
-			t.Fatalf("receiver was mutated on failed unmarshal: got %+v, want %+v", actual, azureConfiguration)
+		for _, payload := range []string{`{"oci":"invalid"}`, `{"aws":[{}],"oci":"invalid"}`} {
+			actual := &Configurations{
+				Azure: azureConfiguration.Azure,
+			}
+			err := json.Unmarshal([]byte(payload), actual)
+			if err == nil {
+				t.Fatalf("expected error unmarshalling %s, got nil", payload)
+			}
+			if !strings.Contains(err.Error(), "oci") {
+				t.Fatalf("expected error for %s to identify oci field, got: %v", payload, err)
+			}
+			if !azureConfiguration.Equals(actual) {
+				t.Fatalf("receiver was mutated on failed unmarshal (%s): got %+v, want %+v", payload, actual, azureConfiguration)
+			}
 		}
 	})
 }
+
 
