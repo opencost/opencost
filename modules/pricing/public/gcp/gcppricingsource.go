@@ -44,11 +44,26 @@ func (g *GCPPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+		// GKE charges $0.10/hr USD per cluster for cluster management
+		ClusterPricing: []*pricing.ClusterPricing{
+			{
+				Properties: pricing.ClusterPricingProperties{
+					Provider: cloud.ProviderGCP,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceCluster: {
+						Unit:  unit.Hour,
+						Price: 0.10,
+					},
+				},
+			},
+		},
 	}
 
-	// Maps to accumulate CPU and RAM costs per node key
+	// Maps to accumulate CPU, RAM, and per-GPU costs.
 	nodeCPUCosts := make(map[nodeKey]float64)
 	nodeRAMCosts := make(map[nodeKey]float64)
+	nodeGPUCosts := make(map[gpuKey]float64)
 
 	// Track volume pricing
 	volumeCosts := make(map[volumeKey]float64)
@@ -73,7 +88,7 @@ func (g *GCPPricingSource) GetPricing() (*pricing.PricingSet, error) {
 			return nil, fmt.Errorf("PricingSource (GCP): unexpected status %d on page %d: %s", resp.StatusCode, pageCount, string(body))
 		}
 
-		nextToken, err := g.parsePage(resp.Body, nodeCPUCosts, nodeRAMCosts, volumeCosts)
+		nextToken, err := g.parsePage(resp.Body, nodeCPUCosts, nodeRAMCosts, nodeGPUCosts, volumeCosts)
 		closeErr := resp.Body.Close()
 		if closeErr != nil {
 			log.Warnf("failed to close response body: %v", closeErr)
@@ -91,8 +106,8 @@ func (g *GCPPricingSource) GetPricing() (*pricing.PricingSet, error) {
 		nextPageToken = nextToken
 	}
 
-	// Build node pricing from accumulated CPU and RAM costs
-	g.buildNodePricing(ps, nodeCPUCosts, nodeRAMCosts)
+	// Build node pricing from accumulated CPU and RAM costs and GPU-qualified copies
+	g.buildNodePricing(ps, nodeCPUCosts, nodeRAMCosts, nodeGPUCosts)
 
 	// Build volume pricing
 	g.buildVolumePricing(ps, volumeCosts)
@@ -114,7 +129,7 @@ func (g *GCPPricingSource) buildURL(pageToken string) string {
 }
 
 func (g *GCPPricingSource) parsePage(body io.Reader, nodeCPUCosts map[nodeKey]float64, nodeRAMCosts map[nodeKey]float64,
-	volumeCosts map[volumeKey]float64,
+	nodeGPUCosts map[gpuKey]float64, volumeCosts map[volumeKey]float64,
 ) (nextPageToken string, err error) {
 
 	data, err := io.ReadAll(body)
@@ -132,6 +147,10 @@ func (g *GCPPricingSource) parsePage(body io.Reader, nodeCPUCosts map[nodeKey]fl
 			continue
 		}
 
+		if isCommitmentOrReservedSKU(sku.Description) {
+			continue
+		}
+
 		category := sku.Category
 		resourceGroup := category.ResourceGroup
 		usageType := strings.ToLower(category.UsageType)
@@ -146,7 +165,9 @@ func (g *GCPPricingSource) parsePage(body io.Reader, nodeCPUCosts map[nodeKey]fl
 			continue
 		}
 
-		// TODO: Add GPU pricing support
+		if isGPUResource(resourceGroup) {
+			g.parseGPUSKU(sku, usageType, nodeGPUCosts)
+		}
 	}
 
 	return page.NextPageToken, nil
@@ -216,18 +237,58 @@ func (g *GCPPricingSource) parseComputeSKU(sku *GCPPricing, usageType string, no
 	}
 }
 
-// expandInstanceTypes handles special cases like E2 and A2 families that map to multiple instance types
-func (g *GCPPricingSource) expandInstanceTypes(instanceType, resourceGroup string) []string {
-	resourceGroupLower := strings.ToLower(resourceGroup)
-
-	// E2 family expands to multiple instance types
-	if instanceType == "e2" && (resourceGroupLower == "cpu" || resourceGroupLower == "ram") {
-		return []string{"e2-micro", "e2-small", "e2-medium", "e2-standard", "e2-custom"}
+// parseGPUSKU accumulates an hourly price for one GPU. The product label is
+// part of the key because GPU SKUs are not tied to a single machine type.
+func (g *GCPPricingSource) parseGPUSKU(sku *GCPPricing, usageType string, nodeGPUCosts map[gpuKey]float64) {
+	if nodeGPUCosts == nil {
+		return
 	}
 
-	// A2 family expands to multiple GPU-optimized instance types
-	if instanceType == "a2" && (resourceGroupLower == "cpu" || resourceGroupLower == "ram") {
+	product := normalizeGPUProduct(sku.Description)
+	if product == "" {
+		log.Debugf("PricingSource (GCP): skipping GPU SKU with unrecognized product label: %q", sku.Description)
+		return
+	}
+
+	hourlyPrice, err := g.extractHourlyPrice(sku)
+	if err != nil || hourlyPrice == 0 {
+		return
+	}
+
+	for _, region := range sku.ServiceRegions {
+		key := gpuKey{
+			Region:    region,
+			Product:   product,
+			UsageType: usageType,
+		}
+		nodeGPUCosts[key] = hourlyPrice
+	}
+}
+
+// expandInstanceTypes fans a single billing SKU out to all the node_pricing
+// InstanceType keys it should cover. GCP bills N-series sub-families
+// (highmem, highcpu) at the same per-vCPU and per-GiB-RAM rate as the
+// standard variant, so a single "N2 Instance" SKU must produce rows for
+// n2-standard, n2-highmem, and n2-highcpu.
+func (g *GCPPricingSource) expandInstanceTypes(instanceType, resourceGroup string) []string {
+	resourceGroupLower := strings.ToLower(resourceGroup)
+	if resourceGroupLower != "cpu" && resourceGroupLower != "ram" {
+		return []string{instanceType}
+	}
+
+	switch instanceType {
+	case "e2":
+		return []string{"e2-micro", "e2-small", "e2-medium", "e2-standard", "e2-highcpu", "e2-highmem", "e2-custom"}
+	case "a2":
 		return []string{"a2-highgpu", "a2-megagpu", "a2-ultragpu"}
+	case "n1-standard":
+		return []string{"n1-standard", "n1-highmem", "n1-highcpu"}
+	case "n2-standard":
+		return []string{"n2-standard", "n2-highmem", "n2-highcpu"}
+	case "n2d-standard":
+		return []string{"n2d-standard", "n2d-highmem", "n2d-highcpu"}
+	case "n4-standard":
+		return []string{"n4-standard", "n4-highmem", "n4-highcpu"}
 	}
 
 	return []string{instanceType}
@@ -262,8 +323,9 @@ func (g *GCPPricingSource) extractHourlyPrice(sku *GCPPricing) (float64, error) 
 }
 
 func (g *GCPPricingSource) buildNodePricing(ps *pricing.PricingSet, nodeCPUCosts map[nodeKey]float64,
-	nodeRAMCosts map[nodeKey]float64,
+	nodeRAMCosts map[nodeKey]float64, nodeGPUCosts map[gpuKey]float64,
 ) {
+
 	// Combine CPU and RAM costs into complete node pricing
 	processedKeys := make(map[nodeKey]bool)
 
@@ -282,9 +344,12 @@ func (g *GCPPricingSource) buildNodePricing(ps *pricing.PricingSet, nodeCPUCosts
 		}
 		processedKeys[key] = true
 
-		// Skip spot/preemptible pricing
+		// GCP's Cloud Billing Catalog API bills both legacy Preemptible VMs
+		// and modern Spot VMs under the "Preemptible" usageType, so we map
+		// that usage type to our Spot provisioning type.
+		provisioning := pricing.ProvisioningOnDemand
 		if strings.EqualFold(key.UsageType, "preemptible") {
-			continue
+			provisioning = pricing.ProvisioningSpot
 		}
 
 		cpuCost := nodeCPUCosts[key]
@@ -300,21 +365,45 @@ func (g *GCPPricingSource) buildNodePricing(ps *pricing.PricingSet, nodeCPUCosts
 				Provider:     cloud.ProviderGCP,
 				Region:       key.Region,
 				InstanceType: key.InstanceType,
-				Provisioning: pricing.ProvisioningOnDemand,
+				Provisioning: provisioning,
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceCPU: pricing.Price{
-					Unit:  unit.Hour,
+					Unit:  unit.VCPUHour,
 					Price: cpuCost,
 				},
 				pricing.ResourceRAM: pricing.Price{
-					Unit:  unit.Hour,
+					Unit:  unit.GiBHour,
 					Price: ramCost,
 				},
 			},
 		}
 
 		ps.NodePricing = append(ps.NodePricing, nodePricing)
+
+		// A GPU-qualified record must repeat CPU/RAM pricing
+		for gpuKey, gpuCost := range nodeGPUCosts {
+			if gpuKey.Region != key.Region || gpuKey.UsageType != key.UsageType {
+				continue
+			}
+
+			gpuNodePricing := &pricing.NodePricing{
+				Properties: nodePricing.Properties,
+				Prices: pricing.Prices{
+					pricing.ResourceCPU: nodePricing.Prices[pricing.ResourceCPU],
+					pricing.ResourceRAM: nodePricing.Prices[pricing.ResourceRAM],
+					pricing.ResourceGPU: {
+						Unit:  unit.GPUHour,
+						Price: gpuCost,
+					},
+				},
+			}
+			gpuNodePricing.Properties.Labels = map[string]string{
+				gpuProductLabel: gpuKey.Product,
+			}
+
+			ps.NodePricing = append(ps.NodePricing, gpuNodePricing)
+		}
 	}
 }
 
@@ -331,7 +420,7 @@ func (g *GCPPricingSource) buildVolumePricing(
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceStorage: pricing.Price{
-					Unit:  unit.Hour,
+					Unit:  unit.GiBHour,
 					Price: cost,
 				},
 			},

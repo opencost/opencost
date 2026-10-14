@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 // StorageConnection provides access to Azure Storage
@@ -133,13 +134,14 @@ func (sc *StorageConnection) DownloadBlobToFile(localFilePath string, blob conta
 	return nil
 }
 
-// deleteFilesOlderThan7d recursively walks the directory specified and deletes
-// files which have not been modified in the last 7 days. Returns a list of
+// deleteFilesOlderThanRetention recursively walks the directory specified and deletes
+// files which have not been modified in the last N days. Returns a list of
 // files deleted.
-func (sc *StorageConnection) deleteFilesOlderThan7d(localPath string) ([]string, error) {
+// Retention period is determined by the CLOUD_COST_PV_RETENTION environment variable, which defaults to 2 days.
+func (sc *StorageConnection) deleteFilesOlderThanRetention(localPath string) ([]string, error) {
 	sc.lock.Lock()
 	defer sc.lock.Unlock()
-	duration := 7 * 24 * time.Hour
+	duration := time.Duration(env.GetCloudCostPvRetention()) * 24 * time.Hour
 	cleaned := []string{}
 	errs := []string{}
 
@@ -166,6 +168,6 @@ func (sc *StorageConnection) deleteFilesOlderThan7d(localPath string) ([]string,
 	if len(errs) == 0 {
 		return cleaned, nil
 	} else {
-		return cleaned, fmt.Errorf("deleteFilesOlderThan7d: %v", errs)
+		return cleaned, fmt.Errorf("deleteFilesOlderThanRetention: %v", errs)
 	}
 }

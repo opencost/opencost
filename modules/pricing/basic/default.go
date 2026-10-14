@@ -17,7 +17,15 @@ const DefaultNetworkNATGatewayIngressPricePerGiB float64 = 0.045
 const DefaultNodePricePerVCPUHour float64 = 0.031611
 const DefaultNodePricePerRAMGiBHour float64 = 0.004237
 const DefaultNodePricePerGPUHour float64 = 0.95
-const DefaultNodePricePerLocalDiskGiBHour float64 = 0.0001096
+
+const DefaultSpotNodePricePerVCPUHour float64 = 0.006655
+const DefaultSpotNodePricePerRAMGiBHour float64 = 0.000892
+const DefaultSpotNodePricePerGPUHour float64 = 0.308
+
+// This was originally set to double that of persistent volume, and it is unclear exactly why.
+// In order to match the legacy pipeline, it is now set to the same as persistent volume pricing
+// const DefaultNodePricePerLocalDiskGiBHour float64 = 0.0001096
+const DefaultNodePricePerLocalDiskGiBHour float64 = 0.00005479452
 
 const DefaultPersistentVolumePricePerGiBHour float64 = 0.00005479452
 
@@ -84,7 +92,9 @@ func GetDefaultNetworkPricing() []*pricing.NetworkPricing {
 func GetDefaultNodePricing() []*pricing.NodePricing {
 	return []*pricing.NodePricing{
 		{
-			Properties: pricing.NodePricingProperties{},
+			Properties: pricing.NodePricingProperties{
+				Provisioning: pricing.ProvisioningOnDemand,
+			},
 			Prices: pricing.Prices{
 				pricing.ResourceCPU: {
 					Unit:  unit.VCPUHour,
@@ -97,6 +107,29 @@ func GetDefaultNodePricing() []*pricing.NodePricing {
 				pricing.ResourceGPU: {
 					Unit:  unit.GPUHour,
 					Price: DefaultNodePricePerGPUHour,
+				},
+				pricing.ResourceStorage: {
+					Unit:  unit.GiBHour,
+					Price: DefaultNodePricePerLocalDiskGiBHour,
+				},
+			},
+		},
+		{
+			Properties: pricing.NodePricingProperties{
+				Provisioning: pricing.ProvisioningSpot,
+			},
+			Prices: pricing.Prices{
+				pricing.ResourceCPU: {
+					Unit:  unit.VCPUHour,
+					Price: DefaultSpotNodePricePerVCPUHour,
+				},
+				pricing.ResourceRAM: {
+					Unit:  unit.GiBHour,
+					Price: DefaultSpotNodePricePerRAMGiBHour,
+				},
+				pricing.ResourceGPU: {
+					Unit:  unit.GPUHour,
+					Price: DefaultSpotNodePricePerGPUHour,
 				},
 				pricing.ResourceStorage: {
 					Unit:  unit.GiBHour,

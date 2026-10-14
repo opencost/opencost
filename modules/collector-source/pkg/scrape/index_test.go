@@ -2,6 +2,7 @@ package scrape
 
 import (
 	"testing"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/stretchr/testify/require"
@@ -72,4 +73,58 @@ func TestBuildPVIndex(t *testing.T) {
 	require.Equal(t, types.UID("uid-pv-a"), m["pv-a"])
 	require.Equal(t, types.UID("uid-pv-b"), m["pv-b"])
 	require.Len(t, m, 2)
+}
+
+// backdate moves the last seen time of an entry into the past.
+func backdate[K comparable](pi *persistedIndex[K], key K, d time.Duration) {
+	entry := pi.entries[key]
+	entry.lastSeen = entry.lastSeen.Add(-d)
+	pi.entries[key] = entry
+}
+
+func TestPersistedIndex_Nil(t *testing.T) {
+	var pi *persistedIndex[string]
+	current := map[string]types.UID{"node-a": "uid-a"}
+	require.Equal(t, current, pi.update(current))
+}
+
+func TestPersistedIndex_RetainsMissingEntries(t *testing.T) {
+	pi := newPersistedIndex[string]("test")
+
+	m := pi.update(map[string]types.UID{"node-a": "uid-a", "node-b": "uid-b"})
+	require.Equal(t, map[string]types.UID{"node-a": "uid-a", "node-b": "uid-b"}, m)
+
+	backdate(pi, "node-b", persistedIndexTTL/2)
+	m = pi.update(map[string]types.UID{"node-a": "uid-a"})
+	require.Equal(t, map[string]types.UID{"node-a": "uid-a", "node-b": "uid-b"}, m)
+}
+
+func TestPersistedIndex_CurrentOverwritesRetained(t *testing.T) {
+	pi := newPersistedIndex[string]("test")
+
+	pi.update(map[string]types.UID{"node-a": "uid-a-old"})
+	m := pi.update(map[string]types.UID{"node-a": "uid-a-new"})
+	require.Equal(t, map[string]types.UID{"node-a": "uid-a-new"}, m)
+}
+
+func TestPersistedIndex_EvictsExpiredEntries(t *testing.T) {
+	pi := newPersistedIndex[string]("test")
+
+	pi.update(map[string]types.UID{"node-a": "uid-a", "node-b": "uid-b"})
+
+	backdate(pi, "node-b", 2*persistedIndexTTL)
+	m := pi.update(map[string]types.UID{"node-a": "uid-a"})
+	require.Equal(t, map[string]types.UID{"node-a": "uid-a"}, m)
+	require.Len(t, pi.entries, 1)
+}
+
+func TestPersistedIndex_ResultIsIndependent(t *testing.T) {
+	pi := newPersistedIndex[pvcKey]("test")
+
+	key := pvcKey{name: "pvc-a", namespace: "ns-1"}
+	m := pi.update(map[pvcKey]types.UID{key: "uid-pvc-a"})
+	m[key] = "modified"
+
+	m = pi.update(nil)
+	require.Equal(t, types.UID("uid-pvc-a"), m[key])
 }
