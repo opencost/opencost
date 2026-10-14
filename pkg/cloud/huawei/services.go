@@ -53,6 +53,15 @@ type service struct {
 // are confirmed against a real Huawei Cloud bill export. DCS, SFS, CBR and SWR
 // did not appear in that export and remain unconfirmed; their codes and names
 // match the documented Huawei Cloud values.
+//
+// ModelArts' code is also confirmed for MaaS (Model as a Service) token usage,
+// billed as hws.service.type.modelarts / hws.resource.type.modelarts.tokens
+// in a second account's bill export. The remaining entries (CSS, CCI, the
+// databases and analytics services, Enterprise Router, VPN, Direct Connect,
+// the security services...) widen coverage to the rest of the catalog and are
+// unconfirmed; a deployment can correct or extend any of them without a
+// rebuild through HUAWEICLOUD_SERVICE_CATEGORIES (see serviceTable). Security
+// services are filed under Management: OpenCost has no security category.
 var services = []service{
 	// Compute
 	{opencost.ComputeCategory, []string{"ec2", "ecs", "bms"}, []string{"elastic cloud server", "bare metal server"}},
@@ -61,6 +70,11 @@ var services = []service{
 	{opencost.ComputeCategory, []string{"dcs"}, []string{"distributed cache service"}},
 	{opencost.ComputeCategory, []string{"dms"}, []string{"distributed message service"}},
 	{opencost.ComputeCategory, []string{"modelarts"}, []string{"modelarts"}},
+	{opencost.ComputeCategory, []string{"cci"}, []string{"cloud container instance"}},
+	{opencost.ComputeCategory, []string{"servicestage", "cse"}, []string{"servicestage", "cloud service engine"}},
+	{opencost.ComputeCategory, []string{"ief"}, []string{"intelligent edgefabric"}},
+	{opencost.ComputeCategory, []string{"mrs"}, []string{"mapreduce service"}},
+	{opencost.ComputeCategory, []string{"dli"}, []string{"data lake insight"}},
 	// Storage
 	{opencost.StorageCategory, []string{"ebs", "evs"}, []string{"elastic volume service"}},
 	{opencost.StorageCategory, []string{"obs"}, []string{"object storage service"}},
@@ -69,6 +83,11 @@ var services = []service{
 	{opencost.StorageCategory, []string{"swr"}, []string{"software repository for container"}},
 	{opencost.StorageCategory, []string{"rds"}, []string{"relational database service"}},
 	{opencost.StorageCategory, []string{"kms", "dew", "csms"}, []string{"data encryption workshop", "key management service", "cloud secret management service"}},
+	{opencost.StorageCategory, []string{"css"}, []string{"cloud search service"}},
+	{opencost.StorageCategory, []string{"dds"}, []string{"document database service"}},
+	{opencost.StorageCategory, []string{"gaussdb", "gaussdbformysql", "taurusdb", "gaussdbfornosql", "nosql"}, []string{"gaussdb", "taurusdb"}},
+	{opencost.StorageCategory, []string{"drs"}, []string{"data replication service"}},
+	{opencost.StorageCategory, []string{"dws"}, []string{"data warehouse service"}},
 	// Network
 	{opencost.NetworkCategory, []string{"elb"}, []string{"elastic load balance"}},
 	{opencost.NetworkCategory, []string{"natgateway", "nat"}, []string{"nat gateway"}},
@@ -77,6 +96,21 @@ var services = []service{
 	{opencost.NetworkCategory, []string{"dns"}, []string{"domain name service"}},
 	{opencost.NetworkCategory, []string{"apig"}, []string{"api gateway"}},
 	{opencost.NetworkCategory, []string{"waf"}, []string{"web application firewall"}},
+	{opencost.NetworkCategory, []string{"er"}, []string{"enterprise router"}},
+	{opencost.NetworkCategory, []string{"vpn"}, []string{"virtual private network"}},
+	{opencost.NetworkCategory, []string{"dc", "directconnect"}, []string{"direct connect"}},
+	{opencost.NetworkCategory, []string{"cc"}, []string{"cloud connect"}},
+	{opencost.NetworkCategory, []string{"cdn"}, []string{"content delivery network"}},
+	{opencost.NetworkCategory, []string{"vpcep"}, []string{"vpc endpoint"}},
+	{opencost.NetworkCategory, []string{"ga"}, []string{"global accelerator"}},
+	// Security (no OpenCost category of its own)
+	{opencost.ManagementCategory, []string{"hss"}, []string{"host security service"}},
+	{opencost.ManagementCategory, []string{"cfw"}, []string{"cloud firewall"}},
+	{opencost.ManagementCategory, []string{"antiddos", "aad", "cnad"}, []string{"anti-ddos", "advanced anti-ddos"}},
+	{opencost.ManagementCategory, []string{"cbh"}, []string{"cloud bastion host"}},
+	{opencost.ManagementCategory, []string{"secmaster"}, []string{"secmaster"}},
+	{opencost.ManagementCategory, []string{"scm", "ccm"}, []string{"ssl certificate manager", "cloud certificate manager"}},
+	{opencost.ManagementCategory, []string{"dbss"}, []string{"database security service"}},
 	// Management / operations
 	{opencost.ManagementCategory, []string{"lts"}, []string{"log tank service"}},
 	{opencost.ManagementCategory, []string{"ces"}, []string{"cloud eye"}},
@@ -85,6 +119,8 @@ var services = []service{
 	{opencost.ManagementCategory, []string{"rms"}, []string{"config", "resource management service"}},
 	{opencost.ManagementCategory, []string{"devcloud", "codearts"}, []string{"codearts"}},
 	{opencost.ManagementCategory, []string{"supportplan"}, []string{"supportplan", "support plan"}},
+	{opencost.ManagementCategory, []string{"cts"}, []string{"cloud trace service"}},
+	{opencost.ManagementCategory, []string{"organizations"}, []string{"organizations"}},
 }
 
 // selectHuaweiCategory maps a BSS CLOUD_SERVICE_TYPE dimension value to an
@@ -100,6 +136,7 @@ func selectHuaweiCategory(serviceType string) string {
 }
 
 func lookupService(serviceType string) (service, bool) {
+	table := serviceTable()
 	normalized := strings.ToLower(strings.TrimSpace(serviceType))
 	if normalized == "" {
 		return service{}, false
@@ -108,7 +145,7 @@ func lookupService(serviceType string) (service, bool) {
 	// Service Type Code form: the suffix identifies the service exactly, so an
 	// unknown suffix is unknown -- don't fall through to name matching.
 	if code, ok := strings.CutPrefix(normalized, serviceTypeCodePrefix); ok {
-		for _, svc := range services {
+		for _, svc := range table {
 			if slices.Contains(svc.codes, code) {
 				return svc, true
 			}
@@ -118,7 +155,7 @@ func lookupService(serviceType string) (service, bool) {
 
 	// An exact display name, or a bare abbreviation ("RDS") -- a code without
 	// its prefix. Both are unambiguous, so they win over substring matching.
-	for _, svc := range services {
+	for _, svc := range table {
 		if slices.Contains(svc.names, normalized) || slices.Contains(svc.codes, normalized) {
 			return svc, true
 		}
@@ -126,7 +163,7 @@ func lookupService(serviceType string) (service, bool) {
 
 	// Last resort: a display name carrying a qualifier, e.g. "Elastic Load
 	// Balance (Shared)".
-	for _, svc := range services {
+	for _, svc := range table {
 		if slices.ContainsFunc(svc.names, func(name string) bool { return strings.Contains(normalized, name) }) {
 			return svc, true
 		}

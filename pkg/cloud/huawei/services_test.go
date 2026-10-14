@@ -1,9 +1,14 @@
 package huawei
 
 import (
+	"os"
+	"path/filepath"
+	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 // TestSelectHuaweiCategory covers both forms BSS returns for its
@@ -71,6 +76,104 @@ func TestSelectHuaweiCategory(t *testing.T) {
 	for _, c := range cases {
 		if got := selectHuaweiCategory(c.service); got != c.want {
 			t.Errorf("selectHuaweiCategory(%q) = %q, want %q", c.service, got, c.want)
+		}
+	}
+}
+
+// TestSelectHuaweiCategory_WiderCatalog covers the services added beyond the
+// ones confirmed in a bill export, including MaaS token usage, which is billed
+// under ModelArts.
+func TestSelectHuaweiCategory_WiderCatalog(t *testing.T) {
+	cases := []struct {
+		service string
+		want    string
+	}{
+		{"hws.service.type.modelarts", opencost.ComputeCategory},
+		{"Cloud Search Service", opencost.StorageCategory},
+		{"hws.service.type.css", opencost.StorageCategory},
+		{"GaussDB(for MySQL)", opencost.StorageCategory},
+		{"Enterprise Router", opencost.NetworkCategory},
+		{"Virtual Private Network", opencost.NetworkCategory},
+		{"Host Security Service", opencost.ManagementCategory},
+		{"hws.service.type.hss", opencost.ManagementCategory},
+		{"Cloud Trace Service", opencost.ManagementCategory},
+		// Still unknown, still Other.
+		{"Cloud Professional Services", opencost.OtherCategory},
+	}
+	for _, c := range cases {
+		if got := selectHuaweiCategory(c.service); got != c.want {
+			t.Errorf("selectHuaweiCategory(%q) = %q, want %q", c.service, got, c.want)
+		}
+	}
+}
+
+func TestLoadServiceCategories(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, content string) string {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	loaded, err := loadServiceCategories(write("ok.json", `[
+		{"category": "Compute", "codes": ["hws.service.type.MaaS"], "names": ["  Model as a Service "]},
+		{"category": "Network", "codes": ["elb"]}
+	]`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []service{
+		{opencost.ComputeCategory, []string{"maas"}, []string{"model as a service"}},
+		{opencost.NetworkCategory, []string{"elb"}, nil},
+	}
+	if !reflect.DeepEqual(loaded, want) {
+		t.Fatalf("loaded %+v, want %+v", loaded, want)
+	}
+
+	for name, content := range map[string]string{
+		"bad-category.json": `[{"category": "Security", "codes": ["hss"]}]`,
+		"empty-entry.json":  `[{"category": "Compute"}]`,
+		"not-json.json":     `{`,
+	} {
+		if _, err := loadServiceCategories(write(name, content)); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+	if _, err := loadServiceCategories(filepath.Join(dir, "missing.json")); err == nil {
+		t.Errorf("expected an error for a missing file")
+	}
+}
+
+// TestServiceTable_FileOverridesBuiltIn checks that file entries take
+// precedence over the built-in table and add services it lacks.
+func TestServiceTable_FileOverridesBuiltIn(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "categories.json")
+	content := `[
+		{"category": "Shared", "codes": ["rds"]},
+		{"category": "Compute", "codes": ["maas"], "names": ["model as a service"]}
+	]`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(env.HuaweiServiceCategoriesEnvVar, path)
+
+	serviceTableOnce = sync.Once{}
+	defer func() {
+		serviceTableOnce = sync.Once{}
+		activeServiceTable = nil
+	}()
+
+	cases := map[string]string{
+		"hws.service.type.rds":  opencost.SharedCategory,
+		"hws.service.type.maas": opencost.ComputeCategory,
+		"Model as a Service":    opencost.ComputeCategory,
+		"hws.service.type.ec2":  opencost.ComputeCategory,
+	}
+	for service, want := range cases {
+		if got := selectHuaweiCategory(service); got != want {
+			t.Errorf("selectHuaweiCategory(%q) = %q, want %q", service, got, want)
 		}
 	}
 }

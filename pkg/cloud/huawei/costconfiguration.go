@@ -3,6 +3,8 @@ package huawei
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/cloud"
@@ -17,6 +19,38 @@ import (
 type CostConfiguration struct {
 	ProjectID string `json:"projectID"`
 	Region    string `json:"region"`
+
+	// EnterpriseProjects names the account's Enterprise Projects and the
+	// platform each one holds. Every billed resource is labeled with its
+	// Enterprise Project whether or not it is listed here; listing one only
+	// adds its name and platform to the labels. Optional.
+	EnterpriseProjects []EnterpriseProject `json:"enterpriseProjects,omitempty"`
+
+	// PriceFactors scale the net cost of matching resources, for prices agreed
+	// outside the bill (e.g. a reseller price that is a fixed fraction of the
+	// list price). The list cost is left as billed. Optional.
+	PriceFactors []PriceFactor `json:"priceFactors,omitempty"`
+}
+
+// EnterpriseProject describes one Huawei Cloud Enterprise Project.
+type EnterpriseProject struct {
+	// ID is the Enterprise Project ID as BSS reports it ("0" for default).
+	ID string `json:"id"`
+	// Name is a display name; the ID stands in when it is empty.
+	Name string `json:"name,omitempty"`
+	// Platform is the platform the Enterprise Project holds, e.g.
+	// "web-prod". Several Enterprise Projects may share a platform.
+	Platform string `json:"platform,omitempty"`
+}
+
+// PriceFactor scales the net cost of the resources it matches. Service and
+// ResourceType are Huawei Cloud codes, with or without their
+// "hws.service.type." / "hws.resource.type." prefixes; an empty one matches
+// anything. The first matching factor applies.
+type PriceFactor struct {
+	Service      string  `json:"service,omitempty"`
+	ResourceType string  `json:"resourceType,omitempty"`
+	Factor       float64 `json:"factor"`
 }
 
 // Validate does not require a projectID: when it is absent, it is resolved
@@ -25,6 +59,16 @@ type CostConfiguration struct {
 func (c *CostConfiguration) Validate() error {
 	if c.Region == "" {
 		return fmt.Errorf("CostConfiguration: missing region")
+	}
+	for i, ep := range c.EnterpriseProjects {
+		if ep.ID == "" {
+			return fmt.Errorf("CostConfiguration: enterpriseProjects[%d]: missing id", i)
+		}
+	}
+	for i, pf := range c.PriceFactors {
+		if pf.Factor <= 0 {
+			return fmt.Errorf("CostConfiguration: priceFactors[%d]: factor must be positive, got %v", i, pf.Factor)
+		}
 	}
 	return nil
 }
@@ -37,15 +81,20 @@ func (c *CostConfiguration) Equals(config cloud.Config) bool {
 	if !ok {
 		return false
 	}
-	return c.ProjectID == thatConfig.ProjectID && c.Region == thatConfig.Region
+	return c.ProjectID == thatConfig.ProjectID &&
+		c.Region == thatConfig.Region &&
+		slices.Equal(c.EnterpriseProjects, thatConfig.EnterpriseProjects) &&
+		slices.Equal(c.PriceFactors, thatConfig.PriceFactors)
 }
 
 // Sanitize returns a copy of the config safe to serialize/display. There is
 // nothing secret to redact here since credentials are not stored in this struct.
 func (c *CostConfiguration) Sanitize() cloud.Config {
 	return &CostConfiguration{
-		ProjectID: c.ProjectID,
-		Region:    c.Region,
+		ProjectID:          c.ProjectID,
+		Region:             c.Region,
+		EnterpriseProjects: slices.Clone(c.EnterpriseProjects),
+		PriceFactors:       slices.Clone(c.PriceFactors),
 	}
 }
 
@@ -105,5 +154,58 @@ func (c *CostConfiguration) UnmarshalJSON(b []byte) error {
 	}
 	c.Region = region
 
+	// The optional lists are plain data; let encoding/json decode them.
+	var optional struct {
+		EnterpriseProjects []EnterpriseProject `json:"enterpriseProjects"`
+		PriceFactors       []PriceFactor       `json:"priceFactors"`
+	}
+	if err := json.Unmarshal(b, &optional); err != nil {
+		return fmt.Errorf("CostConfiguration: UnmarshalJSON: %w", err)
+	}
+	c.EnterpriseProjects = optional.EnterpriseProjects
+	c.PriceFactors = optional.PriceFactors
+
 	return nil
+}
+
+// enterpriseProject returns the configured description of an Enterprise
+// Project ID, or one carrying just the ID when it is not configured. The
+// default Enterprise Project is named "default" unless configured otherwise.
+func (c *CostConfiguration) enterpriseProject(id string) EnterpriseProject {
+	for _, ep := range c.EnterpriseProjects {
+		if ep.ID == id {
+			if ep.Name == "" {
+				ep.Name = id
+			}
+			return ep
+		}
+	}
+	if id == defaultEnterpriseProjectID {
+		return EnterpriseProject{ID: id, Name: "default"}
+	}
+	return EnterpriseProject{ID: id, Name: id}
+}
+
+// priceFactor returns the factor that applies to a resource of the given
+// service and resource type codes, or 1 when none does.
+func (c *CostConfiguration) priceFactor(serviceCode, resourceTypeCode string) float64 {
+	for _, pf := range c.PriceFactors {
+		if codeMatches(pf.Service, serviceCode, serviceTypeCodePrefix) &&
+			codeMatches(pf.ResourceType, resourceTypeCode, huaweiResourceTypeCodePrefix) {
+			return pf.Factor
+		}
+	}
+	return 1
+}
+
+// codeMatches compares a configured code with a billed one, ignoring the
+// "hws.<kind>.type." prefix on either side. An empty pattern matches anything.
+func codeMatches(pattern, code, prefix string) bool {
+	if pattern == "" {
+		return true
+	}
+	trim := func(s string) string {
+		return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(s)), prefix)
+	}
+	return trim(pattern) == trim(code)
 }

@@ -69,6 +69,13 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		return ccsr, nil
 	}
 
+	// Without Enterprise Projects the bill cannot be split by platform, but it
+	// is still correct, so a failure here is not fatal.
+	enterpriseProjects, err := fetchResourceEnterpriseProjects(beginTime, endTime)
+	if err != nil {
+		log.Warnf("huawei cloud cost: reporting costs without Enterprise Projects, the lookup failed: %v", err)
+	}
+
 	for _, row := range rows {
 		resourceID := dimensionValue(row.Dimensions, "RESOURCE_ID")
 		serviceType := dimensionValue(row.Dimensions, "CLOUD_SERVICE_TYPE")
@@ -81,22 +88,55 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		// already use up, so they can't be requested as dimensions of their own.
 		resource := describeResource(resourceID)
 
-		labels := opencost.CloudCostLabels{}
-		if resource.Type != "" {
-			labels[ResourceTypeLabel] = resource.Type
-		}
-		if resource.Name != "" {
-			labels[ResourceNameLabel] = resource.Name
-		}
+		priceFactor := ci.priceFactor(serviceCodeOf(resource.ID), resource.Type)
 
-		properties := &opencost.CloudCostProperties{
-			ProviderID: resource.ID,
-			Provider:   opencost.HuaweiProvider,
-			AccountID:  projectID,
-			RegionID:   region,
-			Service:    serviceType,
-			Category:   selectHuaweiCategory(serviceType),
-			Labels:     labels,
+		// The properties depend on the Enterprise Project, which is per day
+		// (see resourceEnterpriseProjects): built once per Enterprise Project.
+		propsByEP := map[string]*opencost.CloudCostProperties{}
+		propertiesFor := func(epID string, known bool) *opencost.CloudCostProperties {
+			if p, ok := propsByEP[epID]; ok {
+				return p
+			}
+			labels := opencost.CloudCostLabels{}
+			if serviceType != "" {
+				labels[ServiceCodeLabel] = serviceType
+			}
+			if resource.Type != "" {
+				labels[ResourceTypeLabel] = resource.Type
+			}
+			if resource.Name != "" {
+				labels[ResourceNameLabel] = resource.Name
+			}
+			// The OpenCost UI breaks cloud costs down by a fixed set of
+			// properties, not by label: the Enterprise Project goes in as the
+			// account and its platform as the invoice entity, so "Account" and
+			// "Invoice Entity" in the UI split the bill by Enterprise Project
+			// and by platform.
+			accountID, accountName, invoiceEntity := projectID, "", ""
+			if known {
+				ep := ci.enterpriseProject(epID)
+				labels[EnterpriseProjectIDLabel] = ep.ID
+				labels[EnterpriseProjectLabel] = ep.Name
+				accountID, accountName = ep.Name, ep.Name
+				if ep.Platform != "" {
+					labels[PlatformLabel] = ep.Platform
+					invoiceEntity = ep.Platform
+				}
+			}
+			p := &opencost.CloudCostProperties{
+				ProviderID:        resource.ID,
+				Provider:          opencost.HuaweiProvider,
+				AccountID:         accountID,
+				AccountName:       accountName,
+				InvoiceEntityID:   invoiceEntity,
+				InvoiceEntityName: invoiceEntity,
+				RegionID:          region,
+				Service:           serviceDisplayName(serviceType),
+				Category:          selectHuaweiCategory(serviceType),
+				Labels:            labels,
+			}
+			propsByEP[epID] = p
+			return p
 		}
 
 		if row.Costs == nil {
@@ -119,25 +159,17 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 				return nil, fmt.Errorf("parsing huawei cloud official cost amount: %w", err)
 			}
 
-			cc := &opencost.CloudCost{
-				Properties: properties,
-				Window:     opencost.NewWindow(&winStart, &winEnd),
-				ListCost: opencost.CostMetric{
-					Cost: listAmount,
-				},
-				NetCost: opencost.CostMetric{
-					Cost: netAmount,
-				},
-				AmortizedNetCost: opencost.CostMetric{
-					Cost: netAmount,
-				},
-				AmortizedCost: opencost.CostMetric{
-					Cost: listAmount,
-				},
-				InvoicedCost: opencost.CostMetric{
-					Cost: netAmount,
-				},
+			netAmount *= priceFactor
+
+			day := ""
+			if item.TimeDimensionValue != nil {
+				day = *item.TimeDimensionValue
 			}
+			epID, known := enterpriseProjects.lookup(resource.ID, day)
+			properties := propertiesFor(epID, known)
+
+			cc := opencost.NewCloudCost(winStart, winEnd, properties, 0,
+				listAmount, netAmount, netAmount, netAmount, listAmount)
 
 			ccsr.LoadCloudCost(cc)
 		}

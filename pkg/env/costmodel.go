@@ -37,6 +37,12 @@ const (
 	HuaweiProjectIDEnvVar       = "HUAWEICLOUD_PROJECT_ID"
 	HuaweiDomainIDEnvVar        = "HUAWEICLOUD_DOMAIN_ID"
 	HuaweiBSSRegionEnvVar       = "HUAWEICLOUD_BSS_REGION"
+	// HuaweiServiceCategoriesEnvVar points to an optional JSON file that adds to
+	// or overrides the built-in Huawei Cloud service-to-category table.
+	HuaweiServiceCategoriesEnvVar = "HUAWEICLOUD_SERVICE_CATEGORIES"
+	// HuaweiCCEClusterIDEnvVar is the ID of the CCE cluster OpenCost runs in,
+	// used to price the cluster itself from the bill.
+	HuaweiCCEClusterIDEnvVar = "HUAWEICLOUD_CCE_CLUSTER_ID"
 
 	// DefaultHuaweiBSSRegion is the international (non-mainland-China) BSS
 	// endpoint, which is what accounts outside mainland China are registered
@@ -235,6 +241,19 @@ func GetHuaweiDomainID() string {
 // resources. Defaults to the international endpoint.
 func GetHuaweiBSSRegion() string {
 	return env.Get(HuaweiBSSRegionEnvVar, DefaultHuaweiBSSRegion)
+}
+
+// GetHuaweiServiceCategoriesPath returns the environment variable value for
+// HuaweiServiceCategoriesEnvVar, the path of an optional JSON file of extra
+// Huawei Cloud service categories. Empty means the built-in table alone.
+func GetHuaweiServiceCategoriesPath() string {
+	return env.Get(HuaweiServiceCategoriesEnvVar, "")
+}
+
+// GetHuaweiCCEClusterID returns the environment variable value for
+// HuaweiCCEClusterIDEnvVar, the ID of the CCE cluster OpenCost runs in.
+func GetHuaweiCCEClusterID() string {
+	return env.Get(HuaweiCCEClusterIDEnvVar, "")
 }
 
 // GetAzureOfferID returns the environment variable value for AzureOfferIDEnvVar which represents

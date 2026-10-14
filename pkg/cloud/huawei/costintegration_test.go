@@ -171,7 +171,7 @@ func TestDescribeResource(t *testing.T) {
 // is and what it is called reach the CloudCost, and that the group-by stays
 // within the three dimensions BSS allows.
 func TestCostIntegration_GetCloudCost_ResourceDetails(t *testing.T) {
-	var requestedGroupby []string
+	var requestedGroupbys [][]string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Groupby []struct {
@@ -181,10 +181,11 @@ func TestCostIntegration_GetCloudCost_ResourceDetails(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Fatalf("unexpected error decoding request: %v", err)
 		}
-		requestedGroupby = nil
+		var groupby []string
 		for _, g := range body.Groupby {
-			requestedGroupby = append(requestedGroupby, g.Key)
+			groupby = append(groupby, g.Key)
 		}
+		requestedGroupbys = append(requestedGroupbys, groupby)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{
@@ -227,21 +228,33 @@ func TestCostIntegration_GetCloudCost_ResourceDetails(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// BSS rejects a group-by of more than three dimensions with CBC.0100.
-	if len(requestedGroupby) > 3 {
-		t.Errorf("group-by exceeds the three dimensions BSS allows: %v", requestedGroupby)
+	// BSS rejects a group-by of more than three dimensions with CBC.0100. The
+	// costs come from one query and the Enterprise Projects from another.
+	if len(requestedGroupbys) != 2 {
+		t.Fatalf("expected the cost query and the Enterprise Project query, got %v", requestedGroupbys)
 	}
-	if !slices.Equal(requestedGroupby, costQueryDimensions) {
-		t.Errorf("group-by = %v, want %v", requestedGroupby, costQueryDimensions)
+	for _, groupby := range requestedGroupbys {
+		if len(groupby) > 3 {
+			t.Errorf("group-by exceeds the three dimensions BSS allows: %v", groupby)
+		}
+	}
+	if !slices.Equal(requestedGroupbys[0], costQueryDimensions) {
+		t.Errorf("cost query group-by = %v, want %v", requestedGroupbys[0], costQueryDimensions)
+	}
+	if want := []string{"RESOURCE_ID", enterpriseProjectDimension}; !slices.Equal(requestedGroupbys[1], want) {
+		t.Errorf("Enterprise Project query group-by = %v, want %v", requestedGroupbys[1], want)
 	}
 
 	found := false
 	for _, ccs := range ccsr.CloudCostSets {
 		for _, cc := range ccs.CloudCosts {
-			if cc.Properties == nil || cc.Properties.Service != "hws.service.type.rds" {
+			if cc.Properties == nil || cc.Properties.Service != "RDS" {
 				continue
 			}
 			found = true
+			if got := cc.Properties.Labels[ServiceCodeLabel]; got != "hws.service.type.rds" {
+				t.Errorf("expected service code label %q, got %q", "hws.service.type.rds", got)
+			}
 			if cc.Properties.Category != opencost.StorageCategory {
 				t.Errorf("expected category %q, got %q", opencost.StorageCategory, cc.Properties.Category)
 			}

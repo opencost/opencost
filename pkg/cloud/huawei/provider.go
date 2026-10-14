@@ -40,6 +40,10 @@ type Huawei struct {
 	// DownloadPricingData attempt, used to rate-limit it (see tryRefreshPricing).
 	lastPricingRefresh atomic.Int64
 
+	// bills caches what BSS billed for the CCE cluster, which is how
+	// ClusterManagementPricing prices it (see billedcosts.go).
+	bills billCache
+
 	BaseCPUPrice string
 	BaseRAMPrice string
 	BaseGPUPrice string
@@ -50,15 +54,35 @@ type huaweiKey struct {
 	Labels     map[string]string
 	VCPU       string
 	RAMBytes   int64
+	GPUs       int
 }
 
+// gpuResourceName is the extended resource the CCE GPU add-on (gpu-beta /
+// nvidia device plugin) advertises GPUs as.
+const gpuResourceName v1.ResourceName = "nvidia.com/gpu"
+
+// gpuTypeLabels are the node labels that name a GPU model, in order of
+// preference: CCE's own label, then the one NVIDIA GPU Feature Discovery sets.
+var gpuTypeLabels = []string{"accelerator", "nvidia.com/gpu.product"}
+
+// GPUCount returns the GPUs the node advertises. The flavor's BSS price
+// already includes them (a GPU flavor is priced as a whole instance); the
+// count is what lets the cost model attribute part of that price to the GPUs
+// instead of splitting it all between CPU and RAM.
 func (k *huaweiKey) GPUCount() int {
-	return 0
+	return k.GPUs
 }
 
-// GPU type detection is not implemented: GPU pricing is not yet queried from
-// BSS, so there is no per-type price to look up.
+// GPUType returns the GPU model from the node labels, or "" when unlabeled.
 func (k *huaweiKey) GPUType() string {
+	if k.GPUs == 0 {
+		return ""
+	}
+	for _, label := range gpuTypeLabels {
+		if t := k.Labels[label]; t != "" {
+			return t
+		}
+	}
 	return ""
 }
 
@@ -89,6 +113,9 @@ func (h *Huawei) GetKey(labels map[string]string, n *clustercache.Node) models.K
 		if mem, ok := n.Status.Capacity[v1.ResourceMemory]; ok {
 			k.RAMBytes = mem.Value()
 		}
+		if gpus, ok := n.Status.Capacity[gpuResourceName]; ok {
+			k.GPUs = int(gpus.Value())
+		}
 	}
 	return k
 }
@@ -114,12 +141,18 @@ func (k *huaweiPVKey) Features() string {
 }
 
 func (h *Huawei) GetPVKey(pv *clustercache.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
-	return &huaweiPVKey{
+	k := &huaweiPVKey{
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
 		Region:                 defaultRegion,
 	}
+	// The everest CSI driver's volume handle is the EVS volume ID, which is
+	// how the bill identifies the disk.
+	if pv.Spec.CSI != nil {
+		k.ProviderID = pv.Spec.CSI.VolumeHandle
+	}
+	return k
 }
 
 // DownloadPricingData loads the static default pricing from the huawei.json config
@@ -360,10 +393,16 @@ func (h *Huawei) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	hk, _ := key.(*huaweiKey)
 	ramGB := ""
 	vcpu := ""
+	gpu := ""
+	gpuName := ""
 	if hk != nil {
 		vcpu = hk.VCPU
 		if hk.RAMBytes > 0 {
 			ramGB = fmt.Sprintf("%.2f", float64(hk.RAMBytes)/1024/1024/1024)
+		}
+		if hk.GPUs > 0 {
+			gpu = strconv.Itoa(hk.GPUs)
+			gpuName = hk.GPUType()
 		}
 	}
 
@@ -384,6 +423,8 @@ func (h *Huawei) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		return &models.Node{
 			VCPU:             vcpu,
 			RAM:              ramGB,
+			GPU:              gpu,
+			GPUName:          gpuName,
 			BaseCPUPrice:     h.BaseCPUPrice,
 			BaseRAMPrice:     h.BaseRAMPrice,
 			BaseGPUPrice:     h.BaseGPUPrice,
@@ -396,6 +437,8 @@ func (h *Huawei) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		Cost:         pricing.NodeAttributes.Price,
 		VCPU:         vcpu,
 		RAM:          ramGB,
+		GPU:          gpu,
+		GPUName:      gpuName,
 		BaseCPUPrice: h.BaseCPUPrice,
 		BaseRAMPrice: h.BaseRAMPrice,
 		BaseGPUPrice: h.BaseGPUPrice,
@@ -620,10 +663,6 @@ func (h *Huawei) PricingSourceStatus() map[string]*models.PricingSource {
 			Available: len(h.Pricing) > 0,
 		},
 	}
-}
-
-func (h *Huawei) ClusterManagementPricing() (string, float64, error) {
-	return "", 0.0, nil
 }
 
 func (h *Huawei) CombinedDiscountForNode(instanceType string, isReserved bool, defaultDiscount, negotiatedDiscount float64) float64 {
