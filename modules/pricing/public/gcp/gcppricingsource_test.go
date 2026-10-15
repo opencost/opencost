@@ -218,34 +218,40 @@ func TestExpandInstanceTypes(t *testing.T) {
 		want          []string
 	}{
 		{
-			name:          "E2 CPU expands",
+			name:          "E2 expands to all sub-families",
 			instanceType:  "e2",
 			resourceGroup: "CPU",
-			want:          []string{"e2-micro", "e2-small", "e2-medium", "e2-standard", "e2-custom"},
+			want:          []string{"e2-micro", "e2-small", "e2-medium", "e2-standard", "e2-highcpu", "e2-highmem", "e2-custom"},
 		},
 		{
-			name:          "E2 RAM expands",
-			instanceType:  "e2",
-			resourceGroup: "RAM",
-			want:          []string{"e2-micro", "e2-small", "e2-medium", "e2-standard", "e2-custom"},
-		},
-		{
-			name:          "A2 CPU expands",
-			instanceType:  "a2",
-			resourceGroup: "CPU",
-			want:          []string{"a2-highgpu", "a2-megagpu", "a2-ultragpu"},
-		},
-		{
-			name:          "A2 RAM expands",
+			name:          "A2 expands to GPU variants",
 			instanceType:  "a2",
 			resourceGroup: "RAM",
 			want:          []string{"a2-highgpu", "a2-megagpu", "a2-ultragpu"},
 		},
 		{
-			name:          "N2 does not expand",
+			name:          "N1 expands to sub-families",
+			instanceType:  "n1-standard",
+			resourceGroup: "CPU",
+			want:          []string{"n1-standard", "n1-highmem", "n1-highcpu"},
+		},
+		{
+			name:          "N2 expands to sub-families",
 			instanceType:  "n2-standard",
 			resourceGroup: "CPU",
-			want:          []string{"n2-standard"},
+			want:          []string{"n2-standard", "n2-highmem", "n2-highcpu"},
+		},
+		{
+			name:          "N2D expands to sub-families",
+			instanceType:  "n2d-standard",
+			resourceGroup: "RAM",
+			want:          []string{"n2d-standard", "n2d-highmem", "n2d-highcpu"},
+		},
+		{
+			name:          "N4 expands to sub-families",
+			instanceType:  "n4-standard",
+			resourceGroup: "CPU",
+			want:          []string{"n4-standard", "n4-highmem", "n4-highcpu"},
 		},
 		{
 			name:          "Custom does not expand",
@@ -365,6 +371,38 @@ func TestParsePage(t *testing.T) {
 			wantNextPageToken: "",
 			wantErr:           false,
 		},
+		{
+			name: "Commitment SKU is skipped",
+			response: GCPPricingResponse{
+				Skus: []*GCPPricing{
+					{
+						Description: "Commitment v1: T2D AMD CPU running in Americas for 1 Year",
+						Category: &GCPResourceInfo{
+							ResourceGroup: "CPU",
+							UsageType:     "OnDemand",
+						},
+						ServiceRegions: []string{"us-central1"},
+						PricingInfo: []*PricingInfo{
+							{
+								PricingExpression: &PricingExpression{
+									TieredRates: []*TieredRates{
+										{
+											UnitPrice: &UnitPriceInfo{
+												Units: "0",
+												Nanos: 19801600,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				NextPageToken: "",
+			},
+			wantNextPageToken: "",
+			wantErr:           false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -383,9 +421,10 @@ func TestParsePage(t *testing.T) {
 
 			nodeCPUCosts := make(map[nodeKey]float64)
 			nodeRAMCosts := make(map[nodeKey]float64)
+			nodeGPUCosts := make(map[gpuKey]float64)
 			volumeCosts := make(map[volumeKey]float64)
 
-			nextToken, err := source.parsePage(bytes.NewReader(data), nodeCPUCosts, nodeRAMCosts, volumeCosts)
+			nextToken, err := source.parsePage(bytes.NewReader(data), nodeCPUCosts, nodeRAMCosts, nodeGPUCosts, volumeCosts)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parsePage() error = %v, wantErr %v", err, tt.wantErr)
@@ -540,7 +579,7 @@ func TestParseComputeSKU(t *testing.T) {
 				},
 			},
 			usageType:    "ondemand",
-			wantCPUCosts: 1,
+			wantCPUCosts: 3, // n2-standard, n2-highmem, n2-highcpu
 			wantRAMCosts: 0,
 		},
 		{
@@ -568,7 +607,7 @@ func TestParseComputeSKU(t *testing.T) {
 			},
 			usageType:    "ondemand",
 			wantCPUCosts: 0,
-			wantRAMCosts: 1,
+			wantRAMCosts: 3, // n2-standard, n2-highmem, n2-highcpu
 		},
 		{
 			name: "E2 CPU expands to multiple types",
@@ -594,7 +633,7 @@ func TestParseComputeSKU(t *testing.T) {
 				},
 			},
 			usageType:    "ondemand",
-			wantCPUCosts: 5, // e2-micro, e2-small, e2-medium, e2-standard, e2-custom
+			wantCPUCosts: 7, // e2-micro, e2-small, e2-medium, e2-standard, e2-highcpu, e2-highmem, e2-custom
 			wantRAMCosts: 0,
 		},
 	}
@@ -656,14 +695,14 @@ func TestBuildNodePricing(t *testing.T) {
 			currencyCode: "USD",
 		},
 		{
-			name: "Preemptible instance - excluded",
+			name: "Preemptible instance - included as spot",
 			cpuCosts: map[nodeKey]float64{
 				{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.007583,
 			},
 			ramCosts: map[nodeKey]float64{
 				{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.001017,
 			},
-			wantNodes:    0,
+			wantNodes:    1,
 			currencyCode: "USD",
 		},
 		{
@@ -693,13 +732,65 @@ func TestBuildNodePricing(t *testing.T) {
 				PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
 			}
 
-			source.buildNodePricing(ps, tt.cpuCosts, tt.ramCosts)
+			source.buildNodePricing(ps, tt.cpuCosts, tt.ramCosts, map[gpuKey]float64{})
 
 			if len(ps.NodePricing) != tt.wantNodes {
 				t.Errorf("buildNodePricing() created %d nodes, want %d", len(ps.NodePricing), tt.wantNodes)
 			}
 
 		})
+	}
+}
+
+func TestBuildNodePricing_SpotProvisioning(t *testing.T) {
+	source := &GCPPricingSource{
+		config: GCPPricingSourceConfig{
+			CurrencyCode: "USD",
+		},
+	}
+	ps := &pricing.PricingSet{
+		NodePricing:             []*pricing.NodePricing{},
+		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+	}
+
+	cpuCosts := map[nodeKey]float64{
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "ondemand"}:    0.031611,
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.007583,
+	}
+	ramCosts := map[nodeKey]float64{
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "ondemand"}:    0.004237,
+		{Region: "us-central1", InstanceType: "n2-standard", UsageType: "preemptible"}: 0.001017,
+	}
+
+	source.buildNodePricing(ps, cpuCosts, ramCosts, map[gpuKey]float64{})
+
+	if len(ps.NodePricing) != 2 {
+		t.Fatalf("buildNodePricing() created %d nodes, want 2", len(ps.NodePricing))
+	}
+
+	var sawOnDemand, sawSpot bool
+	for _, np := range ps.NodePricing {
+		switch np.Properties.Provisioning {
+		case pricing.ProvisioningOnDemand:
+			sawOnDemand = true
+			if np.Prices[pricing.ResourceCPU].Price != 0.031611 {
+				t.Errorf("on-demand CPU price = %v, want 0.031611", np.Prices[pricing.ResourceCPU].Price)
+			}
+		case pricing.ProvisioningSpot:
+			sawSpot = true
+			if np.Prices[pricing.ResourceCPU].Price != 0.007583 {
+				t.Errorf("spot CPU price = %v, want 0.007583", np.Prices[pricing.ResourceCPU].Price)
+			}
+		default:
+			t.Errorf("unexpected provisioning type: %v", np.Properties.Provisioning)
+		}
+	}
+
+	if !sawOnDemand {
+		t.Error("expected an on-demand node pricing entry")
+	}
+	if !sawSpot {
+		t.Error("expected a spot node pricing entry")
 	}
 }
 
@@ -844,19 +935,22 @@ func TestGetPricing_Integration(t *testing.T) {
 		t.Fatalf("GetPricing() unexpected error: %v", err)
 	}
 
-	if len(ps.NodePricing) != 1 {
-		t.Errorf("NodePricing len = %d, want 1", len(ps.NodePricing))
+	// The N2 SKU expands to n2-standard, n2-highmem, n2-highcpu.
+	if len(ps.NodePricing) != 3 {
+		t.Errorf("NodePricing len = %d, want 3", len(ps.NodePricing))
 	}
 	if len(ps.PersistentVolumePricing) != 1 {
 		t.Errorf("PersistentVolumePricing len = %d, want 1", len(ps.PersistentVolumePricing))
 	}
 
-	node := ps.NodePricing[0]
-	if node.Properties.Region != "us-central1" {
-		t.Errorf("NodePricing region = %q, want us-central1", node.Properties.Region)
-	}
-	if node.Properties.InstanceType != "n2-standard" {
-		t.Errorf("NodePricing instance type = %q, want n2-standard", node.Properties.InstanceType)
+	wantTypes := map[string]bool{"n2-standard": true, "n2-highmem": true, "n2-highcpu": true}
+	for _, node := range ps.NodePricing {
+		if node.Properties.Region != "us-central1" {
+			t.Errorf("NodePricing region = %q, want us-central1", node.Properties.Region)
+		}
+		if !wantTypes[node.Properties.InstanceType] {
+			t.Errorf("NodePricing unexpected instance type %q", node.Properties.InstanceType)
+		}
 	}
 }
 
@@ -953,20 +1047,22 @@ func TestNormalizeInstanceType(t *testing.T) {
 		description   string
 		want          string
 	}{
+		// Custom
 		{
 			name:          "Custom instance",
 			resourceGroup: "CPU",
 			description:   "Custom Instance Core running in Americas",
 			want:          "custom",
 		},
+		// N families — one SKU per family covers all sub-variants (standard/highmem/highcpu)
 		{
-			name:          "N2 standard",
+			name:          "N2 instance",
 			resourceGroup: "RAM",
 			description:   "N2 Instance Ram running in Americas",
 			want:          "n2-standard",
 		},
 		{
-			name:          "N2D AMD",
+			name:          "N2D instance",
 			resourceGroup: "CPU",
 			description:   "N2D AMD Instance Core running in Americas",
 			want:          "n2d-standard",
@@ -978,6 +1074,13 @@ func TestNormalizeInstanceType(t *testing.T) {
 			want:          "n4-standard",
 		},
 		{
+			name:          "N1 instance",
+			resourceGroup: "CPU",
+			description:   "N1 Instance Core running in Americas",
+			want:          "n1-standard",
+		},
+		// Other families
+		{
 			name:          "A2 instance",
 			resourceGroup: "RAM",
 			description:   "A2 Instance Ram running in Americas",
@@ -988,6 +1091,12 @@ func TestNormalizeInstanceType(t *testing.T) {
 			resourceGroup: "CPU",
 			description:   "Compute Optimized Core running in Americas",
 			want:          "c2-standard",
+		},
+		{
+			name:          "C2D compute optimized",
+			resourceGroup: "CPU",
+			description:   "C2D Compute Optimized Core running in Americas",
+			want:          "c2d-standard",
 		},
 		{
 			name:          "E2 instance",
@@ -1007,6 +1116,14 @@ func TestNormalizeInstanceType(t *testing.T) {
 			description:   "T2A ARM Instance Core running in Americas",
 			want:          "t2a-standard",
 		},
+		// Premium SKUs pass through without a match
+		{
+			name:          "Sole tenancy premium skipped",
+			resourceGroup: "CPU",
+			description:   "Sole Tenancy Premium for N2 Instance Core running in Americas",
+			want:          "cpu",
+		},
+		// Non-cpu/ram resource groups pass through unchanged
 		{
 			name:          "Unknown type defaults to resource group",
 			resourceGroup: "SomeType",
@@ -1136,10 +1253,37 @@ func TestIsStorageResource(t *testing.T) {
 	}
 }
 
+func TestNormalizeGPUProduct(t *testing.T) {
+	tests := []struct {
+		desc string
+		want string
+	}{
+		{"Nvidia Tesla T4 GPU running in Americas", "Tesla-T4"},
+		{"Tesla T4 GPU", "Tesla-T4"},
+		{"Nvidia Tesla V100 GPU running in Americas", "Tesla-V100"},
+		{"Nvidia Tesla P100 GPU running in Melbourne", "Tesla-P100"},
+		{"Nvidia Tesla P4 GPU", "Tesla-P4"},
+		{"Nvidia Tesla K80 GPU", "Tesla-K80"},
+		{"Nvidia Tesla A100 80GB GPU (SXM4) in region us-central1", "NVIDIA-A100-80GB-PCIe"},
+		{"Nvidia Tesla A100 GPU attached", "Tesla-A100"},
+		{"Nvidia Tesla A100 40GB GPU", "Tesla-A100"},
+		{"Nvidia L4 GPU running in Americas", "NVIDIA-L4"},
+		{"Unknown GPU Device", ""},
+		{"N2 Instance Core running in Americas", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			got := normalizeGPUProduct(tt.desc)
+			if got != tt.want {
+				t.Errorf("normalizeGPUProduct(%q) = %q, want %q", tt.desc, got, tt.want)
+			}
+		})
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && (s[0:len(substr)] == substr || contains(s[1:], substr))))
 }
-
-// Made with Bob

@@ -26,6 +26,17 @@ const LocalStorageClass = "__local__"
 // UnknownStorageClass is used to assign storage class of persistent volume whose information is unable to be traced.
 const UnknownStorageClass = "__unknown__"
 
+// localPersistentVolumePrefix is the name prefix given to every PV created by
+// sig-storage-local-static-provisioner. For reference, see:
+// https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner/blob/b6f465027bd059e92c0032c81dd1e1d90e35c909/pkg/discovery/discovery.go#L410-L417
+const localPersistentVolumePrefix = "local-pv-"
+
+// IsLocalPersistentVolume returns true if the named PV was created by
+// sig-storage-local-static-provisioner, and is therefore backed by a node local disk.
+func IsLocalPersistentVolume(name string) bool {
+	return strings.HasPrefix(name, localPersistentVolumePrefix)
+}
+
 // Asset defines an entity within a cluster that has a defined cost over a
 // given period of time.
 type Asset interface {

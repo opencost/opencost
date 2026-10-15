@@ -10,6 +10,7 @@ import (
 type nodeKey struct {
 	Region       string
 	InstanceType string
+	Provisioning pricing.ProvisioningType
 }
 
 // mapAzureDiskType maps Azure disk SKU names to VolumeType constants

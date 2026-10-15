@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"regexp"
@@ -944,7 +945,7 @@ func (aws *AWS) DownloadPricingData() error {
 	storageClasses := aws.Clientset.GetAllStorageClasses()
 	storageClassMap := make(map[string]map[string]string)
 	for _, storageClass := range storageClasses {
-		params := storageClass.Parameters
+		params := maps.Clone(storageClass.Parameters)
 		if params != nil {
 			params["provisioner"] = storageClass.Provisioner
 		}
@@ -1784,17 +1785,13 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	// Determine cluster name
 	clusterName := c.ClusterName
 	if clusterName == "" {
-		awsClusterID := env.GetAWSClusterID()
-		if awsClusterID != "" {
-			log.Infof("Returning \"%s\" as ClusterName", awsClusterID)
-			clusterName = awsClusterID
-			log.Warnf("Warning - %s will be deprecated in a future release. Use %s instead", env.AWSClusterIDEnvVar, coreenv.ClusterIDEnvVar)
+		if clusterName = env.GetAWSClusterID(); clusterName != "" {
+			log.DedupedWarningf(3, "%s will be deprecated in a future release. Use %s instead", env.AWSClusterIDEnvVar, coreenv.ClusterIDEnvVar)
 		} else if clusterName = coreenv.GetClusterID(); clusterName != "" {
-			log.DedupedInfof(5, "Setting cluster name to %s from %s ", clusterName, coreenv.ClusterIDEnvVar)
+			log.DedupedDebugf(3, "Setting cluster name to %s from %s", clusterName, coreenv.ClusterIDEnvVar)
 		} else {
 			clusterName = defaultClusterName
-			log.DedupedWarningf(5, "Unable to detect cluster name - using default of %s", defaultClusterName)
-			log.DedupedWarningf(5, "Please set cluster name through configmap or via %s env var", coreenv.ClusterIDEnvVar)
+			log.DedupedWarningf(3, "Unable to detect cluster name - using default of %s. Set it through the configmap or the %s env var", defaultClusterName, coreenv.ClusterIDEnvVar)
 		}
 	}
 

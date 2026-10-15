@@ -46,6 +46,22 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
+		// Azure LoadBalancer services correspond to a Standard Static Public IP
+		// ($0.005/hr USD). This is not fetched from the API — it is consistent across
+		// all regions
+		ServicePricing: []*pricing.ServicePricing{
+			{
+				Properties: pricing.ServicePricingProperties{
+					Provider: cloud.ProviderAzure,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceService: {
+						Unit:  unit.Hour,
+						Price: azureLoadBalancerPrice(a.config.CurrencyCode),
+					},
+				},
+			},
+		},
 	}
 
 	// Fetch VM pricing
@@ -155,7 +171,12 @@ func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet,
 			continue
 		}
 
-		nk := nodeKey{Region: item.ArmRegionName, InstanceType: item.ArmSkuName}
+		provisioning := pricing.ProvisioningOnDemand
+		if isSpotItem(item) {
+			provisioning = pricing.ProvisioningSpot
+		}
+
+		nk := nodeKey{Region: item.ArmRegionName, InstanceType: item.ArmSkuName, Provisioning: provisioning}
 		if _, ok := seen[nk]; ok {
 			continue
 		}
@@ -166,7 +187,7 @@ func (a *AzurePricingSource) parseVMPage(body io.Reader, ps *pricing.PricingSet,
 				Provider:     cloud.ProviderAzure,
 				Region:       item.ArmRegionName,
 				InstanceType: item.ArmSkuName,
-				Provisioning: pricing.ProvisioningOnDemand,
+				Provisioning: provisioning,
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceNode: pricing.Price{
@@ -214,7 +235,7 @@ func (a *AzurePricingSource) parseDiskPage(body io.Reader, ps *pricing.PricingSe
 			},
 			Prices: pricing.Prices{
 				pricing.ResourceStorage: pricing.Price{
-					Unit:  unit.Hour,
+					Unit:  unit.GiBHour,
 					Price: hourlyPrice,
 				},
 			},
@@ -240,12 +261,16 @@ func (a *AzurePricingSource) includeItem(item AzurePricingAttributes) bool {
 	}
 
 	// The Azure API appends an exact suffix to SkuName for non-on-demand rows.
-	// We only want on-demand Linux pricing, so reject Spot and Low Priority.
+	// We want on-demand and Spot Linux pricing, so only reject Low Priority
+	// (a deprecated pricing model with no corresponding ProvisioningType).
 	skuLower := strings.ToLower(item.SkuName)
-	if strings.HasSuffix(skuLower, " spot") {
-		return false
-	}
 	return !strings.HasSuffix(skuLower, " low priority")
+}
+
+// isSpotItem returns true if the pricing item represents Spot VM pricing.
+// The Azure Retail Prices API denotes Spot rows with a " Spot" suffix on SkuName.
+func isSpotItem(item AzurePricingAttributes) bool {
+	return strings.HasSuffix(strings.ToLower(item.SkuName), " spot")
 }
 
 // includeDiskItem filters disk items to include only managed disks.
@@ -295,4 +320,16 @@ type AzurePricingAttributes struct {
 	Type                 string     `json:"type"`
 	IsPrimaryMeterRegion bool       `json:"isPrimaryMeterRegion"`
 	ArmSkuName           string     `json:"armSkuName"`
+}
+
+const azureLoadBalancerPriceUSD float64 = 0.005
+const azureLoadBalancerPriceCNY float64 = 0.036
+
+// azureLoadBalancerPrice returns the Azure Standard Static Public IP hourly
+// fee in the requested currency
+func azureLoadBalancerPrice(currencyCode string) float64 {
+	if strings.ToUpper(currencyCode) == "CNY" {
+		return azureLoadBalancerPriceCNY
+	}
+	return azureLoadBalancerPriceUSD
 }

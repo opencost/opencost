@@ -7,35 +7,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidateDCGMDevice(t *testing.T) {
+func TestValidateDevice(t *testing.T) {
 	start := time.Now().UTC().Truncate(time.Hour)
 	end := start.Add(time.Hour)
 	window := Window{Start: start, End: end}
 
 	tests := []struct {
 		name    string
-		device  *DCGMDevice
+		device  *Device
 		wantErr string
 	}{
 		{
 			name:    "empty UUID",
-			device:  &DCGMDevice{Device: "GPU-0", Start: start, End: end},
-			wantErr: "UUID is missing for DCGMDevice with device 'GPU-0'",
+			device:  &Device{Device: "GPU-0", Start: start, End: end},
+			wantErr: "UUID is missing for Device with device 'GPU-0'",
 		},
 		{
 			name:    "outside window",
-			device:  &DCGMDevice{UUID: "gpu-uuid", Device: "GPU-0", Start: start.Add(-time.Hour), End: end},
+			device:  &Device{UUID: "gpu-uuid", Device: "GPU-0", Start: start.Add(-time.Hour), End: end},
 			wantErr: checkWindow(window, start.Add(-time.Hour), end).Error(),
 		},
 		{
 			name:   "valid",
-			device: &DCGMDevice{UUID: "gpu-uuid", Device: "GPU-0", Start: start, End: end},
+			device: &Device{UUID: "gpu-uuid", Device: "GPU-0", Start: start, End: end},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.device.ValidateDCGMDevice(window)
+			err := tt.device.ValidateDevice(window)
 			if tt.wantErr != "" {
 				require.EqualError(t, err, tt.wantErr)
 			} else {
@@ -45,12 +45,12 @@ func TestValidateDCGMDevice(t *testing.T) {
 	}
 }
 
-func TestRegisterDCGMDevice(t *testing.T) {
+func TestRegisterDevice(t *testing.T) {
 	start := time.Now().UTC().Truncate(time.Hour)
 	end := start.Add(time.Hour)
 
-	newDevice := func(uuid, device string) *DCGMDevice {
-		return &DCGMDevice{UUID: uuid, Device: device, Start: start, End: end}
+	newDevice := func(uuid, device string) *Device {
+		return &Device{UUID: uuid, Device: device, Start: start, End: end}
 	}
 	withCluster := func(kms *KubeModelSet) {
 		kms.RegisterCluster(&Cluster{UID: "cluster-uid", Start: start, End: end})
@@ -59,18 +59,18 @@ func TestRegisterDCGMDevice(t *testing.T) {
 	tests := []struct {
 		name    string
 		setup   func(*KubeModelSet)
-		device  *DCGMDevice
+		device  *Device
 		wantErr string
 		want    *KubeModelSet
 	}{
 		{
 			name:    "validation failure",
-			device:  &DCGMDevice{UUID: "", Device: "GPU-0", Start: start, End: end},
-			wantErr: "RegisterDCGMDevice: invalid dcgm device: UUID is missing for DCGMDevice with device 'GPU-0'",
+			device:  &Device{UUID: "", Device: "GPU-0", Start: start, End: end},
+			wantErr: "RegisterDevice: invalid device: UUID is missing for Device with device 'GPU-0'",
 			want: func() *KubeModelSet {
 				kms := NewKubeModelSet(start, end)
 				kms.Metadata.Diagnostics = []Diagnostic{
-					{Level: DiagnosticLevelError, Message: "RegisterDCGMDevice: invalid dcgm device: UUID is missing for DCGMDevice with device 'GPU-0'"},
+					{Level: DiagnosticLevelError, Message: "RegisterDevice: invalid device: UUID is missing for Device with device 'GPU-0'"},
 				}
 				return kms
 			}(),
@@ -80,10 +80,10 @@ func TestRegisterDCGMDevice(t *testing.T) {
 			device: newDevice("gpu-uuid", "GPU-0"),
 			want: func() *KubeModelSet {
 				kms := NewKubeModelSet(start, end)
-				kms.DCGMDevices["gpu-uuid"] = newDevice("gpu-uuid", "GPU-0")
+				kms.Devices["gpu-uuid"] = newDevice("gpu-uuid", "GPU-0")
 				kms.Metadata.ObjectCount = 1
 				kms.Metadata.Diagnostics = []Diagnostic{
-					{Level: DiagnosticLevelWarning, Message: "RegisterDCGMDevice: Cluster is nil"},
+					{Level: DiagnosticLevelWarning, Message: "RegisterDevice: Cluster is nil"},
 				}
 				return kms
 			}(),
@@ -95,7 +95,7 @@ func TestRegisterDCGMDevice(t *testing.T) {
 			want: func() *KubeModelSet {
 				kms := NewKubeModelSet(start, end)
 				withCluster(kms)
-				kms.DCGMDevices["gpu-uuid"] = newDevice("gpu-uuid", "GPU-0")
+				kms.Devices["gpu-uuid"] = newDevice("gpu-uuid", "GPU-0")
 				kms.Metadata.ObjectCount = 1
 				return kms
 			}(),
@@ -104,13 +104,13 @@ func TestRegisterDCGMDevice(t *testing.T) {
 			name: "duplicate registration is a no-op",
 			setup: func(kms *KubeModelSet) {
 				withCluster(kms)
-				kms.RegisterDCGMDevice(newDevice("gpu-uuid", "GPU-0"))
+				kms.RegisterDevice(newDevice("gpu-uuid", "GPU-0"))
 			},
 			device: newDevice("gpu-uuid", "GPU-1"),
 			want: func() *KubeModelSet {
 				kms := NewKubeModelSet(start, end)
 				withCluster(kms)
-				kms.DCGMDevices["gpu-uuid"] = newDevice("gpu-uuid", "GPU-0")
+				kms.Devices["gpu-uuid"] = newDevice("gpu-uuid", "GPU-0")
 				kms.Metadata.ObjectCount = 1
 				return kms
 			}(),
@@ -124,7 +124,7 @@ func TestRegisterDCGMDevice(t *testing.T) {
 				tt.setup(kms)
 			}
 
-			err := kms.RegisterDCGMDevice(tt.device)
+			err := kms.RegisterDevice(tt.device)
 
 			if tt.wantErr != "" {
 				require.EqualError(t, err, tt.wantErr)

@@ -28,12 +28,20 @@ const unmountedPVsContainer = "unmounted-pvs"
 type ClusterCacheScraper struct {
 	clusterCache          clustercache.ClusterCache
 	externalLabelProvider external.LabelProvider
+	nodeIndex             *persistedIndex[string]
+	namespaceIndex        *persistedIndex[string]
+	pvcIndex              *persistedIndex[pvcKey]
+	pvIndex               *persistedIndex[string]
 }
 
 func newClusterCacheScraper(clusterCache clustercache.ClusterCache, externalLabelProvider external.LabelProvider) Scraper {
 	return &ClusterCacheScraper{
 		clusterCache:          clusterCache,
 		externalLabelProvider: externalLabelProvider,
+		nodeIndex:             newPersistedIndex[string]("node"),
+		namespaceIndex:        newPersistedIndex[string]("namespace"),
+		pvcIndex:              newPersistedIndex[pvcKey]("pvc"),
+		pvIndex:               newPersistedIndex[string]("pv"),
 	}
 }
 
@@ -54,11 +62,12 @@ func (ccs *ClusterCacheScraper) Scrape() []metric.Update {
 	resourceQuotas := ccs.clusterCache.GetAllResourceQuotas()
 
 	// create scrape indexes. While the pairs being mapped here don't have a 1 to 1 relationship in the general case,
-	// we are assuming that in the context of a single snapshot of the cluster they are 1 to 1.
-	nodeNameToUID := buildNodeIndex(nodes)
-	namespaceNameToUID := buildNamespaceIndex(namespaces)
-	pvcNameToUID := buildPVCIndex(pvcs)
-	pvNameToUID := buildPVIndex(pvs)
+	// we are assuming that in the context of a single snapshot of the cluster they are 1 to 1. Entries are retained
+	// across scrapes so that objects which outlive their referent in the cluster cache still resolve a UID.
+	nodeNameToUID := ccs.nodeIndex.update(buildNodeIndex(nodes))
+	namespaceNameToUID := ccs.namespaceIndex.update(buildNamespaceIndex(namespaces))
+	pvcNameToUID := ccs.pvcIndex.update(buildPVCIndex(pvcs))
+	pvNameToUID := ccs.pvIndex.update(buildPVIndex(pvs))
 
 	scrapeFuncs := []ScrapeFunc{
 		ccs.GetScrapeNodes(nodes),
@@ -688,19 +697,17 @@ func (ccs *ClusterCacheScraper) GetScrapePVs(pvs []*clustercache.PersistentVolum
 func (ccs *ClusterCacheScraper) scrapePVs(pvs []*clustercache.PersistentVolume) []metric.Update {
 	var scrapeResults []metric.Update
 	for _, pv := range pvs {
-		providerID := pv.Name
-		var csiVolumeHandle string
-		// if a more accurate provider ID is available, use that
-		if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
-			providerID = pv.Spec.CSI.VolumeHandle
-			csiVolumeHandle = pv.Spec.CSI.VolumeHandle
-		}
+		providerID := clustercache.GetPVProviderID(pv)
+
 		pvInfo := map[string]string{
-			source.UIDLabel:             string(pv.UID),
-			source.PVLabel:              pv.Name,
-			source.StorageClassLabel:    pv.Spec.StorageClassName,
-			source.ProviderIDLabel:      providerID,
-			source.CSIVolumeHandleLabel: csiVolumeHandle,
+			source.UIDLabel:          string(pv.UID),
+			source.PVLabel:           pv.Name,
+			source.StorageClassLabel: pv.Spec.StorageClassName,
+			source.ProviderIDLabel:   providerID,
+		}
+
+		if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
+			pvInfo[source.CSIVolumeHandleLabel] = pv.Spec.CSI.VolumeHandle
 		}
 
 		scrapeResults = append(scrapeResults, metric.Update{
@@ -910,6 +917,27 @@ func (ccs *ClusterCacheScraper) scrapeDaemonSets(daemonSets []*clustercache.Daem
 			Value:          0,
 			AdditionalInfo: daemonSetAnnotations,
 		})
+
+		// daemonSet arguments
+		daemonSetArguments := coreutil.ParseContainerArgs(daemonSet.SpecContainers)
+		argKeys := maps.Keys(daemonSetArguments)
+		slices.Sort(argKeys)
+		for _, arg := range argKeys {
+			value := daemonSetArguments[arg]
+			argLabels := map[string]string{
+				source.UIDLabel:          string(daemonSet.UID),
+				source.NamespaceUIDLabel: string(nsUID),
+				source.DaemonSetLabel:    daemonSet.Name,
+				source.ArgLabel:          arg,
+				source.ValueLabel:        value,
+			}
+			scrapeResults = append(scrapeResults, metric.Update{
+				Name:           metric.DaemonSetArguments,
+				Labels:         argLabels,
+				Value:          0,
+				AdditionalInfo: argLabels,
+			})
+		}
 	}
 
 	events.Dispatch(event.ScrapeEvent{
@@ -1318,7 +1346,7 @@ func getPersistentVolumeClaimClass(claim *clustercache.PersistentVolumeClaim) st
 // toResourceUnitValue accepts a resource name and quantity and returns the sanitized resource, the unit, and the value in the units.
 // Returns an empty string for resource and unit if there was a failure.
 func toResourceUnitValue(resourceName v1.ResourceName, quantity resource.Quantity) (resource string, unit string, value float64) {
-	resource = promutil.SanitizeLabelName(string(resourceName))
+	resource = resourceName.String()
 
 	switch resourceName {
 	case v1.ResourceCPU:
