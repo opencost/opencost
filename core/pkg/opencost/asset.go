@@ -3042,6 +3042,19 @@ func (as *AssetSet) Insert(asset Asset, labelConfig *LabelConfig) error {
 		return err
 	}
 
+	as.insertKeyed(k, asset)
+
+	return nil
+}
+
+// insertKeyed adds the asset under a key that is already known, merging into the entry there.
+// Rebuilding a set from another keeps the keys the original computed with its own label
+// config, which the copy does not have.
+func (as *AssetSet) insertKeyed(k string, asset Asset) {
+	if as.Assets == nil {
+		as.Assets = map[string]Asset{}
+	}
+
 	// Add the given Asset to the existing entry, if there is one;
 	// otherwise just set directly into assets
 	if _, ok := as.Assets[k]; !ok {
@@ -3063,8 +3076,6 @@ func (as *AssetSet) Insert(asset Asset, labelConfig *LabelConfig) error {
 	// Expand the window, just to be safe. It's possible that the asset will
 	// be set into the map without expanding it to the AssetSet's window.
 	as.Assets[k].ExpandWindow(as.Window)
-
-	return nil
 }
 
 // IsEmpty returns true if the AssetSet is nil, or if it contains
@@ -3164,18 +3175,12 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	acc := NewAssetSet(start, end)
 	acc.AggregationKeys = as.AggregationKeys
 
-	for _, asset := range as.Assets {
-		err := acc.Insert(asset, nil)
-		if err != nil {
-			return nil, err
-		}
+	for k, asset := range as.Assets {
+		acc.insertKeyed(k, asset)
 	}
 
-	for _, asset := range that.Assets {
-		err := acc.Insert(asset, nil)
-		if err != nil {
-			return nil, err
-		}
+	for k, asset := range that.Assets {
+		acc.insertKeyed(k, asset)
 	}
 
 	return acc, nil
@@ -3585,13 +3590,9 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 			continue
 		}
 
-		// Insert each Asset from the given set
-		for _, asset := range thatAS.Assets {
-			err = as.Insert(asset, nil)
-			if err != nil {
-				err = fmt.Errorf("error inserting asset: %s", err)
-				continue
-			}
+		// Insert each Asset from the given set under the key it already has
+		for k, asset := range thatAS.Assets {
+			as.insertKeyed(k, asset)
 		}
 	}
 
