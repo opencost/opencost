@@ -752,6 +752,61 @@ func TestTransformAllocationSet_EmptyInput(t *testing.T) {
 	assert.Len(t, result.Allocations["allocations"].Allocations, 0)
 }
 
+func TestTransformAllocationSetRange_NilAndEmpty(t *testing.T) {
+	for name, asr := range map[string]*opencost.AllocationSetRange{
+		"nil":      nil,
+		"empty":    opencost.NewAllocationSetRange(),
+		"nil sets": opencost.NewAllocationSetRange(nil, nil),
+	} {
+		t.Run(name, func(t *testing.T) {
+			result := transformAllocationSetRange(asr)
+			require.NotNil(t, result)
+			assert.Len(t, result.Allocations, 0)
+		})
+	}
+}
+
+func TestTransformAllocationSetRange_SingleSetKeepsKey(t *testing.T) {
+	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	set := opencost.NewAllocationSet(start, end, &opencost.Allocation{Name: "ns-a", Start: start, End: end, CPUCost: 1})
+
+	result := transformAllocationSetRange(opencost.NewAllocationSetRange(set))
+
+	require.Contains(t, result.Allocations, "allocations")
+	assert.Len(t, result.Allocations, 1)
+	assert.Len(t, result.Allocations["allocations"].Allocations, 1)
+}
+
+func TestTransformAllocationSetRange_MultipleSetsAllReturned(t *testing.T) {
+	day1 := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	day2 := day1.Add(24 * time.Hour)
+	day3 := day2.Add(24 * time.Hour)
+
+	set1 := opencost.NewAllocationSet(day1, day2, &opencost.Allocation{Name: "ns-a", Start: day1, End: day2, CPUCost: 1})
+	set2 := opencost.NewAllocationSet(day2, day3,
+		&opencost.Allocation{Name: "ns-a", Start: day2, End: day3, CPUCost: 2},
+		&opencost.Allocation{Name: "ns-b", Start: day2, End: day3, CPUCost: 3},
+	)
+
+	result := transformAllocationSetRange(opencost.NewAllocationSetRange(set1, nil, set2))
+
+	require.Len(t, result.Allocations, 2)
+
+	key1 := "2026-10-01T00:00:00Z/2026-10-02T00:00:00Z"
+	key2 := "2026-10-02T00:00:00Z/2026-10-03T00:00:00Z"
+	require.Contains(t, result.Allocations, key1)
+	require.Contains(t, result.Allocations, key2)
+
+	assert.Equal(t, key1, result.Allocations[key1].Name)
+	assert.Len(t, result.Allocations[key1].Allocations, 1)
+	assert.InDelta(t, 1.0, result.Allocations[key1].TotalCost(), 1e-9)
+
+	assert.Equal(t, key2, result.Allocations[key2].Name)
+	assert.Len(t, result.Allocations[key2].Allocations, 2)
+	assert.InDelta(t, 5.0, result.Allocations[key2].TotalCost(), 1e-9)
+}
+
 func TestTransformAssetSet_NilInput(t *testing.T) {
 	result := transformAssetSet(nil)
 
