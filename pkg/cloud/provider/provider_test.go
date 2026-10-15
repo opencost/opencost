@@ -5,6 +5,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	coreenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/pkg/config"
 	v1 "k8s.io/api/core/v1"
@@ -274,6 +275,46 @@ func TestCustomProviderLoadBalancerPricingInvalidValue(t *testing.T) {
 	_, err := customProvider.LoadBalancerPricing()
 	if err == nil {
 		t.Fatal("LoadBalancerPricing returned nil error, want invalid pricing error")
+	}
+}
+
+// TestGetClusterPropertiesDetectsHuaweiNotOTC verifies that a real Huawei Cloud CCE
+// node -- which also carries the "cce.cloud.com/cce-nodepool" label used to detect
+// OTC, since OTC runs on the same CCE technology -- is classified as Huawei via the
+// "os.name" label instead of being misdetected as OTC.
+func TestGetClusterPropertiesDetectsHuaweiNotOTC(t *testing.T) {
+	node := &clustercache.Node{
+		Labels: map[string]string{
+			"os.name":                       "Huawei_Cloud_EulerOS_2.0_x86_64",
+			"cce.cloud.com/cce-nodepool":    "cce-mlops-np-management",
+			"topology.kubernetes.io/region": "la-south-2",
+		},
+	}
+
+	cp := getClusterProperties(node)
+	if cp.provider != opencost.HuaweiProvider {
+		t.Fatalf("expected provider %q, got %q", opencost.HuaweiProvider, cp.provider)
+	}
+	if cp.configFileName != "huawei.json" {
+		t.Fatalf("expected config file huawei.json, got %q", cp.configFileName)
+	}
+}
+
+// TestGetClusterPropertiesDetectsOTC verifies that a genuine OTC node (no "os.name"
+// label starting with "Huawei_Cloud") is still detected as OTC.
+func TestGetClusterPropertiesDetectsOTC(t *testing.T) {
+	node := &clustercache.Node{
+		Labels: map[string]string{
+			"cce.cloud.com/cce-nodepool": "otc-nodepool",
+		},
+	}
+
+	cp := getClusterProperties(node)
+	if cp.provider != opencost.OTCProvider {
+		t.Fatalf("expected provider %q, got %q", opencost.OTCProvider, cp.provider)
+	}
+	if cp.configFileName != "otc.json" {
+		t.Fatalf("expected config file otc.json, got %q", cp.configFileName)
 	}
 }
 
