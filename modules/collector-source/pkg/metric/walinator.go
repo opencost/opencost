@@ -8,13 +8,16 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/exporter"
 	"github.com/opencost/opencost/core/pkg/exporter/pathing"
 	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util/json"
+	"github.com/opencost/opencost/core/pkg/util/stringutil"
 	"github.com/opencost/opencost/core/pkg/util/worker"
 	"github.com/opencost/opencost/modules/collector-source/pkg/util"
 )
@@ -33,7 +36,19 @@ type Walinator struct {
 	exporter        exporter.EventExporter[UpdateSet]
 	limitResolution *util.Resolution
 	updater         Updater
+
+	statusLock     sync.Mutex
+	status         source.WALStatus
+	lastFailureLog time.Time
 }
+
+const (
+	// failureLogInterval is the minimum interval between error logs while wal writes keep failing
+	failureLogInterval = 10 * time.Minute
+
+	// maxStatusErrorLength truncates errors recorded in the wal status
+	maxStatusErrorLength = 512
+)
 
 func NewWalinator(
 	clusterID string,
@@ -66,6 +81,7 @@ func NewWalinator(
 		exporter:        exp,
 		limitResolution: limitResolution,
 		updater:         updater,
+		status:          source.WALStatus{Enabled: true},
 	}, nil
 }
 
@@ -82,42 +98,125 @@ func (w *Walinator) Start() {
 	}()
 }
 
+// restoreResult is the outcome of reading a single wal file during restore
+type restoreResult struct {
+	fi        fileInfo
+	updateSet *UpdateSet
+}
+
+// restoreStats accumulates the outcome of a restore as files are processed in order
+type restoreStats struct {
+	seen, applied, errs int
+	oldest, newest      time.Time
+	largestGap          time.Duration
+	largestGapStart     time.Time
+}
+
+// record notes an applied file with the given timestamp, tracking the restored range and the largest
+// gap between consecutive applied files
+func (rs *restoreStats) record(ts time.Time) {
+	rs.applied++
+	if rs.oldest.IsZero() {
+		rs.oldest = ts
+	} else if gap := ts.Sub(rs.newest); gap > rs.largestGap {
+		rs.largestGap = gap
+		rs.largestGapStart = rs.newest
+	}
+	rs.newest = ts
+}
+
 // restore applies updates from wal files to restore the state of the previous updater(repo)
 func (w *Walinator) restore() {
+	startTime := time.Now().UTC()
+	var listErr string
+
 	fileInfos, err := w.getFileInfos()
 	if err != nil {
-		log.Errorf("failed to retrieve updates files: %s", err.Error())
+		listErr = stringutil.RedactURLs(err.Error())
+		log.Errorf("failed to retrieve updates files: %s", listErr)
 	}
 	limit := w.limitResolution.Limit()
 
-	workerFn := func(fi fileInfo) *UpdateSet {
-		if fi.timestamp.Before(limit) {
-			return nil
+	var inRange []fileInfo
+	for _, fi := range fileInfos {
+		if !fi.timestamp.Before(limit) {
+			inRange = append(inRange, fi)
 		}
-
-		b, err := w.storage.Read(fi.name)
-		if err != nil {
-			log.Errorf("failed to load file contents for '%s': %s", fi.name, err.Error())
-			return nil
-		}
-
-		updateSet, err := deserializeUpdateSet(fi.ext, b)
-		if err != nil {
-			log.Errorf("failed to deserialize file contents for '%s': %s", fi.name, err.Error())
-			return nil
-		}
-
-		if updateSet.Timestamp.IsZero() {
-			updateSet.Timestamp = fi.timestamp
-		}
-
-		return updateSet
 	}
 
-	processFn := func(updateSet *UpdateSet) {
-		w.updater.Update(updateSet)
+	// processFn is called in file order from a single goroutine
+	stats := restoreStats{seen: len(inRange)}
+	processFn := func(res restoreResult) {
+		if res.updateSet == nil {
+			stats.errs++
+			return
+		}
+		w.updater.Update(res.updateSet)
+		stats.record(res.fi.timestamp)
 	}
-	worker.ConcurrentOrderedProcessWith(worker.OptimalWorkerCount(), workerFn, fileInfos, processFn)
+	worker.ConcurrentOrderedProcessWith(worker.OptimalWorkerCount(), w.readRestoreFile, inRange, processFn)
+
+	w.finishRestore(startTime, limit, listErr, stats)
+}
+
+// readRestoreFile reads and decodes a single wal file, returning a result with a nil update set if
+// the file could not be read or decoded
+func (w *Walinator) readRestoreFile(fi fileInfo) restoreResult {
+	b, err := w.storage.Read(fi.name)
+	if err != nil {
+		log.Errorf("failed to load file contents for '%s': %s", fi.name, stringutil.RedactURLs(err.Error()))
+		return restoreResult{fi: fi}
+	}
+
+	updateSet, err := deserializeUpdateSet(fi.ext, b)
+	if err != nil {
+		log.Errorf("failed to deserialize file contents for '%s': %s", fi.name, err.Error())
+		return restoreResult{fi: fi}
+	}
+
+	if updateSet.Timestamp.IsZero() {
+		updateSet.Timestamp = fi.timestamp
+	}
+
+	return restoreResult{fi: fi, updateSet: updateSet}
+}
+
+// finishRestore logs the restore outcome and records it in the wal status
+func (w *Walinator) finishRestore(startTime, limit time.Time, listErr string, stats restoreStats) {
+	duration := time.Since(startTime)
+	tailFrom := stats.newest
+	if tailFrom.IsZero() {
+		tailFrom = limit
+	}
+	tailGap := max(startTime.Sub(tailFrom), 0)
+
+	if listErr != "" || stats.errs > 0 {
+		log.Errorf("wal restore incomplete: %d of %d objects applied, %d errors, list error: %q", stats.applied, stats.seen, stats.errs, listErr)
+	} else {
+		log.Infof("wal restore complete: %d objects applied in %s, largest gap %s, %s since newest object", stats.applied, duration, stats.largestGap, tailGap)
+	}
+
+	w.statusLock.Lock()
+	defer w.statusLock.Unlock()
+	w.status.RestoreCompleted = true
+	w.status.RestoreStartedAt = startTime
+	w.status.RestoreListError = listErr
+	w.status.RestoreObjectsSeen = stats.seen
+	w.status.RestoreObjectsApplied = stats.applied
+	w.status.RestoreErrors = stats.errs
+	w.status.RestoreDuration = duration
+	w.status.RestoreOldest = stats.oldest
+	w.status.RestoreNewest = stats.newest
+	w.status.RestoreLargestGap = stats.largestGap
+	w.status.RestoreLargestGapStart = stats.largestGapStart
+	w.status.RestoreTailGap = tailGap
+}
+
+// Status returns the current export and restore status of the wal
+func (w *Walinator) Status() source.WALStatus {
+	w.statusLock.Lock()
+	defer w.statusLock.Unlock()
+	return w.status
 }
 
 func deserializeUpdateSet(ext string, b []byte) (*UpdateSet, error) {
@@ -169,9 +268,42 @@ func (w *Walinator) Update(
 	w.updater.Update(updateSet)
 
 	err := w.exporter.Export(updateSet.Timestamp, updateSet)
-	if err != nil {
-		log.Errorf("failed to export update results: %s", err.Error())
+	w.recordExport(err)
+}
+
+// recordExport updates the export status, logging only when the export state changes so that a
+// long outage does not produce an error log per scrape
+func (w *Walinator) recordExport(err error) {
+	w.statusLock.Lock()
+	defer w.statusLock.Unlock()
+
+	now := time.Now().UTC()
+	if err == nil {
+		if w.status.ConsecutiveExportFailures > 0 {
+			log.Infof("wal export recovered after %d failed writes", w.status.ConsecutiveExportFailures)
+		}
+		w.status.LastExportSuccess = now
+		w.status.ConsecutiveExportFailures = 0
+		return
 	}
+
+	msg := stringutil.RedactURLs(err.Error())
+	if len(msg) > maxStatusErrorLength {
+		msg = msg[:maxStatusErrorLength] + "..."
+	}
+
+	// log at error level when writes start failing and periodically while they keep failing, not on
+	// every scrape
+	if w.status.ConsecutiveExportFailures == 0 || now.Sub(w.lastFailureLog) >= failureLogInterval {
+		log.Errorf("failed to export update results (%d consecutive failures): %s", w.status.ConsecutiveExportFailures+1, msg)
+		w.lastFailureLog = now
+	} else {
+		log.Debugf("failed to export update results: %s", msg)
+	}
+	w.status.LastExportError = msg
+	w.status.LastExportErrorAt = now
+	w.status.ConsecutiveExportFailures++
+	w.status.ExportFailuresTotal++
 }
 
 // getFileInfos returns a sorted slice of fileInfo
