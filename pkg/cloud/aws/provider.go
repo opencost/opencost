@@ -515,7 +515,7 @@ func (aws *AWS) GetAWSAccessKey() (*AWSAccessKey, error) {
 	}
 
 	if config.AwsServiceKeyName == "" && config.AwsServiceKeySecret == "" {
-		log.DedupedInfof(1, "missing service key values for AWS cloud integration attempting to use service account integration")
+		log.DedupedDebugf(1, "missing service key values for AWS cloud integration attempting to use service account integration")
 	}
 
 	return &AWSAccessKey{AccessKeyID: config.AwsServiceKeyName, SecretAccessKey: config.AwsServiceKeySecret}, nil
