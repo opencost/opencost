@@ -233,9 +233,18 @@ func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[s
 		windowMinutes = 2
 	}
 
-	// Query counter value at the end of the window.
-	endQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[%dm] @ %d))`, metric, windowMinutes, endUnix)
-	endVals, err := queryInstantMetric(ctx, endQuery, effectiveEnd)
+	// Both endpoints are grouped by pod as well as by model and namespace, so
+	// the reset correction below is applied per replica. Summing replicas
+	// before subtracting lets one replica's growth hide another's reset: with
+	// A going 900 -> 100 and B going 100 -> 1000, the aggregate reads
+	// 1000 -> 1100 and reports 100 against a true 1000, and the guard never
+	// fires because the aggregate delta is positive. The same erasure can
+	// overcount: A 900 -> 100 with B 100 -> 150 aggregates to 1000 -> 250, the
+	// guard does fire, and the aggregate end value of 250 is reported against a
+	// true 150. Applying a per-series heuristic to an aggregate is unbounded in
+	// both directions.
+	endQuery := fmt.Sprintf(`sum by (model_name, namespace, pod) (last_over_time(%s[%dm] @ %d))`, metric, windowMinutes, endUnix)
+	endVals, err := queryInstantMetricByPod(ctx, endQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
 	}
@@ -243,22 +252,92 @@ func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[s
 	// Query counter value at the start of the window.
 	// Use a narrow 2m lookback here: we want the value just before the window
 	// opens, not a stale value from much earlier that would undercount the delta.
-	startQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[2m] @ %d))`, metric, startUnix)
-	startVals, err := queryInstantMetric(ctx, startQuery, effectiveEnd)
+	startQuery := fmt.Sprintf(`sum by (model_name, namespace, pod) (last_over_time(%s[2m] @ %d))`, metric, startUnix)
+	startVals, err := queryInstantMetricByPod(ctx, startQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
 	}
 
-	// Delta = end - start. If negative (counter reset), use endVal as a
-	// lower bound to capture post-reset activity rather than reporting 0.
+	// Delta = end - start per replica. If negative (counter reset), use the
+	// replica's end value as a lower bound to capture post-reset activity
+	// rather than reporting 0. Then fold the replicas back into the
+	// (model_name, namespace) contract the callers expect.
 	out := make(map[string]float64, len(endVals))
+	missingPod := false
 	for key, endVal := range endVals {
-		delta := endVal - startVals[key]
+		delta := endVal.value - startVals[key].value
 		if delta < 0 {
-			// Counter reset detected: use endVal to capture post-reset activity
-			delta = endVal
+			// Counter reset detected: use the end value to capture post-reset activity
+			delta = endVal.value
 		}
-		out[key] = delta
+		out[modelNamespaceKey(endVal.modelName, endVal.namespace)] += delta
+		if endVal.pod == "" {
+			missingPod = true
+		}
+	}
+
+	// A series with no pod label collapses into a single per-(model, namespace)
+	// bucket, which reproduces the previous summed behaviour exactly rather
+	// than dropping the data. That is the right degradation, because `pod` is
+	// never self-reported by the serving engine: it comes from Kubernetes
+	// service discovery relabeling, so it is legitimately absent under
+	// non-Kubernetes service discovery, under write_relabel_configs or
+	// labeldrop that strip it, and under federation of pre-aggregated
+	// recording rules. Operators should know they are on the less accurate
+	// path, so say so instead of silently reverting to it.
+	if missingPod {
+		log.Warnf("inference: %s has series with no pod label; counter resets cannot be corrected per replica "+
+			"for those series and may be masked by other replicas. Add a pod relabel rule to the model-server "+
+			"scrape job to get per-replica accuracy.", metric)
+	}
+	return out, nil
+}
+
+// podMetricValue carries one instant sample keyed by replica identity.
+type podMetricValue struct {
+	modelName string
+	namespace string
+	pod       string
+	value     float64
+}
+
+// queryInstantMetricByPod runs an instant query and returns samples keyed by
+// (model_name, namespace, pod) so counter deltas can be reset-corrected per
+// replica before being folded back to the per-model contract.
+func queryInstantMetricByPod(ctx *Context, query string, t time.Time) (map[string]podMetricValue, error) {
+	raw, _, err := ctx.query(query, t)
+	if err != nil {
+		return nil, err
+	}
+
+	results := NewQueryResults(query, raw, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+	if results.Error != nil {
+		return nil, results.Error
+	}
+
+	out := make(map[string]podMetricValue, len(results.Results))
+	for _, result := range results.Results {
+		modelName, err := result.GetString("model_name")
+		if err != nil || modelName == "" {
+			continue
+		}
+		namespace, err := result.GetString("namespace")
+		if err != nil || namespace == "" {
+			namespace = "unknown"
+		}
+		// An absent pod label is not a reason to drop the sample; it collapses
+		// into one bucket per (model_name, namespace), which is the previous
+		// behaviour.
+		pod, _ := result.GetString("pod")
+		if len(result.Values) == 0 {
+			continue
+		}
+		out[modelNamespaceKey(modelName, namespace)+"|"+pod] = podMetricValue{
+			modelName: modelName,
+			namespace: namespace,
+			pod:       pod,
+			value:     result.Values[0].Value,
+		}
 	}
 	return out, nil
 }
