@@ -1,11 +1,13 @@
 package provider
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/storage"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -291,4 +293,147 @@ func newTestCustomProvider(t *testing.T, pricing map[string]string) *CustomProvi
 	return &CustomProvider{
 		Config: providerConfig,
 	}
+}
+
+// unknownCustomPricingKey stands in for a node class that the custom provider
+// does not recognize. It mirrors the key reported in opencost/opencost#4020,
+// which triggers the CPU/RAM custom-pricing fallback path.
+type unknownCustomPricingKey struct{}
+
+func (unknownCustomPricingKey) ID() string       { return "unknown" }
+func (unknownCustomPricingKey) Features() string { return "unknown" }
+func (unknownCustomPricingKey) GPUType() string  { return "" }
+func (unknownCustomPricingKey) GPUCount() int    { return 0 }
+
+// TestCustomProviderPricingStableAcrossUpdates reproduces the custom-pricing
+// instability reported in opencost/opencost#4020. The provider must return the
+// configured CPU/RAM values every time, even after repeated GetConfig calls or
+// config updates.
+func TestCustomProviderPricingStableAcrossUpdates(t *testing.T) {
+	const (
+		wantCPU = "0.006407"
+		wantRAM = "0.000859"
+	)
+
+	cp := newTestCustomProvider(t, map[string]string{
+		"CPU": wantCPU,
+		"RAM": wantRAM,
+	})
+
+	if err := cp.DownloadPricingData(); err != nil {
+		t.Fatalf("DownloadPricingData(): %v", err)
+	}
+
+	for i := 0; i < 3; i++ {
+		cfg, err := cp.GetConfig()
+		if err != nil {
+			t.Fatalf("GetConfig() (iteration %d): %v", i, err)
+		}
+		if cfg.CPU != wantCPU {
+			t.Fatalf("GetConfig().CPU = %q, want %q on iteration %d", cfg.CPU, wantCPU, i)
+		}
+		if cfg.RAM != wantRAM {
+			t.Fatalf("GetConfig().RAM = %q, want %q on iteration %d", cfg.RAM, wantRAM, i)
+		}
+
+		nodePrice, err := cp.NodePricing(unknownCustomPricingKey{})
+		if err != nil {
+			t.Fatalf("NodePricing(unknownCustomPricingKey{}) (iteration %d): %v", i, err)
+		}
+		if nodePrice.VCPUCost != wantCPU {
+			t.Fatalf("NodePricing.VCPUCost = %q, want %q on iteration %d", nodePrice.VCPUCost, wantCPU, i)
+		}
+		if nodePrice.RAMCost != wantRAM {
+			t.Fatalf("NodePricing.RAMCost = %q, want %q on iteration %d", nodePrice.RAMCost, wantRAM, i)
+		}
+	}
+
+	// Simulate a config-watch update that does not touch CPU/RAM. The previously
+	// configured prices must still be returned.
+	if _, err := cp.Config.UpdateFromMap(map[string]string{
+		"ProjectID": "stable-project",
+	}); err != nil {
+		t.Fatalf("UpdateFromMap(ProjectID): %v", err)
+	}
+
+	cfg, err := cp.GetConfig()
+	if err != nil {
+		t.Fatalf("GetConfig() after unrelated update: %v", err)
+	}
+	if cfg.CPU != wantCPU || cfg.RAM != wantRAM {
+		t.Fatalf("after unrelated update CPU=%q RAM=%q, want CPU=%q RAM=%q", cfg.CPU, cfg.RAM, wantCPU, wantRAM)
+	}
+}
+
+// TestGetCustomPricingDataReturnsDefensiveCopy guards the fix for
+// opencost/opencost#4020: callers of GetConfig/GetCustomPricingData must not
+// be able to corrupt the provider's cached configuration.
+func TestGetCustomPricingDataReturnsDefensiveCopy(t *testing.T) {
+	cp := newTestCustomProvider(t, map[string]string{
+		"CPU": "0.006407",
+		"RAM": "0.000859",
+	})
+
+	cfg, err := cp.GetConfig()
+	if err != nil {
+		t.Fatalf("GetConfig(): %v", err)
+	}
+
+	cfg.CPU = "0.000009"
+	cfg.RAM = "0.000009"
+
+	cfg2, err := cp.GetConfig()
+	if err != nil {
+		t.Fatalf("GetConfig() after mutation: %v", err)
+	}
+	if cfg2.CPU != "0.006407" || cfg2.RAM != "0.000859" {
+		t.Fatalf("cached config mutated: CPU=%q RAM=%q", cfg2.CPU, cfg2.RAM)
+	}
+}
+
+// TestGetCustomPricingDataConcurrentUpdatesAndReadsStable exercises the
+// read/write lock around the cached pricing config. This is a regression guard
+// for the race that could corrupt custom pricing during config updates.
+func TestGetCustomPricingDataConcurrentUpdatesAndReadsStable(t *testing.T) {
+	confMan := config.NewConfigFileManager(storage.NewMemoryStorage())
+	pc := NewProviderConfig(confMan, "default.json")
+	if _, err := pc.UpdateFromMap(map[string]string{
+		"CPU": "0.006407",
+		"RAM": "0.000859",
+	}); err != nil {
+		t.Fatalf("UpdateFromMap: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 20; j++ {
+				_, _ = pc.UpdateFromMap(map[string]string{
+					"ProjectID": "concurrent-project",
+				})
+			}
+		}()
+	}
+
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 20; j++ {
+				cfg, err := pc.GetCustomPricingData()
+				if err != nil {
+					t.Errorf("GetCustomPricingData: %v", err)
+					return
+				}
+				if cfg.CPU != "0.006407" || cfg.RAM != "0.000859" {
+					t.Errorf("concurrent read saw CPU=%q RAM=%q", cfg.CPU, cfg.RAM)
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
 }
