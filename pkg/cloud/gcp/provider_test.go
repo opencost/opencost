@@ -60,6 +60,18 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 			input:    "n4-highmem-16",
 			expected: "n4standard",
 		},
+		{
+			input:    "c3-highmem-8",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3-highcpu-8",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3-standard-4",
+			expected: "c3standard",
+		},
 	}
 
 	for _, test := range cases {
@@ -257,6 +269,19 @@ func TestParsePage(t *testing.T) {
 						"topology.kubernetes.io/region":    "asia-southeast1",
 					},
 				},
+				"us-central1,c3standard,ondemand": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c3-standard-4",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+				"us-central1,c3standard,preemptible": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c3-standard-4",
+						"cloud.google.com/gke-spot":        "true",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
 			},
 			pvKeys: map[string]models.PVKey{},
 			expectedPrices: map[string]*GCPPricing{
@@ -361,6 +386,42 @@ func TestParsePage(t *testing.T) {
 						RAMCost:          "68.204999658",
 						UsesBaseCPUPrice: false,
 						UsageType:        "ondemand",
+					},
+				},
+				// C3 must resolve to keys distinct from C3D: matching "C3 INSTANCE"
+				// (the space between "C3" and "INSTANCE") excludes C3D SKUs, whose
+				// descriptions read "C3D Instance ...". The "Sole Tenancy Premium for
+				// C3 Instance Core" SKU is excluded and creates no keys.
+				"us-central1,c3standard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.034",
+						RAMCost:          "0.005",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c3standard,ondemand,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.034",
+						RAMCost:          "0.005",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c3standard,preemptible": {
+					Node: &models.Node{
+						VCPUCost:         "0.0125",
+						RAMCost:          "0.0015",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
+				"us-central1,c3standard,preemptible,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.0125",
+						RAMCost:          "0.0015",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
 					},
 				},
 			},
@@ -1036,6 +1097,13 @@ func TestSustainedUseDiscount(t *testing.T) {
 			defaultDiscount: 0.30,
 			isPreemptible:   false,
 			expected:        0.30,
+		},
+		{
+			name:            "C3 instance",
+			class:           "c3",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
 		},
 	}
 
