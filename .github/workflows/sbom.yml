@@ -1,6 +1,7 @@
 name: Generate SBOM
 
-on:
+# Privileged trigger: workflow_run is triggered by release builds (tag push / dispatch) and restricted to this repository; see the job-level if.
+on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: ["Build and Publish Release"]
     types:
@@ -22,11 +23,16 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
+  # Trivy binary installed by trivy-action. Bump alongside vulnerability-scan.yaml.
+  TRIVY_VERSION: v0.74.0
 
 jobs:
   generate-sbom:
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     permissions:
       contents: write
       actions: read
@@ -34,32 +40,37 @@ jobs:
     steps:
       - name: Checkout Repo (for version detection)
         if: github.event_name == 'workflow_run'
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Get Version From Workflow Run
         id: tag
         if: github.event_name == 'workflow_run'
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          # Get the SHA from the workflow run
-          SHA="${{ github.event.workflow_run.head_sha }}"
           # Find the tag pointing to this SHA
           TAG=$(git tag --points-at $SHA | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
           if [ -z "$TAG" ]; then
             echo "Error: No version tag found for SHA $SHA"
             exit 1
           fi
-          echo "TRIGGERED_TAG=$TAG" >> $GITHUB_ENV
+          echo "TRIGGERED_TAG=$TAG" >> "$GITHUB_OUTPUT"
           echo "Found tag: $TAG"
 
       - name: Determine Version Number
         id: version_number
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TRIGGERED_TAG: ${{ steps.tag.outputs.TRIGGERED_TAG }}
+          INPUT_VERSION: ${{ inputs.release_version }}
         run: |
-          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+          if [ "$EVENT_NAME" == "workflow_run" ]; then
             version=$TRIGGERED_TAG
-          elif [ -n "${{ inputs.release_version }}" ]; then
-            version=${{ inputs.release_version }}
+          elif [ -n "$INPUT_VERSION" ]; then
+            version=$INPUT_VERSION
           else
             version=""
           fi
@@ -80,9 +91,10 @@ jobs:
 
       - name: Checkout Repo
         if: github.event_name != 'workflow_run'
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.event_name != 'pull_request' && steps.branch.outputs.BRANCH_NAME || '' }}
+          persist-credentials: false
 
       - name: Set OpenCost Image Tag
         id: image_tag
@@ -95,16 +107,18 @@ jobs:
 
       # Generate SBOM for source code using Trivy
       - name: Run Trivy SBOM for Source Code (SPDX)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: ${{ env.TRIVY_VERSION }}
           scan-type: 'fs'
           scan-ref: '.'
           format: 'spdx-json'
           output: 'opencost-source-sbom.spdx.json'
 
       - name: Run Trivy SBOM for Source Code (CycloneDX)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: ${{ env.TRIVY_VERSION }}
           scan-type: 'fs'
           scan-ref: '.'
           format: 'cyclonedx'
@@ -113,8 +127,9 @@ jobs:
       # Generate SBOM for container image using Trivy
       - name: Run Trivy SBOM for Container Image (SPDX)
         if: github.event_name != 'pull_request'
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: ${{ env.TRIVY_VERSION }}
           scan-type: 'image'
           image-ref: ${{ steps.image_tag.outputs.IMAGE_TAG }}
           format: 'spdx-json'
@@ -122,8 +137,9 @@ jobs:
 
       - name: Run Trivy SBOM for Container Image (CycloneDX)
         if: github.event_name != 'pull_request'
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: ${{ env.TRIVY_VERSION }}
           scan-type: 'image'
           image-ref: ${{ steps.image_tag.outputs.IMAGE_TAG }}
           format: 'cyclonedx'
@@ -154,7 +170,7 @@ jobs:
 
       # Upload SBOMs as artifacts
       - name: Upload SBOM Artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sbom-files
           path: |
@@ -167,7 +183,7 @@ jobs:
       # Attach SBOMs to GitHub release (only for releases, not PRs)
       - name: Attach SBOMs to GitHub Release
         if: github.event_name != 'pull_request'
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: v${{ steps.version_number.outputs.RELEASE_VERSION }}
           files: |
@@ -179,19 +195,22 @@ jobs:
 
       # Create a summary of the SBOM generation
       - name: Generate Summary
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_VERSION: ${{ steps.version_number.outputs.RELEASE_VERSION || 'PR build' }}
         run: |
           echo "## SBOM Generation Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Generated SBOMs for OpenCost ${{ steps.version_number.outputs.RELEASE_VERSION || 'PR build' }}" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Generated SBOMs for OpenCost $RELEASE_VERSION" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Generated Artifacts:" >> $GITHUB_STEP_SUMMARY
           echo "- Source Code SBOM (SPDX)" >> $GITHUB_STEP_SUMMARY
           echo "- Source Code SBOM (CycloneDX)" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "$EVENT_NAME" != "pull_request" ]; then
             echo "- Container Image SBOM (SPDX)" >> $GITHUB_STEP_SUMMARY
             echo "- Container Image SBOM (CycloneDX)" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "$EVENT_NAME" != "pull_request" ]; then
             echo "📦 SBOMs have been attached to the GitHub release" >> $GITHUB_STEP_SUMMARY
           fi

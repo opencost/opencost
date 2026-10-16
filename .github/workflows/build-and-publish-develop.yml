@@ -1,6 +1,7 @@
 name: Build and Publish Develop
 
-on:
+# Privileged trigger: workflow_run is restricted to push events from this repository; see the job-level if.
+on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [Build/Test]
     types: [completed]
@@ -19,16 +20,23 @@ env:
 jobs:
   build-and-publish-opencost:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # workflow_run's `branches` filter matches the head branch *name*, so a fork
+    # PR from a branch called "develop" also matches. Only publish for pushes to
+    # this repository; never build fork code with a packages/id-token token.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     permissions:
       contents: read
       packages: write
       id-token: write
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
       - name: Set SHA
         id: sha
         run: |
@@ -43,7 +51,7 @@ jobs:
           echo "IMAGE_TAG=ghcr.io/$REPO/opencost:develop-$SHORTHASH" >> $GITHUB_OUTPUT
 
       - name: Build and publish container
-        uses: ./.github/actions/build-container 
+        uses: $/.github/actions/build-container 
         with:
           actor: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -51,7 +59,7 @@ jobs:
           release_version: develop-${{ steps.sha.outputs.OC_SHORTHASH }}
       
       - name: Install crane
-        uses: imjasonh/setup-crane@v0.6
+        uses: imjasonh/setup-crane@59c71e96a00b28651f10369ba3359a6d730740a0 # v0.6
 
       - name: Tag and push latest image
         env:
@@ -65,7 +73,7 @@ jobs:
           crane copy "$IMAGE_TAG" "${NEW_TAG}"
 
       - name: Sign image and attest SLSA provenance
-        uses: ./.github/actions/sign-image
+        uses: $/.github/actions/sign-image
         with:
           image: ${{ steps.tags.outputs.IMAGE_TAG }}
           workflow-path: .github/workflows/build-and-publish-develop.yml

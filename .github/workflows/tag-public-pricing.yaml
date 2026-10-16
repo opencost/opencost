@@ -7,6 +7,8 @@ on:
     paths:
       - 'modules/pricing/public/**'
 
+permissions: {}
+
 concurrency:
   group: tag-public-pricing
   cancel-in-progress: false
@@ -19,9 +21,11 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
+          # Credentials are needed to push the tag below.
+          persist-credentials: true # zizmor: ignore[artipacked]
 
       - name: Compute next patch version
         id: version
@@ -46,8 +50,10 @@ jobs:
           echo "Next tag: $NEXT"
 
       - name: Push tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
+          git tag "$TAG"
+          git push origin "$TAG"
