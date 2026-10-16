@@ -126,6 +126,9 @@ func ReadLockedFD(f *os.File) ([]byte, error) {
 	}()
 
 	buf := bytes.NewBuffer(nil)
+	if fi, err := f.Stat(); err == nil {
+		buf.Grow(int(fi.Size()) + bytes.MinRead)
+	}
 	if _, err := io.Copy(buf, f); err != nil {
 		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_UN); err != nil {
 			log.Errorf("unexpected error flock()-ing with UN after error reading: %s", err)
