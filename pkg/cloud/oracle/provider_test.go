@@ -173,3 +173,97 @@ func testNode(gpus int) *clustercache.Node {
 		},
 	}
 }
+
+// TestOracleNetworkPricing verifies that NetworkPricing returns a non-nil Network
+// using pre-populated pricing data and that a NetworkKey with an explicit region
+// overrides the provider's ClusterRegion for egress resolution.
+func TestOracleNetworkPricing(t *testing.T) {
+	const egressPrice = 0.0085
+
+	newOracle := func(clusterRegion string) *Oracle {
+		return &Oracle{
+			ClusterRegion: clusterRegion,
+			RateCardStore: &RateCardStore{
+				prices: map[string]Price{
+					egress1PartNumber: {UnitPrice: egressPrice},
+				},
+			},
+			DefaultPricing: DefaultPricing{},
+		}
+	}
+
+	t.Run("uses ClusterRegion when key region is empty", func(t *testing.T) {
+		o := newOracle("us-ashburn-1")
+		key := &oracleNetworkKey{region: ""}
+		network, err := o.NetworkPricing(key)
+		assert.NoError(t, err)
+		assert.NotNil(t, network)
+		assert.Equal(t, egressPrice, network.RegionNetworkEgressCost)
+		assert.Equal(t, egressPrice, network.InternetNetworkEgressCost)
+	})
+
+	t.Run("overrides region from NetworkKey when non-empty", func(t *testing.T) {
+		// ClusterRegion is ap-sydney-1 (egress2), but key specifies a us-* region (egress1)
+		o := newOracle("ap-sydney-1")
+		key := &oracleNetworkKey{region: "us-phoenix-1"}
+		network, err := o.NetworkPricing(key)
+		assert.NoError(t, err)
+		assert.NotNil(t, network)
+		assert.Equal(t, egressPrice, network.RegionNetworkEgressCost,
+			"should use key region (us-phoenix-1 → egress1), not ClusterRegion (ap-sydney-1 → egress2)")
+	})
+
+	t.Run("nil key falls back to ClusterRegion", func(t *testing.T) {
+		o := newOracle("us-ashburn-1")
+		network, err := o.NetworkPricing(nil)
+		assert.NoError(t, err)
+		assert.NotNil(t, network)
+		assert.Equal(t, egressPrice, network.RegionNetworkEgressCost)
+	})
+
+	t.Run("unknown region returns zero egress cost", func(t *testing.T) {
+		o := newOracle("unknown-region-1")
+		network, err := o.NetworkPricing(nil)
+		assert.NoError(t, err)
+		assert.NotNil(t, network)
+		assert.Equal(t, 0.0, network.RegionNetworkEgressCost)
+		assert.Equal(t, 0.0, network.ZoneNetworkEgressCost)
+	})
+}
+
+// TestOracleGetNetworkKey verifies that GetNetworkKey extracts zone and region
+// from Kubernetes node labels and returns a valid NetworkKey.
+func TestOracleGetNetworkKey(t *testing.T) {
+	o := &Oracle{}
+
+	t.Run("extracts region from topology label", func(t *testing.T) {
+		labels := map[string]string{
+			"topology.kubernetes.io/region": "us-ashburn-1",
+			"topology.kubernetes.io/zone":   "AD-1",
+		}
+		key := o.GetNetworkKey(labels, "cluster-1")
+		assert.Equal(t, "AD-1", key.GetZone())
+		assert.Equal(t, "us-ashburn-1", key.GetRegion())
+		assert.NotEmpty(t, key.ID())
+		assert.Contains(t, key.Features(), "us-ashburn-1")
+		assert.Contains(t, key.Features(), "AD-1")
+	})
+
+	t.Run("handles empty labels gracefully", func(t *testing.T) {
+		key := o.GetNetworkKey(map[string]string{}, "cluster-2")
+		assert.Empty(t, key.GetZone())
+		assert.Empty(t, key.GetRegion())
+		assert.Empty(t, key.ID())
+		assert.Empty(t, key.Features())
+	})
+}
+
+// oracleNetworkKey is a minimal NetworkKey stub for unit testing.
+type oracleNetworkKey struct{ region string }
+
+func (k *oracleNetworkKey) ID() string                   { return k.region }
+func (k *oracleNetworkKey) Features() string             { return k.region }
+func (k *oracleNetworkKey) GetZone() string              { return "" }
+func (k *oracleNetworkKey) GetRegion() string            { return k.region }
+func (k *oracleNetworkKey) GetClusterID() string         { return "" }
+func (k *oracleNetworkKey) GetLabels() map[string]string { return nil }
