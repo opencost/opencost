@@ -2,6 +2,7 @@ package scrape
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -223,4 +224,15 @@ func TestGetDefaultMetricFilter_LabelsDefaultTrue(t *testing.T) {
 		_, denied := f[name]
 		assert.False(t, denied, "%s should be allowed by default", name)
 	}
+}
+
+func TestConcurrentScrape_TimeoutDropsHungScraper(t *testing.T) {
+	scrapeTimeout = 100 * time.Millisecond
+	defer func() { scrapeTimeout = time.Minute }()
+
+	fast := func() []metric.Update { return updates("fast") }
+	hung := func() []metric.Update { select {} }
+
+	got := concurrentScrape(fast, hung)
+	assert.Equal(t, []string{"fast"}, updateNames(got))
 }
