@@ -254,10 +254,28 @@ func TransformPodStatus(input v1.PodStatus) PodStatus {
 }
 
 func TransformPodSpec(input v1.PodSpec) PodSpec {
-	containers := make([]Container, len(input.Containers))
-	for i, container := range input.Containers {
-		containers[i] = TransformPodContainer(container)
+	containers := make([]Container, 0, len(input.Containers)+len(input.InitContainers))
+	for _, container := range input.Containers {
+		containers = append(containers, TransformPodContainer(container))
 	}
+
+	// Native sidecars are init containers with restartPolicy: Always. They run for the
+	// whole life of the pod, and Kubernetes sums their requests into the pod's requests
+	// exactly like a regular container, so they have to be costed like one. Ordinary init
+	// containers are deliberately left out: they are transient, and they reach the pod's
+	// requests through a max() rather than a sum.
+	//
+	// This mirrors k8s.io/component-helpers/resource.PodRequests. See KEP-753:
+	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/753-sidecar-containers#exposing-pod-resource-requirements
+	//
+	// Sidecars are appended after the regular containers so that index 0 stays a regular
+	// container, which ComputeCostData relies on when it assigns PV claims.
+	for _, container := range input.InitContainers {
+		if container.RestartPolicy != nil && *container.RestartPolicy == v1.ContainerRestartPolicyAlways {
+			containers = append(containers, TransformPodContainer(container))
+		}
+	}
+
 	return PodSpec{
 		NodeName:      input.NodeName,
 		Containers:    containers,
