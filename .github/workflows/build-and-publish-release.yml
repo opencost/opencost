@@ -68,7 +68,8 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v6.0.2
         with:
-          ref: '${{ steps.branch.outputs.BRANCH_NAME }}'
+          # Build the tag that triggered the run: vX.Y is moved after the vX.Y.Z push
+          ref: ${{ github.event_name == 'push' && github.ref || steps.branch.outputs.BRANCH_NAME }}
 
       - name: Set SHA
         id: sha
