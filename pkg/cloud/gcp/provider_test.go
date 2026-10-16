@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -59,6 +60,78 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		{
 			input:    "n4-highmem-16",
 			expected: "n4standard",
+		},
+		{
+			input:    "c3d-highmem-8",
+			expected: "c3dstandard",
+		},
+		{
+			input:    "c3d-highcpu-8",
+			expected: "c3dstandard",
+		},
+		{
+			input:    "c3d-standard-4",
+			expected: "c3dstandard",
+		},
+		{
+			input:    "c4a-highmem-8",
+			expected: "c4astandard",
+		},
+		{
+			input:    "c4a-highcpu-8",
+			expected: "c4astandard",
+		},
+		{
+			input:    "c4a-standard-4",
+			expected: "c4astandard",
+		},
+		{
+			input:    "c3-highmem-8",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3-highcpu-8",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3-standard-4",
+			expected: "c3standard",
+		},
+		{
+			input:    "g2-standard-4",
+			expected: "g2standard",
+		},
+		{
+			input:    "n4a-standard-4",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4a-highcpu-4",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4a-highmem-8",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4d-standard-4",
+			expected: "n4dstandard",
+		},
+		{
+			input:    "n4d-highcpu-8",
+			expected: "n4dstandard",
+		},
+		{
+			input:    "n4d-highmem-16",
+			expected: "n4dstandard",
+		},
+		{
+			input:    "n4ax-highcpu-4",
+			expected: "n4axhighcpu",
+		},
+		{
+			input:    "n4d2-highmem-16",
+			expected: "n4d2highmem",
 		},
 	}
 
@@ -190,6 +263,25 @@ func TestKeyFeatures(t *testing.T) {
 			},
 			exp: "asia-southeast1,t2dstandard,ondemand",
 		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n4a-highcpu-4",
+					"topology.kubernetes.io/region":    "us-central1",
+				},
+			},
+			exp: "us-central1,n4astandard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n4d-standard-4",
+					"cloud.google.com/gke-spot":        "true",
+					"topology.kubernetes.io/region":    "us-central1",
+				},
+			},
+			exp: "us-central1,n4dstandard,preemptible",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -200,6 +292,67 @@ func TestKeyFeatures(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParsePageN4Families(t *testing.T) {
+	fileBytes, err := os.ReadFile("./test/n4_skus.json")
+	assert.NoError(t, err)
+
+	inputKeys := map[string]models.Key{
+		"us-central1,n4astandard,ondemand": &gcpKey{Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "n4a-highcpu-4",
+			"topology.kubernetes.io/region":    "us-central1",
+		}},
+		"us-central1,n4astandard,preemptible": &gcpKey{Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "n4a-standard-4",
+			"cloud.google.com/gke-spot":        "true",
+			"topology.kubernetes.io/region":    "us-central1",
+		}},
+		"us-central1,n4dstandard,ondemand": &gcpKey{Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "n4d-standard-4",
+			"topology.kubernetes.io/region":    "us-central1",
+		}},
+		"us-central1,n4dstandard,preemptible": &gcpKey{Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "n4d-standard-4",
+			"cloud.google.com/gke-spot":        "true",
+			"topology.kubernetes.io/region":    "us-central1",
+		}},
+	}
+
+	testGCP := &GCP{}
+	actualPrices, token, err := testGCP.parsePage(bytes.NewReader(fileBytes), inputKeys, map[string]models.PVKey{})
+	assert.NoError(t, err)
+	assert.Empty(t, token)
+
+	expected := map[string]struct {
+		cpu       float64
+		ram       float64
+		usageType string
+	}{
+		"us-central1,n4astandard,ondemand":    {cpu: 0.02646, ram: 0.00301, usageType: "ondemand"},
+		"us-central1,n4astandard,preemptible": {cpu: 0.01055, ram: 0.001201, usageType: "preemptible"},
+		"us-central1,n4dstandard,ondemand":    {cpu: 0.02911, ram: 0.00331, usageType: "ondemand"},
+		"us-central1,n4dstandard,preemptible": {cpu: 0.01553, ram: 0.001767, usageType: "preemptible"},
+	}
+	for key, want := range expected {
+		for _, suffix := range []string{"", ",gpu"} {
+			pricing, ok := actualPrices[key+suffix]
+			if assert.True(t, ok, "missing pricing key %s", key+suffix) {
+				cpu, err := strconv.ParseFloat(pricing.Node.VCPUCost, 64)
+				assert.NoError(t, err)
+				ram, err := strconv.ParseFloat(pricing.Node.RAMCost, 64)
+				assert.NoError(t, err)
+				assert.InDelta(t, want.cpu, cpu, 1e-12)
+				assert.InDelta(t, want.ram, ram, 1e-12)
+				assert.Equal(t, want.usageType, pricing.Node.UsageType)
+				assert.False(t, pricing.Node.UsesBaseCPUPrice)
+			}
+			assert.True(t, testGCP.ValidPricingKeys[key+suffix])
+		}
+	}
+	assert.Len(t, actualPrices, 8)
+	assert.False(t, testGCP.ValidPricingKeys["us-central1,n4ahighcpu,ondemand"])
+	assert.False(t, testGCP.ValidPricingKeys["us-central1,n4dhighcpu,ondemand"])
 }
 
 // tests basic parsing of GCP pricing API responses
@@ -255,6 +408,60 @@ func TestParsePage(t *testing.T) {
 					Labels: map[string]string{
 						"node.kubernetes.io/instance-type": "t2d-standard-1",
 						"topology.kubernetes.io/region":    "asia-southeast1",
+					},
+				},
+				"us-central1,c3dstandard,ondemand": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c3d-standard-4",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+				"us-central1,c3dstandard,preemptible": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c3d-standard-4",
+						"cloud.google.com/gke-spot":        "true",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+				"us-central1,c4astandard,ondemand": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c4a-standard-4",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+				"us-central1,c4astandard,preemptible": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c4a-standard-4",
+						"cloud.google.com/gke-spot":        "true",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+				"us-central1,c3standard,ondemand": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c3-standard-4",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+				"us-central1,c3standard,preemptible": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c3-standard-4",
+						"cloud.google.com/gke-spot":        "true",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+				"us-central1,g2standard,ondemand,gpu": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "g2-standard-4",
+						"cloud.google.com/gke-gpu":         "true",
+						"cloud.google.com/gke-accelerator": "nvidia-l4",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+				"us-central1,g2standard,preemptible": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "g2-standard-4",
+						"cloud.google.com/gke-spot":        "true",
+						"topology.kubernetes.io/region":    "us-central1",
 					},
 				},
 			},
@@ -363,6 +570,182 @@ func TestParsePage(t *testing.T) {
 						UsageType:        "ondemand",
 					},
 				},
+				// The "Sole Tenancy Premium for C3D Instance Core" SKU must be
+				// excluded, so no additional keys are created from it.
+				"us-central1,c3dstandard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.035",
+						RAMCost:          "0.00475",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c3dstandard,ondemand,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.035",
+						RAMCost:          "0.00475",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c3dstandard,preemptible": {
+					Node: &models.Node{
+						VCPUCost:         "0.01",
+						RAMCost:          "0.00125",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
+				"us-central1,c3dstandard,preemptible,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.01",
+						RAMCost:          "0.00125",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
+				// The "Sole Tenancy Premium for C4A Instance Core" SKU must be
+				// excluded, so no additional keys are created from it.
+				"us-central1,c4astandard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.025",
+						RAMCost:          "0.004",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c4astandard,ondemand,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.025",
+						RAMCost:          "0.004",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c4astandard,preemptible": {
+					Node: &models.Node{
+						VCPUCost:         "0.008",
+						RAMCost:          "0.001",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
+				"us-central1,c4astandard,preemptible,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.008",
+						RAMCost:          "0.001",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
+				// C3 must resolve to keys distinct from C3D: matching "C3 INSTANCE"
+				// (the space between "C3" and "INSTANCE") excludes C3D SKUs, whose
+				// descriptions read "C3D Instance ...". The "Sole Tenancy Premium for
+				// C3 Instance Core" SKU is excluded and creates no keys.
+				"us-central1,c3standard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.034",
+						RAMCost:          "0.005",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c3standard,ondemand,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.034",
+						RAMCost:          "0.005",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c3standard,preemptible": {
+					Node: &models.Node{
+						VCPUCost:         "0.0125",
+						RAMCost:          "0.0015",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
+				"us-central1,c3standard,preemptible,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.0125",
+						RAMCost:          "0.0015",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
+				// The L4 GPU SKU is priced via the family-agnostic accelerator
+				// path and attaches to the g2 ",gpu" key, carrying the L4 name
+				// and cost alongside the G2 vCPU/RAM rates.
+				"us-central1,g2standard,ondemand,gpu": {
+					Name:        "services/6F81-5844-456A/skus/G200-GPU0-0001",
+					SKUID:       "G200-GPU0-0001",
+					Description: "Nvidia L4 GPU running in Americas",
+					Category: &GCPResourceInfo{
+						ServiceDisplayName: "Compute Engine",
+						ResourceFamily:     "Compute",
+						ResourceGroup:      "GPU",
+						UsageType:          "OnDemand",
+					},
+					ServiceRegions: []string{"us-central1"},
+					PricingInfo: []*PricingInfo{
+						{
+							Summary: "",
+							PricingExpression: &PricingExpression{
+								UsageUnit:                "h",
+								UsageUnitDescription:     "hour",
+								BaseUnit:                 "s",
+								BaseUnitConversionFactor: 0,
+								DisplayQuantity:          1,
+								TieredRates: []*TieredRates{
+									{
+										StartUsageAmount: 0,
+										UnitPrice: &UnitPriceInfo{
+											CurrencyCode: "USD",
+											Units:        "0",
+											Nanos:        750000000,
+										},
+									},
+								},
+							},
+							CurrencyConversionRate: 1,
+							EffectiveTime:          "2024-01-01T00:00:00.000Z",
+						},
+					},
+					ServiceProviderName: "Google",
+					Node: &models.Node{
+						VCPUCost:         "0.04",
+						RAMCost:          "0.006",
+						UsesBaseCPUPrice: false,
+						GPU:              "1",
+						GPUName:          "nvidia-l4",
+						GPUCost:          "0.75",
+					},
+				},
+				"us-central1,g2standard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.04",
+						RAMCost:          "0.006",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,g2standard,preemptible": {
+					Node: &models.Node{
+						VCPUCost:         "0.02",
+						RAMCost:          "0.002",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
+				"us-central1,g2standard,preemptible,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.02",
+						RAMCost:          "0.002",
+						UsesBaseCPUPrice: false,
+						UsageType:        "preemptible",
+					},
+				},
 			},
 			expectedToken: "APKCS1HVa0YpwgyTFbqbJ1eGwzKZmsPwLqzMZPTSNia5ck1Hc54Tx_Kz3oBxwSnRIdGVxXoSPdf-XlDpyNBf4QuxKcIEgtrQ1LDLWAgZowI0ns7HjrGta2s=",
 			expectError:   false,
@@ -394,6 +777,16 @@ func TestParsePage(t *testing.T) {
 				act, _ := json.Marshal(actualPrices)
 				exp, _ := json.Marshal(tc.expectedPrices)
 				t.Errorf("error parsing GCP prices: parsed \n%s\n expected \n%s\n", string(act), string(exp))
+			}
+
+			// The L4 accelerator price must land on the g2 ",gpu" key.
+			if g2gpu, ok := actualPrices["us-central1,g2standard,ondemand,gpu"]; ok {
+				if g2gpu.Node.GPUName != "nvidia-l4" {
+					t.Errorf("expected g2 gpu key GPUName nvidia-l4, got %q", g2gpu.Node.GPUName)
+				}
+				if g2gpu.Node.GPUCost != "0.75" {
+					t.Errorf("expected g2 gpu key GPUCost 0.75, got %q", g2gpu.Node.GPUCost)
+				}
 			}
 		})
 	}
@@ -973,6 +1366,22 @@ func TestGCP_CombinedDiscountForNode(t *testing.T) {
 			negotiatedDiscount: 0.20,
 			expectedDiscount:   0.20, // E2 has no sustained use discount
 		},
+		{
+			name:               "N4A instance has no sustained-use discount",
+			instanceType:       "n4a-highcpu-4",
+			isPreemptible:      false,
+			defaultDiscount:    0.30,
+			negotiatedDiscount: 0.20,
+			expectedDiscount:   0.20,
+		},
+		{
+			name:               "N4D instance has no sustained-use discount",
+			instanceType:       "n4d-standard-4",
+			isPreemptible:      false,
+			defaultDiscount:    0.30,
+			negotiatedDiscount: 0.20,
+			expectedDiscount:   0.20,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1037,6 +1446,36 @@ func TestSustainedUseDiscount(t *testing.T) {
 			isPreemptible:   false,
 			expected:        0.30,
 		},
+		{
+			name:            "C3D instance",
+			class:           "c3d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C4A instance",
+			class:           "c4a",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C3 instance",
+			class:           "c3",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "G2 instance",
+			class:           "g2",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{name: "N4A instance", class: "n4a", defaultDiscount: 0.30, expected: 0.0},
+		{name: "N4D instance", class: "n4d", defaultDiscount: 0.30, expected: 0.0},
 	}
 
 	for _, tt := range tests {
