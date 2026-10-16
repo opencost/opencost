@@ -313,6 +313,206 @@
             "serviceProviderName": "Google",
             "node": null,
             "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/C3D0-CPU0-0001",
+            "skuId": "C3D0-CPU0-0001",
+            "description": "C3D Instance Core running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "CPU",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "us-central1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "h",
+                        "usageUnitDescription": "hour",
+                        "baseUnit": "s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 35000000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "effectiveTime": "2024-01-01T00:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/C3D0-RAM0-0002",
+            "skuId": "C3D0-RAM0-0002",
+            "description": "C3D Instance Ram running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "RAM",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "us-central1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "GiBy.h",
+                        "usageUnitDescription": "gibibyte hour",
+                        "baseUnit": "By.s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 4750000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "effectiveTime": "2024-01-01T00:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/C3D0-CPU1-0003",
+            "skuId": "C3D0-CPU1-0003",
+            "description": "Spot Preemptible C3D Instance Core running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "CPU",
+                "usageType": "Preemptible"
+            },
+            "serviceRegions": [
+                "us-central1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "h",
+                        "usageUnitDescription": "hour",
+                        "baseUnit": "s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 10000000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "effectiveTime": "2024-01-01T00:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/C3D0-RAM1-0004",
+            "skuId": "C3D0-RAM1-0004",
+            "description": "Spot Preemptible C3D Instance Ram running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "RAM",
+                "usageType": "Preemptible"
+            },
+            "serviceRegions": [
+                "us-central1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "GiBy.h",
+                        "usageUnitDescription": "gibibyte hour",
+                        "baseUnit": "By.s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 1250000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "effectiveTime": "2024-01-01T00:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
+        },
+        {
+            "name": "services/6F81-5844-456A/skus/C3D0-SOLE-0005",
+            "skuId": "C3D0-SOLE-0005",
+            "description": "Sole Tenancy Premium for C3D Instance Core running in Americas",
+            "category": {
+                "serviceDisplayName": "Compute Engine",
+                "resourceFamily": "Compute",
+                "resourceGroup": "CPU",
+                "usageType": "OnDemand"
+            },
+            "serviceRegions": [
+                "us-central1"
+            ],
+            "pricingInfo": [
+                {
+                    "summary": "",
+                    "pricingExpression": {
+                        "usageUnit": "h",
+                        "usageUnitDescription": "hour",
+                        "baseUnit": "s",
+                        "displayQuantity": 1,
+                        "tieredRates": [
+                            {
+                                "startUsageAmount": 0,
+                                "unitPrice": {
+                                    "currencyCode": "USD",
+                                    "units": "0",
+                                    "nanos": 99000000
+                                }
+                            }
+                        ]
+                    },
+                    "currencyConversionRate": 1,
+                    "effectiveTime": "2024-01-01T00:00:00.000Z"
+                }
+            ],
+            "serviceProviderName": "Google",
+            "node": null,
+            "pv": null
         }
     ],
     "nextPageToken": "APKCS1HVa0YpwgyTFbqbJ1eGwzKZmsPwLqzMZPTSNia5ck1Hc54Tx_Kz3oBxwSnRIdGVxXoSPdf-XlDpyNBf4QuxKcIEgtrQ1LDLWAgZowI0ns7HjrGta2s="
