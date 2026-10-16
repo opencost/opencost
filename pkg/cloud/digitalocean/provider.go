@@ -803,7 +803,7 @@ func (do *DOKS) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	}, nil
 }
 
-func (do *DOKS) NetworkPricing() (*models.Network, error) {
+func (do *DOKS) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	// fallback
 	const (
 		defaultZoneEgress        = 0.00
@@ -843,6 +843,10 @@ func (do *DOKS) NetworkPricing() (*models.Network, error) {
 		NatGatewayEgressCost:      nge,
 		NatGatewayIngressCost:     ngi,
 	}, nil
+}
+
+func (do *DOKS) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
 }
 
 func parseWithDefault(val string, fallback float64, label string) float64 {
