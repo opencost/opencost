@@ -120,8 +120,7 @@ func (cmam *ContainerCpuAllocationMetric) Synthesize() metric.Update {
 			used = 0.0
 		}
 
-		// TODO: validate and merge labels if they both have keys?
-		labels := maps.Clone(cmam.usageMetric.Labels())
+		labels := mergeAllocationLabels(cmam.requestMetric.Labels, cmam.usageMetric.Labels())
 
 		return metric.Update{
 			Name:   metric.ContainerCPUAllocation,
