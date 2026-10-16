@@ -42,7 +42,7 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		},
 		{
 			input:    "custom-n1-standard-2",
-			expected: "custom",
+			expected: "n1custom",
 		},
 		{
 			input:    "n2d-highmem-8",
@@ -59,6 +59,110 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		{
 			input:    "n4-highmem-16",
 			expected: "n4standard",
+		},
+		{
+			input:    "c2-standard-8",
+			expected: "c2standard",
+		},
+		{
+			input:    "c3-standard-4",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3-highmem-8",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3-highcpu-16",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3d-standard-8",
+			expected: "c3dstandard",
+		},
+		{
+			input:    "c3d-highmem-16",
+			expected: "c3dstandard",
+		},
+		{
+			input:    "c3d-highcpu-32",
+			expected: "c3dstandard",
+		},
+		{
+			input:    "c4-standard-8",
+			expected: "c4standard",
+		},
+		{
+			input:    "c4-highmem-16",
+			expected: "c4standard",
+		},
+		{
+			input:    "c4a-standard-8",
+			expected: "c4astandard",
+		},
+		{
+			input:    "c4d-standard-16",
+			expected: "c4dstandard",
+		},
+		{
+			input:    "c4d-highmem-32",
+			expected: "c4dstandard",
+		},
+		{
+			input:    "c2d-standard-8",
+			expected: "c2dstandard",
+		},
+		{
+			input:    "c2d-highmem-16",
+			expected: "c2dstandard",
+		},
+		{
+			input:    "n4a-standard-4",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4a-highmem-8",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4d-standard-4",
+			expected: "n4dstandard",
+		},
+		{
+			input:    "n4d-highmem-8",
+			expected: "n4dstandard",
+		},
+		{
+			input:    "n2-custom-8-32768",
+			expected: "n2custom",
+		},
+		{
+			input:    "n2d-custom-8-16384",
+			expected: "n2dcustom",
+		},
+		{
+			input:    "e2-custom-4-8192",
+			expected: "e2custom",
+		},
+		{
+			input:    "n4-custom-8-32768",
+			expected: "n4custom",
+		},
+		{
+			input:    "n4a-custom-4-16384",
+			expected: "n4acustom",
+		},
+		{
+			input:    "n4d-custom-8-32768",
+			expected: "n4dcustom",
+		},
+		{
+			input:    "n1-custom-4-8192",
+			expected: "n1custom",
+		},
+		{
+			input:    "custom-4-8192",
+			expected: "n1custom",
 		},
 	}
 
@@ -190,6 +294,88 @@ func TestKeyFeatures(t *testing.T) {
 			},
 			exp: "asia-southeast1,t2dstandard,ondemand",
 		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "c3d-standard-8",
+					"topology.kubernetes.io/region":    "us-east1",
+				},
+			},
+			exp: "us-east1,c3dstandard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "c3-highmem-16",
+					"topology.kubernetes.io/region":    "us-central1",
+				},
+			},
+			exp: "us-central1,c3standard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "c4-standard-8",
+					"topology.kubernetes.io/region":    "europe-west1",
+					"cloud.google.com/gke-spot":        "true",
+				},
+			},
+			exp: "europe-west1,c4standard,preemptible",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n2-custom-8-32768",
+					"topology.kubernetes.io/region":    "us-central1",
+				},
+			},
+			exp: "us-central1,n2custom,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n2d-custom-8-16384",
+					"topology.kubernetes.io/region":    "us-west1",
+				},
+			},
+			exp: "us-west1,n2dcustom,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "c4d-standard-16",
+					"topology.kubernetes.io/region":    "us-east1",
+				},
+			},
+			exp: "us-east1,c4dstandard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "c2d-standard-8",
+					"topology.kubernetes.io/region":    "europe-west4",
+				},
+			},
+			exp: "europe-west4,c2dstandard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n4a-standard-4",
+					"topology.kubernetes.io/region":    "us-central1",
+				},
+			},
+			exp: "us-central1,n4astandard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n4d-highmem-8",
+					"topology.kubernetes.io/region":    "asia-east1",
+				},
+			},
+			exp: "asia-east1,n4dstandard,ondemand",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -255,6 +441,12 @@ func TestParsePage(t *testing.T) {
 					Labels: map[string]string{
 						"node.kubernetes.io/instance-type": "t2d-standard-1",
 						"topology.kubernetes.io/region":    "asia-southeast1",
+					},
+				},
+				"us-central1,c3dstandard,ondemand": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c3d-standard-8",
+						"topology.kubernetes.io/region":    "us-central1",
 					},
 				},
 			},
@@ -359,6 +551,22 @@ func TestParsePage(t *testing.T) {
 					Node: &models.Node{
 						VCPUCost:         "508.934997455",
 						RAMCost:          "68.204999658",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c3dstandard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.02944",
+						RAMCost:          "0.003945000000000001",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c3dstandard,ondemand,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.02944",
+						RAMCost:          "0.003945000000000001",
 						UsesBaseCPUPrice: false,
 						UsageType:        "ondemand",
 					},
@@ -1037,6 +1245,83 @@ func TestSustainedUseDiscount(t *testing.T) {
 			isPreemptible:   false,
 			expected:        0.30,
 		},
+		{
+			name:            "C2 instance",
+			class:           "c2",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.2,
+		},
+		{
+			name:            "C3 instance",
+			class:           "c3",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C3D instance",
+			class:           "c3d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C4 instance",
+			class:           "c4",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C4A instance",
+			class:           "c4a",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "T2D instance",
+			class:           "t2d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "A2 instance",
+			class:           "a2",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C4D instance",
+			class:           "c4d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "C2D instance",
+			class:           "c2d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "N4A instance",
+			class:           "n4a",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "N4D instance",
+			class:           "n4d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1368,4 +1653,180 @@ func (m *mockConfig) Update(updateFn func(*models.CustomPricing) error) (*models
 
 func (m *mockConfig) ConfigFileManager() *config.ConfigFileManager {
 	return nil
+}
+
+type mockClusterCache struct {
+	nodes []*clustercache.Node
+	pvs   []*clustercache.PersistentVolume
+	scs   []*clustercache.StorageClass
+}
+
+func (m *mockClusterCache) GetAllNodes() []*clustercache.Node {
+	return m.nodes
+}
+
+func (m *mockClusterCache) GetAllDaemonSets() []*clustercache.DaemonSet {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllDeployments() []*clustercache.Deployment {
+	return nil
+}
+
+func (m *mockClusterCache) Run()                                                      {}
+func (m *mockClusterCache) Stop()                                                     {}
+func (m *mockClusterCache) GetAllNamespaces() []*clustercache.Namespace               { return nil }
+func (m *mockClusterCache) GetAllPods() []*clustercache.Pod                           { return nil }
+func (m *mockClusterCache) GetAllServices() []*clustercache.Service                   { return nil }
+func (m *mockClusterCache) GetAllStatefulSets() []*clustercache.StatefulSet           { return nil }
+func (m *mockClusterCache) GetAllReplicaSets() []*clustercache.ReplicaSet             { return nil }
+func (m *mockClusterCache) GetAllPersistentVolumes() []*clustercache.PersistentVolume { return m.pvs }
+func (m *mockClusterCache) GetAllPersistentVolumeClaims() []*clustercache.PersistentVolumeClaim {
+	return nil
+}
+func (m *mockClusterCache) GetAllStorageClasses() []*clustercache.StorageClass { return m.scs }
+func (m *mockClusterCache) GetAllJobs() []*clustercache.Job                    { return nil }
+func (m *mockClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
+	return nil
+}
+func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
+	return nil
+}
+
+func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
+	return nil
+}
+
+type mockMetadataClient struct{}
+
+func (m *mockMetadataClient) InstanceAttributeValue(attr string) (string, error) {
+	if attr == "cluster-name" {
+		return "test-cluster", nil
+	}
+	return "", fmt.Errorf("attribute not found")
+}
+
+func (m *mockMetadataClient) ProjectID() (string, error) {
+	return "test-project", nil
+}
+
+func TestParsePage_SkipsNonBaseSKUVariants(t *testing.T) {
+	// Region set kept small so we can assert exact keys.
+	skuJSON := `{
+      "skus": [
+        {
+          "name": "services/6F81-5844-456A/skus/BASE-SPOT-RAM",
+          "skuId": "BASE-SPOT-RAM",
+          "description": "Spot Preemptible N2D AMD Custom Instance Ram running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"Preemptible"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":1000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/EXT-SPOT-RAM",
+          "skuId": "EXT-SPOT-RAM",
+          "description": "Spot Preemptible N2D AMD Custom Extended Instance Ram running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"Preemptible"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":5000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/PREMIUM-CUD-RAM",
+          "skuId": "PREMIUM-CUD-RAM",
+          "description": "Committed Use Discount Premium for N2D AMD Custom Instance Ram running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"OnDemand"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":8000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/BASE-OD-RAM",
+          "skuId": "BASE-OD-RAM",
+          "description": "N2D AMD Custom Instance Ram running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"OnDemand"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":3000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/BASE-SPOT-CPU",
+          "skuId": "BASE-SPOT-CPU",
+          "description": "Spot Preemptible N2D AMD Custom Instance Core running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"CPU","usageType":"Preemptible"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":6000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/SOLE-TENANT-RAM",
+          "skuId": "SOLE-TENANT-RAM",
+          "description": "N2D AMD Sole Tenancy Instance Ram running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"OnDemand"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":9000000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/RESERVED-RAM",
+          "skuId": "RESERVED-RAM",
+          "description": "Reserved N2D AMD Custom Ram in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"RAM","usageType":"OnDemand"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":7500000}}]}}]
+        },
+        {
+          "name": "services/6F81-5844-456A/skus/DWS-CPU",
+          "skuId": "DWS-CPU",
+          "description": "DWS Defined Duration N2D AMD Custom Core running in Americas",
+          "category": {"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"CPU","usageType":"OnDemand"},
+          "serviceRegions": ["us-west1"],
+          "pricingInfo": [{"pricingExpression": {"tieredRates": [{"unitPrice": {"currencyCode":"USD","units":"0","nanos":12000000}}]}}]
+        }
+      ]
+    }`
+
+	inputKeys := map[string]models.Key{
+		"us-west1,n2dcustom,preemptible": &gcpKey{
+			Labels: map[string]string{
+				"node.kubernetes.io/instance-type": "n2d-custom-16-16384",
+				"topology.kubernetes.io/region":    "us-west1",
+				"cloud.google.com/gke-spot":        "true",
+			},
+		},
+		"us-west1,n2dcustom,ondemand": &gcpKey{
+			Labels: map[string]string{
+				"node.kubernetes.io/instance-type": "n2d-custom-16-16384",
+				"topology.kubernetes.io/region":    "us-west1",
+			},
+		},
+	}
+
+	testGcp := &GCP{}
+	prices, _, err := testGcp.parsePage(bytes.NewReader([]byte(skuJSON)), inputKeys, map[string]models.PVKey{})
+	if err != nil {
+		t.Fatalf("parsePage returned error: %v", err)
+	}
+
+	// Base spot RAM must win (not overwritten by Extended)
+	spotKey := "us-west1,n2dcustom,preemptible"
+	spotPricing, ok := prices[spotKey]
+	if !ok {
+		t.Fatalf("expected key %q in prices, got: %v", spotKey, prices)
+	}
+	assert.Equal(t, "0.001", spotPricing.Node.RAMCost, "spot RAM must reflect base SKU, not Extended")
+	assert.Equal(t, "0.006", spotPricing.Node.VCPUCost, "spot CPU must reflect base SKU")
+
+	// Base on-demand RAM must win (not overwritten by CUD Premium)
+	odKey := "us-west1,n2dcustom,ondemand"
+	odPricing, ok := prices[odKey]
+	if !ok {
+		t.Fatalf("expected key %q in prices, got: %v", odKey, prices)
+	}
+	assert.Equal(t, "0.003", odPricing.Node.RAMCost, "on-demand RAM must reflect base SKU, not CUD Premium")
+
+	// The Extended SKU is kept on its own key so NodePricing can price the
+	// memory an extended-memory custom shape carries above the family cap.
+	extKey := "us-west1,n2dcustom,preemptible,extended"
+	extPricing, ok := prices[extKey]
+	if !ok {
+		t.Fatalf("expected key %q in prices, got: %v", extKey, prices)
+	}
+	assert.Equal(t, "0.005", extPricing.Node.RAMCost, "extended RAM price must be stored under the ,extended key")
+	assert.Equal(t, "", extPricing.Node.VCPUCost)
 }
