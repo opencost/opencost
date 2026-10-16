@@ -168,11 +168,27 @@ Admin-protected endpoints:
 |----------|-------------|
 | `AWS_ACCESS_KEY_ID` | AWS authentication |
 | `AWS_SECRET_ACCESS_KEY` | AWS authentication |
+| `AWS_PRICING_CACHE_ENABLED` | Cache the AWS offer file on disk and revalidate it with a conditional request. Default `false` |
+| `AWS_PRICING_CACHE_DIR` | Directory for the cached offer file. Default: a private `0700` directory under `os.TempDir()` |
 | `AZURE_OFFER_ID` | Azure pricing offer ID |
 | `AZURE_BILLING_ACCOUNT` | Azure billing account |
 | `CLOUD_PROVIDER` | Force cloud provider (aws, azure, gcp, etc.) |
 | `USE_CSV_PROVIDER` | Enable CSV-based custom pricing |
 | `CSV_PATH` | Path to CSV pricing file |
+
+#### AWS pricing offer file cache
+
+`DownloadPricingData` re-fetches the region's offer file on every refresh. With
+`AWS_PRICING_CACHE_ENABLED=true` the file is stored and revalidated with `If-None-Match`,
+so an unchanged file costs one conditional request instead of a few hundred MB.
+
+It is off by default because it needs local storage roughly the size of the offer file
+(~436 MB for a single region), which counts against the pod's `ephemeral-storage`. Set
+`AWS_PRICING_CACHE_DIR` to a volume if the writable layer is not the right place for it.
+
+The all-region offer file — requested when nodes span regions, when a node is missing its
+region label, or at startup before the cluster cache is populated — is around 9 GB and is
+never cached regardless of this setting.
 
 ### Prometheus Settings
 
