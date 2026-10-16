@@ -608,6 +608,48 @@ func TestCalculateStartAndEnd(t *testing.T) {
 				},
 			},
 		},
+		"single sample before window start": {
+			resolution:    time.Minute,
+			expectedStart: windowStart,
+			expectedEnd:   windowStart,
+			result: &source.QueryResult{
+				Values: []*util.Vector{
+					{
+						Timestamp: startFloat - (minute * 5),
+					},
+				},
+			},
+		},
+		"multiple samples before window start": {
+			resolution:    time.Minute,
+			expectedStart: windowStart,
+			expectedEnd:   windowStart,
+			result: &source.QueryResult{
+				Values: []*util.Vector{
+					{
+						Timestamp: startFloat - (minute * 5),
+					},
+					{
+						Timestamp: startFloat - (minute * 4),
+					},
+				},
+			},
+		},
+		"samples after window end": {
+			resolution:    time.Minute,
+			expectedStart: windowEnd,
+			expectedEnd:   windowEnd,
+			result: &source.QueryResult{
+				Values: []*util.Vector{
+					{
+						Timestamp: endFloat + (minute * 2),
+					},
+					{
+						Timestamp: endFloat + (minute * 3),
+					},
+				},
+			},
+		},
 	}
 
 	for name, testCase := range testCases {

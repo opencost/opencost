@@ -2555,6 +2555,12 @@ func calculateStartAndEnd(result []*util.Vector, resolution time.Duration, windo
 	if e.After(now) {
 		e = now
 	}
+	if s.After(*window.End()) {
+		s = *window.End()
+	}
+	if e.Before(s) {
+		e = s
+	}
 
 	return s, e
 }
