@@ -4070,3 +4070,125 @@ func TestGPUAllocation_Equal(t *testing.T) {
 		}
 	})
 }
+
+// TestAllocation_GPUEfficiency covers the nil and zero guards and the
+// single-GPU ratio. Two cases are left out on purpose until their intended
+// result is agreed: a request with zero usage and a non-zero GPU cost, and
+// containers with more than one GPU, where the unit of GPUUsageAverage
+// depends on the data source. See #4118.
+func TestAllocation_GPUEfficiency(t *testing.T) {
+	f := func(v float64) *float64 { return &v }
+	gpu := func(request, usage *float64) *GPUAllocation {
+		return &GPUAllocation{GPURequestAverage: request, GPUUsageAverage: usage}
+	}
+
+	cases := map[string]struct {
+		alloc *Allocation
+		want  float64
+	}{
+		"nil allocation":           {alloc: nil, want: 0},
+		"nil GPUAllocation":        {alloc: &Allocation{GPUCost: 10}, want: 0},
+		"nil request":              {alloc: &Allocation{GPUCost: 10, GPUAllocation: gpu(nil, f(0.5))}, want: 0},
+		"nil usage":                {alloc: &Allocation{GPUCost: 10, GPUAllocation: gpu(f(1), nil)}, want: 0},
+		"partial usage":            {alloc: &Allocation{GPUCost: 10, GPUAllocation: gpu(f(1), f(0.25))}, want: 0.25},
+		"full usage":               {alloc: &Allocation{GPUCost: 10, GPUAllocation: gpu(f(1), f(1))}, want: 1},
+		"fractional request":       {alloc: &Allocation{GPUCost: 10, GPUAllocation: gpu(f(0.5), f(0.25))}, want: 0.5},
+		"zero request and no cost": {alloc: &Allocation{GPUAllocation: gpu(f(0), f(0.5))}, want: 0},
+		"zero usage and no cost":   {alloc: &Allocation{GPUAllocation: gpu(f(1), f(0))}, want: 0},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := tc.alloc.GPUEfficiency(); !util.IsApproximately(got, tc.want) {
+				t.Errorf("GPUEfficiency() = %f, want %f", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestAllocation_Add_MultiGPU checks that Add sums GPUHours and GPUCost and
+// combines GPU request and usage averages weighted by minutes, for two
+// allocations with different GPU counts over overlapping windows. It does not
+// assert GPUEfficiency, for the reason given on TestAllocation_GPUEfficiency.
+func TestAllocation_Add_MultiGPU(t *testing.T) {
+	s1 := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
+	e1 := time.Date(2021, time.January, 1, 12, 0, 0, 0, time.UTC)
+	s2 := time.Date(2021, time.January, 1, 6, 0, 0, 0, time.UTC)
+	e2 := time.Date(2021, time.January, 2, 0, 0, 0, 0, time.UTC)
+
+	fourGPURequest, fourGPUUsage := 4.0, 0.5
+	fourGPUs := &Allocation{
+		Start:      s1,
+		End:        e1,
+		Window:     NewWindow(&s1, &e1),
+		Properties: &AllocationProperties{},
+		GPUHours:   48,
+		GPUCost:    96,
+		GPUAllocation: &GPUAllocation{
+			GPURequestAverage: &fourGPURequest,
+			GPUUsageAverage:   &fourGPUUsage,
+		},
+	}
+	oneGPURequest, oneGPUUsage := 1.0, 0.25
+	oneGPU := &Allocation{
+		Start:      s2,
+		End:        e2,
+		Window:     NewWindow(&s2, &e2),
+		Properties: &AllocationProperties{},
+		GPUHours:   18,
+		GPUCost:    36,
+		GPUAllocation: &GPUAllocation{
+			GPURequestAverage: &oneGPURequest,
+			GPUUsageAverage:   &oneGPUUsage,
+		},
+	}
+
+	act, err := fourGPUs.Add(oneGPU)
+	if err != nil {
+		t.Fatalf("Allocation.Add: unexpected error: %s", err)
+	}
+
+	// The operands last 720 and 1080 minutes; the combined allocation spans
+	// 24 hours (1440 minutes).
+	// Request: (4 * 720 + 1 * 1080) / 1440 = 2.75
+	// Usage:   (0.5 * 720 + 0.25 * 1080) / 1440 = 0.4375
+	if !util.IsApproximately(act.Minutes(), 1440) {
+		t.Errorf("expected 1440 minutes, got %f", act.Minutes())
+	}
+	if !util.IsApproximately(act.GPUHours, 66) {
+		t.Errorf("expected GPUHours 66, got %f", act.GPUHours)
+	}
+	if !util.IsApproximately(act.GPUCost, 132) {
+		t.Errorf("expected GPUCost 132, got %f", act.GPUCost)
+	}
+	if act.GPUAllocation == nil {
+		t.Fatalf("expected non-nil GPUAllocation")
+	}
+	if act.GPUAllocation.GPURequestAverage == nil || !util.IsApproximately(*act.GPUAllocation.GPURequestAverage, 2.75) {
+		t.Errorf("expected GPURequestAverage 2.75, got %v", act.GPUAllocation.GPURequestAverage)
+	}
+	if act.GPUAllocation.GPUUsageAverage == nil || !util.IsApproximately(*act.GPUAllocation.GPUUsageAverage, 0.4375) {
+		t.Errorf("expected GPUUsageAverage 0.4375, got %v", act.GPUAllocation.GPUUsageAverage)
+	}
+	// The request average and GPUHours describe the same number of GPUs.
+	if !util.IsApproximately(act.GPUs(), *act.GPUAllocation.GPURequestAverage) {
+		t.Errorf("expected GPUs() %f to equal GPURequestAverage %f", act.GPUs(), *act.GPUAllocation.GPURequestAverage)
+	}
+
+	// Add must not change its operands, neither by writing through their
+	// GPUAllocation pointers nor by replacing them.
+	checkOperand := func(name string, op *Allocation, wantRequest, wantUsage, wantHours float64) {
+		t.Helper()
+		g := op.GPUAllocation
+		if g == nil || g.GPURequestAverage == nil || g.GPUUsageAverage == nil {
+			t.Errorf("Allocation.Add cleared %s's GPU averages: %+v", name, g)
+		} else if *g.GPURequestAverage != wantRequest || *g.GPUUsageAverage != wantUsage {
+			t.Errorf("Allocation.Add changed %s's GPU averages: request %f, usage %f; want %f, %f", name, *g.GPURequestAverage, *g.GPUUsageAverage, wantRequest, wantUsage)
+		}
+		if op.GPUHours != wantHours {
+			t.Errorf("Allocation.Add changed %s's GPUHours: %f; want %f", name, op.GPUHours, wantHours)
+		}
+	}
+	checkOperand("fourGPUs", fourGPUs, 4, 0.5, 48)
+	checkOperand("oneGPU", oneGPU, 1, 0.25, 18)
+}
