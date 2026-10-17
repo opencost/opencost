@@ -2,12 +2,18 @@ package oracle
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -172,4 +178,70 @@ func testNode(gpus int) *clustercache.Node {
 			Capacity: capacity,
 		},
 	}
+}
+
+func TestNodePricing_PreemptibleIsHalfPrice(t *testing.T) {
+	rcs, server := testSetupRateCardStore(t)
+	defer server.Close()
+	o := &Oracle{RateCardStore: rcs, nextRefresh: time.Now().Add(time.Hour)}
+
+	labels := map[string]string{
+		v1.LabelInstanceTypeStable: "VM.Standard.E5.Flex",
+		"kubernetes.io/arch":       "amd64",
+	}
+	onDemand, _, err := o.NodePricing(o.GetKey(labels, testNode(0)))
+	require.NoError(t, err)
+
+	// "Preemptible capacity costs 50% less than on-demand capacity in all regions":
+	// https://docs.oracle.com/en-us/iaas/Content/Compute/Concepts/preemptible.htm
+	labels[preemptibleLabel] = "true"
+	preemptible, _, err := o.NodePricing(o.GetKey(labels, testNode(0)))
+	require.NoError(t, err)
+
+	assert.Equal(t, "preemptible", preemptible.UsageType)
+	assert.InDelta(t, mustParseFloat(t, onDemand.Cost)/2, mustParseFloat(t, preemptible.Cost), 0.000001)
+	assert.InDelta(t, mustParseFloat(t, onDemand.VCPUCost)/2, mustParseFloat(t, preemptible.VCPUCost), 0.000001)
+	assert.InDelta(t, mustParseFloat(t, onDemand.RAMCost)/2, mustParseFloat(t, preemptible.RAMCost), 0.000001)
+}
+
+func TestEnsurePricingData_RefreshesStalePrices(t *testing.T) {
+	pricesUSDBytes, err := os.ReadFile("test/prices_usd.json")
+	require.NoError(t, err)
+	var hits atomic.Int32
+	var fail atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if fail.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(pricesUSDBytes)
+	}))
+	defer server.Close()
+
+	o := &Oracle{RateCardStore: NewRateCardStore(server.URL, currencyCodeUSD)}
+	_, err = o.RateCardStore.Refresh()
+	require.NoError(t, err)
+	hits.Store(0)
+
+	// Fresh: no download.
+	o.nextRefresh = time.Now().Add(time.Hour)
+	require.NoError(t, o.ensurePricingData())
+	assert.Equal(t, int32(0), hits.Load())
+
+	// Stale: downloaded again.
+	o.nextRefresh = time.Now().Add(-time.Second)
+	require.NoError(t, o.ensurePricingData())
+	assert.Equal(t, int32(1), hits.Load())
+	assert.True(t, o.nextRefresh.After(time.Now()))
+
+	// Stale and the price list unavailable: the prices already held are kept, and the next
+	// attempt is not on the very next call.
+	fail.Store(true)
+	o.nextRefresh = time.Now().Add(-time.Second)
+	require.NoError(t, o.ensurePricingData())
+	assert.Equal(t, int32(2), hits.Load())
+	assert.NotEmpty(t, o.RateCardStore.Store())
+	assert.True(t, o.nextRefresh.After(time.Now()))
 }

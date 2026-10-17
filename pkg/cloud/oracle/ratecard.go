@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/cloud/models"
 )
@@ -121,9 +122,28 @@ func (rcs *RateCardStore) ForPVK(pvk models.PVKey, defaultPricing DefaultPricing
 			Cost: defaultPricing.Storage,
 		}, nil
 	}
+	monthly := rc.UnitPrice // Oracle unit pricing for storage is in Gb/Month
+	if features == blockVolumePartNumber {
+		// A block volume is billed for its performance units as well as its capacity.
+		monthly += vpusPerGB(pvk) * rcs.prices[blockVolumePerformancePartNumber].UnitPrice
+	}
 	return &models.PV{
-		Cost: fmt.Sprintf("%f", rc.UnitPrice/hoursPerMonth), // Oracle unit pricing for storage is in Gb/Month
+		// Full precision: a GB-hour price is a few hundred-thousandths, and six decimals would
+		// round it by up to 1.5 %.
+		Cost: strconv.FormatFloat(monthly/hoursPerMonth, 'f', -1, 64),
 	}, nil
+}
+
+// vpusPerGB is the volume performance units per GB the PV's storage class sets.
+func vpusPerGB(pvk models.PVKey) float64 {
+	if k, ok := pvk.(*oraclePVKey); ok {
+		if v, ok := k.parameters["vpusPerGB"]; ok {
+			if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 {
+				return f
+			}
+		}
+	}
+	return defaultVPUsPerGB
 }
 
 // ForKey retrieves costing metadata for a key.
@@ -147,14 +167,14 @@ func (rcs *RateCardStore) ForKey(key models.Key, defaultPricing DefaultPricing) 
 		if err != nil {
 			return nil, models.PricingMetadata{}, fmt.Errorf("failed to parse default Oracle pricing: %w", err)
 		}
+		log.DedupedWarningf(5, "No OCI rate card for shape %q, using default pricing", shape)
 		vcpuCost := defaultPricing.OCPU
-		if !isARMArch(features) {
-			// Non-ARM architectures have 2 VCPU per OCPU
+		if perOCPU := vcpusPerOCPU(shape, features); perOCPU != 1 {
 			vcpuFloat, err := strconv.ParseFloat(vcpuCost, 64)
 			if err != nil {
 				return nil, models.PricingMetadata{}, err
 			}
-			vcpuFloat /= 2
+			vcpuFloat /= perOCPU
 			vcpuCost = fmt.Sprintf("%f", vcpuFloat)
 		}
 		node = &models.Node{
@@ -165,10 +185,7 @@ func (rcs *RateCardStore) ForKey(key models.Key, defaultPricing DefaultPricing) 
 		}
 	} else {
 		ocpuPrice := rcs.prices[product.OCPU].UnitPrice * cpuPriceMultiplier
-		if !isARMArch(features) {
-			// Non-ARM architectures have 2 VCPU per OCPU
-			ocpuPrice /= 2
-		}
+		ocpuPrice /= vcpusPerOCPU(shape, features)
 		memoryPrice := rcs.prices[product.Memory].UnitPrice
 		gpuPrice := rcs.prices[product.GPU].UnitPrice
 		diskPrice := rcs.prices[product.Disk].UnitPrice
@@ -276,6 +293,16 @@ func (i Item) toRateCard() Price {
 
 func (p Product) isEmpty() bool {
 	return p.GPU == "" && p.OCPU == "" && p.Memory == "" && p.Disk == ""
+}
+
+// vcpusPerOCPU is how many Kubernetes CPUs one OCPU of the shape provides: two on x86 (one core,
+// two threads) and on AmpereOne A2 and A4 (two cores), one on Ampere Altra A1 (one core).
+// https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm
+func vcpusPerOCPU(shape string, features []string) float64 {
+	if isARMArch(features) && strings.Contains(shape, ".A1.") {
+		return 1
+	}
+	return 2
 }
 
 func isARMArch(features []string) bool {
