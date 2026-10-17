@@ -127,11 +127,12 @@ func TestRCSForPVK(t *testing.T) {
 	var testCases = map[string]struct {
 		cost string
 	}{
+		// Balanced, the default of both drivers: (0.0255 + 10 * 0.0017) / 744.
 		driverOCIBV: {
-			"0.000034",
+			"0.000057",
 		},
 		driverOCI: {
-			"0.000034",
+			"0.000057",
 		},
 		"unknown": {
 			"0.25",
@@ -148,6 +149,60 @@ func TestRCSForPVK(t *testing.T) {
 			})
 			require.NoError(t, err)
 			assertFloatStrings(t, testCase.cost, pv.Cost, 0.00001)
+		})
+	}
+}
+
+func TestRCSForKey_VCPUsPerOCPU(t *testing.T) {
+	rcs, server := testSetupRateCardStore(t)
+	defer server.Close()
+
+	// One OCPU is two vCPUs on x86 and on AmpereOne (A2, A4), and one on Ampere Altra (A1):
+	// https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm
+	testCases := map[string]struct {
+		arch     string
+		vcpuCost float64
+		ramCost  float64
+	}{
+		"VM.Standard.E5.Flex": {"amd64", 0.03 / 2, 0.002},
+		"VM.Standard.A1.Flex": {"arm64", 0.01, 0.0015},
+		"VM.Standard.A4.Flex": {"arm64", 0.0138 / 2, 0.0027},
+	}
+
+	for instanceType, testCase := range testCases {
+		t.Run(instanceType, func(t *testing.T) {
+			key := &oracleKey{
+				instanceType: instanceType,
+				labels:       map[string]string{"kubernetes.io/arch": testCase.arch},
+			}
+			node, _, err := rcs.ForKey(key, DefaultPricing{OCPU: "0.2", Memory: "0.1", GPU: "0.3"})
+			require.NoError(t, err)
+			assert.InDelta(t, testCase.vcpuCost, mustParseFloat(t, node.VCPUCost), 0.000001)
+			assert.InDelta(t, testCase.ramCost, mustParseFloat(t, node.RAMCost), 0.000001)
+		})
+	}
+}
+
+func TestRCSForPVK_PerformanceUnits(t *testing.T) {
+	rcs, server := testSetupRateCardStore(t)
+	defer server.Close()
+
+	testCases := map[string]struct {
+		parameters map[string]string
+		cost       float64
+	}{
+		"default is balanced":   {nil, (0.0255 + 10*0.0017) / 744},
+		"lower cost":            {map[string]string{"vpusPerGB": "0"}, 0.0255 / 744},
+		"higher performance":    {map[string]string{"vpusPerGB": "20"}, (0.0255 + 20*0.0017) / 744},
+		"unparsable is default": {map[string]string{"vpusPerGB": "fast"}, (0.0255 + 10*0.0017) / 744},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			pvk := &oraclePVKey{driver: driverOCIBV, parameters: testCase.parameters}
+			pv, err := rcs.ForPVK(pvk, DefaultPricing{Storage: "0.25"})
+			require.NoError(t, err)
+			assert.InDelta(t, testCase.cost, mustParseFloat(t, pv.Cost), 0.0000001)
 		})
 	}
 }
