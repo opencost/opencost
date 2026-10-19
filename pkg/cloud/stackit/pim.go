@@ -44,7 +44,6 @@ type pimSearchRequest struct {
 	GeneralProductGroup string `json:"generalProductGroup,omitempty"`
 	CategoryName        string `json:"categoryName,omitempty"`
 	ProductName         string `json:"productName,omitempty"`
-	Metro               *bool  `json:"metro,omitempty"`
 }
 
 // pimSKU represents the relevant fields of a PublicSKU from the PIM API.
@@ -271,14 +270,13 @@ func gpuTypeFromFlavor(flavor string) string {
 
 // downloadPIMPricing fetches all VM, GPU, and storage pricing from the PIM API.
 // Returns the flavor map, storage map, and any error.
+// Requests omit the "metro" filter because the PIM API returns 5xx for
+// "metro": false on compute SKUs. The parsers skip metro SKUs instead.
 func downloadPIMPricing() (map[string]*pimFlavorPricing, map[string]*pimStoragePricing, error) {
-	metro := false
-
-	// 1. Fetch non-metro VM SKUs
+	// 1. Fetch VM SKUs
 	log.Infof("STACKIT: fetching VM pricing from PIM API...")
 	vmSKUs, err := fetchAllPIMSKUs(pimSearchRequest{
 		GeneralProductGroup: "Virtual Machines",
-		Metro:               &metro,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("fetching VM SKUs: %w", err)
@@ -291,7 +289,6 @@ func downloadPIMPricing() (map[string]*pimFlavorPricing, map[string]*pimStorageP
 	log.Infof("STACKIT: fetching GPU pricing from PIM API...")
 	gpuSKUs, err := fetchAllPIMSKUs(pimSearchRequest{
 		CategoryName: "Compute Engine GPU",
-		Metro:        &metro,
 	})
 	if err != nil {
 		log.Warnf("STACKIT: failed to fetch GPU pricing from PIM API: %v", err)
@@ -307,7 +304,6 @@ func downloadPIMPricing() (map[string]*pimFlavorPricing, map[string]*pimStorageP
 	log.Infof("STACKIT: fetching Storage pricing from PIM API...")
 	storageSKUs, err := fetchAllPIMSKUs(pimSearchRequest{
 		CategoryName: "Storage",
-		Metro:        &metro,
 	})
 	var storagePricing map[string]*pimStoragePricing
 	if err != nil {
