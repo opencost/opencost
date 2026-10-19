@@ -987,7 +987,7 @@ func (gcp *GCP) getBillingAPIClientAndURL(apiKey, currencyCode string) (*http.Cl
 
 	googleHttpClient, err := google.DefaultClient(context.TODO(), GCPCloudOAuthScope)
 	if err != nil {
-		log.Errorf("GCP Billing API: Workload Identity detected but failed to create authenticated client: %v", err)
+		log.Errorf("GCP Billing API: could not load Google default credentials (no API key, credentials file or metadata server): %v", err)
 		return nil, "", err
 	}
 	// google.DefaultClient has no timeout by default; bound it to match the keyed path.
@@ -1003,11 +1003,14 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 	}
 
 	httpClient, url, err := gcp.getBillingAPIClientAndURL(gcp.APIKey, c.CurrencyCode)
-	if err != nil {
-		return nil, err
+	var pages map[string]*GCPPricing
+	if err == nil {
+		pages, err = gcp.parsePagesWithClient(httpClient, url, inputKeys, pvKeys)
 	}
-
-	return gcp.parsePagesWithClient(httpClient, url, inputKeys, pvKeys)
+	if gcp.APIKey == "" {
+		return reportDefaultCredentials(pages, err, gcp.defaultCredentialsDescription)
+	}
+	return pages, err
 }
 
 // parsePagesWithClient pages through the billing API at url using httpClient,
