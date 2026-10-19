@@ -1,6 +1,7 @@
 package gcp
 
 import (
+	"bytes"
 	"strconv"
 	"testing"
 
@@ -134,4 +135,76 @@ func TestWithExtendedMemory(t *testing.T) {
 		key := keyFor("n2d-custom-16-22528", nodeWithMemory("22528Mi"))
 		assert.Same(t, baseNode, g.withExtendedMemory(key, baseNode))
 	})
+}
+
+func regionKey(region, it string) *gcpKey {
+	return &gcpKey{Labels: map[string]string{
+		"node.kubernetes.io/instance-type": it,
+		"topology.kubernetes.io/region":    region,
+	}}
+}
+
+func spotKey(region, it string) *gcpKey {
+	k := regionKey(region, it)
+	k.Labels["cloud.google.com/gke-spot"] = "true"
+	return k
+}
+
+// C4D RAM is priced per decimal GB (GBy.h) while most families are priced per
+// GiB (GiBy.h); both must come out as a per-GiB rate.
+func TestParsePage_DecimalGBRamSKU(t *testing.T) {
+	// factor == 0 omits baseUnit/baseUnitConversionFactor, exercising the
+	// usageUnit-string fallback; otherwise the byte-second factor decides.
+	sku := func(id, desc, group, usage, unit string, factor int64, nanos int) string {
+		conv := ""
+		if factor > 0 {
+			conv = `"baseUnit":"By.s","baseUnitConversionFactor":` + strconv.FormatInt(factor, 10) + `,`
+		}
+		return `{"name":"services/x/skus/` + id + `","skuId":"` + id + `","description":"` + desc + `",
+		 "category":{"serviceDisplayName":"Compute Engine","resourceFamily":"Compute","resourceGroup":"` + group + `","usageType":"` + usage + `"},
+		 "serviceRegions":["us-east1"],
+		 "pricingInfo":[{"pricingExpression":{` + conv + `"usageUnit":"` + unit + `","tieredRates":[{"unitPrice":{"currencyCode":"USD","units":"0","nanos":` + strconv.Itoa(nanos) + `}}]}}]}`
+	}
+	page := `{"skus":[` +
+		sku("C4D-CORE-OD", "C4D Instance Core running in Americas", "CPU", "OnDemand", "h", 0, 32704000) + "," +
+		sku("C4D-RAM-OD", "C4D Instance Ram running in Americas", "RAM", "OnDemand", "GBy.h", 3600000000000, 3496000) + "," + // factor path
+		sku("C4D-CORE-SP", "Spot Preemptible C4D Instance Core running in Americas", "CPU", "Preemptible", "h", 0, 13860000) + "," +
+		sku("C4D-RAM-SP", "Spot Preemptible C4D Instance Ram running in Americas", "RAM", "Preemptible", "GBy.h", 0, 1484000) + "," + // string fallback
+		sku("N2D-CORE-SP", "Spot Preemptible N2D AMD Instance Core running in Americas", "CPU", "Preemptible", "h", 0, 14010000) + "," +
+		sku("N2D-RAM-SP", "Spot Preemptible N2D AMD Instance Ram running in Americas", "RAM", "Preemptible", "GiBy.h", 3865470566400, 1876000) + // binary, must be identity
+		`],"nextPageToken":""}`
+
+	inputKeys := map[string]models.Key{}
+	for _, it := range []string{"c4d-highcpu-16", "n2d-highcpu-16"} {
+		od := regionKey("us-east1", it)
+		sp := spotKey("us-east1", it)
+		inputKeys[od.Features()] = od
+		inputKeys[sp.Features()] = sp
+	}
+	g := &GCP{}
+	prices, _, err := g.parsePage(bytes.NewReader([]byte(page)), inputKeys, nil)
+	require.NoError(t, err)
+
+	rate := func(key, field string) float64 {
+		p, ok := prices[key]
+		require.True(t, ok, "missing key %s", key)
+		s := p.Node.RAMCost
+		if field == "cpu" {
+			s = p.Node.VCPUCost
+		}
+		f, err := strconv.ParseFloat(s, 64)
+		require.NoError(t, err, "%s %s = %q", key, field, s)
+		return f
+	}
+	// GBy.h -> per GiB
+	assert.InDelta(t, 0.003496*gibPerGB, rate("us-east1,c4dstandard,ondemand", "ram"), 1e-9)
+	assert.InDelta(t, 0.001484*gibPerGB, rate("us-east1,c4dstandard,preemptible", "ram"), 1e-9)
+	// core rates are per hour and must not be touched
+	assert.InDelta(t, 0.032704, rate("us-east1,c4dstandard,ondemand", "cpu"), 1e-9)
+	assert.InDelta(t, 0.013860, rate("us-east1,c4dstandard,preemptible", "cpu"), 1e-9)
+	// GiBy.h passes through unchanged
+	assert.InDelta(t, 0.001876, rate("us-east1,n2dstandard,preemptible", "ram"), 1e-9)
+	assert.InDelta(t, 0.014010, rate("us-east1,n2dstandard,preemptible", "cpu"), 1e-9)
+	// the constant itself: 2^30 / 10^9
+	assert.InDelta(t, 1.073741824, gibPerGB, 1e-12)
 }

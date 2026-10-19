@@ -565,12 +565,27 @@ type PricingInfo struct {
 	EffectiveTime          string             `json:""`
 }
 
+// flexFloat decodes a JSON number or a quoted number. Anything else decodes as
+// 0 instead of failing the whole catalog page, since the field is advisory.
+type flexFloat float64
+
+func (f *flexFloat) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), `"`)
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		*f = 0
+		return nil
+	}
+	*f = flexFloat(v)
+	return nil
+}
+
 // PricingExpression contains metadata about a cost.
 type PricingExpression struct {
 	UsageUnit                string         `json:"usageUnit"`
 	UsageUnitDescription     string         `json:"usageUnitDescription"`
 	BaseUnit                 string         `json:"baseUnit"`
-	BaseUnitConversionFactor int64          `json:"-"`
+	BaseUnitConversionFactor flexFloat      `json:"baseUnitConversionFactor"`
 	DisplayQuantity          int            `json:"displayQuantity"`
 	TieredRates              []*TieredRates `json:"tieredRates"`
 }
@@ -622,6 +637,35 @@ func customFamilyFromDescription(descUpper string) string {
 	default:
 		return "n1custom"
 	}
+}
+
+// gibHourByteSeconds is one gibibyte-hour in the catalog's base unit for RAM
+// (byte-seconds): 2^30 bytes x 3600 s.
+const gibHourByteSeconds = 1024 * 1024 * 1024 * 3600
+
+// gibPerGB is the ratio between a decimal-gigabyte rate (GBy.h, 10^9 bytes) and
+// a gibibyte rate; only used when a SKU carries no conversion factor.
+const gibPerGB = 1024 * 1024 * 1024 / 1e9
+
+// ramRatePerGiB normalises a RAM SKU's hourly rate to currency per GiB, which
+// is what everything downstream multiplies by node capacity. Most RAM SKUs are
+// priced per GiBy.h, but some (C4D, M4 Ultramem 224) are priced per GBy.h. The
+// catalog states each SKU's unit as a number of byte-seconds
+// (baseUnitConversionFactor: 3.865e12 for GiBy.h, 3.6e12 for GBy.h), so
+// dividing by it is correct for any unit Google may use. The usageUnit string
+// is only a fallback for SKUs without a factor.
+func ramRatePerGiB(product *GCPPricing, rate float64) float64 {
+	if len(product.PricingInfo) == 0 || product.PricingInfo[0].PricingExpression == nil {
+		return rate
+	}
+	pe := product.PricingInfo[0].PricingExpression
+	if pe.BaseUnit == "By.s" && pe.BaseUnitConversionFactor > 0 {
+		return rate * gibHourByteSeconds / float64(pe.BaseUnitConversionFactor)
+	}
+	if pe.UsageUnit == "GBy.h" {
+		return rate * gibPerGB
+	}
+	return rate
 }
 
 // lastTierHourlyPrice returns the list price of a SKU's last pricing tier
@@ -880,6 +924,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 						// uses it to price the RAM a custom node carries above the family cap.
 						if fam := customFamilyFromDescription(descUpper); instanceType == "ram" && fam != "" {
 							if hourly, ok := lastTierHourlyPrice(product); ok {
+								hourly = ramRatePerGiB(product, hourly)
 								for _, region := range product.ServiceRegions {
 									baseKey := region + "," + fam + "," + usageType
 									_, wanted := inputKeys[baseKey]
@@ -1084,6 +1129,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 							if hourlyPrice == 0 {
 								continue
 							} else if strings.Contains(strings.ToUpper(product.Description), "RAM") {
+								if perGiB := ramRatePerGiB(product, hourlyPrice); perGiB != hourlyPrice {
+									log.Debugf("GCP Billing API: SKU %s (%s) is priced per %s: %f -> %f per GiB", product.SKUID, product.Description, product.PricingInfo[0].PricingExpression.UsageUnit, hourlyPrice, perGiB)
+									hourlyPrice = perGiB
+								}
 								if strings.HasSuffix(instanceType, "custom") {
 									log.Debugf("GCP Billing API: RAM custom sku '%s'", product.Name)
 								}

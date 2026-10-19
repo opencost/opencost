@@ -470,7 +470,7 @@ func TestParsePage(t *testing.T) {
 								UsageUnit:                "h",
 								UsageUnitDescription:     "hour",
 								BaseUnit:                 "s",
-								BaseUnitConversionFactor: 0,
+								BaseUnitConversionFactor: 3600,
 								DisplayQuantity:          1,
 								TieredRates: []*TieredRates{
 									{
