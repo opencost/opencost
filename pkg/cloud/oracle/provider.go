@@ -5,6 +5,7 @@ import (
 	"io"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	coreenv "github.com/opencost/opencost/core/pkg/env"
@@ -25,6 +26,17 @@ const ociInstanceShapeLabel = "oci.oraclecloud.com/instance-shape"
 const managementPlatformOKE = "oke"
 const currencyCodeUSD = "USD"
 
+// "Preemptible capacity costs 50% less than on-demand capacity in all regions":
+// https://docs.oracle.com/en-us/iaas/Content/Compute/Concepts/preemptible.htm
+const preemptiblePriceMultiplier = 0.5
+
+// The rate card is downloaded again once a day, so a price list change reaches running pods. A
+// failed download keeps the rate card already held and is retried an hour later.
+const (
+	pricingRefreshInterval = 24 * time.Hour
+	pricingRetryInterval   = time.Hour
+)
+
 type Oracle struct {
 	Config                  models.ProviderConfig
 	Clientset               clustercache.ClusterCache
@@ -35,6 +47,7 @@ type Oracle struct {
 	RateCardStore           *RateCardStore
 	ServiceAccountChecks    *models.ServiceAccountChecks
 	DefaultPricing          DefaultPricing
+	nextRefresh             time.Time
 }
 
 func (o *Oracle) ClusterInfo() (map[string]string, error) {
@@ -69,6 +82,9 @@ func (o *Oracle) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	if oracleKey, ok := key.(*oracleKey); ok {
 		if val, exists := oracleKey.labels[preemptibleLabel]; exists && val == "true" {
 			node.UsageType = "preemptible"
+			if err := applyPreemptibleDiscount(node); err != nil {
+				return nil, metadata, err
+			}
 		}
 	}
 	return node, metadata, nil
@@ -129,6 +145,7 @@ func (o *Oracle) DownloadPricingData() error {
 	if _, err := o.RateCardStore.Refresh(); err != nil {
 		return err
 	}
+	o.nextRefresh = time.Now().Add(pricingRefreshInterval)
 	o.DefaultPricing = DefaultPricing{
 		OCPU:    cfg.CPU,
 		Memory:  cfg.RAM,
@@ -299,8 +316,45 @@ func (o *Oracle) getClusterName(cfg *models.CustomPricing) string {
 }
 
 func (o *Oracle) ensurePricingData() error {
-	if o.RateCardStore == nil {
+	o.DownloadPricingDataLock.RLock()
+	loaded, due := o.RateCardStore != nil, !time.Now().Before(o.nextRefresh)
+	o.DownloadPricingDataLock.RUnlock()
+	if !loaded {
 		return o.DownloadPricingData()
+	}
+	if due {
+		o.refreshRateCard()
+	}
+	return nil
+}
+
+// refreshRateCard downloads the price list again. On failure the rate card already held stays in
+// use, so a price list outage does not fail pricing.
+func (o *Oracle) refreshRateCard() {
+	o.DownloadPricingDataLock.Lock()
+	defer o.DownloadPricingDataLock.Unlock()
+	if time.Now().Before(o.nextRefresh) {
+		return // refreshed by another caller meanwhile
+	}
+	if _, err := o.RateCardStore.Refresh(); err != nil {
+		o.nextRefresh = time.Now().Add(pricingRetryInterval)
+		log.Warnf("Failed to refresh the OCI rate card, keeping the previous one: %s", err)
+		return
+	}
+	o.nextRefresh = time.Now().Add(pricingRefreshInterval)
+}
+
+// applyPreemptibleDiscount prices a preemptible node at the preemptible rate.
+func applyPreemptibleDiscount(node *models.Node) error {
+	for _, price := range []*string{&node.Cost, &node.VCPUCost, &node.RAMCost, &node.GPUCost, &node.StorageCost} {
+		if *price == "" {
+			continue
+		}
+		f, err := strconv.ParseFloat(*price, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse node price %q: %w", *price, err)
+		}
+		*price = strconv.FormatFloat(f*preemptiblePriceMultiplier, 'f', -1, 64)
 	}
 	return nil
 }
