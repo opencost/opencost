@@ -964,6 +964,14 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		pmd.TotalNodes++
 
 		cnode, _, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
+		if cnode != nil {
+			// Some providers (e.g. GCP, Azure, Alibaba) return the *Node held in
+			// their pricing cache, which is shared by every node with the same
+			// pricing key. Work on a copy so the per-node annotation overrides
+			// below don't leak into that cache.
+			c := *cnode
+			cnode = &c
+		}
 		if err != nil {
 			log.DedupedInfof(10, "Could not get node pricing for node %s: %s. Falling back to default pricing.", name, err.Error())
 			if cnode != nil {

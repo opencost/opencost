@@ -11,6 +11,8 @@ import (
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/pkg/cloud/azure"
+	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/config"
@@ -533,6 +535,93 @@ func TestNodeCostAnnotations(t *testing.T) {
 			assert.Equal(t, tc.VCPUCost, nodeCost.VCPUCost)
 			assert.Equal(t, tc.RAMCost, nodeCost.RAMCost)
 			assert.Equal(t, tc.GPUCost, nodeCost.GPUCost)
+		})
+	}
+}
+
+// Some providers (e.g. GCP, Azure, Alibaba) return the *models.Node held in their
+// pricing cache, shared by every node with the same pricing key. A cost annotation
+// on one node must not change the price of the others, and must stop applying
+// once removed.
+func TestNodeCostAnnotationsDoNotLeakThroughProviderCache(t *testing.T) {
+	confMan := config.NewConfigFileManager(storage.NewFileStorage("../../"))
+	annotations := map[string]string{
+		"opencost.io/node-cpu-hourly-cost": "111",
+		"opencost.io/node-ram-hourly-cost": "222",
+		"opencost.io/node-gpu-hourly-cost": "333",
+	}
+	nodeLabels := func(region, instanceType string) map[string]string {
+		return map[string]string{
+			"topology.kubernetes.io/region":    region,
+			"node.kubernetes.io/instance-type": instanceType,
+		}
+	}
+
+	testCases := []struct {
+		name     string
+		provider func(cached *models.Node) models.Provider
+		labelsA  map[string]string
+		labelsB  map[string]string
+	}{
+		{
+			name: "gcp-shared-family",
+			provider: func(cached *models.Node) models.Provider {
+				// BaseCPUPrice is left empty on purpose: GCP NodePricing copies it
+				// into the cached node itself, which the cache check below would
+				// report for a reason unrelated to annotations.
+				return &gcp.GCP{
+					Config:           provider.NewProviderConfig(confMan, "../../configs/default.json"),
+					Pricing:          map[string]*gcp.GCPPricing{"us-central1,n1standard,ondemand": {Node: cached}},
+					ValidPricingKeys: map[string]bool{"us-central1,n1standard,ondemand": true},
+				}
+			},
+			labelsA: nodeLabels("us-central1", "n1-standard-4"),
+			labelsB: nodeLabels("us-central1", "n1-highmem-8"),
+		},
+		{
+			name: "azure-same-size",
+			provider: func(cached *models.Node) models.Provider {
+				return &azure.Azure{
+					Config:  provider.NewProviderConfig(confMan, "../../configs/default.json"),
+					Pricing: map[string]*azure.AzurePricing{"eastus,Standard_D4s_v3,ondemand": {Node: cached}},
+				}
+			},
+			labelsA: nodeLabels("eastus", "Standard_D4s_v3"),
+			labelsB: nodeLabels("eastus", "Standard_D4s_v3"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cached := &models.Node{VCPUCost: "0.031611", RAMCost: "0.004237"}
+			original := *cached
+			cm := &CostModel{
+				Provider: tc.provider(cached),
+				Cache: &clustercache.MockClusterCache{Nodes: []*clustercache.Node{
+					{Name: "node-a", Labels: tc.labelsA, Annotations: annotations},
+					{Name: "node-b", Labels: tc.labelsB},
+				}},
+			}
+
+			nodes, err := cm.GetNodeCost()
+			require.NoError(t, err)
+			assert.Equal(t, "111", nodes["node-a"].VCPUCost)
+			assert.Equal(t, "222", nodes["node-a"].RAMCost)
+			assert.Equal(t, "333", nodes["node-a"].GPUCost)
+			assert.Equal(t, "0.031611", nodes["node-b"].VCPUCost)
+			assert.Equal(t, "0.004237", nodes["node-b"].RAMCost)
+			assert.Equal(t, "", nodes["node-b"].GPUCost)
+			assert.Equal(t, original, *cached, "provider pricing cache was modified")
+
+			// Remove the annotations: node-a goes back to the provider price.
+			cm.Cache = &clustercache.MockClusterCache{Nodes: []*clustercache.Node{
+				{Name: "node-a", Labels: tc.labelsA},
+			}}
+			nodes, err = cm.GetNodeCost()
+			require.NoError(t, err)
+			assert.Equal(t, "0.031611", nodes["node-a"].VCPUCost)
+			assert.Equal(t, "0.004237", nodes["node-a"].RAMCost)
+			assert.Equal(t, "", nodes["node-a"].GPUCost)
 		})
 	}
 }
