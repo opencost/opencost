@@ -48,7 +48,7 @@ func (ms *MemoryStorage) Stat(path string) (*StorageInfo, error) {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
 
-	path = filepath.Clean(path)
+	path = memfile.Normalize(path)
 	if file, ok := ms.directPaths[path]; ok {
 		return &StorageInfo{
 			Name:    file.Name,
@@ -66,7 +66,7 @@ func (ms *MemoryStorage) Read(path string) ([]byte, error) {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
 
-	path = filepath.Clean(path)
+	path = memfile.Normalize(path)
 
 	if file, ok := ms.directPaths[path]; ok {
 		return file.Contents, nil
@@ -80,7 +80,7 @@ func (ms *MemoryStorage) ReadStream(path string) (io.ReadCloser, error) {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
 
-	path = filepath.Clean(path)
+	path = memfile.Normalize(path)
 
 	if file, ok := ms.directPaths[path]; ok {
 		data := append([]byte(nil), file.Contents...)
@@ -93,7 +93,7 @@ func (ms *MemoryStorage) ReadStream(path string) (io.ReadCloser, error) {
 // ReadToLocalFile writes the specified object at path to destPath on the local file system.
 func (ms *MemoryStorage) ReadToLocalFile(path, destPath string) error {
 	ms.lock.Lock()
-	path = filepath.Clean(path)
+	path = memfile.Normalize(path)
 
 	file, ok := ms.directPaths[path]
 	if !ok {
@@ -122,6 +122,14 @@ func (ms *MemoryStorage) Write(path string, data []byte) error {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
 
+	ms.write(path, data)
+	return nil
+}
+
+// write adds the data to the file tree and direct path lookup at the provided path. The caller
+// must hold the storage lock.
+func (ms *MemoryStorage) write(path string, data []byte) {
+	path = memfile.Normalize(path)
 	paths, pFile := memfile.Split(path)
 
 	f := memfile.NewMemoryFile(pFile, data)
@@ -129,7 +137,6 @@ func (ms *MemoryStorage) Write(path string, data []byte) error {
 
 	currentDir.AddFile(f)
 	ms.directPaths[path] = f
-	return nil
 }
 
 // WriteStream creates a new relative path and returns the io.WriteCloser that can be used to
@@ -148,13 +155,7 @@ func (ms *MemoryStorage) WriteStream(path string) (io.WriteCloser, error) {
 		ms.lock.Lock()
 		defer ms.lock.Unlock()
 
-		paths, pFile := memfile.Split(path)
-
-		f := memfile.NewMemoryFile(pFile, data)
-		currentDir := memfile.CreateSubdirectory(ms.fileTree, paths)
-
-		currentDir.AddFile(f)
-		ms.directPaths[path] = f
+		ms.write(path, data)
 	})
 
 	return &memWriteCloser{
@@ -182,7 +183,7 @@ func (ms *MemoryStorage) Remove(path string) error {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
 
-	path = filepath.Clean(path)
+	path = memfile.Normalize(path)
 	paths, pFile := memfile.Split(path)
 
 	currentDir, err := memfile.FindSubdirectory(ms.fileTree, paths)
@@ -202,7 +203,7 @@ func (ms *MemoryStorage) Exists(path string) (bool, error) {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
 
-	path = filepath.Clean(path)
+	path = memfile.Normalize(path)
 
 	_, ok := ms.directPaths[path]
 	return ok, nil
@@ -254,7 +255,7 @@ func (ms *MemoryStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 	storageInfos := make([]*StorageInfo, 0, currentDir.DirCount())
 	for d := range currentDir.Directories() {
 		storageInfos = append(storageInfos, &StorageInfo{
-			Name:    filepath.Join(append(paths, d.Name)...) + "/",
+			Name:    memfile.Join(append(paths, d.Name)...) + memfile.Separator,
 			Size:    d.Size(),
 			ModTime: d.ModTime,
 		})
