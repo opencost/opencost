@@ -1382,7 +1382,7 @@ func NewCPUUsageMaxMetricCollector() *metric.MetricCollector {
 //	avg(
 //		avg_over_time(
 //			kube_pod_container_resource_requests{
-//				resource="nvidia_com_gpu",
+//				resource="nvidia_com_gpu|nvidia\\.com/gpu",
 //				container!="",
 //				container!="POD",
 //				node!="",
@@ -1403,7 +1403,7 @@ func NewGPUsRequestedMetricCollector() *metric.MetricCollector {
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
-			return labels[source.ResourceLabel] == "nvidia_com_gpu" && labels[source.ContainerLabel] != "POD" && labels[source.ContainerLabel] != "" && labels[source.NodeLabel] != ""
+			return (labels[source.ResourceLabel] == "nvidia_com_gpu" || labels[source.ResourceLabel] == "nvidia.com/gpu") && labels[source.ContainerLabel] != "POD" && labels[source.ContainerLabel] != "" && labels[source.NodeLabel] != ""
 		},
 	)
 }
