@@ -387,7 +387,7 @@ func TestPVPricing(t *testing.T) {
 func TestNetworkPricing(t *testing.T) {
 	provider := &OVH{}
 
-	net, err := provider.NetworkPricing()
+	net, err := provider.NetworkPricing(nil)
 	if err != nil {
 		t.Fatalf("NetworkPricing failed: %v", err)
 	}

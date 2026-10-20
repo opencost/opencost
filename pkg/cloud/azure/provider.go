@@ -1452,8 +1452,7 @@ func (az *Azure) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	}, meta, nil
 }
 
-// Stubbed NetworkPricing for Azure. Pull directly from azure.json for now
-func (az *Azure) NetworkPricing() (*models.Network, error) {
+func (az *Azure) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	cpricing, err := az.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -1492,6 +1491,10 @@ func (az *Azure) NetworkPricing() (*models.Network, error) {
 // services will be that of a standard static public IP https://azure.microsoft.com/en-us/pricing/details/ip-addresses/.
 // Azure still has load balancers which follow the standard pricing scheme based on rules
 // https://azure.microsoft.com/en-us/pricing/details/load-balancer/, they are created on a per-cluster basis.
+func (az *Azure) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
+}
+
 func (azr *Azure) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	return &models.LoadBalancer{
 		Cost: 0.005,
