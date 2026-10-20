@@ -176,6 +176,9 @@ jobs:
             opencost-container-sbom.spdx.json
             opencost-container-sbom.cyclonedx.json
           fail_on_unmatched_files: false
+          # Immutable releases forbid deleting/replacing published assets.
+          # Skip assets that already exist instead of delete-and-replace.
+          overwrite_files: false
 
       # Create a summary of the SBOM generation
       - name: Generate Summary
