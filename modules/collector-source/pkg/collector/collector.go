@@ -1382,7 +1382,7 @@ func NewCPUUsageMaxMetricCollector() *metric.MetricCollector {
 //	avg(
 //		avg_over_time(
 //			kube_pod_container_resource_requests{
-//				resource="nvidia_com_gpu|nvidia\\.com/gpu",
+//				resource="nvidia_com_gpu" OR resource="nvidia.com/gpu",
 //				container!="",
 //				container!="POD",
 //				node!="",
