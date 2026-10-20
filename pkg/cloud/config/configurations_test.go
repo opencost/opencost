@@ -2,6 +2,9 @@ package config
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/opencost/opencost/pkg/cloud/aws"
@@ -311,3 +314,134 @@ func TestConfigurations_UnmarshalJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigurations_UnmarshalJSON_Issue4048(t *testing.T) {
+	expected := &Configurations{
+		AWS: &AWSConfigs{
+			Athena: []*aws.AthenaConfiguration{
+				{
+					Bucket:     "s3://my-cost-usage-report-bucket",
+					Region:     "eu-west-1",
+					Database:   "cost_and_usage_report",
+					Catalog:    "AwsDataCatalog",
+					Table:      "cost_and_usage_report",
+					Workgroup:  "primary",
+					Account:    "123456789012",
+					Authorizer: &aws.ServiceAccount{},
+				},
+			},
+		},
+	}
+
+	testCases := map[string]string{
+		"legacy MultiCloudConfig format from issue 4048": `{
+  "aws": [
+    {
+      "athenaBucketName": "s3://my-cost-usage-report-bucket",
+      "athenaRegion": "eu-west-1",
+      "athenaDatabase": "cost_and_usage_report",
+      "athenaCatalog": "AwsDataCatalog",
+      "athenaTable": "cost_and_usage_report",
+      "athenaWorkgroup": "primary",
+      "projectID": "123456789012"
+    }
+  ]
+}`,
+		"legacy MultiCloudConfig with empty provider arrays before active provider": `{
+  "azure": [],
+  "gcp": [],
+  "aws": [
+    {
+      "athenaBucketName": "s3://my-cost-usage-report-bucket",
+      "athenaRegion": "eu-west-1",
+      "athenaDatabase": "cost_and_usage_report",
+      "athenaCatalog": "AwsDataCatalog",
+      "athenaTable": "cost_and_usage_report",
+      "athenaWorkgroup": "primary",
+      "projectID": "123456789012"
+    }
+  ],
+  "alibaba": []
+}`,
+		"legacy MultiCloudConfig with uppercase provider keys": `{
+  "Azure": [],
+  "GCP": [],
+  "AWS": [
+    {
+      "athenaBucketName": "s3://my-cost-usage-report-bucket",
+      "athenaRegion": "eu-west-1",
+      "athenaDatabase": "cost_and_usage_report",
+      "athenaCatalog": "AwsDataCatalog",
+      "athenaTable": "cost_and_usage_report",
+      "athenaWorkgroup": "primary",
+      "projectID": "123456789012"
+    }
+  ],
+  "Alibaba": []
+}`,
+		"new Configurations format": `{
+  "aws": {
+    "athena": [
+      {
+        "bucket": "s3://my-cost-usage-report-bucket",
+        "region": "eu-west-1",
+        "database": "cost_and_usage_report",
+        "catalog": "AwsDataCatalog",
+        "table": "cost_and_usage_report",
+        "workgroup": "primary",
+        "account": "123456789012",
+        "authorizer": {
+          "authorizerType": "AWSServiceAccount"
+        }
+      }
+    ]
+  }
+}`,
+	}
+
+	for name, rawJSON := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actual := &Configurations{
+				Azure: azureConfiguration.Azure,
+			}
+			if err := json.Unmarshal([]byte(rawJSON), actual); err != nil {
+				t.Fatalf("json.Unmarshal failed: %v", err)
+			}
+			if !expected.Equals(actual) {
+				t.Fatalf("unmarshalled Configurations did not match expected: got %+v, want %+v", actual, expected)
+			}
+
+			configPath := filepath.Join(t.TempDir(), "cloud-integration.json")
+			if err := os.WriteFile(configPath, []byte(rawJSON), 0600); err != nil {
+				t.Fatalf("failed to write temp cloud-integration.json: %v", err)
+			}
+			loaded := new(Configurations)
+			if err := loadFile(configPath, loaded); err != nil {
+				t.Fatalf("loadFile failed: %v", err)
+			}
+			if !expected.Equals(loaded) {
+				t.Fatalf("loaded Configurations did not match expected: got %+v, want %+v", loaded, expected)
+			}
+		})
+	}
+
+	t.Run("invalid non-legacy provider returns error and preserves receiver", func(t *testing.T) {
+		for _, payload := range []string{`{"oci":"invalid"}`, `{"aws":[{}],"oci":"invalid"}`} {
+			actual := &Configurations{
+				Azure: azureConfiguration.Azure,
+			}
+			err := json.Unmarshal([]byte(payload), actual)
+			if err == nil {
+				t.Fatalf("expected error unmarshalling %s, got nil", payload)
+			}
+			if !strings.Contains(err.Error(), "oci") {
+				t.Fatalf("expected error for %s to identify oci field, got: %v", payload, err)
+			}
+			if !azureConfiguration.Equals(actual) {
+				t.Fatalf("receiver was mutated on failed unmarshal (%s): got %+v, want %+v", payload, actual, azureConfiguration)
+			}
+		}
+	})
+}
+
+
