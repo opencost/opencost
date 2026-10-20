@@ -939,7 +939,7 @@ func TestGCP_PricingSourceStatus(t *testing.T) {
 }
 
 func TestGCP_CombinedDiscountForNode(t *testing.T) {
-	gcp := &GCP{}
+	gcp := &GCP{Config: &mockConfig{}}
 
 	tests := []struct {
 		name               string
@@ -973,6 +973,14 @@ func TestGCP_CombinedDiscountForNode(t *testing.T) {
 			negotiatedDiscount: 0.20,
 			expectedDiscount:   0.20, // E2 has no sustained use discount
 		},
+		{
+			name:               "N2 instance (default 0.2 SUD from config)",
+			instanceType:       "n2-standard-4",
+			isPreemptible:      false,
+			defaultDiscount:    0.30,
+			negotiatedDiscount: 0.20,
+			expectedDiscount:   0.36, // 1 - (1-0.2)*(1-0.2); n2 uses its 0.2 SUD, not defaultDiscount
+		},
 	}
 
 	for _, tt := range tests {
@@ -981,6 +989,18 @@ func TestGCP_CombinedDiscountForNode(t *testing.T) {
 			assert.InDelta(t, tt.expectedDiscount, result, 0.01)
 		})
 	}
+}
+
+func TestGCP_CombinedDiscountForNode_N2Override(t *testing.T) {
+	// n2/n2d SUD overridden to 0 via the N2SustainedUseDiscount config -> only the negotiated
+	// discount remains for n2/n2d, while n1 (defaultDiscount) is unaffected by the override.
+	gcp := &GCP{Config: &mockConfig{n2: "0%"}}
+
+	gotN2D := gcp.CombinedDiscountForNode("n2d-highmem-8", false, 0.30, 0.20)
+	assert.InDelta(t, 0.20, gotN2D, 0.01) // 1 - (1-0)*(1-0.2)
+
+	gotN1 := gcp.CombinedDiscountForNode("n1-standard-2", false, 0.30, 0.20)
+	assert.InDelta(t, 0.44, gotN1, 0.01) // 1 - (1-0.3)*(1-0.2), unchanged
 }
 
 func TestGCP_Regions(t *testing.T) {
@@ -1006,44 +1026,59 @@ func TestSustainedUseDiscount(t *testing.T) {
 		name            string
 		class           string
 		defaultDiscount float64
+		n2Discount      float64
 		isPreemptible   bool
 		expected        float64
 	}{
-		{
-			name:            "Preemptible instance",
-			class:           "n1",
-			defaultDiscount: 0.30,
-			isPreemptible:   true,
-			expected:        0.0,
-		},
-		{
-			name:            "E2 instance",
-			class:           "e2",
-			defaultDiscount: 0.30,
-			isPreemptible:   false,
-			expected:        0.0,
-		},
-		{
-			name:            "N2 instance",
-			class:           "n2",
-			defaultDiscount: 0.30,
-			isPreemptible:   false,
-			expected:        0.2,
-		},
-		{
-			name:            "N1 instance",
-			class:           "n1",
-			defaultDiscount: 0.30,
-			isPreemptible:   false,
-			expected:        0.30,
-		},
+		{name: "Preemptible instance", class: "n1", defaultDiscount: 0.30, n2Discount: 0.2, isPreemptible: true, expected: 0.0},
+		{name: "E2 instance", class: "e2", defaultDiscount: 0.30, n2Discount: 0.2, expected: 0.0},
+		{name: "N2 default (0.2)", class: "n2", defaultDiscount: 0.30, n2Discount: 0.2, expected: 0.2},
+		{name: "N2D default (0.2)", class: "n2d", defaultDiscount: 0.30, n2Discount: 0.2, expected: 0.2},
+		{name: "N2 zeroed", class: "n2", defaultDiscount: 0.30, n2Discount: 0.0, expected: 0.0},
+		{name: "N2D zeroed", class: "n2d", defaultDiscount: 0.30, n2Discount: 0.0, expected: 0.0},
+		{name: "N1 uses defaultDiscount", class: "n1", defaultDiscount: 0.30, n2Discount: 0.2, expected: 0.30},
+		{name: "N1 ignores n2Discount", class: "n1", defaultDiscount: 0.30, n2Discount: 0.0, expected: 0.30},
+		{name: "E2 ignores n2Discount", class: "e2", defaultDiscount: 0.30, n2Discount: 0.0, expected: 0.0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := sustainedUseDiscount(tt.class, tt.defaultDiscount, tt.isPreemptible)
+			result := sustainedUseDiscount(tt.class, tt.defaultDiscount, tt.n2Discount, tt.isPreemptible)
 			assert.Equal(t, tt.expected, result)
 		})
+	}
+}
+
+func TestParseN2SustainedUseDiscount(t *testing.T) {
+	if got := parseN2SustainedUseDiscount(""); got != nil {
+		t.Errorf("empty: expected nil, got %v", *got)
+	}
+	if got := parseN2SustainedUseDiscount("not-a-number"); got != nil {
+		t.Errorf("unparseable: expected nil, got %v", *got)
+	}
+	// Non-finite and out-of-[0,1] overrides must be rejected (nil) so the caller keeps the
+	// 0.20 default instead of producing a combined discount > 1 (negative effective prices).
+	for _, bad := range []string{"2", "1.5", "200%", "-0.1", "-5%", "NaN", "Inf", "+Inf", "-Inf"} {
+		if got := parseN2SustainedUseDiscount(bad); got != nil {
+			t.Errorf("%q: expected nil (out-of-range/non-finite), got %v", bad, *got)
+		}
+	}
+	for _, tc := range []struct {
+		in   string
+		want float64
+	}{
+		{"0.2", 0.2},
+		{"20%", 0.2},
+		{"0", 0.0},
+		{"0%", 0.0},
+		{" 30% ", 0.3},
+	} {
+		got := parseN2SustainedUseDiscount(tc.in)
+		if got == nil {
+			t.Errorf("%q: expected %v, got nil", tc.in, tc.want)
+			continue
+		}
+		assert.InDelta(t, tc.want, *got, 1e-9, "input %q", tc.in)
 	}
 }
 
@@ -1341,18 +1376,21 @@ func TestGCP_loadGCPAuthSecret(t *testing.T) {
 }
 
 // Mock implementations for testing
-type mockConfig struct{}
+type mockConfig struct {
+	n2 string // optional N2SustainedUseDiscount value for tests
+}
 
 func (m *mockConfig) GetCustomPricingData() (*models.CustomPricing, error) {
 	return &models.CustomPricing{
-		Discount:              "30%",
-		NegotiatedDiscount:    "0%",
-		CurrencyCode:          "USD",
-		ZoneNetworkEgress:     "0.12",
-		RegionNetworkEgress:   "0.08",
-		InternetNetworkEgress: "0.15",
-		NatGatewayEgress:      "0.45",
-		NatGatewayIngress:     "0.45",
+		Discount:               "30%",
+		NegotiatedDiscount:     "0%",
+		CurrencyCode:           "USD",
+		ZoneNetworkEgress:      "0.12",
+		RegionNetworkEgress:    "0.08",
+		InternetNetworkEgress:  "0.15",
+		NatGatewayEgress:       "0.45",
+		NatGatewayIngress:      "0.45",
+		N2SustainedUseDiscount: m.n2,
 	}, nil
 }
 
