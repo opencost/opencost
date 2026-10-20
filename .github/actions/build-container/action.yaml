@@ -19,36 +19,46 @@ runs:
     using: "composite"
     steps:
       - name: Log into registry ghcr.io
-        uses: docker/login-action@v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ inputs.actor }}
           password: ${{ inputs.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
         with:
           buildkitd-flags: --debug
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: 'stable'
 
       - name: Set up just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
+        with:
+          just-version: '1.58.0'
 
       ## Install manifest-tool, which is required to combine multi-arch images
       ## https://github.com/estesp/manifest-tool
+      ## Pinned release verified by checksum (from the release's .sha256sum file).
       - name: Install manifest-tool
         shell: bash
+        env:
+          MANIFEST_TOOL_VERSION: 2.2.2
+          MANIFEST_TOOL_SHA256: bdca525326694849594ab3ba63638fdb664690c9384df947bd3cff943d14736b
         run: |
-          mkdir -p manifest-tool
-          pushd manifest-tool
-          wget -q https://github.com/estesp/manifest-tool/releases/download/v2.0.8/binaries-manifest-tool-2.0.8.tar.gz
-          tar -xzf binaries-manifest-tool-2.0.8.tar.gz
-          cp manifest-tool-linux-amd64 manifest-tool
-          echo "$(pwd)" >> $GITHUB_PATH
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          tarball="binaries-manifest-tool-${MANIFEST_TOOL_VERSION}.tar.gz"
+          curl -sSfL -o "$tmp/$tarball" \
+            "https://github.com/estesp/manifest-tool/releases/download/v${MANIFEST_TOOL_VERSION}/${tarball}"
+          echo "${MANIFEST_TOOL_SHA256}  $tmp/$tarball" | sha256sum -c -
+          tar -xzf "$tmp/$tarball" -C "$tmp" manifest-tool-linux-amd64
+          sudo install -m 0755 "$tmp/manifest-tool-linux-amd64" /usr/local/bin/manifest-tool
+          rm -rf "$tmp"
+          manifest-tool --version
 
       - name: Build and push (multiarch) OpenCost
         shell: bash

@@ -1,5 +1,6 @@
 name: Sonar
-on:
+# Privileged trigger: workflow_run is needed to report Sonar results for fork PRs. No PR code is executed; sonar.host.url is pinned on the CLI.
+on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: ["Build/Test"]
     types: [completed]
@@ -18,7 +19,7 @@ jobs:
     steps:
       - name: Set Quality Gate status (pending)
         if: always()
-        uses: guibranco/github-status-action-v2@v1.1.14
+        uses: guibranco/github-status-action-v2@77639353504055053524efa7a3719aaf0b731ce9 # v1.2.4
         with:
           authToken: ${{ secrets.GITHUB_TOKEN }}
           state: 'pending'
@@ -27,11 +28,12 @@ jobs:
           sha: ${{ github.event.workflow_run.head_sha }}
           target_url: 'https://sonarcloud.io/dashboard?id=opencost_opencost'
       - name: Checkout upstream repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           repository: opencost/opencost
           ref: develop
           fetch-depth: 0
+          persist-credentials: false
       - name: Fetch PR branch from fork
         if: github.event.workflow_run.head_branch != 'develop' || github.event.workflow_run.head_repository.full_name != 'opencost/opencost'
         env:
@@ -51,10 +53,12 @@ jobs:
           fi
       - name: Checkout develop branch at specific SHA
         if: github.event.workflow_run.head_branch == 'develop' && github.event.workflow_run.head_repository.full_name == 'opencost/opencost'
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          git checkout ${{ github.event.workflow_run.head_sha }}
+          git checkout "$HEAD_SHA"
       - name: Download coverage artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: code-coverage
           run-id: ${{ github.event.workflow_run.id }}
@@ -101,8 +105,11 @@ jobs:
           # move coverage file to root where sonar properties file is expecting it
           cp pr-artifact/coverage.out coverage.out
       # on develop branch, only run a baseline scan
+      # The checked-out tree may come from a fork PR. sonar.host.url is set on the
+      # command line (which overrides sonar-project.properties) so a PR cannot
+      # redirect SONAR_TOKEN to another server.
       - name: SonarCloud Scan (Baseline)
-        uses: sonarsource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4 # v8.2.2
         if: github.event.workflow_run.head_branch == 'develop'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -110,11 +117,12 @@ jobs:
         with:
           args: >
             -Dsonar.scm.revision=${{ github.event.workflow_run.head_sha }}
+            -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.projectKey=opencost_opencost
             -Dsonar.organization=opencost
             -Dsonar.branch.name=develop
       - name: SonarCloud Scan (PR)
-        uses: sonarsource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4 # v8.2.2
         if: github.event.workflow_run.head_branch != 'develop'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -125,12 +133,13 @@ jobs:
             -Dsonar.pullrequest.key=${{ steps.set-vars.outputs.SONAR_PR_NUM }}
             -Dsonar.pullrequest.branch=${{ steps.set-vars.outputs.SONAR_HEAD }}
             -Dsonar.pullrequest.base=${{ steps.set-vars.outputs.SONAR_BASE }}
+            -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.projectKey=opencost_opencost
             -Dsonar.organization=opencost
       - name: SonarQube Quality Gate check
         id: sonarqube-quality-gate-check
         continue-on-error: true
-        uses: sonarsource/sonarqube-quality-gate-action@master
+        uses: sonarsource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa # v1.2.1
         # fail step after specific time.
         timeout-minutes: 5
         env:
@@ -139,7 +148,7 @@ jobs:
       - name: Set Quality Gate status (failed - PR)
         id: fail-quality-gate-pr
         if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status != 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM != ''
-        uses: guibranco/github-status-action-v2@v1.1.14
+        uses: guibranco/github-status-action-v2@77639353504055053524efa7a3719aaf0b731ce9 # v1.2.4
         with:
           authToken: ${{ secrets.GITHUB_TOKEN }}
           state: 'failure'
@@ -150,7 +159,7 @@ jobs:
       - name: Set Quality Gate status (failed - develop)
         id: fail-quality-gate-develop
         if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status != 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM == ''
-        uses: guibranco/github-status-action-v2@v1.1.14
+        uses: guibranco/github-status-action-v2@77639353504055053524efa7a3719aaf0b731ce9 # v1.2.4
         with:
           authToken: ${{ secrets.GITHUB_TOKEN }}
           state: 'failure'
@@ -161,7 +170,7 @@ jobs:
       - name: Set Quality Gate status (passed - PR)
         id: pass-quality-gate-pr
         if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status == 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM != ''
-        uses: guibranco/github-status-action-v2@v1.1.14
+        uses: guibranco/github-status-action-v2@77639353504055053524efa7a3719aaf0b731ce9 # v1.2.4
         with:
           authToken: ${{ secrets.GITHUB_TOKEN }}
           state: 'success'
@@ -172,7 +181,7 @@ jobs:
       - name: Set Quality Gate status (passed - develop)
         id: pass-quality-gate-develop
         if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status == 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM == ''
-        uses: guibranco/github-status-action-v2@v1.1.14
+        uses: guibranco/github-status-action-v2@77639353504055053524efa7a3719aaf0b731ce9 # v1.2.4
         with:
           authToken: ${{ secrets.GITHUB_TOKEN }}
           state: 'success'

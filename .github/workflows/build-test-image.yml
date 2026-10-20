@@ -1,6 +1,7 @@
 name: Build and Publish Test Image
 
-on:
+# Privileged trigger: pull_request_target is required to publish test images for maintainer PRs. Only PRs authored by maintainers are built; see check_actor_permissions.
+on: # zizmor: ignore[dangerous-triggers]
   merge_group:
     types: [checks_requested]
   pull_request_target:
@@ -13,6 +14,10 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  # pull_request_target runs with a write token, and the build below executes
+  # code from the PR head. Only build PRs *authored* by a maintainer (or by
+  # dependabot from this repo). Check the PR author, not github.actor: actor is
+  # whoever triggered the event, e.g. a maintainer reopening an outside PR.
   check_actor_permissions:
         runs-on: ubuntu-latest
         if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'merge_group' }}
@@ -20,25 +25,25 @@ jobs:
             ismaintainer: ${{ steps.determine-maintainer.outputs.ismaintainer }}
         steps:
           - name: Check team membership
-            uses: tspascoal/get-user-teams-membership@v3
-            if: ${{ github.actor != 'dependabot[bot]' }}
+            uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3.0.0
+            if: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.user.login != 'dependabot[bot]' }}
             id: teamAffiliation
             with:
               GITHUB_TOKEN: ${{ secrets.ORG_READER_PAT }}
-              username: ${{ github.actor }}
+              username: ${{ github.event.pull_request.user.login }}
               organization: opencost
-          - name: determine if actor is a maintainer
+          - name: determine if PR author is a maintainer
             id: determine-maintainer
             env:
               TEAMS: ${{ join(steps.teamAffiliation.outputs.teams, ',') }}
-              ACTOR: ${{ github.actor }}
-              IS_MAINTAINER: ${{ contains(join(steps.teamAffiliation.outputs.teams, ','), 'OpenCost Maintainers') || (github.actor == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == 'opencost/opencost') }}
+              AUTHOR: ${{ github.event.pull_request.user.login }}
+              IS_MAINTAINER: ${{ contains(join(steps.teamAffiliation.outputs.teams, ','), 'OpenCost Maintainers') || (github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == 'opencost/opencost') }}
             run: |
-                echo "Actor: $ACTOR"
+                echo "PR author: $AUTHOR"
                 echo "teams: $TEAMS"
                 echo "Is maintainer: $IS_MAINTAINER"
-                echo "ismaintainer=$IS_MAINTAINER" >> $GITHUB_OUTPUT
-      
+                echo "ismaintainer=$IS_MAINTAINER" >> "$GITHUB_OUTPUT"
+
   build-and-publish-test-image:
     runs-on: ubuntu-latest
     needs: check_actor_permissions
@@ -48,9 +53,10 @@ jobs:
       packages: write
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.event.merge_group.head_sha || github.event.pull_request.head.sha }}
+          persist-credentials: false
       - name: Set SHA
         id: sha
         run: |
@@ -63,7 +69,7 @@ jobs:
         run: |
           echo "IMAGE_TAG=ghcr.io/$REPO_OWNER/opencost:test-$OC_SHORTHASH" >> $GITHUB_OUTPUT
       - name: Build and publish container
-        uses: ./.github/actions/build-container
+        uses: $/.github/actions/build-container
         with:
           actor: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
