@@ -481,7 +481,7 @@ func (c *OVH) PVPricing(pvk models.PVKey) (*models.PV, error) {
 }
 
 // NetworkPricing returns static network pricing for OVH.
-func (c *OVH) NetworkPricing() (*models.Network, error) {
+func (c *OVH) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	return &models.Network{
 		ZoneNetworkEgressCost:     0,
 		RegionNetworkEgressCost:   0,
@@ -492,6 +492,10 @@ func (c *OVH) NetworkPricing() (*models.Network, error) {
 }
 
 // LoadBalancerPricing returns static load balancer pricing for OVH.
+func (c *OVH) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
+}
+
 func (c *OVH) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	return &models.LoadBalancer{
 		Cost: 0.012,

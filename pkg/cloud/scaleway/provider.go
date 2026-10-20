@@ -170,7 +170,7 @@ func (c *Scaleway) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	}, nil
 }
 
-func (c *Scaleway) NetworkPricing() (*models.Network, error) {
+func (c *Scaleway) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	// it's free baby!
 	return &models.Network{
 		ZoneNetworkEgressCost:     0,
@@ -179,6 +179,10 @@ func (c *Scaleway) NetworkPricing() (*models.Network, error) {
 		NatGatewayEgressCost:      0,
 		NatGatewayIngressCost:     0,
 	}, nil
+}
+
+func (c *Scaleway) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
 }
 
 func (c *Scaleway) GetKey(l map[string]string, n *clustercache.Node) models.Key {

@@ -12,12 +12,18 @@ import (
 
 // mockProvider is a mock implementation of the Provider interface for testing
 type mockProvider struct {
-	network *models.Network
-	err     error
+	network        *models.Network
+	err            error
+	lastNetworkKey models.NetworkKey
 }
 
-func (m *mockProvider) NetworkPricing() (*models.Network, error) {
+func (m *mockProvider) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
+	m.lastNetworkKey = key
 	return m.network, m.err
+}
+
+func (m *mockProvider) GetNetworkKey(labels map[string]string, clusterID string) models.NetworkKey {
+	return models.NewNetworkKey(labels, clusterID)
 }
 
 func (m *mockProvider) GetKey(map[string]string, *clustercache.Node) models.Key {
@@ -531,7 +537,7 @@ func TestGetNetworkCost(t *testing.T) {
 				network: tc.pricing,
 			}
 
-			result, err := GetNetworkCost(tc.usage, provider)
+			result, err := GetNetworkCost(tc.usage, provider, nil)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -586,7 +592,7 @@ func TestGetNetworkCost_NATGatewayMisalignedVectors(t *testing.T) {
 		network: pricing,
 	}
 
-	result, err := GetNetworkCost(usage, provider)
+	result, err := GetNetworkCost(usage, provider, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -614,5 +620,47 @@ func TestGetNetworkCost_NATGatewayMisalignedVectors(t *testing.T) {
 	expectedThird := 20.0 * 0.05
 	if diff := result[2].Value - expectedThird; diff > 0.001 || diff < -0.001 {
 		t.Errorf("expected third vector cost %f, got %f", expectedThird, result[2].Value)
+	}
+}
+
+func TestGetNetworkCost_NetworkKeyPropagation(t *testing.T) {
+	nodeLabels := map[string]string{
+		"topology.kubernetes.io/region": "us-east-1",
+		"topology.kubernetes.io/zone":   "us-east-1a",
+	}
+
+	provider := &mockProvider{
+		network: &models.Network{
+			ZoneNetworkEgressCost: 0.01,
+		},
+	}
+
+	netKey := provider.GetNetworkKey(nodeLabels, "cluster-test")
+
+	usage := &NetworkUsageData{
+		PodName:   "pod1",
+		Namespace: "ns1",
+		NetworkZoneEgress: []*util.Vector{
+			{Value: 100.0, Timestamp: 1000},
+		},
+	}
+
+	_, err := GetNetworkCost(usage, provider, netKey)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if provider.lastNetworkKey == nil {
+		t.Fatal("expected NetworkKey to be passed to NetworkPricing, but got nil")
+	}
+
+	if provider.lastNetworkKey.GetRegion() != "us-east-1" {
+		t.Errorf("expected region 'us-east-1', got '%s'", provider.lastNetworkKey.GetRegion())
+	}
+	if provider.lastNetworkKey.GetZone() != "us-east-1a" {
+		t.Errorf("expected zone 'us-east-1a', got '%s'", provider.lastNetworkKey.GetZone())
+	}
+	if provider.lastNetworkKey.GetClusterID() != "cluster-test" {
+		t.Errorf("expected clusterID 'cluster-test', got '%s'", provider.lastNetworkKey.GetClusterID())
 	}
 }
