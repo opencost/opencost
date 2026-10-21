@@ -30,16 +30,16 @@ func countingCompute(calls *atomic.Int32, cost float64) func(context.Context) ([
 }
 
 func TestNewMetricsCache_DisabledForNonPositiveTTL(t *testing.T) {
-	if newMetricsCache(0) != nil {
+	if newMetricsCache(0, 0) != nil {
 		t.Error("ttl 0 should disable the cache")
 	}
-	if newMetricsCache(-time.Minute) != nil {
+	if newMetricsCache(-time.Minute, 0) != nil {
 		t.Error("negative ttl should disable the cache")
 	}
-	if newMetricsCache(time.Hour) == nil {
+	if newMetricsCache(time.Hour, 0) == nil {
 		t.Error("positive ttl should enable the cache")
 	}
-	if newMetricsCache(time.Second) == nil {
+	if newMetricsCache(time.Second, 0) == nil {
 		t.Error("short ttl should enable the cache")
 	}
 }
@@ -68,7 +68,7 @@ func TestMetricsCache_NilAlwaysComputes(t *testing.T) {
 }
 
 func TestMetricsCache_HitWithinTTL(t *testing.T) {
-	m := newMetricsCache(time.Hour)
+	m := newMetricsCache(time.Hour, 0)
 	var calls atomic.Int32
 	first, err := m.get(context.Background(), cacheStart, cacheEnd, countingCompute(&calls, 7))
 	if err != nil {
@@ -87,7 +87,7 @@ func TestMetricsCache_HitWithinTTL(t *testing.T) {
 }
 
 func TestMetricsCache_SeparateEntriesPerWindow(t *testing.T) {
-	m := newMetricsCache(time.Hour)
+	m := newMetricsCache(time.Hour, 0)
 	var calls atomic.Int32
 	_, _ = m.get(context.Background(), cacheStart, cacheEnd, countingCompute(&calls, 1))
 	_, _ = m.get(context.Background(), cacheStart, cacheEnd.Add(time.Hour), countingCompute(&calls, 2))
@@ -98,7 +98,7 @@ func TestMetricsCache_SeparateEntriesPerWindow(t *testing.T) {
 }
 
 func TestMetricsCache_ExpiresAfterTTL(t *testing.T) {
-	m := newMetricsCache(30 * time.Millisecond)
+	m := newMetricsCache(30*time.Millisecond, 0)
 	var calls atomic.Int32
 	_, _ = m.get(context.Background(), cacheStart, cacheEnd, countingCompute(&calls, 1))
 	time.Sleep(60 * time.Millisecond)
@@ -112,7 +112,7 @@ func TestMetricsCache_ExpiresAfterTTL(t *testing.T) {
 }
 
 func TestMetricsCache_ErrorsAreNotCached(t *testing.T) {
-	m := newMetricsCache(time.Hour)
+	m := newMetricsCache(time.Hour, 0)
 	boom := errors.New("prometheus down")
 	_, err := m.get(context.Background(), cacheStart, cacheEnd, func(context.Context) ([]*InferenceCost, error) {
 		return nil, boom
@@ -130,7 +130,7 @@ func TestMetricsCache_ErrorsAreNotCached(t *testing.T) {
 }
 
 func TestMetricsCache_ConcurrentMissesComputeOnce(t *testing.T) {
-	m := newMetricsCache(time.Hour)
+	m := newMetricsCache(time.Hour, 0)
 	var calls atomic.Int32
 	release := make(chan struct{})
 	compute := func(context.Context) ([]*InferenceCost, error) {
@@ -166,7 +166,7 @@ func TestMetricsCache_ConcurrentMissesComputeOnce(t *testing.T) {
 }
 
 func TestMetricsCache_CallerCancelDoesNotAbortSharedCompute(t *testing.T) {
-	m := newMetricsCache(time.Hour)
+	m := newMetricsCache(time.Hour, 0)
 	release := make(chan struct{})
 	var computeCtxErr atomic.Pointer[error]
 	compute := func(ctx context.Context) ([]*InferenceCost, error) {
@@ -330,5 +330,193 @@ func TestQueryService_CollectErrorIsReturnedAndNotCached(t *testing.T) {
 	qs.collector.allocationQuerier = good
 	if _, err := qs.query(context.Background(), req); err != nil {
 		t.Fatalf("after the backend recovers the query should succeed, got %v", err)
+	}
+}
+
+// --- size bound ---
+
+// window returns the i-th distinct one-hour window, for distinct cache keys.
+func window(i int) (time.Time, time.Time) {
+	s := cacheStart.Add(time.Duration(i) * time.Hour)
+	return s, s.Add(time.Hour)
+}
+
+func fill(t *testing.T, m *metricsCache, i int, calls *atomic.Int32) {
+	t.Helper()
+	s, e := window(i)
+	if _, err := m.get(context.Background(), s, e, countingCompute(calls, float64(i))); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// cached reports whether window i is held, without computing on a miss.
+func cached(m *metricsCache, i int) bool {
+	s, e := window(i)
+	_, ok := m.store.Get(metricsCacheKey(s, e))
+	return ok
+}
+
+// checkAccounting asserts the size bookkeeping mirrors the store exactly.
+func checkAccounting(t *testing.T, m *metricsCache) {
+	t.Helper()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	items := m.store.Items()
+	if len(items) != len(m.sizes) {
+		t.Fatalf("store has %d entries, size map has %d", len(items), len(m.sizes))
+	}
+	var sum int64
+	for k, it := range items {
+		want := estimateSize(it.Object.([]*InferenceCost))
+		if m.sizes[k] != want {
+			t.Fatalf("size for %s: tracked %d, actual %d", k, m.sizes[k], want)
+		}
+		sum += want
+	}
+	if sum != m.bytes {
+		t.Fatalf("tracked total %d, actual %d", m.bytes, sum)
+	}
+}
+
+var unit = estimateSize(oneResult(0))
+
+func TestMetricsCache_EvictsToFitNewEntry(t *testing.T) {
+	m := newMetricsCache(time.Hour, 2*unit+unit/2) // room for two entries
+	var calls atomic.Int32
+	for i := 0; i < 5; i++ {
+		fill(t, m, i, &calls)
+		if used := m.usedBytes(); used > m.maxBytes {
+			t.Fatalf("after add %d: %d bytes used, bound %d", i, used, m.maxBytes)
+		}
+		checkAccounting(t, m)
+	}
+	if m.store.ItemCount() != 2 {
+		t.Errorf("expected 2 entries to fit, got %d", m.store.ItemCount())
+	}
+	if !cached(m, 4) {
+		t.Error("the newest entry must be kept")
+	}
+}
+
+func TestMetricsCache_EntryLargerThanBoundIsNotCached(t *testing.T) {
+	m := newMetricsCache(time.Hour, unit-1)
+	var calls atomic.Int32
+	fill(t, m, 0, &calls)
+	fill(t, m, 0, &calls)
+	if calls.Load() != 2 {
+		t.Errorf("an oversized result must be returned but not cached: computes %d", calls.Load())
+	}
+	if m.usedBytes() != 0 || m.store.ItemCount() != 0 {
+		t.Errorf("nothing should be stored, got %d bytes / %d entries", m.usedBytes(), m.store.ItemCount())
+	}
+}
+
+func TestMetricsCache_UnboundedWhenMaxIsZeroOrNegative(t *testing.T) {
+	for _, max := range []int64{0, -1} {
+		m := newMetricsCache(time.Hour, max)
+		var calls atomic.Int32
+		for i := 0; i < 20; i++ {
+			fill(t, m, i, &calls)
+		}
+		if m.store.ItemCount() != 20 {
+			t.Errorf("max %d: expected all 20 entries, got %d", max, m.store.ItemCount())
+		}
+		checkAccounting(t, m)
+	}
+}
+
+func TestMetricsCache_DropsExpiredEntriesBeforeLiveOnes(t *testing.T) {
+	const ttl = 300 * time.Millisecond
+	m := newMetricsCache(ttl, 2*unit+unit/2)
+	var calls atomic.Int32
+	fill(t, m, 0, &calls)
+	time.Sleep(ttl + 50*time.Millisecond) // 0 expired, not yet swept
+	fill(t, m, 1, &calls)                 // fits alongside the expired 0
+	fill(t, m, 2, &calls)                 // needs room: 0 must go, not 1
+	if !cached(m, 1) || !cached(m, 2) {
+		t.Errorf("live entries were evicted while an expired one was available: 1=%v 2=%v", cached(m, 1), cached(m, 2))
+	}
+	checkAccounting(t, m)
+}
+
+func TestMetricsCache_ExpirySweepReleasesBytes(t *testing.T) {
+	m := newMetricsCache(30*time.Millisecond, 10*unit)
+	var calls atomic.Int32
+	fill(t, m, 0, &calls)
+	fill(t, m, 1, &calls)
+	time.Sleep(60 * time.Millisecond)
+	m.store.DeleteExpired()
+	if m.usedBytes() != 0 {
+		t.Errorf("expired entries must release their bytes, %d still counted", m.usedBytes())
+	}
+	checkAccounting(t, m)
+}
+
+func TestMetricsCache_ReplacingAnUnsweptExpiredKeyCountsOnce(t *testing.T) {
+	m := newMetricsCache(30*time.Millisecond, 10*unit)
+	var calls atomic.Int32
+	fill(t, m, 0, &calls)
+	time.Sleep(60 * time.Millisecond) // expired; the janitor runs far later
+	fill(t, m, 0, &calls)             // miss, recompute, same key
+	if calls.Load() != 2 {
+		t.Fatalf("expected a recompute, got %d computes", calls.Load())
+	}
+	if m.usedBytes() != unit {
+		t.Errorf("one live entry should count once: %d bytes, want %d", m.usedBytes(), unit)
+	}
+	checkAccounting(t, m)
+}
+
+func TestMetricsCache_ConcurrentAddsStayWithinBound(t *testing.T) {
+	m := newMetricsCache(time.Hour, 5*unit+unit/2)
+	var calls atomic.Int32
+	var wg sync.WaitGroup
+	for i := 0; i < 64; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			s, e := window(i)
+			_, _ = m.get(context.Background(), s, e, countingCompute(&calls, float64(i)))
+		}(i)
+	}
+	wg.Wait()
+	if used := m.usedBytes(); used > m.maxBytes {
+		t.Errorf("%d bytes used, bound %d", used, m.maxBytes)
+	}
+	if m.store.ItemCount() != 5 {
+		t.Errorf("expected the cache full at 5 entries, got %d", m.store.ItemCount())
+	}
+	checkAccounting(t, m)
+}
+
+func TestEstimateSize(t *testing.T) {
+	if got := estimateSize(nil); got != sliceHeaderBytes {
+		t.Errorf("empty result: %d, want %d", got, sliceHeaderBytes)
+	}
+	if got, want := estimateSize([]*InferenceCost{nil}), int64(sliceHeaderBytes+slicePointerBytes); got != want {
+		t.Errorf("nil entries count only their pointer: %d, want %d", got, want)
+	}
+
+	base := &InferenceCost{}
+	named := &InferenceCost{Properties: InferenceCostProperties{ModelName: "llama-3", Namespace: "llm-prod"}, AllocationMethod: "x"}
+	if d := estimateSize([]*InferenceCost{named}) - estimateSize([]*InferenceCost{base}); d != int64(len("llama-3")+len("llm-prod")+1) {
+		t.Errorf("string contents should add their length, got +%d", d)
+	}
+
+	withMap := &InferenceCost{CostPerMillionTokens: map[CostBasis]float64{CostBasisAllocation: 1, CostBasisUsage: 2}}
+	wantMap := int64(mapOverheadBytes + 2*mapEntryBytes + len(CostBasisAllocation) + len(CostBasisUsage))
+	if d := estimateSize([]*InferenceCost{withMap}) - estimateSize([]*InferenceCost{base}); d != wantMap {
+		t.Errorf("a two-entry map should add %d, got +%d", wantMap, d)
+	}
+}
+
+func TestGetQueryCacheMaxBytes(t *testing.T) {
+	t.Setenv("INFERENCE_QUERY_CACHE_MAX_SIZE_MB", "3")
+	if got := getQueryCacheMaxBytes(); got != 3<<20 {
+		t.Errorf("3 MiB: got %d bytes", got)
+	}
+	t.Setenv("INFERENCE_QUERY_CACHE_MAX_SIZE_MB", "")
+	if got := getQueryCacheMaxBytes(); got != 100<<20 {
+		t.Errorf("default should be 100 MiB, got %d bytes", got)
 	}
 }

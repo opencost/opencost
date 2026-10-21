@@ -31,6 +31,7 @@ OpenCost reads `PROMETHEUS_SERVER_ENDPOINT` for both the core metrics and the [v
 | `INFERENCE_SHARED_INFRA_LABEL_VALUE` | `true` | Label value that marks a pod as shared infra. See [Shared infrastructure label](#shared-infrastructure-label) for details. |
 | `INFERENCE_COLLECTION_INTERVAL` | `2m` | Background collection interval |
 | `INFERENCE_QUERY_CACHE_TTL` | `1h` | How long `/inferenceCost/total` and `/inferenceCost/timeseries` cache the collected metrics for each sub-window. Results for windows that include the current time can be up to this old. `0` disables the cache. |
+| `INFERENCE_QUERY_CACHE_MAX_SIZE_MB` | `100` | Upper bound, in MiB, on the estimated size of that cache. When adding an entry would exceed it, expired entries are dropped first, then arbitrary entries until the new one fits; an entry larger than the bound is not cached. `0` means no bound. |
 
 ### Kubernetes Deployment Example
 

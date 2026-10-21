@@ -38,7 +38,7 @@ func NewQueryService(c *Collector, calc *Calculator) *QueryService {
 	return &QueryService{
 		collector:  c,
 		calculator: calc,
-		cache:      newMetricsCache(getQueryCacheTTL()),
+		cache:      newMetricsCache(getQueryCacheTTL(), getQueryCacheMaxBytes()),
 	}
 }
 

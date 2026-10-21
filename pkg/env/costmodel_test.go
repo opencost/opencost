@@ -120,3 +120,18 @@ func TestGetInferenceQueryCacheTTL_Override(t *testing.T) {
 		t.Fatalf("expected 0 to disable, got %v", got)
 	}
 }
+
+func TestGetInferenceQueryCacheMaxSizeMB(t *testing.T) {
+	t.Setenv(InferenceQueryCacheMaxSizeMBEnvVar, "")
+	if got := GetInferenceQueryCacheMaxSizeMB(); got != 100 {
+		t.Fatalf("expected 100 default, got %d", got)
+	}
+	t.Setenv(InferenceQueryCacheMaxSizeMBEnvVar, "512")
+	if got := GetInferenceQueryCacheMaxSizeMB(); got != 512 {
+		t.Fatalf("expected 512, got %d", got)
+	}
+	t.Setenv(InferenceQueryCacheMaxSizeMBEnvVar, "0")
+	if got := GetInferenceQueryCacheMaxSizeMB(); got != 0 {
+		t.Fatalf("expected 0 for no bound, got %d", got)
+	}
+}
