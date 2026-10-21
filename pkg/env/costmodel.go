@@ -107,6 +107,7 @@ const (
 	InferenceSharedInfraLabelEnvVar      = "INFERENCE_SHARED_INFRA_LABEL"
 	InferenceSharedInfraLabelValueEnvVar = "INFERENCE_SHARED_INFRA_LABEL_VALUE"
 	InferenceCollectionIntervalEnvVar    = "INFERENCE_COLLECTION_INTERVAL"
+	InferenceQueryCacheTTLEnvVar         = "INFERENCE_QUERY_CACHE_TTL"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -450,4 +451,10 @@ func GetInferenceSharedInfraLabelValue() string {
 // Default is 2 minutes to match the core metrics emitter query window.
 func GetInferenceCollectionInterval() time.Duration {
 	return env.GetDuration(InferenceCollectionIntervalEnvVar, 2*time.Minute)
+}
+
+// GetInferenceQueryCacheTTL returns how long /inferenceCost query results are
+// cached per sub-window. Default is 1 hour; 0 or a negative value disables it.
+func GetInferenceQueryCacheTTL() time.Duration {
+	return env.GetDuration(InferenceQueryCacheTTLEnvVar, time.Hour)
 }

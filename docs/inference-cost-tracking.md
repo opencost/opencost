@@ -30,6 +30,7 @@ OpenCost reads `PROMETHEUS_SERVER_ENDPOINT` for both the core metrics and the [v
 | `INFERENCE_SHARED_INFRA_LABEL` | `llm-d.ai/inference-shared` | Pod label key identifying shared infra pods (EPP, gateway). See [Shared infrastructure label](#shared-infrastructure-label) for details. |
 | `INFERENCE_SHARED_INFRA_LABEL_VALUE` | `true` | Label value that marks a pod as shared infra. See [Shared infrastructure label](#shared-infrastructure-label) for details. |
 | `INFERENCE_COLLECTION_INTERVAL` | `2m` | Background collection interval |
+| `INFERENCE_QUERY_CACHE_TTL` | `1h` | How long `/inferenceCost/total` and `/inferenceCost/timeseries` cache the collected metrics for each sub-window. Results for windows that include the current time can be up to this old. `0` disables the cache. |
 
 ### Kubernetes Deployment Example
 

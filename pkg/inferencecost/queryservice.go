@@ -21,13 +21,15 @@ var protocol = proto.HTTP()
 // and Calculator, matching the pattern of OpenCost's /allocation and /assets
 // APIs (no stored repository).
 //
-// Note: each request issues two ComputeAllocation calls per sub-window (one
-// with idle sharing for allocation costs, one without for usage costs). This
-// is consistent with /allocation which also recomputes from Prometheus on
-// every request and has no result cache.
+// Note: computing a sub-window issues two ComputeAllocation calls (one with
+// idle sharing for allocation costs, one without for usage costs). The
+// collected per-window metrics are therefore cached (see metricsCache) for
+// INFERENCE_QUERY_CACHE_TTL, default 1h, and shared across cost bases,
+// aggregations and filters.
 type QueryService struct {
 	collector  *Collector
 	calculator *Calculator
+	cache      *metricsCache
 }
 
 // NewQueryService creates a QueryService. Both collector and calculator must
@@ -36,6 +38,7 @@ func NewQueryService(c *Collector, calc *Calculator) *QueryService {
 	return &QueryService{
 		collector:  c,
 		calculator: calc,
+		cache:      newMetricsCache(getQueryCacheTTL()),
 	}
 }
 
@@ -142,14 +145,20 @@ func (qs *QueryService) query(ctx context.Context, req *QueryRequest) (*Inferenc
 // computeStep computes inference costs for a single sub-window, projects to
 // the requested cost basis, applies filters, and aggregates.
 func (qs *QueryService) computeStep(ctx context.Context, req *QueryRequest, win opencost.Window) (*InferenceCostSet, error) {
-	// Collect raw metrics for this sub-window.
-	metrics, err := qs.collector.CollectMetrics(ctx, *win.Start(), *win.End())
+	// Collect raw metrics and compute derived costs (per-million rates,
+	// input/output split) for this sub-window, from cache when available.
+	// The result is shared; it is only read below.
+	metrics, err := qs.cache.get(ctx, *win.Start(), *win.End(), func(ctx context.Context) ([]*InferenceCost, error) {
+		m, err := qs.collector.CollectMetrics(ctx, *win.Start(), *win.End())
+		if err != nil {
+			return nil, fmt.Errorf("collecting metrics: %w", err)
+		}
+		qs.calculator.CalculateCosts(m)
+		return m, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("collecting metrics: %w", err)
+		return nil, err
 	}
-
-	// Compute derived costs (per-million rates, input/output split).
-	qs.calculator.CalculateCosts(metrics)
 
 	set := newInferenceCostSet(win)
 	for _, ic := range metrics {
