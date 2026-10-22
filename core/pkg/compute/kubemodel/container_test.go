@@ -162,6 +162,76 @@ func TestComputeContainers(t *testing.T) {
 			},
 		},
 		{
+			name: "device usage avg and max are populated",
+			overrides: map[string]any{
+				source.QueryContainerUptime: []*source.ContainerUptimeResult{
+					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "training"},
+				},
+				source.QueryDCGMContainerUsageAvg: []*source.DCGMDeviceContainerUsageResult{
+					{UUID: "GPU-abc123", PodUID: "pod-1", Container: "training", Value: 0.75},
+				},
+				source.QueryDCGMContainerUsageMax: []*source.DCGMDeviceContainerUsageResult{
+					{UUID: "GPU-abc123", PodUID: "pod-1", Container: "training", Value: 0.95},
+				},
+			},
+			want: map[string]*kubemodel.Container{
+				"pod-1/training": {
+					PodUID:           "pod-1",
+					Name:             "training",
+					Start:            start,
+					End:              end,
+					ResourceRequests: kubemodel.ResourceQuantities{},
+					ResourceLimits:   kubemodel.ResourceQuantities{},
+					DeviceUsages: map[string]kubemodel.DeviceUsage{
+						"GPU-abc123": {UsageAvg: 0.75, UsageMax: 0.95},
+					},
+				},
+			},
+		},
+		{
+			name: "device usage with empty pod uid or container is ignored",
+			overrides: map[string]any{
+				source.QueryContainerUptime: []*source.ContainerUptimeResult{
+					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "training"},
+				},
+				source.QueryDCGMContainerUsageAvg: []*source.DCGMDeviceContainerUsageResult{
+					{UUID: "GPU-abc123", PodUID: "", Container: "training", Value: 0.5},
+					{UUID: "GPU-abc123", PodUID: "pod-1", Container: "", Value: 0.5},
+				},
+			},
+			want: map[string]*kubemodel.Container{
+				"pod-1/training": {
+					PodUID:           "pod-1",
+					Name:             "training",
+					Start:            start,
+					End:              end,
+					ResourceRequests: kubemodel.ResourceQuantities{},
+					ResourceLimits:   kubemodel.ResourceQuantities{},
+				},
+			},
+		},
+		{
+			name: "device usage for unknown container is ignored",
+			overrides: map[string]any{
+				source.QueryContainerUptime: []*source.ContainerUptimeResult{
+					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "main"},
+				},
+				source.QueryDCGMContainerUsageAvg: []*source.DCGMDeviceContainerUsageResult{
+					{UUID: "GPU-abc123", PodUID: "pod-1", Container: "training", Value: 0.75},
+				},
+			},
+			want: map[string]*kubemodel.Container{
+				"pod-1/main": {
+					PodUID:           "pod-1",
+					Name:             "main",
+					Start:            start,
+					End:              end,
+					ResourceRequests: kubemodel.ResourceQuantities{},
+					ResourceLimits:   kubemodel.ResourceQuantities{},
+				},
+			},
+		},
+		{
 			name: "resource requests for unknown container are ignored",
 			overrides: map[string]any{
 				source.QueryContainerUptime: []*source.ContainerUptimeResult{

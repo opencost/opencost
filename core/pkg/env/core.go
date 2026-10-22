@@ -21,9 +21,10 @@ const (
 	Resolution1hRetentionEnvVar  = "RESOLUTION_1H_RETENTION"  // int: number of hours
 	Resolution10mRetentionEnvVar = "RESOLUTION_10M_RETENTION" // int: number of 10m segments
 
-	ExportLegacyDataModelEnvVar = "EXPORT_LEGACY_DATA_MODEL"
-	ExportKubeModelEnvVar       = "EXPORT_KUBEMODEL"
-	ForceKubeModelV1EnvVar      = "FORCE_KUBEMODEL_V1"
+	ExportLegacyDataModelEnvVar     = "EXPORT_LEGACY_DATA_MODEL"
+	ExportKubeModelEnvVar           = "EXPORT_KUBEMODEL"
+	ForceKubeModelV1EnvVar          = "FORCE_KUBEMODEL_V1"
+	AssetIncludeLocalDiskCostEnvVar = "ASSET_INCLUDE_LOCAL_DISK_COST"
 )
 
 // GetAPIPort returns the environment variable value for APIPortEnvVar which
@@ -78,5 +79,11 @@ func IsKubeModelExported() bool {
 // export the legacy v1 (cluster, namespaces, resource quotas only) shape,
 // regardless of whether the source reports a complete kubemodel.
 func IsKubeModelV1Forced() bool {
-	return GetBool(ForceKubeModelV1EnvVar, true)
+	return GetBool(ForceKubeModelV1EnvVar, false)
+}
+
+// IsAssetIncludeLocalDiskCost returns true if node local disks, and PVs created by
+// sig-storage-local-static-provisioner, should be included in asset costs.
+func IsAssetIncludeLocalDiskCost() bool {
+	return GetBool(AssetIncludeLocalDiskCostEnvVar, true)
 }

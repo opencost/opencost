@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/opencost/opencost/core/pkg/cloud"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
-	"github.com/opencost/opencost/core/pkg/model/shared"
 	"github.com/opencost/opencost/core/pkg/source"
 )
 
@@ -38,10 +38,11 @@ func TestComputeCluster(t *testing.T) {
 				},
 			},
 			want: &kubemodel.Cluster{
-				UID:   testClusterUID,
-				Name:  "my-cluster",
-				Start: start,
-				End:   end,
+				UID:      testClusterUID,
+				Name:     "my-cluster",
+				Provider: cloud.ProviderCustom,
+				Start:    start,
+				End:      end,
 			},
 		},
 		{
@@ -57,7 +58,7 @@ func TestComputeCluster(t *testing.T) {
 			want: &kubemodel.Cluster{
 				UID:      testClusterUID,
 				Name:     "prod-cluster",
-				Provider: shared.ProviderAWS,
+				Provider: cloud.ProviderAWS,
 				Account:  "123456789",
 				Region:   "us-east-1",
 				Start:    start,
@@ -85,10 +86,11 @@ func TestComputeCluster(t *testing.T) {
 				},
 			},
 			want: &kubemodel.Cluster{
-				UID:   testClusterUID,
-				Name:  "my-cluster",
-				Start: start,
-				End:   end,
+				UID:      testClusterUID,
+				Name:     "my-cluster",
+				Provider: cloud.ProviderCustom,
+				Start:    start,
+				End:      end,
 			},
 		},
 	}

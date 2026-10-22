@@ -672,22 +672,22 @@ func fallbackNode(slug string) (*models.Node, models.PricingMetadata, error) {
 		ramBytes := int64(ram) * 1024 * 1024 * 1024
 
 		return &models.Node{
-				Cost:         fmt.Sprintf("%.5f", cost),
-				VCPUCost:     fmt.Sprintf("%.5f", unitCost),
-				RAMCost:      fmt.Sprintf("%.5f", unitCost),
-				VCPU:         strconv.Itoa(vcpu),
-				RAM:          fmt.Sprintf("%dGiB", ram),
-				RAMBytes:     fmt.Sprintf("%d", ramBytes),
-				InstanceType: slug,
-				Region:       "global",
-				UsageType:    "static-fallback",
-				PricingType:  models.DefaultPrices,
-				ArchType:     "amd64",
-			}, models.PricingMetadata{
-				Currency: "USD",
-				Source:   "static-fallback",
-				Warnings: []string{"used estimated fallback"},
-			}, nil
+			Cost:         fmt.Sprintf("%.5f", cost),
+			VCPUCost:     fmt.Sprintf("%.5f", unitCost),
+			RAMCost:      fmt.Sprintf("%.5f", unitCost),
+			VCPU:         strconv.Itoa(vcpu),
+			RAM:          fmt.Sprintf("%dGiB", ram),
+			RAMBytes:     fmt.Sprintf("%d", ramBytes),
+			InstanceType: slug,
+			Region:       "global",
+			UsageType:    "static-fallback",
+			PricingType:  models.DefaultPrices,
+			ArchType:     "amd64",
+		}, models.PricingMetadata{
+			Currency: "USD",
+			Source:   "static-fallback",
+			Warnings: []string{"used estimated fallback"},
+		}, nil
 	}
 
 	return nil, models.PricingMetadata{

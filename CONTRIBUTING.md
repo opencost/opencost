@@ -28,18 +28,44 @@ Follow these steps to build the OpenCost cost-model and UI from source and
 deploy. The provided build tooling is natively multi-architecture (built images
 will run on both AMD64 and ARM64 clusters).
 
+### Using Docker
+
 Dependencies:
 1. Docker (with `buildx`)
 2. [just](https://github.com/casey/just) (if you don't want to install it , Just read the `justfile` and run the commands manually)
 3. Multi-arch `buildx` builders set up via https://github.com/tonistiigi/binfmt
 4. `manifest-tool` via https://github.com/estesp/manifest-tool
-4. `npm` (if you want to build the UI)
+5. `npm` (if you want to build the UI)
 
 ### Build the backend
 
 1. `just build "<repo>/opencost:<tag>"`
 2. Edit the [pulled image](https://github.com/opencost/opencost/blob/develop/kubernetes/opencost.yaml#L145) in the `kubernetes/opencost.yaml` to `<repo>/opencost:<tag>`
 3. Set [this environment variable](https://github.com/opencost/opencost/blob/develop/kubernetes/opencost.yaml#L155) to the address of your Prometheus server
+
+### Using Podman
+
+If you prefer Podman over Docker, use the `build-podman` recipe instead. Podman's
+multi-arch manifest support is built in — no `manifest-tool` required.
+
+Dependencies:
+1. [Podman](https://podman.io/docs/installation) (v4+)
+2. [just](https://github.com/casey/just)
+
+Build and push a multi-arch image:
+
+```bash
+just build-podman "<repo>/opencost:<tag>" "<release-version>"
+# e.g.
+just build-podman myregistry.io/opencost:latest 1.0.0
+```
+
+This will:
+1. Compile `costmodel-amd64` and `costmodel-arm64` binaries with version metadata embedded
+2. Build and push `<IMAGE_TAG>-amd64` and `<IMAGE_TAG>-arm64` images using `Dockerfile.cross`
+3. Create a multi-arch manifest at `<IMAGE_TAG>` combining both and push it to the registry
+
+> **Note:** make sure you are logged in to your registry (`podman login <registry>`) before running the build.
 
 ### Build the frontend
 1. `cd ui && just build "<repo>/opencost-ui:<tag>"`

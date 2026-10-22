@@ -12,6 +12,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/ibm"
 )
 
 func Test_ParseConfig_InvalidType(t *testing.T) {
@@ -131,6 +132,29 @@ func Test_ParseConfig_Azure(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(config, parsedConfig) {
+		t.Fatalf("parsed config does not match original config:\n%+v\n%+v", parsedConfig, config)
+	}
+}
+
+func Test_ParseConfig_IBM(t *testing.T) {
+	config := &ibm.UsageConfiguration{
+		AccountID: "account-id",
+		Authorizer: &ibm.APIKey{
+			Key: "api-key",
+		},
+	}
+
+	configBytes, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("failed to marshal config: %v", err)
+	}
+
+	parsedConfig, err := ParseConfig(IBMUsageConfigType, bytes.NewReader(configBytes))
+	if err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+
+	if !config.Equals(parsedConfig) {
 		t.Fatalf("parsed config does not match original config:\n%+v\n%+v", parsedConfig, config)
 	}
 }

@@ -107,7 +107,7 @@ func NewQueryResults(query string, queryResult interface{}, resultKeys *source.R
 	}
 
 	// Result vectors from the query
-	var results []*source.QueryResult
+	results := make([]*source.QueryResult, 0, len(resultsData))
 
 	// Parse raw results and into QueryResults
 	for _, val := range resultsData {
@@ -160,6 +160,7 @@ func NewQueryResults(query string, queryResult interface{}, resultKeys *source.R
 				qrs.Error = fmt.Errorf("Values field is improperly formatted")
 				return qrs
 			}
+			vectors = make([]*util.Vector, 0, len(values))
 
 			// Append new data points, log warnings
 			for _, value := range values {

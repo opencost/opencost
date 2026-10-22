@@ -234,6 +234,44 @@ func TestAllocation_Add(t *testing.T) {
 	if act.RawAllocationOnly != nil {
 		t.Errorf("Allocation.Add: Raw only data must be nil after an add")
 	}
+
+	// Test GPUAllocation merging edge cases:
+	// Case A: Receiver has nil GPUAllocation, incoming has non-nil GPUAllocation
+	g1 := &Allocation{
+		Start:      s1,
+		End:        e1,
+		Window:     NewWindow(&s1, &e1),
+		Properties: &AllocationProperties{},
+	}
+	gpuReqVal := 1.0
+	gpuUseVal := 0.5
+	g2 := &Allocation{
+		Start:      s2,
+		End:        e2,
+		Window:     NewWindow(&s2, &e2),
+		Properties: &AllocationProperties{},
+		GPUAllocation: &GPUAllocation{
+			GPUDevice:         "nvidia-tesla-t4",
+			GPURequestAverage: &gpuReqVal,
+			GPUUsageAverage:   &gpuUseVal,
+		},
+	}
+	actG, err := g1.Add(g2)
+	if err != nil {
+		t.Fatalf("Allocation.Add: unexpected error: %s", err)
+	}
+	if actG.GPUAllocation == nil {
+		t.Fatalf("Allocation.Add: expected non-nil GPUAllocation from merge")
+	}
+	if actG.GPUAllocation.GPUDevice != "nvidia-tesla-t4" {
+		t.Errorf("Allocation.Add: expected GPUDevice 'nvidia-tesla-t4', got %s", actG.GPUAllocation.GPUDevice)
+	}
+	if actG.GPUAllocation.GPURequestAverage == nil || !util.IsApproximately(0.75, *actG.GPUAllocation.GPURequestAverage) {
+		t.Errorf("Allocation.Add: expected GPURequestAverage 0.75, got %v", actG.GPUAllocation.GPURequestAverage)
+	}
+	if actG.GPUAllocation.GPUUsageAverage == nil || !util.IsApproximately(0.375, *actG.GPUAllocation.GPUUsageAverage) {
+		t.Errorf("Allocation.Add: expected GPUUsageAverage 0.375, got %v", actG.GPUAllocation.GPUUsageAverage)
+	}
 }
 
 func TestAllocation_Share(t *testing.T) {

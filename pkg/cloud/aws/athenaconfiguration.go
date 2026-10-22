@@ -18,6 +18,10 @@ type AthenaConfiguration struct {
 	Workgroup  string     `json:"workgroup"`
 	Account    string     `json:"account"`
 	Authorizer Authorizer `json:"authorizer"`
+	// ResultReuseMaxAgeMinutes enables Athena query result reuse for this many minutes (0 = disabled).
+	// When set, identical queries within the TTL window return cached results instead of re-scanning,
+	// reducing cost for multi-cluster deployments where many clusters run the same CUR query.
+	ResultReuseMaxAgeMinutes int32 `json:"resultReuseMaxAgeMinutes,omitempty"`
 }
 
 func (ac *AthenaConfiguration) Validate() error {
@@ -103,19 +107,24 @@ func (ac *AthenaConfiguration) Equals(config cloud.Config) bool {
 		return false
 	}
 
+	if ac.ResultReuseMaxAgeMinutes != thatConfig.ResultReuseMaxAgeMinutes {
+		return false
+	}
+
 	return true
 }
 
 func (ac *AthenaConfiguration) Sanitize() cloud.Config {
 	return &AthenaConfiguration{
-		Bucket:     ac.Bucket,
-		Region:     ac.Region,
-		Database:   ac.Database,
-		Catalog:    ac.Catalog,
-		Table:      ac.Table,
-		Workgroup:  ac.Workgroup,
-		Account:    ac.Account,
-		Authorizer: ac.Authorizer.Sanitize().(Authorizer),
+		Bucket:                   ac.Bucket,
+		Region:                   ac.Region,
+		Database:                 ac.Database,
+		Catalog:                  ac.Catalog,
+		Table:                    ac.Table,
+		Workgroup:                ac.Workgroup,
+		Account:                  ac.Account,
+		Authorizer:               ac.Authorizer.Sanitize().(Authorizer),
+		ResultReuseMaxAgeMinutes: ac.ResultReuseMaxAgeMinutes,
 	}
 }
 
@@ -189,6 +198,14 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
 	}
 	ac.Authorizer = authorizer
+
+	if _, ok := fmap["resultReuseMaxAgeMinutes"]; ok {
+		resultReuseMaxAgeMinutes, err := cloud.GetInterfaceValue[float64](fmap, "resultReuseMaxAgeMinutes")
+		if err != nil {
+			return fmt.Errorf("AthenaConfiguration: UnmarshalJSON: %w", err)
+		}
+		ac.ResultReuseMaxAgeMinutes = int32(resultReuseMaxAgeMinutes)
+	}
 
 	return nil
 }
