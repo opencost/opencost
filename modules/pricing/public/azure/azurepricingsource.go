@@ -47,7 +47,7 @@ func (a *AzurePricingSource) GetPricing() (*pricing.PricingSet, error) {
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
 		// Azure LoadBalancer services correspond to a Standard Static Public IP
-		// ($0.005/hr). This is not fetched from the API — it is consistent across
+		// ($0.005/hr USD). This is not fetched from the API — it is consistent across
 		// all regions
 		ServicePricing: []*pricing.ServicePricing{
 			{
