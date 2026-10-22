@@ -54,7 +54,7 @@ func concurrentScrape(scrapeFuncs ...ScrapeFunc) []metric.Update {
 		}()
 	}
 
-	// Waits for every scrape, so one hung target pauses all collection. Say so.
+	// One hung scrape blocks this wait (and all collection) indefinitely; warn so it isn't silent.
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	var scrapeResults []metric.Update
