@@ -861,7 +861,7 @@ func TestQueryAssets_InvalidWindow(t *testing.T) {
 		Window:    "invalid-window",
 	}
 
-	_, err := s.QueryAssets(req)
+	_, err := s.QueryAssets(context.Background(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse window")
 }
@@ -874,7 +874,7 @@ func TestQueryAllocations_InvalidWindow(t *testing.T) {
 		Window:    "invalid-window",
 	}
 
-	_, err := s.QueryAllocations(req)
+	_, err := s.QueryAllocations(context.Background(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse window")
 }
@@ -1300,7 +1300,7 @@ func TestQueryEfficiency_InvalidWindow(t *testing.T) {
 		Window:    "invalid-window",
 	}
 
-	_, err := s.QueryEfficiency(req)
+	_, err := s.QueryEfficiency(context.Background(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse window")
 }
@@ -1582,4 +1582,56 @@ func TestProcessMCPRequest_ContextPropagation(t *testing.T) {
 	require.NotNil(t, resp)
 	// Verify that the querier was called (context was propagated)
 	assert.NotNil(t, dq.last)
+}
+
+// A nil costModel would panic if reached, so these also prove the query
+// returns before touching the cost model.
+func TestQueries_CancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	s := &MCPServer{}
+
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{"allocation", func() error {
+			_, err := s.QueryAllocations(ctx, &OpenCostQueryRequest{QueryType: AllocationQueryType, Window: "1d"})
+			return err
+		}},
+		{"asset", func() error {
+			_, err := s.QueryAssets(ctx, &OpenCostQueryRequest{QueryType: AssetQueryType, Window: "1d"})
+			return err
+		}},
+		{"efficiency", func() error {
+			_, err := s.QueryEfficiency(ctx, &OpenCostQueryRequest{QueryType: EfficiencyQueryType, Window: "1d"})
+			return err
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.run()
+			require.Error(t, err)
+			assert.ErrorIs(t, err, context.Canceled)
+		})
+	}
+}
+
+func TestProcessMCPRequest_DeadlineExceeded(t *testing.T) {
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+
+	s := &MCPServer{}
+
+	for _, qt := range []QueryType{AllocationQueryType, AssetQueryType, EfficiencyQueryType} {
+		t.Run(string(qt), func(t *testing.T) {
+			_, err := s.ProcessMCPRequest(ctx, &MCPRequest{
+				Query: &OpenCostQueryRequest{QueryType: qt, Window: "1d"},
+			})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, context.DeadlineExceeded)
+		})
+	}
 }
