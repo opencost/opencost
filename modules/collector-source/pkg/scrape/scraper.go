@@ -1,6 +1,9 @@
 package scrape
 
 import (
+	"time"
+
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 )
 
@@ -51,10 +54,18 @@ func concurrentScrape(scrapeFuncs ...ScrapeFunc) []metric.Update {
 		}()
 	}
 
+	// Waits for every scrape, so one hung target pauses all collection. Say so.
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
 	var scrapeResults []metric.Update
-	for range scrapeFuncs {
-		targetResults := <-resultCh
-		scrapeResults = append(scrapeResults, targetResults...)
+	for remaining := len(scrapeFuncs); remaining > 0; {
+		select {
+		case targetResults := <-resultCh:
+			scrapeResults = append(scrapeResults, targetResults...)
+			remaining--
+		case <-ticker.C:
+			log.Warnf("%d of %d scrapes have not returned; metric collection is paused until they do", remaining, len(scrapeFuncs))
+		}
 	}
 	return scrapeResults
 }
