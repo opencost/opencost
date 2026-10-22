@@ -272,7 +272,15 @@ func TestNewRateCardCredential_LegacyCertificateEnv(t *testing.T) {
 	_, err = newRateCardCredential("", "", "", clientOptionsFor(cloud.AzureChina, newFakeEntra()))
 	require.ErrorContains(t, err, "parsing client certificate from AZURE_CERTIFICATE_PATH")
 
+	// A certificate wins over a username, as it did with go-autorest.
 	t.Setenv(legacyCertificatePasswordEnvVar, "")
+	t.Setenv("AZURE_USERNAME", "user@example.com")
+	t.Setenv("AZURE_PASSWORD", "user-password")
+	cred, err = newRateCardCredential("", "", "", clientOptionsFor(cloud.AzureChina, newFakeEntra()))
+	require.NoError(t, err)
+	require.IsType(t, &azidentity.ClientCertificateCredential{}, cred)
+
+	t.Setenv("AZURE_USERNAME", "")
 	t.Setenv("AZURE_TENANT_ID", "")
 	_, err = newRateCardCredential("", "", "", clientOptionsFor(cloud.AzureChina, newFakeEntra()))
 	require.ErrorContains(t, err, "AZURE_TENANT_ID or AZURE_CLIENT_ID is missing")

@@ -71,10 +71,11 @@ func newRateCardCredential(clientID, clientSecret, tenantID string, opts *arm.Cl
 		})
 	}
 
-	if os.Getenv("AZURE_CLIENT_SECRET") != "" || os.Getenv("AZURE_CLIENT_CERTIFICATE_PATH") != "" || os.Getenv("AZURE_USERNAME") != "" {
-		return azidentity.NewEnvironmentCredential(&azidentity.EnvironmentCredentialOptions{
-			ClientOptions: opts.ClientOptions,
-		})
+	// Environment credentials in go-autorest's order: client secret,
+	// certificate, then username.
+	envOpts := &azidentity.EnvironmentCredentialOptions{ClientOptions: opts.ClientOptions}
+	if os.Getenv("AZURE_CLIENT_SECRET") != "" || os.Getenv("AZURE_CLIENT_CERTIFICATE_PATH") != "" {
+		return azidentity.NewEnvironmentCredential(envOpts)
 	}
 
 	if path := os.Getenv(legacyCertificatePathEnvVar); path != "" {
@@ -83,6 +84,10 @@ func newRateCardCredential(clientID, clientSecret, tenantID string, opts *arm.Cl
 			return nil, fmt.Errorf("%s is set but AZURE_TENANT_ID or AZURE_CLIENT_ID is missing", legacyCertificatePathEnvVar)
 		}
 		return newCertificateCredential(envTenantID, envClientID, path, os.Getenv(legacyCertificatePasswordEnvVar), legacyCertificatePathEnvVar, opts.ClientOptions)
+	}
+
+	if os.Getenv("AZURE_USERNAME") != "" {
+		return azidentity.NewEnvironmentCredential(envOpts)
 	}
 
 	if path := os.Getenv(azureAuthLocationEnvVar); path != "" {
