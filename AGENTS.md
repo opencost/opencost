@@ -67,11 +67,11 @@ opencost/
 ### Prerequisites
 
 - Go (see go.mod for the required version)
-- Docker with `buildx` support
+- Docker with `buildx` support, or Podman
 - [just](https://github.com/casey/just) - command runner
 - [Tilt](https://tilt.dev/) - for local Kubernetes development
-- Kubernetes cluster (local or remote)
-- Prometheus instance
+- Kubernetes cluster (local, e.g. kind, or remote)
+- Prometheus instance, unless using the Collector data source (see [Testing Collector Source on kind](#testing-collector-source-on-kind))
 
 ### Quick Start Commands
 
@@ -88,7 +88,7 @@ just test-collector-source
 # Build local binary
 just build-local
 
-# Run locally (requires Prometheus and optionally Kubernetes access)
+# Run locally with the Prometheus data source (requires Prometheus and optionally Kubernetes access)
 PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9080" go run ./cmd/costmodel/main.go
 
 # Start development environment with Tilt
@@ -97,7 +97,7 @@ tilt up
 
 ### Running Locally Without Kubernetes
 
-Set `PROMETHEUS_SERVER_ENDPOINT` to your Prometheus URL:
+With the Prometheus data source, set `PROMETHEUS_SERVER_ENDPOINT` to your Prometheus URL:
 
 ```bash
 # Port-forward to Prometheus in your cluster
@@ -112,6 +112,78 @@ PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9080" go run ./cmd/costmodel/main.g
 ```bash
 INTEGRATION=true just test-integration
 ```
+
+### Testing Collector Source on kind
+
+Use this to run a locally built image end to end with the Collector data source, with no Prometheus needed:
+
+```bash
+kind create cluster --name opencost-dev   # podman: export KIND_EXPERIMENTAL_PROVIDER=podman
+
+# Build for the node's architecture (`docker info` / `podman info` shows it).
+# Dockerfile.cross wraps a prebuilt binary.
+(cd cmd/costmodel && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o costmodel-arm64 .)
+docker build -f Dockerfile.cross --build-arg binarypath=./cmd/costmodel/costmodel-arm64 -t localhost/opencost:dev .
+
+# Side-load the image instead of pushing it. With podman, use `podman save -o opencost.tar ...`
+# and `kind load image-archive opencost.tar`.
+kind load docker-image localhost/opencost:dev --name opencost-dev
+
+cat > values.yaml <<'EOF'
+opencost:
+  exporter:
+    image:
+      fullImageName: localhost/opencost:dev
+      pullPolicy: Never           # use the side-loaded image
+    collectorDataSource:
+      enabled: true
+      scrapeInterval: 30s
+  prometheus:
+    internal:
+      enabled: false
+  ui:
+    enabled: false
+EOF
+helm install opencost opencost --repo https://opencost.github.io/opencost-helm-chart \
+  -n opencost --create-namespace -f values.yaml
+kubectl -n opencost logs deploy/opencost -f
+```
+
+Notes:
+
+- The chart already sets `LOG_LEVEL`. Adding it again through `extraEnv` fails the install with `duplicate entries for key`.
+- Without persistence, these startup warnings are expected: `/var/configs permission denied` (falls back to in-memory), `failed to resolve path`, and `localhost:9003 connection refused`.
+- Rebuild, `kind load`, then `kubectl -n opencost rollout restart deploy/opencost` to pick up a new image under the same tag.
+
+#### Faking a scrape target
+
+Collector Source discovers network-costs targets by pod labels (`modules/collector-source/pkg/scrape/network.go`) and scrapes `http://<podIP>:$NETWORK_PORT/metrics` (default port 3001). A pod with those labels is a controllable target:
+
+```bash
+# Healthy target. Its log shows one `GET /metrics` per scrape interval, which proves scrapes are running.
+kubectl -n opencost run fake-network-costs --image=python:3.13-alpine --port=3001 \
+  --labels=app.kubernetes.io/name=network-costs,app.kubernetes.io/instance=kubecost \
+  -- python3 -m http.server 3001
+```
+
+To simulate a hung target, accept connections and never reply. `UrlTarget` uses `http.Get` with no timeout, and a scrape cycle waits for every target, so this stalls all collection:
+
+```bash
+kubectl -n opencost run hanging-network-costs --image=python:3.13-alpine --port=3001 \
+  --labels=app.kubernetes.io/name=network-costs,app.kubernetes.io/instance=kubecost \
+  -- python3 -u -c '
+import socket
+server, held = socket.create_server(("", 3001)), []
+while True:
+    conn, addr = server.accept()
+    held.append(conn)  # keep it open, never respond
+    print("holding connection from", addr[0])'
+```
+
+- Restart OpenCost after the fake target is running, so the first scrape hits it.
+- On a hung target, a single `holding connection` line over several intervals means the scrape loop is stuck.
+- Check it really hangs with `curl -m 10 http://<podIP>:3001/metrics`, which should time out with 0 bytes received.
+- Don't use busybox `nc` for this. It closes the connection on stdin EOF or serves only one connection, so scrapes fail fast (`EOF` or `connection refused`) instead of hanging.
 
 ## Build Commands
 
