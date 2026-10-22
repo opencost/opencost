@@ -16,7 +16,13 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/models"
 )
 
-const azureAuthLocationEnvVar = "AZURE_AUTH_LOCATION"
+const (
+	azureAuthLocationEnvVar = "AZURE_AUTH_LOCATION"
+	// go-autorest read the certificate from these; azidentity reads
+	// AZURE_CLIENT_CERTIFICATE_PATH and AZURE_CLIENT_CERTIFICATE_PASSWORD.
+	legacyCertificatePathEnvVar     = "AZURE_CERTIFICATE_PATH"
+	legacyCertificatePasswordEnvVar = "AZURE_CERTIFICATE_PASSWORD"
+)
 
 // determineCloudByRegion uses region name to pick the correct Cloud Environment for the azure provider to use
 func determineCloudByRegion(region string) cloud.Configuration {
@@ -53,14 +59,30 @@ func (az *Azure) resourceManagerCredential(config *models.CustomPricing) (azcore
 // newRateCardCredential returns the credential used for the Resource Manager
 // calls behind list pricing and disk discovery. In order of precedence:
 //  1. the service principal from the azure service key secret or pricing config
-//  2. an SDK auth file named by AZURE_AUTH_LOCATION
-//  3. DefaultAzureCredential: environment variables, workload identity,
-//     managed identity, then the Azure CLI
+//  2. a client secret, certificate or username in environment variables,
+//     including go-autorest's AZURE_CERTIFICATE_PATH
+//  3. an SDK auth file named by AZURE_AUTH_LOCATION
+//  4. DefaultAzureCredential: workload identity, managed identity, then the
+//     Azure CLI
 func newRateCardCredential(clientID, clientSecret, tenantID string, opts *arm.ClientOptions) (azcore.TokenCredential, error) {
 	if clientID != "" && clientSecret != "" && tenantID != "" {
 		return azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, &azidentity.ClientSecretCredentialOptions{
 			ClientOptions: opts.ClientOptions,
 		})
+	}
+
+	if os.Getenv("AZURE_CLIENT_SECRET") != "" || os.Getenv("AZURE_CLIENT_CERTIFICATE_PATH") != "" || os.Getenv("AZURE_USERNAME") != "" {
+		return azidentity.NewEnvironmentCredential(&azidentity.EnvironmentCredentialOptions{
+			ClientOptions: opts.ClientOptions,
+		})
+	}
+
+	if path := os.Getenv(legacyCertificatePathEnvVar); path != "" {
+		envTenantID, envClientID := os.Getenv("AZURE_TENANT_ID"), os.Getenv("AZURE_CLIENT_ID")
+		if envTenantID == "" || envClientID == "" {
+			return nil, fmt.Errorf("%s is set but AZURE_TENANT_ID or AZURE_CLIENT_ID is missing", legacyCertificatePathEnvVar)
+		}
+		return newCertificateCredential(envTenantID, envClientID, path, os.Getenv(legacyCertificatePasswordEnvVar), legacyCertificatePathEnvVar, opts.ClientOptions)
 	}
 
 	if path := os.Getenv(azureAuthLocationEnvVar); path != "" {
@@ -108,18 +130,24 @@ func newAuthFileCredential(path string, opts azcore.ClientOptions) (azcore.Token
 	}
 
 	if f.ClientCertificate != "" {
-		certData, err := os.ReadFile(f.ClientCertificate)
-		if err != nil {
-			return nil, fmt.Errorf("reading client certificate from %s file: %w", azureAuthLocationEnvVar, err)
-		}
-		certs, key, err := azidentity.ParseCertificates(certData, []byte(f.ClientCertificatePassword))
-		if err != nil {
-			return nil, fmt.Errorf("parsing client certificate from %s file: %w", azureAuthLocationEnvVar, err)
-		}
-		return azidentity.NewClientCertificateCredential(f.TenantID, f.ClientID, certs, key, &azidentity.ClientCertificateCredentialOptions{
-			ClientOptions: opts,
-		})
+		return newCertificateCredential(f.TenantID, f.ClientID, f.ClientCertificate, f.ClientCertificatePassword, azureAuthLocationEnvVar+" file", opts)
 	}
 
 	return nil, fmt.Errorf("%s file %s has neither a client secret nor a client certificate", azureAuthLocationEnvVar, path)
+}
+
+// newCertificateCredential loads a PEM or PKCS12 certificate; source names
+// where the path came from for error messages.
+func newCertificateCredential(tenantID, clientID, certPath, password, source string, opts azcore.ClientOptions) (azcore.TokenCredential, error) {
+	certData, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading client certificate from %s: %w", source, err)
+	}
+	certs, key, err := azidentity.ParseCertificates(certData, []byte(password))
+	if err != nil {
+		return nil, fmt.Errorf("parsing client certificate from %s: %w", source, err)
+	}
+	return azidentity.NewClientCertificateCredential(tenantID, clientID, certs, key, &azidentity.ClientCertificateCredentialOptions{
+		ClientOptions: opts,
+	})
 }

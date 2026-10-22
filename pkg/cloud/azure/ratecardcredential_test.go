@@ -109,6 +109,7 @@ func isolateAzureEnv(t *testing.T) {
 		"AZURE_CLIENT_CERTIFICATE_PATH", "AZURE_CLIENT_CERTIFICATE_PASSWORD",
 		"AZURE_USERNAME", "AZURE_PASSWORD", "AZURE_FEDERATED_TOKEN_FILE",
 		"AZURE_AUTHORITY_HOST", "AZURE_TOKEN_CREDENTIALS", azureAuthLocationEnvVar,
+		legacyCertificatePathEnvVar, legacyCertificatePasswordEnvVar,
 	} {
 		t.Setenv(v, "")
 		require.NoError(t, os.Unsetenv(v))
@@ -194,6 +195,89 @@ func TestNewRateCardCredential_WorkloadIdentity(t *testing.T) {
 	require.Equal(t, "urn:ietf:params:oauth:client-assertion-type:jwt-bearer", form.Get("client_assertion_type"))
 }
 
+func TestNewRateCardCredential_EnvironmentSecret(t *testing.T) {
+	isolateAzureEnv(t)
+	// Environment credentials win over the auth file and a legacy certificate
+	// path, as they did with go-autorest.
+	dir := t.TempDir()
+	t.Setenv(azureAuthLocationEnvVar, filepath.Join(dir, "missing.json"))
+	t.Setenv(legacyCertificatePathEnvVar, filepath.Join(dir, "missing.pem"))
+	t.Setenv("AZURE_TENANT_ID", testTenantID)
+	t.Setenv("AZURE_CLIENT_ID", "env-client-id")
+	t.Setenv("AZURE_CLIENT_SECRET", "env-secret")
+
+	entra := newFakeEntra()
+	cred, err := newRateCardCredential("", "", "", clientOptionsFor(cloud.AzureChina, entra))
+	require.NoError(t, err)
+	require.IsType(t, &azidentity.EnvironmentCredential{}, cred)
+
+	getToken(t, cred, cloud.AzureChina)
+	requireAllHosts(t, entra, "login.chinacloudapi.cn")
+	form, err := url.ParseQuery(entra.tokenRequests()[0].body)
+	require.NoError(t, err)
+	require.Equal(t, "env-client-id", form.Get("client_id"))
+	require.Equal(t, "env-secret", form.Get("client_secret"))
+}
+
+func TestNewRateCardCredential_EnvironmentCertificateError(t *testing.T) {
+	isolateAzureEnv(t)
+	// A broken certificate setting is reported instead of falling through to
+	// another identity.
+	t.Setenv("AZURE_TENANT_ID", testTenantID)
+	t.Setenv("AZURE_CLIENT_ID", "env-client-id")
+	t.Setenv("AZURE_CLIENT_CERTIFICATE_PATH", filepath.Join(t.TempDir(), "missing.pem"))
+
+	_, err := newRateCardCredential("", "", "", clientOptionsFor(cloud.AzurePublic, newFakeEntra()))
+	require.ErrorContains(t, err, "missing.pem")
+}
+
+func TestNewRateCardCredential_EnvironmentUsername(t *testing.T) {
+	isolateAzureEnv(t)
+	t.Setenv(azureAuthLocationEnvVar, filepath.Join(t.TempDir(), "missing.json"))
+	t.Setenv("AZURE_TENANT_ID", testTenantID)
+	t.Setenv("AZURE_CLIENT_ID", "env-client-id")
+	t.Setenv("AZURE_USERNAME", "user@example.com")
+	t.Setenv("AZURE_PASSWORD", "user-password")
+
+	cred, err := newRateCardCredential("", "", "", clientOptionsFor(cloud.AzurePublic, newFakeEntra()))
+	require.NoError(t, err)
+	require.IsType(t, &azidentity.EnvironmentCredential{}, cred)
+}
+
+func TestNewRateCardCredential_LegacyCertificateEnv(t *testing.T) {
+	isolateAzureEnv(t)
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "sp.pem")
+	require.NoError(t, os.WriteFile(certPath, selfSignedPEM(t), 0o600))
+	t.Setenv(azureAuthLocationEnvVar, filepath.Join(dir, "missing.json"))
+	t.Setenv("AZURE_TENANT_ID", testTenantID)
+	t.Setenv("AZURE_CLIENT_ID", "legacy-client-id")
+	t.Setenv(legacyCertificatePathEnvVar, certPath)
+
+	entra := newFakeEntra()
+	cred, err := newRateCardCredential("", "", "", clientOptionsFor(cloud.AzureChina, entra))
+	require.NoError(t, err)
+	require.IsType(t, &azidentity.ClientCertificateCredential{}, cred)
+
+	getToken(t, cred, cloud.AzureChina)
+	requireAllHosts(t, entra, "login.chinacloudapi.cn")
+	form, err := url.ParseQuery(entra.tokenRequests()[0].body)
+	require.NoError(t, err)
+	require.Equal(t, "legacy-client-id", form.Get("client_id"))
+	require.NotEmpty(t, form.Get("client_assertion"), "certificate auth must send a signed client assertion")
+
+	// With a password the file is read as PKCS12, so a PEM file failing to
+	// parse shows the password was passed through.
+	t.Setenv(legacyCertificatePasswordEnvVar, "pfx-password")
+	_, err = newRateCardCredential("", "", "", clientOptionsFor(cloud.AzureChina, newFakeEntra()))
+	require.ErrorContains(t, err, "parsing client certificate from AZURE_CERTIFICATE_PATH")
+
+	t.Setenv(legacyCertificatePasswordEnvVar, "")
+	t.Setenv("AZURE_TENANT_ID", "")
+	_, err = newRateCardCredential("", "", "", clientOptionsFor(cloud.AzureChina, newFakeEntra()))
+	require.ErrorContains(t, err, "AZURE_TENANT_ID or AZURE_CLIENT_ID is missing")
+}
+
 func TestNewRateCardCredential_AuthFileSecret(t *testing.T) {
 	isolateAzureEnv(t)
 	path := filepath.Join(t.TempDir(), "auth.json")
@@ -253,6 +337,12 @@ func TestNewRateCardCredential_AuthFileCertificate(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "cert-client-id", form.Get("client_id"))
 	require.NotEmpty(t, form.Get("client_assertion"), "certificate auth must send a signed client assertion")
+
+	// With a password the file is read as PKCS12, so a PEM file failing to
+	// parse shows the password was passed through.
+	require.NoError(t, os.WriteFile(authPath, []byte(fmt.Sprintf(`{"clientId":"cert-client-id","clientCertificate":%q,"clientCertificatePassword":"pfx-password","tenantId":%q}`, certPath, testTenantID)), 0o600))
+	_, err = newRateCardCredential("", "", "", clientOptionsFor(cloud.AzurePublic, newFakeEntra()))
+	require.ErrorContains(t, err, "parsing client certificate from AZURE_AUTH_LOCATION file")
 }
 
 func TestNewRateCardCredential_AuthFileErrors(t *testing.T) {
