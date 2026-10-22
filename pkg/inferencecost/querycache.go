@@ -6,7 +6,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/patrickmn/go-cache"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -23,25 +22,40 @@ import (
 // the work runs once; previously, two concurrent 7d requests each ran their
 // own allocation passes.
 //
-// The total estimated size of the entries is bounded by maxBytes. go-cache has
-// no LRU ordering, so making room for a new entry first drops expired entries
-// and then evicts arbitrary ones (Go's randomised map iteration order) until
-// the new entry fits.
+// The total estimated size of the entries is bounded by maxBytes. Making room
+// for a new entry first drops expired entries and then evicts arbitrary ones
+// (Go's randomised map iteration order) until the new entry fits; there is no
+// LRU ordering.
+//
+// Every operation on entries and bytes holds mu, and each entry carries its
+// own size and expiry, so lookup, expiry, eviction and size accounting are one
+// atomic step. There is deliberately no background janitor and no eviction
+// callback: go-cache, used previously, runs OnEvicted after releasing its lock,
+// which let a sweep of an expired entry clear the accounting of the entry that
+// had just replaced it under the same key. Instead, add sweeps expired entries
+// under mu before every insert. Expired entries therefore stay in memory until
+// the next miss, which is bounded by maxBytes and by the TTL of the entries the
+// last insert kept.
 //
 // Cached slices are shared between requests and must be treated as read-only.
 type metricsCache struct {
-	store *cache.Cache
 	group singleflight.Group
-
+	ttl   time.Duration
 	// maxBytes bounds the summed estimated entry sizes; 0 means unbounded.
 	maxBytes int64
-	// addMu serialises add so concurrent inserts cannot both pass the size
-	// check. It is never held by onEvicted, so store.Delete under it is safe.
-	addMu sync.Mutex
-	// mu guards sizes and bytes, which mirror the entries in store.
-	mu    sync.Mutex
-	sizes map[string]int64
-	bytes int64
+	// now is the clock; tests replace it to make expiry deterministic.
+	now func() time.Time
+
+	// mu guards entries and bytes. bytes is always the sum of entries' sizes.
+	mu      sync.Mutex
+	entries map[string]cacheEntry
+	bytes   int64
+}
+
+type cacheEntry struct {
+	value   []*InferenceCost
+	size    int64
+	expires time.Time
 }
 
 // newMetricsCache returns a cache with the given TTL and size bound in bytes
@@ -51,28 +65,24 @@ func newMetricsCache(ttl time.Duration, maxBytes int64) *metricsCache {
 	if ttl <= 0 {
 		return nil
 	}
-	// cleanup is only how often go-cache sweeps already-expired entries out
-	// of memory; entries still expire at ttl on read regardless.
-	cleanup := ttl
-	if cleanup > 10*time.Minute {
-		cleanup = 10 * time.Minute
-	}
-	m := &metricsCache{
-		store:    cache.New(ttl, cleanup),
+	return &metricsCache{
+		ttl:      ttl,
 		maxBytes: max(maxBytes, 0),
-		sizes:    make(map[string]int64),
+		now:      time.Now,
+		entries:  make(map[string]cacheEntry),
 	}
-	// Called for explicit deletes and for expired entries the janitor or
-	// DeleteExpired removes, always after go-cache has released its lock.
-	m.store.OnEvicted(m.onEvicted)
-	return m
 }
 
-func (m *metricsCache) onEvicted(key string, _ interface{}) {
+// lookup returns the live entry for key. An expired entry is a miss; add
+// removes it.
+func (m *metricsCache) lookup(key string) ([]*InferenceCost, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.bytes -= m.sizes[key]
-	delete(m.sizes, key)
+	e, ok := m.entries[key]
+	if !ok || !m.now().Before(e.expires) {
+		return nil, false
+	}
+	return e.value, true
 }
 
 // usedBytes is the summed estimated size of the cached entries.
@@ -82,47 +92,47 @@ func (m *metricsCache) usedBytes() int64 {
 	return m.bytes
 }
 
-// anyKey returns an arbitrary cached key, or "" when the cache is empty.
-func (m *metricsCache) anyKey() string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for k := range m.sizes {
-		return k
+// removeLocked deletes key and releases its bytes. Caller holds mu.
+func (m *metricsCache) removeLocked(key string) {
+	if e, ok := m.entries[key]; ok {
+		m.bytes -= e.size
+		delete(m.entries, key)
 	}
-	return ""
 }
 
-// add stores v under key, first evicting entries until it fits within
-// maxBytes. An entry larger than maxBytes on its own is not cached.
+// add stores v under key, first dropping expired entries and then evicting
+// live ones until it fits within maxBytes. An entry larger than maxBytes on
+// its own is not cached.
 func (m *metricsCache) add(key string, v []*InferenceCost) {
 	size := estimateSize(v)
 
-	m.addMu.Lock()
-	defer m.addMu.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	now := m.now()
+	for k, e := range m.entries {
+		if !now.Before(e.expires) {
+			m.removeLocked(k)
+		}
+	}
+	// A previous entry under this key is replaced, so it never counts
+	// against the room the new one needs.
+	m.removeLocked(key)
 
 	if m.maxBytes > 0 {
 		if size > m.maxBytes {
 			return
 		}
-		if m.usedBytes()+size > m.maxBytes {
-			m.store.DeleteExpired()
-		}
-		for m.usedBytes()+size > m.maxBytes {
-			victim := m.anyKey()
-			if victim == "" {
+		for k := range m.entries {
+			if m.bytes+size <= m.maxBytes {
 				break
 			}
-			m.store.Delete(victim)
+			m.removeLocked(k)
 		}
 	}
 
-	m.store.SetDefault(key, v)
-	m.mu.Lock()
-	// The key may still be held by an expired entry the janitor has not
-	// swept; SetDefault replaces it without calling onEvicted.
-	m.bytes += size - m.sizes[key]
-	m.sizes[key] = size
-	m.mu.Unlock()
+	m.entries[key] = cacheEntry{value: v, size: size, expires: now.Add(m.ttl)}
+	m.bytes += size
 }
 
 // Rough per-value overheads for estimateSize. Exactness does not matter:
@@ -186,13 +196,13 @@ func (m *metricsCache) get(
 	}
 
 	key := metricsCacheKey(start, end)
-	if v, ok := m.store.Get(key); ok {
-		return v.([]*InferenceCost), nil
+	if v, ok := m.lookup(key); ok {
+		return v, nil
 	}
 
 	ch := m.group.DoChan(key, func() (interface{}, error) {
 		// Re-check: another flight for this key may have just finished.
-		if v, ok := m.store.Get(key); ok {
+		if v, ok := m.lookup(key); ok {
 			return v, nil
 		}
 		res, err := compute(context.WithoutCancel(ctx))

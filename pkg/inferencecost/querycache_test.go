@@ -98,16 +98,21 @@ func TestMetricsCache_SeparateEntriesPerWindow(t *testing.T) {
 }
 
 func TestMetricsCache_ExpiresAfterTTL(t *testing.T) {
-	m := newMetricsCache(30*time.Millisecond, 0)
+	m := newMetricsCache(time.Hour, 0)
+	clk := useFakeClock(m)
 	var calls atomic.Int32
 	_, _ = m.get(context.Background(), cacheStart, cacheEnd, countingCompute(&calls, 1))
-	time.Sleep(60 * time.Millisecond)
+	clk.advance(time.Hour - time.Nanosecond)
+	if _, _ = m.get(context.Background(), cacheStart, cacheEnd, countingCompute(&calls, 2)); calls.Load() != 1 {
+		t.Fatal("entry must still be live just before the TTL")
+	}
+	clk.advance(time.Nanosecond)
 	got, err := m.get(context.Background(), cacheStart, cacheEnd, countingCompute(&calls, 2))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if calls.Load() != 2 || got[0].AllocationTotalCost != 2 {
-		t.Errorf("expected a recompute after expiry, calls=%d cost=%v", calls.Load(), got[0].AllocationTotalCost)
+		t.Errorf("expected a recompute at expiry, calls=%d cost=%v", calls.Load(), got[0].AllocationTotalCost)
 	}
 }
 
@@ -349,33 +354,86 @@ func fill(t *testing.T, m *metricsCache, i int, calls *atomic.Int32) {
 	}
 }
 
-// cached reports whether window i is held, without computing on a miss.
+// cached reports whether window i is held and live, without computing on a miss.
 func cached(m *metricsCache, i int) bool {
 	s, e := window(i)
-	_, ok := m.store.Get(metricsCacheKey(s, e))
+	_, ok := m.lookup(metricsCacheKey(s, e))
 	return ok
 }
 
-// checkAccounting asserts the size bookkeeping mirrors the store exactly.
+// itemCount is the number of stored entries, live or expired.
+func itemCount(m *metricsCache) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.entries)
+}
+
+// checkAccounting asserts the byte total is exactly the sum of the stored
+// entries' sizes, and each size matches its value.
 func checkAccounting(t *testing.T, m *metricsCache) {
 	t.Helper()
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	items := m.store.Items()
-	if len(items) != len(m.sizes) {
-		t.Fatalf("store has %d entries, size map has %d", len(items), len(m.sizes))
-	}
 	var sum int64
-	for k, it := range items {
-		want := estimateSize(it.Object.([]*InferenceCost))
-		if m.sizes[k] != want {
-			t.Fatalf("size for %s: tracked %d, actual %d", k, m.sizes[k], want)
+	for k, e := range m.entries {
+		if want := estimateSize(e.value); e.size != want {
+			t.Fatalf("size for %s: tracked %d, actual %d", k, e.size, want)
 		}
-		sum += want
+		sum += e.size
 	}
 	if sum != m.bytes {
 		t.Fatalf("tracked total %d, actual %d", m.bytes, sum)
 	}
+	if m.maxBytes > 0 && m.bytes > m.maxBytes {
+		t.Fatalf("%d bytes stored, bound %d", m.bytes, m.maxBytes)
+	}
+}
+
+// fakeClock is a manually advanced clock. When pause is set, the next call
+// to now() signals entered and blocks until release is closed.
+type fakeClock struct {
+	mu      sync.Mutex
+	t       time.Time
+	pause   bool
+	entered chan struct{}
+	release chan struct{}
+}
+
+func useFakeClock(m *metricsCache) *fakeClock {
+	c := &fakeClock{t: cacheStart}
+	m.now = c.now
+	return c
+}
+
+func (c *fakeClock) now() time.Time {
+	c.mu.Lock()
+	if c.pause {
+		c.pause = false
+		entered, release := c.entered, c.release
+		c.mu.Unlock()
+		close(entered)
+		<-release
+		c.mu.Lock()
+	}
+	defer c.mu.Unlock()
+	return c.t
+}
+
+func (c *fakeClock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.t = c.t.Add(d)
+}
+
+// pauseNext makes the next now() call block; it returns channels to wait for
+// that call and to let it continue.
+func (c *fakeClock) pauseNext() (entered <-chan struct{}, release chan<- struct{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.pause = true
+	c.entered = make(chan struct{})
+	c.release = make(chan struct{})
+	return c.entered, c.release
 }
 
 var unit = estimateSize(oneResult(0))
@@ -385,13 +443,10 @@ func TestMetricsCache_EvictsToFitNewEntry(t *testing.T) {
 	var calls atomic.Int32
 	for i := 0; i < 5; i++ {
 		fill(t, m, i, &calls)
-		if used := m.usedBytes(); used > m.maxBytes {
-			t.Fatalf("after add %d: %d bytes used, bound %d", i, used, m.maxBytes)
-		}
 		checkAccounting(t, m)
 	}
-	if m.store.ItemCount() != 2 {
-		t.Errorf("expected 2 entries to fit, got %d", m.store.ItemCount())
+	if itemCount(m) != 2 {
+		t.Errorf("expected 2 entries to fit, got %d", itemCount(m))
 	}
 	if !cached(m, 4) {
 		t.Error("the newest entry must be kept")
@@ -406,8 +461,8 @@ func TestMetricsCache_EntryLargerThanBoundIsNotCached(t *testing.T) {
 	if calls.Load() != 2 {
 		t.Errorf("an oversized result must be returned but not cached: computes %d", calls.Load())
 	}
-	if m.usedBytes() != 0 || m.store.ItemCount() != 0 {
-		t.Errorf("nothing should be stored, got %d bytes / %d entries", m.usedBytes(), m.store.ItemCount())
+	if m.usedBytes() != 0 || itemCount(m) != 0 {
+		t.Errorf("nothing should be stored, got %d bytes / %d entries", m.usedBytes(), itemCount(m))
 	}
 }
 
@@ -418,52 +473,137 @@ func TestMetricsCache_UnboundedWhenMaxIsZeroOrNegative(t *testing.T) {
 		for i := 0; i < 20; i++ {
 			fill(t, m, i, &calls)
 		}
-		if m.store.ItemCount() != 20 {
-			t.Errorf("max %d: expected all 20 entries, got %d", max, m.store.ItemCount())
+		if itemCount(m) != 20 {
+			t.Errorf("max %d: expected all 20 entries, got %d", max, itemCount(m))
 		}
 		checkAccounting(t, m)
 	}
 }
 
 func TestMetricsCache_DropsExpiredEntriesBeforeLiveOnes(t *testing.T) {
-	const ttl = 300 * time.Millisecond
-	m := newMetricsCache(ttl, 2*unit+unit/2)
+	m := newMetricsCache(time.Hour, 2*unit+unit/2)
+	clk := useFakeClock(m)
 	var calls atomic.Int32
 	fill(t, m, 0, &calls)
-	time.Sleep(ttl + 50*time.Millisecond) // 0 expired, not yet swept
-	fill(t, m, 1, &calls)                 // fits alongside the expired 0
-	fill(t, m, 2, &calls)                 // needs room: 0 must go, not 1
+	clk.advance(time.Hour) // 0 expired, still stored
+	fill(t, m, 1, &calls)
+	fill(t, m, 2, &calls)
 	if !cached(m, 1) || !cached(m, 2) {
 		t.Errorf("live entries were evicted while an expired one was available: 1=%v 2=%v", cached(m, 1), cached(m, 2))
 	}
 	checkAccounting(t, m)
 }
 
-func TestMetricsCache_ExpirySweepReleasesBytes(t *testing.T) {
-	m := newMetricsCache(30*time.Millisecond, 10*unit)
+func TestMetricsCache_InsertSweepsExpiredEntriesEvenWhenUnbounded(t *testing.T) {
+	m := newMetricsCache(time.Hour, 0)
+	clk := useFakeClock(m)
 	var calls atomic.Int32
 	fill(t, m, 0, &calls)
 	fill(t, m, 1, &calls)
-	time.Sleep(60 * time.Millisecond)
-	m.store.DeleteExpired()
-	if m.usedBytes() != 0 {
-		t.Errorf("expired entries must release their bytes, %d still counted", m.usedBytes())
+	clk.advance(time.Hour)
+	fill(t, m, 2, &calls)
+	if itemCount(m) != 1 || m.usedBytes() != unit {
+		t.Errorf("expired entries must be removed and release their bytes: %d entries, %d bytes", itemCount(m), m.usedBytes())
 	}
 	checkAccounting(t, m)
 }
 
-func TestMetricsCache_ReplacingAnUnsweptExpiredKeyCountsOnce(t *testing.T) {
-	m := newMetricsCache(30*time.Millisecond, 10*unit)
+// Review regression: an expired entry being removed must never clear the
+// accounting of the entry that replaces it under the same key.
+func TestMetricsCache_ReplacingAnExpiredKeyKeepsReplacementAccounting(t *testing.T) {
+	m := newMetricsCache(time.Hour, 2*unit+unit/2)
+	clk := useFakeClock(m)
 	var calls atomic.Int32
 	fill(t, m, 0, &calls)
-	time.Sleep(60 * time.Millisecond) // expired; the janitor runs far later
-	fill(t, m, 0, &calls)             // miss, recompute, same key
+	clk.advance(time.Hour) // 0 expired, still stored
+	fill(t, m, 0, &calls)  // miss, recompute, replaces 0
 	if calls.Load() != 2 {
 		t.Fatalf("expected a recompute, got %d computes", calls.Load())
 	}
 	if m.usedBytes() != unit {
 		t.Errorf("one live entry should count once: %d bytes, want %d", m.usedBytes(), unit)
 	}
+	// Later inserts sweep again; the live replacement must survive with its
+	// bytes counted, and the bound must hold.
+	fill(t, m, 1, &calls)
+	if !cached(m, 0) {
+		t.Error("the replacement was removed by a later sweep")
+	}
+	fill(t, m, 2, &calls)
+	checkAccounting(t, m)
+}
+
+// Review regression: an entry that is already expired by the time anything
+// else runs must still be removable, so the eviction loop makes progress.
+func TestMetricsCache_EntryExpiringRightAfterInsertIsReclaimed(t *testing.T) {
+	m := newMetricsCache(time.Hour, unit+unit/2) // room for one entry
+	clk := useFakeClock(m)
+	var calls atomic.Int32
+	fill(t, m, 0, &calls)
+	clk.advance(2 * time.Hour)
+	fill(t, m, 1, &calls)
+	if !cached(m, 1) || itemCount(m) != 1 {
+		t.Errorf("the expired entry should make room: 1 cached=%v, %d entries", cached(m, 1), itemCount(m))
+	}
+	checkAccounting(t, m)
+}
+
+// Review regression: pausing add mid-insert (inside the clock read, with the
+// size check not yet done) must hold off every other operation, so no lookup,
+// expiry or eviction can interleave with publication and accounting.
+func TestMetricsCache_AddIsAtomicWithOtherOperations(t *testing.T) {
+	m := newMetricsCache(time.Hour, 2*unit+unit/2)
+	clk := useFakeClock(m)
+	var calls atomic.Int32
+	fill(t, m, 0, &calls)
+	clk.advance(time.Hour) // 0 expired, so the paused add will sweep it
+
+	entered, release := clk.pauseNext()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		s, e := window(0)
+		m.add(metricsCacheKey(s, e), oneResult(1))
+	}()
+	<-entered
+	if m.mu.TryLock() {
+		m.mu.Unlock()
+		t.Fatal("add released mu between reading the clock and publishing the entry")
+	}
+	// A concurrent insert of another key queues behind the paused one.
+	other := make(chan struct{})
+	go func() {
+		defer close(other)
+		s, e := window(1)
+		m.add(metricsCacheKey(s, e), oneResult(2))
+	}()
+	close(release)
+	<-done
+	<-other
+
+	if !cached(m, 0) || !cached(m, 1) {
+		t.Errorf("both inserts should be live: 0=%v 1=%v", cached(m, 0), cached(m, 1))
+	}
+	checkAccounting(t, m)
+}
+
+func TestMetricsCache_ConcurrentAddsAndExpiryKeepAccounting(t *testing.T) {
+	m := newMetricsCache(time.Hour, 5*unit+unit/2)
+	clk := useFakeClock(m)
+	var calls atomic.Int32
+	var wg sync.WaitGroup
+	for i := 0; i < 200; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if i%10 == 0 {
+				clk.advance(20 * time.Minute)
+			}
+			s, e := window(i % 8) // repeated keys: replacements of expired entries
+			_, _ = m.get(context.Background(), s, e, countingCompute(&calls, float64(i)))
+		}(i)
+	}
+	wg.Wait()
 	checkAccounting(t, m)
 }
 
@@ -483,8 +623,8 @@ func TestMetricsCache_ConcurrentAddsStayWithinBound(t *testing.T) {
 	if used := m.usedBytes(); used > m.maxBytes {
 		t.Errorf("%d bytes used, bound %d", used, m.maxBytes)
 	}
-	if m.store.ItemCount() != 5 {
-		t.Errorf("expected the cache full at 5 entries, got %d", m.store.ItemCount())
+	if itemCount(m) != 5 {
+		t.Errorf("expected the cache full at 5 entries, got %d", itemCount(m))
 	}
 	checkAccounting(t, m)
 }
