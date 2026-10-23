@@ -337,6 +337,28 @@ func (h *Huawei) DownloadPricingData() error {
 	return nil
 }
 
+// RefreshCustomPricing reloads the base prices and project ID from config,
+// skipping the cluster discovery and live BSS queries DownloadPricingData does.
+// The project ID is only replaced when the env var or config sets one: the
+// metadata fallback in resolveProviderProjectID is a network call.
+func (h *Huawei) RefreshCustomPricing() error {
+	h.DownloadPricingDataLock.Lock()
+	defer h.DownloadPricingDataLock.Unlock()
+	c, err := h.Config.GetCustomPricingData()
+	if err != nil {
+		return err
+	}
+	h.BaseCPUPrice = c.CPU
+	h.BaseRAMPrice = c.RAM
+	h.BaseGPUPrice = c.GPU
+	if projectID := env.GetHuaweiProjectID(); projectID != "" {
+		h.ProjectID = projectID
+	} else if c.ProjectID != "" {
+		h.ProjectID = c.ProjectID
+	}
+	return nil
+}
+
 // pricingRefreshCooldown bounds how often a NodePricing cache miss may trigger a
 // live BSS re-query. NodePricing is called once per node per cost-model cycle, so
 // a flavor BSS genuinely cannot price (an unsupported spec, a revoked permission)

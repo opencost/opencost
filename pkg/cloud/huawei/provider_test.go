@@ -99,6 +99,45 @@ func TestHuawei_DownloadPricingData_Error(t *testing.T) {
 	}
 }
 
+func TestHuawei_RefreshCustomPricing(t *testing.T) {
+	t.Setenv(env.HuaweiProjectIDEnvVar, "")
+	live := map[string]*HuaweiPricing{"r,t,linux": {}}
+	h := &Huawei{
+		Config:    &fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.05", RAM: "0.006", GPU: "1.2", ProjectID: "cfg-project"}},
+		ProjectID: "old-project",
+		Pricing:   live,
+	}
+	if err := h.RefreshCustomPricing(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if h.BaseCPUPrice != "0.05" || h.BaseRAMPrice != "0.006" || h.BaseGPUPrice != "1.2" {
+		t.Fatalf("base prices not reloaded: cpu=%s ram=%s gpu=%s", h.BaseCPUPrice, h.BaseRAMPrice, h.BaseGPUPrice)
+	}
+	if h.ProjectID != "cfg-project" {
+		t.Fatalf("expected ProjectID cfg-project, got %s", h.ProjectID)
+	}
+	if len(h.Pricing) != 1 {
+		t.Fatalf("expected live pricing cache to be kept, got %d entries", len(h.Pricing))
+	}
+
+	// An empty config project ID keeps the current one rather than falling
+	// through to the metadata lookup.
+	h.Config = &fakeProviderConfig{customPricing: &models.CustomPricing{}}
+	if err := h.RefreshCustomPricing(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if h.ProjectID != "cfg-project" {
+		t.Fatalf("expected ProjectID to stay cfg-project, got %s", h.ProjectID)
+	}
+}
+
+func TestHuawei_RefreshCustomPricing_Error(t *testing.T) {
+	h := &Huawei{Config: &fakeProviderConfig{}}
+	if err := h.RefreshCustomPricing(); err == nil {
+		t.Fatalf("expected error from RefreshCustomPricing with missing config")
+	}
+}
+
 func TestHuawei_NodePricing_FallsBackToBaseWhenNoLivePricing(t *testing.T) {
 	h := &Huawei{BaseCPUPrice: "0.0345", BaseRAMPrice: "0.0046", BaseGPUPrice: "0.0"}
 	node, _, err := h.NodePricing(&huaweiKey{})
