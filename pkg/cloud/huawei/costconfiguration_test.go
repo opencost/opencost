@@ -117,13 +117,25 @@ func TestCostConfiguration_JSONRoundTrip(t *testing.T) {
 }
 
 func TestCostConfiguration_UnmarshalJSON_MissingFields(t *testing.T) {
+	// projectID is optional: a region-only configuration must decode.
 	var c CostConfiguration
-	if err := json.Unmarshal([]byte(`{"region":"la-south-2"}`), &c); err == nil {
-		t.Fatalf("expected error for missing projectID")
+	if err := json.Unmarshal([]byte(`{"region":"la-south-2"}`), &c); err != nil {
+		t.Fatalf("unexpected error for omitted projectID: %v", err)
+	}
+	if c.Region != "la-south-2" || c.ProjectID != "" {
+		t.Fatalf("unexpected config: %+v", c)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected a region-only configuration to be valid: %v", err)
 	}
 
 	var c2 CostConfiguration
 	if err := json.Unmarshal([]byte(`{"projectID":"proj-1"}`), &c2); err == nil {
 		t.Fatalf("expected error for missing region")
+	}
+
+	var c3 CostConfiguration
+	if err := json.Unmarshal([]byte(`{"projectID":42,"region":"la-south-2"}`), &c3); err == nil {
+		t.Fatalf("expected error for a non-string projectID")
 	}
 }

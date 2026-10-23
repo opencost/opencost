@@ -233,6 +233,15 @@ func Test_ParseConfig_Huawei(t *testing.T) {
 	if !config.Equals(parsedConfig) {
 		t.Fatalf("parsed config does not match original config:\n%+v\n%+v", parsedConfig, config)
 	}
+
+	// projectID is optional, so a region-only body must parse too.
+	regionOnly, err := ParseConfig(HuaweiCostConfigType, strings.NewReader(`{"region":"la-south-2"}`))
+	if err != nil {
+		t.Fatalf("failed to parse a region-only config: %v", err)
+	}
+	if !regionOnly.Equals(&huawei.CostConfiguration{Region: "la-south-2"}) {
+		t.Fatalf("unexpected region-only config: %+v", regionOnly)
+	}
 }
 
 func Test_HuaweiConfigAddAndUpdateHandlers(t *testing.T) {

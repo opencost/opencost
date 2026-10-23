@@ -648,44 +648,61 @@ func TestHuawei_DownloadPricingData_SkipsUnmappedStorageClass(t *testing.T) {
 }
 
 // TestHuawei_DownloadPricingData_KeepsPricesWhenBSSFails covers a refresh that
-// fails: the prices from the last successful download must survive it rather
-// than every node, disk and load balancer dropping to the static rates.
+// yields no prices -- an error, or a response with no rating results: the
+// prices from the last successful download must survive it rather than every
+// node, disk and load balancer dropping to the static rates.
 func TestHuawei_DownloadPricingData_KeepsPricesWhenBSSFails(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, `{"error_code": "CBC.0999", "error_msg": "unavailable"}`, http.StatusServiceUnavailable)
-	}))
-	defer server.Close()
-
-	bssEndpointOverride = server.URL
-	defer func() { bssEndpointOverride = "" }()
-
-	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
-	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
-	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
-
-	node := &clustercache.Node{
-		Labels: map[string]string{
-			"topology.kubernetes.io/region":    "la-south-2",
-			"node.kubernetes.io/instance-type": "c7n.2xlarge.4",
-			"kubernetes.io/os":                 "linux",
+	cases := map[string]http.HandlerFunc{
+		"error": func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, `{"error_code": "CBC.0999", "error_msg": "unavailable"}`, http.StatusServiceUnavailable)
+		},
+		"empty results": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"product_rating_results": []}`))
+		},
+		"no results": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{}`))
 		},
 	}
-	previous := map[string]*HuaweiPricing{
-		"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Type: "c7n.2xlarge.4", OS: "linux", Price: "1.234"}},
-	}
-	h := &Huawei{
-		Clientset:     &clustercache.MockClusterCache{Nodes: []*clustercache.Node{node}},
-		Config:        &fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.0345", RAM: "0.0046", ProjectID: "test-project"}},
-		ClusterRegion: "la-south-2",
-		Pricing:       previous,
-	}
 
-	if err := h.DownloadPricingData(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	got, ok := h.Pricing["la-south-2,c7n.2xlarge.4,linux"]
-	if !ok || got.NodeAttributes == nil || got.NodeAttributes.Price != "1.234" {
-		t.Fatalf("expected the previous live price to be kept, got %+v", h.Pricing)
+	for name, handler := range cases {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(handler)
+			defer server.Close()
+
+			bssEndpointOverride = server.URL
+			defer func() { bssEndpointOverride = "" }()
+
+			t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+			t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+			t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+			node := &clustercache.Node{
+				Labels: map[string]string{
+					"topology.kubernetes.io/region":    "la-south-2",
+					"node.kubernetes.io/instance-type": "c7n.2xlarge.4",
+					"kubernetes.io/os":                 "linux",
+				},
+			}
+			previous := map[string]*HuaweiPricing{
+				"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Type: "c7n.2xlarge.4", OS: "linux", Price: "1.234"}},
+			}
+			h := &Huawei{
+				Clientset:     &clustercache.MockClusterCache{Nodes: []*clustercache.Node{node}},
+				Config:        &fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.0345", RAM: "0.0046", ProjectID: "test-project"}},
+				ClusterRegion: "la-south-2",
+				Pricing:       previous,
+			}
+
+			if err := h.DownloadPricingData(); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			got, ok := h.Pricing["la-south-2,c7n.2xlarge.4,linux"]
+			if !ok || got.NodeAttributes == nil || got.NodeAttributes.Price != "1.234" {
+				t.Fatalf("expected the previous live price to be kept, got %+v", h.Pricing)
+			}
+		})
 	}
 }
 

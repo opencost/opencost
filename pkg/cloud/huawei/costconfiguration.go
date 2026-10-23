@@ -129,12 +129,16 @@ func (c *CostConfiguration) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("CostConfiguration: UnmarshalJSON: expected object")
 	}
 
-	projectID, err := cloud.GetInterfaceValue[string](fmap, "projectID")
-	if err != nil {
-		return fmt.Errorf("CostConfiguration: UnmarshalJSON: %w", err)
+	// projectID may be omitted or empty: the account-wide billing query needs
+	// none. When present it must still be a string.
+	c.ProjectID = ""
+	if _, ok := fmap["projectID"]; ok {
+		projectID, err := cloud.GetInterfaceValue[string](fmap, "projectID")
+		if err != nil {
+			return fmt.Errorf("CostConfiguration: UnmarshalJSON: %w", err)
+		}
+		c.ProjectID = projectID
 	}
-	// An empty projectID is allowed: the account-wide billing query needs none.
-	c.ProjectID = projectID
 
 	region, err := cloud.GetInterfaceValue[string](fmap, "region")
 	if err != nil {
