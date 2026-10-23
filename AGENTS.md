@@ -126,7 +126,7 @@ kind create cluster --name opencost-dev   # podman: export KIND_EXPERIMENTAL_PRO
 docker build -f Dockerfile.cross --build-arg binarypath=./cmd/costmodel/costmodel-arm64 -t localhost/opencost:dev .
 
 # Side-load the image instead of pushing it. With podman, use `podman save -o opencost.tar ...`
-# and `kind load image-archive opencost.tar`.
+# and `kind load image-archive opencost.tar --name opencost-dev`.
 kind load docker-image localhost/opencost:dev --name opencost-dev
 
 cat > values.yaml <<'EOF'
@@ -154,36 +154,6 @@ Notes:
 - The chart already sets `LOG_LEVEL`. Adding it again through `extraEnv` fails the install with `duplicate entries for key`.
 - Without persistence, these startup warnings are expected: `/var/configs permission denied` (falls back to in-memory), `failed to resolve path`, and `localhost:9003 connection refused`.
 - Rebuild, `kind load`, then `kubectl -n opencost rollout restart deploy/opencost` to pick up a new image under the same tag.
-
-#### Faking a scrape target
-
-Collector Source discovers network-costs targets by pod labels (`modules/collector-source/pkg/scrape/network.go`) and scrapes `http://<podIP>:$NETWORK_PORT/metrics` (default port 3001). A pod with those labels is a controllable target:
-
-```bash
-# Healthy target. Its log shows one `GET /metrics` per scrape interval, which proves scrapes are running.
-kubectl -n opencost run fake-network-costs --image=python:3.13-alpine --port=3001 \
-  --labels=app.kubernetes.io/name=network-costs,app.kubernetes.io/instance=kubecost \
-  -- python3 -m http.server 3001
-```
-
-To simulate a hung target, accept connections and never reply. `UrlTarget` uses `http.Get` with no timeout, and a scrape cycle waits for every target, so this stalls all collection:
-
-```bash
-kubectl -n opencost run hanging-network-costs --image=python:3.13-alpine --port=3001 \
-  --labels=app.kubernetes.io/name=network-costs,app.kubernetes.io/instance=kubecost \
-  -- python3 -u -c '
-import socket
-server, held = socket.create_server(("", 3001)), []
-while True:
-    conn, addr = server.accept()
-    held.append(conn)  # keep it open, never respond
-    print("holding connection from", addr[0])'
-```
-
-- Restart OpenCost after the fake target is running, so the first scrape hits it.
-- On a hung target, a single `holding connection` line over several intervals means the scrape loop is stuck.
-- Check it really hangs with `curl -m 10 http://<podIP>:3001/metrics`, which should time out with 0 bytes received.
-- Don't use busybox `nc` for this. It closes the connection on stdin EOF or serves only one connection, so scrapes fail fast (`EOF` or `connection refused`) instead of hanging.
 
 ## Build Commands
 
