@@ -6,7 +6,7 @@ go 1.26.4
 
 require (
 	github.com/julienschmidt/httprouter v1.3.0
-	github.com/kubecost/events v0.0.8
+	github.com/kubecost/events v0.0.9
 	github.com/opencost/bingen v0.2.0
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
 	github.com/stretchr/testify v1.11.1
