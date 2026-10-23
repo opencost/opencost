@@ -135,6 +135,22 @@ func selectHuaweiCategory(serviceType string) string {
 	return opencost.OtherCategory
 }
 
+// canonicalServiceCode reduces a service identifier -- a Service Type Code
+// with or without its prefix, or an English display name -- to one code per
+// service, so that aliases ("ec2"/"ecs") and names ("Elastic Cloud Server")
+// compare equal. An unrecognized code is returned without its prefix, and ""
+// stays "".
+func canonicalServiceCode(serviceType string) string {
+	normalized := strings.ToLower(strings.TrimSpace(serviceType))
+	if normalized == "" {
+		return ""
+	}
+	if svc, ok := lookupService(normalized); ok && len(svc.codes) > 0 {
+		return svc.codes[0]
+	}
+	return strings.TrimPrefix(normalized, serviceTypeCodePrefix)
+}
+
 func lookupService(serviceType string) (service, bool) {
 	table := serviceTable()
 	normalized := strings.ToLower(strings.TrimSpace(serviceType))

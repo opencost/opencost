@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/global"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/provider"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/config"
@@ -114,6 +115,13 @@ var (
 	agencyCredsCacheAt    time.Time
 )
 
+// agencyCredentials fetches the IAM agency's temporary credentials from the
+// instance metadata service. Tests replace it so they never reach a real
+// metadata service.
+var agencyCredentials = func() (auth.ICredential, error) {
+	return provider.GlobalCredentialMetadataProvider().GetCredentials()
+}
+
 func huaweiGlobalCredentials() (*global.Credentials, error) {
 	ak := env.GetHuaweiAccessKeyID()
 	sk := env.GetHuaweiAccessKeySecret()
@@ -139,7 +147,7 @@ func huaweiGlobalCredentials() (*global.Credentials, error) {
 	}
 	agencyCredsCacheMu.Unlock()
 
-	agencyCreds, err := provider.GlobalCredentialMetadataProvider().GetCredentials()
+	agencyCreds, err := agencyCredentials()
 	if err != nil {
 		return nil, fmt.Errorf(
 			"huawei cloud BSS pricing requires either %s/%s to be set, or an IAM agency configured on the node: %w",

@@ -109,11 +109,93 @@ func TestCostConfiguration_PriceFactor(t *testing.T) {
 		{"hws.service.type.modelarts", "modelarts.training", 1},
 		{"hws.service.type.rds", "rds.instance", 0.9},
 		{"hws.service.type.ec2", "vm", 1},
+		// CLOUD_SERVICE_TYPE as an English name, for a bare RESOURCE_ID
+		// that carries no service code of its own.
+		{"Relational Database Service", "", 0.9},
+		{"Elastic Cloud Server", "", 1},
+		{"", "", 1},
 	}
 	for _, tc := range cases {
 		if got := c.priceFactor(tc.service, tc.resourceType); got != tc.want {
 			t.Errorf("priceFactor(%q, %q) = %v, want %v", tc.service, tc.resourceType, got, tc.want)
 		}
+	}
+
+	// A factor may name the service by an alias or by its English name.
+	aliases := CostConfiguration{PriceFactors: []PriceFactor{
+		{Service: "ecs", Factor: 0.8},
+		{Service: "Elastic Volume Service", Factor: 0.7},
+	}}
+	if got := aliases.priceFactor("hws.service.type.ec2", "vm"); got != 0.8 {
+		t.Errorf("expected the ecs alias to match ec2, got %v", got)
+	}
+	if got := aliases.priceFactor("hws.service.type.ebs", "volume"); got != 0.7 {
+		t.Errorf("expected the EVS name to match ebs, got %v", got)
+	}
+}
+
+// TestCostIntegration_GetCloudCost_PriceFactorForBareResourceID covers a row
+// whose RESOURCE_ID is not composite, so it carries no service code: the
+// service-scoped factor must still apply, from CLOUD_SERVICE_TYPE, in either
+// form BSS returns it.
+func TestCostIntegration_GetCloudCost_PriceFactorForBareResourceID(t *testing.T) {
+	for _, serviceType := range []string{"hws.service.type.modelarts", "ModelArts"} {
+		t.Run(serviceType, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var body struct {
+					Groupby []struct {
+						Key string `json:"key"`
+					} `json:"groupby"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Errorf("unexpected error decoding request: %v", err)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if len(body.Groupby) == 2 && body.Groupby[1].Key == enterpriseProjectDimension {
+					w.Write([]byte(`{"total_count": 0, "cost_data": []}`))
+					return
+				}
+				w.Write([]byte(`{"total_count": 1, "cost_data": [{"dimensions": [
+					{"key": "RESOURCE_ID", "value": "bare-resource-1"},
+					{"key": "CLOUD_SERVICE_TYPE", "value": "` + serviceType + `"},
+					{"key": "REGION_CODE", "value": "la-north-2"}
+				], "costs": [{"time_dimension_value": "2026-09-22", "amount": "100", "official_amount": "100"}]}]}`))
+			}))
+			defer server.Close()
+
+			bssEndpointOverride = server.URL
+			defer func() { bssEndpointOverride = "" }()
+
+			t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+			t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+			t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+			ci := &CostIntegration{CostConfiguration: CostConfiguration{
+				Region:       "la-north-2",
+				PriceFactors: []PriceFactor{{Service: "hws.service.type.modelarts", Factor: 0.63}},
+			}}
+			start := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
+			ccsr, err := ci.GetCloudCost(start, start.AddDate(0, 0, 1))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			found := false
+			for _, ccs := range ccsr.CloudCostSets {
+				for _, cc := range ccs.CloudCosts {
+					if cc.Properties.ProviderID != "bare-resource-1" {
+						continue
+					}
+					found = true
+					if cc.NetCost.Cost != 63 || cc.ListCost.Cost != 100 {
+						t.Fatalf("expected net 63 and list 100, got net %v list %v", cc.NetCost.Cost, cc.ListCost.Cost)
+					}
+				}
+			}
+			if !found {
+				t.Fatalf("expected a CloudCost for bare-resource-1")
+			}
+		})
 	}
 }
 

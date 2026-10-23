@@ -46,10 +46,12 @@ type EnterpriseProject struct {
 	Platform string `json:"platform,omitempty"`
 }
 
-// PriceFactor scales the net cost of the resources it matches. Service and
-// ResourceType are Huawei Cloud codes, with or without their
-// "hws.service.type." / "hws.resource.type." prefixes; an empty one matches
-// anything. The first matching factor applies.
+// PriceFactor scales the net cost of the resources it matches. Service is a
+// Huawei Cloud Service Type Code, with or without its "hws.service.type."
+// prefix, or the service's English name; aliases of one service match each
+// other (see canonicalServiceCode). ResourceType is a Resource Type Code, with
+// or without its "hws.resource.type." prefix. An empty one matches anything.
+// The first matching factor applies.
 type PriceFactor struct {
 	Service      string  `json:"service,omitempty"`
 	ResourceType string  `json:"resourceType,omitempty"`
@@ -180,9 +182,10 @@ func (c *CostConfiguration) enterpriseProject(id string) EnterpriseProject {
 
 // priceFactor returns the factor that applies to a resource of the given
 // service and resource type codes, or 1 when none does.
-func (c *CostConfiguration) priceFactor(serviceCode, resourceTypeCode string) float64 {
+func (c *CostConfiguration) priceFactor(service, resourceTypeCode string) float64 {
+	billed := canonicalServiceCode(service)
 	for _, pf := range c.PriceFactors {
-		if codeMatches(pf.Service, serviceCode, serviceTypeCodePrefix) &&
+		if (pf.Service == "" || canonicalServiceCode(pf.Service) == billed) &&
 			codeMatches(pf.ResourceType, resourceTypeCode, huaweiResourceTypeCodePrefix) {
 			return pf.Factor
 		}

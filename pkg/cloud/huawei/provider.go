@@ -304,15 +304,13 @@ func (h *Huawei) DownloadPricingData() error {
 		log.Errorf("Failed to fetch Huawei Cloud BSS pricing data, keeping the previous prices (static defaults where there are none): %v", err)
 		return nil
 	}
-	// An explicit empty list ("product_rating_results": []) decodes to a
-	// non-nil pointer, so the length is checked too.
-	if ratings.ProductRatingResults == nil || len(*ratings.ProductRatingResults) == 0 {
-		log.Warnf("Huawei Cloud BSS demandPrice returned no pricing results, keeping the previous prices")
-		return nil
+	var results []bssintlmodel.DemandProductRatingResult
+	if ratings.ProductRatingResults != nil {
+		results = *ratings.ProductRatingResults
 	}
 
-	pricing := make(map[string]*HuaweiPricing, len(*ratings.ProductRatingResults))
-	for _, result := range *ratings.ProductRatingResults {
+	pricing := make(map[string]*HuaweiPricing, len(results))
+	for _, result := range results {
 		if result.Id == nil || result.Amount == nil {
 			continue
 		}
@@ -343,6 +341,12 @@ func (h *Huawei) DownloadPricingData() error {
 				},
 			}
 		}
+	}
+	// A response with nothing usable -- no results, an empty list, or only
+	// entries missing an id or amount -- is no better than a failed request.
+	if len(pricing) == 0 {
+		log.Warnf("Huawei Cloud BSS demandPrice returned no usable pricing results, keeping the previous prices")
+		return nil
 	}
 	h.Pricing = pricing
 

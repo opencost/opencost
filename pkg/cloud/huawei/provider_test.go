@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth"
+
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
@@ -575,7 +577,54 @@ func TestHuawei_DownloadPricingData_LiveBSS(t *testing.T) {
 // TestHuawei_DownloadPricingData_MissingCredentials verifies that a missing
 // AK/SK/domain ID degrades gracefully to the static fallback instead of failing
 // DownloadPricingData outright.
+// withoutHuaweiCredentials makes a test see no credentials at all, whatever
+// the machine running it has: no AK/SK, domain or project in the environment,
+// an IAM agency lookup that fails, empty agency and project-ID caches, and a
+// metadata service that answers 404. BSS fails the test if it is reached.
+func withoutHuaweiCredentials(t *testing.T) {
+	t.Helper()
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "")
+	t.Setenv(env.HuaweiProjectIDEnvVar, "")
+
+	origAgency := agencyCredentials
+	agencyCredentials = func() (auth.ICredential, error) {
+		return nil, fmt.Errorf("no IAM agency in tests")
+	}
+
+	metadata := httptest.NewServer(http.NotFoundHandler())
+	origMetadata := metadataEndpoint
+	metadataEndpoint = metadata.URL
+
+	bss := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("BSS must not be reached without credentials, got %s %s", r.Method, r.URL.Path)
+	}))
+	origBSS := bssEndpointOverride
+	bssEndpointOverride = bss.URL
+
+	resetCaches := func() {
+		agencyCredsCacheMu.Lock()
+		agencyCredsCacheValue = nil
+		agencyCredsCacheMu.Unlock()
+		projectIDCacheMu.Lock()
+		projectIDCacheValue = ""
+		projectIDCacheMu.Unlock()
+	}
+	resetCaches()
+
+	t.Cleanup(func() {
+		agencyCredentials = origAgency
+		metadataEndpoint = origMetadata
+		bssEndpointOverride = origBSS
+		metadata.Close()
+		bss.Close()
+		resetCaches()
+	})
+}
+
 func TestHuawei_DownloadPricingData_MissingCredentials(t *testing.T) {
+	withoutHuaweiCredentials(t)
 	node := &clustercache.Node{
 		Labels: map[string]string{
 			"topology.kubernetes.io/region":    "la-south-2",
@@ -648,7 +697,7 @@ func TestHuawei_DownloadPricingData_SkipsUnmappedStorageClass(t *testing.T) {
 }
 
 // TestHuawei_DownloadPricingData_KeepsPricesWhenBSSFails covers a refresh that
-// yields no prices -- an error, or a response with no rating results: the
+// yields no prices -- an error, or a response with no usable rating results: the
 // prices from the last successful download must survive it rather than every
 // node, disk and load balancer dropping to the static rates.
 func TestHuawei_DownloadPricingData_KeepsPricesWhenBSSFails(t *testing.T) {
@@ -663,6 +712,10 @@ func TestHuawei_DownloadPricingData_KeepsPricesWhenBSSFails(t *testing.T) {
 		"no results": func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{}`))
+		},
+		"no usable results": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"product_rating_results": [{"id": "node-0"}, {"id": "unknown", "amount": "1.0"}]}`))
 		},
 	}
 

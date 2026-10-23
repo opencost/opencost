@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -393,9 +394,7 @@ func TestCostIntegration_GetCloudCost_NoData(t *testing.T) {
 }
 
 func TestCostIntegration_GetCloudCost_MissingCredentials(t *testing.T) {
-	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "")
-	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "")
-	t.Setenv(env.HuaweiDomainIDEnvVar, "")
+	withoutHuaweiCredentials(t)
 
 	ci := &CostIntegration{
 		CostConfiguration: CostConfiguration{ProjectID: "test-project", Region: "la-south-2"},
@@ -417,8 +416,55 @@ func TestCostIntegration_GetCloudCost_MissingCredentials(t *testing.T) {
 }
 
 func TestCostIntegration_RefreshStatus(t *testing.T) {
-	ci := &CostIntegration{ConnectionStatus: cloud.SuccessfulConnection}
+	ci := &CostIntegration{}
+	if got := ci.RefreshStatus(); got != cloud.InitialStatus {
+		t.Fatalf("expected RefreshStatus to return the initial status, got %v", got)
+	}
+	ci.setStatus(cloud.SuccessfulConnection)
 	if got := ci.RefreshStatus(); got != cloud.SuccessfulConnection {
 		t.Fatalf("expected RefreshStatus to return current status unchanged, got %v", got)
+	}
+}
+
+// TestCostIntegration_StatusIsSynchronized mirrors the ingestor: its build
+// and run goroutines call GetCloudCost while the status endpoint calls
+// GetStatus. Run with -race, unsynchronized status access fails it.
+func TestCostIntegration_StatusIsSynchronized(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"total_count": 0, "cost_data": []}`))
+	}))
+	defer server.Close()
+
+	bssEndpointOverride = server.URL
+	defer func() { bssEndpointOverride = "" }()
+
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+	ci := &CostIntegration{CostConfiguration: CostConfiguration{Region: "la-south-2"}}
+	start := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			if _, err := ci.GetCloudCost(start, end); err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			ci.GetStatus()
+			ci.RefreshStatus()
+		}()
+	}
+	wg.Wait()
+
+	if got := ci.GetStatus(); got != cloud.MissingData {
+		t.Fatalf("expected MissingData after empty bills, got %v", got)
 	}
 }

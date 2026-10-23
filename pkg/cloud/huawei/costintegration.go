@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	bssintlmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2/model"
@@ -23,7 +24,12 @@ const bssDateLayout = "2006-01-02"
 // the cluster's resources going forward via the BSS demandPrice API.
 type CostIntegration struct {
 	CostConfiguration
-	ConnectionStatus cloud.ConnectionStatus
+
+	// The ingestor's build and run goroutines call GetCloudCost while the
+	// status endpoint calls GetStatus, so the status is only reached through
+	// statusLock (see setStatus).
+	statusLock sync.Mutex
+	status     cloud.ConnectionStatus
 }
 
 // GetCloudCost queries BSS for costs across [start, end) and returns them as a
@@ -52,7 +58,7 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 
 	rows, err := fetchCostAnalysedBills(beginTime, endTime, "ORIGINAL_COST", "NET_AMOUNT")
 	if err != nil {
-		ci.ConnectionStatus = cloud.FailedConnection
+		ci.setStatus(cloud.FailedConnection)
 		return nil, fmt.Errorf("getting huawei cloud cost data: %w", err)
 	}
 
@@ -62,9 +68,12 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 	}
 
 	if len(rows) == 0 {
-		if ci.ConnectionStatus != cloud.SuccessfulConnection {
-			ci.ConnectionStatus = cloud.MissingData
-		}
+		ci.updateStatus(func(status cloud.ConnectionStatus) cloud.ConnectionStatus {
+			if status != cloud.SuccessfulConnection {
+				return cloud.MissingData
+			}
+			return status
+		})
 		return ccsr, nil
 	}
 
@@ -87,7 +96,14 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		// already use up, so they can't be requested as dimensions of their own.
 		resource := describeResource(resourceID)
 
-		priceFactor := ci.priceFactor(serviceCodeOf(resource.ID), resource.Type)
+		// The service code comes from a composite RESOURCE_ID; a bare one
+		// carries none, so the CLOUD_SERVICE_TYPE dimension (a code or an
+		// English name) identifies the service instead.
+		service := serviceCodeOf(resource.ID)
+		if service == "" {
+			service = serviceType
+		}
+		priceFactor := ci.priceFactor(service, resource.Type)
 
 		// The properties depend on the Enterprise Project, which is per day
 		// (see resourceEnterpriseProjects): built once per Enterprise Project.
@@ -174,20 +190,36 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		}
 	}
 
-	ci.ConnectionStatus = cloud.SuccessfulConnection
+	ci.setStatus(cloud.SuccessfulConnection)
 	return ccsr, nil
 }
 
 func (ci *CostIntegration) GetStatus() cloud.ConnectionStatus {
-	if ci.ConnectionStatus.String() == "" {
-		ci.ConnectionStatus = cloud.InitialStatus
-	}
-	return ci.ConnectionStatus
+	return ci.updateStatus(func(status cloud.ConnectionStatus) cloud.ConnectionStatus {
+		if status.String() == "" {
+			return cloud.InitialStatus
+		}
+		return status
+	})
 }
 
 func (ci *CostIntegration) RefreshStatus() cloud.ConnectionStatus {
 	log.Warn("status refresh is not supported for the Huawei Cloud provider")
-	return ci.ConnectionStatus
+	return ci.GetStatus()
+}
+
+func (ci *CostIntegration) setStatus(status cloud.ConnectionStatus) {
+	ci.updateStatus(func(cloud.ConnectionStatus) cloud.ConnectionStatus { return status })
+}
+
+// updateStatus replaces the status with update(current) under statusLock, so
+// a read-then-write such as "MissingData unless already successful" is atomic,
+// and returns the new status.
+func (ci *CostIntegration) updateStatus(update func(cloud.ConnectionStatus) cloud.ConnectionStatus) cloud.ConnectionStatus {
+	ci.statusLock.Lock()
+	defer ci.statusLock.Unlock()
+	ci.status = update(ci.status)
+	return ci.status
 }
 
 // huaweiResourceTypeCodePrefix prefixes every Huawei Cloud "Resource Type Code"
