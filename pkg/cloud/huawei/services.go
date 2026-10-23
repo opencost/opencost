@@ -27,11 +27,14 @@ const (
 const serviceTypeCodePrefix = "hws.service.type."
 
 // service describes how one Huawei Cloud service is categorized by OpenCost.
+// An entry is one service, not a group of services sharing a category: it is
+// also the service's identity for price factors (see canonicalServiceCode).
 type service struct {
 	category string
 
 	// codes are Service Type Code suffixes (the part after
-	// "hws.service.type."). They are only ever matched exactly: they are short
+	// "hws.service.type.") that are aliases of this one service; the first is
+	// its canonical code. They are only ever matched exactly: they are short
 	// enough to appear inside unrelated words -- "ces" is the tail of
 	// "Services" -- so substring-matching them miscategorizes costs.
 	codes []string
@@ -44,6 +47,10 @@ type service struct {
 
 // services maps the Huawei Cloud services this integration recognizes onto
 // OpenCost asset categories. Anything not listed here is reported as Other.
+// Each entry is a single service; distinct services in the same category
+// (ECS and BMS, SFS and SFS Turbo) get entries of their own. A name that
+// contains another one ("sfs turbo"/"scalable file service turbo") comes
+// before it, since substring matching takes the first entry that matches.
 //
 // The entries for ECS, EVS, OBS, RDS, ELB, VPC (Elastic IP bandwidth is billed
 // under this service type as a "Fixed Bandwidth" resource, not under its own
@@ -64,28 +71,34 @@ type service struct {
 // services are filed under Management: OpenCost has no security category.
 var services = []service{
 	// Compute
-	{opencost.ComputeCategory, []string{"ec2", "ecs", "bms"}, []string{"elastic cloud server", "bare metal server"}},
+	{opencost.ComputeCategory, []string{"ec2", "ecs"}, []string{"elastic cloud server"}},
+	{opencost.ComputeCategory, []string{"bms"}, []string{"bare metal server"}},
 	{opencost.ComputeCategory, []string{"cce"}, []string{"cloud container engine"}},
 	{opencost.ComputeCategory, []string{"functionstage", "functiongraph", "fgs"}, []string{"functiongraph"}},
 	{opencost.ComputeCategory, []string{"dcs"}, []string{"distributed cache service"}},
 	{opencost.ComputeCategory, []string{"dms"}, []string{"distributed message service"}},
 	{opencost.ComputeCategory, []string{"modelarts"}, []string{"modelarts"}},
 	{opencost.ComputeCategory, []string{"cci"}, []string{"cloud container instance"}},
-	{opencost.ComputeCategory, []string{"servicestage", "cse"}, []string{"servicestage", "cloud service engine"}},
+	{opencost.ComputeCategory, []string{"servicestage"}, []string{"servicestage"}},
+	{opencost.ComputeCategory, []string{"cse"}, []string{"cloud service engine"}},
 	{opencost.ComputeCategory, []string{"ief"}, []string{"intelligent edgefabric"}},
 	{opencost.ComputeCategory, []string{"mrs"}, []string{"mapreduce service"}},
 	{opencost.ComputeCategory, []string{"dli"}, []string{"data lake insight"}},
 	// Storage
 	{opencost.StorageCategory, []string{"ebs", "evs"}, []string{"elastic volume service"}},
 	{opencost.StorageCategory, []string{"obs"}, []string{"object storage service"}},
-	{opencost.StorageCategory, []string{"sfs", "sfsturbo"}, []string{"scalable file service"}},
+	{opencost.StorageCategory, []string{"sfsturbo"}, []string{"sfs turbo", "scalable file service turbo"}},
+	{opencost.StorageCategory, []string{"sfs"}, []string{"scalable file service"}},
 	{opencost.StorageCategory, []string{"cbr"}, []string{"cloud backup and recovery"}},
 	{opencost.StorageCategory, []string{"swr"}, []string{"software repository for container"}},
 	{opencost.StorageCategory, []string{"rds"}, []string{"relational database service"}},
-	{opencost.StorageCategory, []string{"kms", "dew", "csms"}, []string{"data encryption workshop", "key management service", "cloud secret management service"}},
+	{opencost.StorageCategory, []string{"kms", "dew"}, []string{"data encryption workshop", "key management service"}},
+	{opencost.StorageCategory, []string{"csms"}, []string{"cloud secret management service"}},
 	{opencost.StorageCategory, []string{"css"}, []string{"cloud search service"}},
 	{opencost.StorageCategory, []string{"dds"}, []string{"document database service"}},
-	{opencost.StorageCategory, []string{"gaussdb", "gaussdbformysql", "taurusdb", "gaussdbfornosql", "nosql"}, []string{"gaussdb", "taurusdb"}},
+	{opencost.StorageCategory, []string{"gaussdbformysql", "taurusdb"}, []string{"taurusdb", "gaussdb(for mysql)"}},
+	{opencost.StorageCategory, []string{"gaussdbfornosql", "nosql"}, []string{"gaussdb(for nosql)", "gaussdb nosql"}},
+	{opencost.StorageCategory, []string{"gaussdb"}, []string{"gaussdb"}},
 	{opencost.StorageCategory, []string{"drs"}, []string{"data replication service"}},
 	{opencost.StorageCategory, []string{"dws"}, []string{"data warehouse service"}},
 	// Network
@@ -106,10 +119,13 @@ var services = []service{
 	// Security (no OpenCost category of its own)
 	{opencost.ManagementCategory, []string{"hss"}, []string{"host security service"}},
 	{opencost.ManagementCategory, []string{"cfw"}, []string{"cloud firewall"}},
-	{opencost.ManagementCategory, []string{"antiddos", "aad", "cnad"}, []string{"anti-ddos", "advanced anti-ddos"}},
+	{opencost.ManagementCategory, []string{"aad"}, []string{"advanced anti-ddos"}},
+	{opencost.ManagementCategory, []string{"cnad"}, []string{"cloud native anti-ddos"}},
+	{opencost.ManagementCategory, []string{"antiddos"}, []string{"anti-ddos"}},
 	{opencost.ManagementCategory, []string{"cbh"}, []string{"cloud bastion host"}},
 	{opencost.ManagementCategory, []string{"secmaster"}, []string{"secmaster"}},
-	{opencost.ManagementCategory, []string{"scm", "ccm"}, []string{"ssl certificate manager", "cloud certificate manager"}},
+	{opencost.ManagementCategory, []string{"scm"}, []string{"ssl certificate manager"}},
+	{opencost.ManagementCategory, []string{"ccm"}, []string{"cloud certificate manager"}},
 	{opencost.ManagementCategory, []string{"dbss"}, []string{"database security service"}},
 	// Management / operations
 	{opencost.ManagementCategory, []string{"lts"}, []string{"log tank service"}},
@@ -140,19 +156,29 @@ func selectHuaweiCategory(serviceType string) string {
 // service, so that aliases ("ec2"/"ecs") and names ("Elastic Cloud Server")
 // compare equal. An unrecognized code is returned without its prefix, and ""
 // stays "".
+//
+// Only the built-in table decides identity: HUAWEICLOUD_SERVICE_CATEGORIES
+// entries set categories, and one that names several services must not make
+// a price factor for one of them apply to the others.
 func canonicalServiceCode(serviceType string) string {
 	normalized := strings.ToLower(strings.TrimSpace(serviceType))
 	if normalized == "" {
 		return ""
 	}
-	if svc, ok := lookupService(normalized); ok && len(svc.codes) > 0 {
+	if svc, ok := lookupIn(services, normalized); ok && len(svc.codes) > 0 {
 		return svc.codes[0]
 	}
 	return strings.TrimPrefix(normalized, serviceTypeCodePrefix)
 }
 
+// lookupService finds the service a CLOUD_SERVICE_TYPE value names in the
+// active table, HUAWEICLOUD_SERVICE_CATEGORIES entries first (see
+// serviceTable).
 func lookupService(serviceType string) (service, bool) {
-	table := serviceTable()
+	return lookupIn(serviceTable(), serviceType)
+}
+
+func lookupIn(table []service, serviceType string) (service, bool) {
 	normalized := strings.ToLower(strings.TrimSpace(serviceType))
 	if normalized == "" {
 		return service{}, false

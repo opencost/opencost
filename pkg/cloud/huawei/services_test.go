@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 
@@ -174,6 +175,68 @@ func TestServiceTable_FileOverridesBuiltIn(t *testing.T) {
 	for service, want := range cases {
 		if got := selectHuaweiCategory(service); got != want {
 			t.Errorf("selectHuaweiCategory(%q) = %q, want %q", service, got, want)
+		}
+	}
+}
+
+// TestServiceTable_OverrideCoversCodesAndNames checks that a file entry
+// naming a service by only one form applies to every form BSS may report it
+// in, so the category does not depend on whether the bill carries the code or
+// the English name -- and that it stays with that service.
+func TestServiceTable_OverrideCoversCodesAndNames(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "categories.json")
+	content := `[
+		{"category": "Shared", "codes": ["rds"]},
+		{"category": "Other", "names": ["elastic cloud server"]}
+	]`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(env.HuaweiServiceCategoriesEnvVar, path)
+
+	serviceTableOnce = sync.Once{}
+	defer func() {
+		serviceTableOnce = sync.Once{}
+		activeServiceTable = nil
+	}()
+
+	cases := map[string]string{
+		// Code-only override, reached by code, bare code and name.
+		"hws.service.type.rds":        opencost.SharedCategory,
+		"RDS":                         opencost.SharedCategory,
+		"Relational Database Service": opencost.SharedCategory,
+		// Name-only override, reached by name and by either alias code.
+		"Elastic Cloud Server": opencost.OtherCategory,
+		"hws.service.type.ec2": opencost.OtherCategory,
+		"hws.service.type.ecs": opencost.OtherCategory,
+		// Other services in the same built-in category are unaffected.
+		"Bare Metal Server":         opencost.ComputeCategory,
+		"hws.service.type.gaussdb":  opencost.StorageCategory,
+		"Document Database Service": opencost.StorageCategory,
+	}
+	for service, want := range cases {
+		if got := selectHuaweiCategory(service); got != want {
+			t.Errorf("selectHuaweiCategory(%q) = %q, want %q", service, got, want)
+		}
+	}
+}
+
+// TestServices_OneServicePerEntry guards the table's invariant that an entry
+// is a single service: no code or name may appear in two entries, and the
+// services that used to share an entry with another one stand alone.
+func TestServices_OneServicePerEntry(t *testing.T) {
+	seen := map[string]int{}
+	for i, svc := range services {
+		for _, id := range append(slices.Clone(svc.codes), svc.names...) {
+			if j, dup := seen[id]; dup && j != i {
+				t.Errorf("%q appears in entries %d and %d", id, j, i)
+			}
+			seen[id] = i
+		}
+	}
+	for _, pair := range [][2]string{{"bms", "ec2"}, {"sfsturbo", "sfs"}, {"csms", "kms"}, {"cse", "servicestage"}, {"ccm", "scm"}, {"aad", "antiddos"}, {"cnad", "antiddos"}, {"taurusdb", "gaussdb"}, {"nosql", "gaussdb"}} {
+		if canonicalServiceCode(pair[0]) == canonicalServiceCode(pair[1]) {
+			t.Errorf("%q and %q must be distinct services", pair[0], pair[1])
 		}
 	}
 }

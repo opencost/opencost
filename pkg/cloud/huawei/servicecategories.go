@@ -57,10 +57,42 @@ func serviceTable() []service {
 			log.Errorf("huawei cloud: ignoring %s=%s: %v", env.HuaweiServiceCategoriesEnvVar, path, err)
 			return
 		}
-		activeServiceTable = append(extra, services...)
+		activeServiceTable = append(withKnownIdentifiers(extra), services...)
 		log.Infof("huawei cloud: loaded %d service categories from %s", len(extra), path)
 	})
 	return activeServiceTable
+}
+
+// withKnownIdentifiers adds to each file entry the codes and names of every
+// built-in service it names by an exact code or name. BSS reports a service
+// by either form, so an entry that only lists "rds" must also cover
+// "Relational Database Service"; otherwise the built-in entry would still
+// answer for the name, and the category would depend on the form BSS used.
+func withKnownIdentifiers(entries []service) []service {
+	merged := make([]service, 0, len(entries))
+	for _, entry := range entries {
+		codes := slices.Clone(entry.codes)
+		names := slices.Clone(entry.names)
+		for _, builtIn := range services {
+			named := slices.ContainsFunc(entry.codes, func(code string) bool { return slices.Contains(builtIn.codes, code) }) ||
+				slices.ContainsFunc(entry.names, func(name string) bool { return slices.Contains(builtIn.names, name) })
+			if !named {
+				continue
+			}
+			for _, code := range builtIn.codes {
+				if !slices.Contains(codes, code) {
+					codes = append(codes, code)
+				}
+			}
+			for _, name := range builtIn.names {
+				if !slices.Contains(names, name) {
+					names = append(names, name)
+				}
+			}
+		}
+		merged = append(merged, service{category: entry.category, codes: codes, names: names})
+	}
+	return merged
 }
 
 func loadServiceCategories(path string) ([]service, error) {

@@ -5,10 +5,14 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/opencost"
 	ocjson "github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/env"
 )
@@ -131,6 +135,63 @@ func TestCostConfiguration_PriceFactor(t *testing.T) {
 	}
 	if got := aliases.priceFactor("hws.service.type.ebs", "volume"); got != 0.7 {
 		t.Errorf("expected the EVS name to match ebs, got %v", got)
+	}
+}
+
+// TestCostConfiguration_PriceFactorStaysWithItsService checks that a factor
+// for one service never applies to another one in the same category: the
+// services table once grouped them (ECS with BMS, SFS with SFS Turbo...), and
+// using such a group as the identity scaled unrelated charges.
+func TestCostConfiguration_PriceFactorStaysWithItsService(t *testing.T) {
+	cases := []struct {
+		factorFor, billed string
+		want              float64
+	}{
+		{"bms", "hws.service.type.bms", 0.5},
+		{"bms", "Bare Metal Server", 0.5},
+		{"bms", "hws.service.type.ec2", 1},
+		{"bms", "Elastic Cloud Server", 1},
+		{"sfsturbo", "hws.service.type.sfsturbo", 0.5},
+		{"sfsturbo", "hws.service.type.sfs", 1},
+		{"sfs", "SFS Turbo", 1},
+		{"taurusdb", "hws.service.type.gaussdbformysql", 0.5},
+		{"taurusdb", "hws.service.type.gaussdb", 1},
+		{"gaussdb", "GaussDB(for MySQL)", 1},
+		{"kms", "Data Encryption Workshop", 0.5},
+		{"kms", "hws.service.type.csms", 1},
+		{"aad", "hws.service.type.antiddos", 1},
+		{"scm", "hws.service.type.ccm", 1},
+		{"servicestage", "hws.service.type.cse", 1},
+	}
+	for _, tc := range cases {
+		c := CostConfiguration{PriceFactors: []PriceFactor{{Service: tc.factorFor, Factor: 0.5}}}
+		if got := c.priceFactor(tc.billed, ""); got != tc.want {
+			t.Errorf("factor for %q on %q = %v, want %v", tc.factorFor, tc.billed, got, tc.want)
+		}
+	}
+}
+
+// TestCostConfiguration_PriceFactorIgnoresCategoryOverrides checks that a
+// HUAWEICLOUD_SERVICE_CATEGORIES entry grouping services under one category
+// does not merge their identities for price factors.
+func TestCostConfiguration_PriceFactorIgnoresCategoryOverrides(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "categories.json")
+	if err := os.WriteFile(path, []byte(`[{"category": "Shared", "codes": ["ec2", "bms"]}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(env.HuaweiServiceCategoriesEnvVar, path)
+	serviceTableOnce = sync.Once{}
+	defer func() {
+		serviceTableOnce = sync.Once{}
+		activeServiceTable = nil
+	}()
+
+	if got := selectHuaweiCategory("hws.service.type.bms"); got != opencost.SharedCategory {
+		t.Fatalf("expected the override to apply, got %q", got)
+	}
+	c := CostConfiguration{PriceFactors: []PriceFactor{{Service: "bms", Factor: 0.5}}}
+	if got := c.priceFactor("hws.service.type.ec2", ""); got != 1 {
+		t.Errorf("a BMS factor must not apply to ECS, got %v", got)
 	}
 }
 
