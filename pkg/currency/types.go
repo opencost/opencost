@@ -6,9 +6,23 @@ import (
 
 // Config holds configuration for the currency converter
 type Config struct {
+	// APIKey is the exchangerate-api.com key used by the default provider.
+	// It is ignored when Provider is set.
 	APIKey     string
 	CacheTTL   time.Duration
 	APITimeout time.Duration
+
+	// Provider supplies the exchange rates. If nil, the converter uses
+	// exchangerate-api.com with APIKey.
+	Provider RateProvider
+}
+
+// RateProvider fetches current exchange rates from an exchange rate source.
+// Implementations must be safe for concurrent use.
+type RateProvider interface {
+	// FetchRates returns the rates for one unit of baseCurrency, keyed by
+	// ISO 4217 currency code.
+	FetchRates(baseCurrency string) (map[string]float64, error)
 }
 
 // Converter interface defines currency conversion operations
@@ -39,12 +53,6 @@ type cachedRates struct {
 	baseCode   string
 	fetchedAt  time.Time
 	validUntil time.Time
-}
-
-// client interface for fetching exchange rates
-type client interface {
-	// fetchRates fetches current exchange rates for a base currency
-	fetchRates(baseCurrency string) (*exchangeRateResponse, error)
 }
 
 // cache interface for storing exchange rates
