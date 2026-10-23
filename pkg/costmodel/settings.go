@@ -52,6 +52,11 @@ func (a *Accesses) InitializeSettingsPubSub() {
 		for {
 			msg := <-costDataCacheCh
 			log.Infof("Flushing cost data caches: %s", msg)
+			go func() {
+				if err := a.CloudProvider.RefreshCustomPricing(); err != nil {
+					log.Errorf("Error refreshing custom pricing after settings change: %v", err)
+				}
+			}()
 		}
 	}(a)
 }
@@ -109,7 +114,7 @@ func (a *Accesses) customPricingHasChanged() bool {
 	}
 
 	// cache new custom pricing settings
-	a.SettingsCache.Set(CustomPricingSetting, cpStr, cache.DefaultExpiration)
+	a.SettingsCache.Set(CustomPricingSetting, cpStr, cache.NoExpiration)
 
 	return true
 }
@@ -148,7 +153,7 @@ func (a *Accesses) discountHasChanged() bool {
 	}
 
 	// cache new custom pricing settings
-	a.SettingsCache.Set(DiscountSetting, discStr, cache.DefaultExpiration)
+	a.SettingsCache.Set(DiscountSetting, discStr, cache.NoExpiration)
 
 	return true
 }

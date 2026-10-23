@@ -396,13 +396,13 @@ func (s *MCPServer) ProcessMCPRequest(ctx context.Context, request *MCPRequest) 
 
 	switch request.Query.QueryType {
 	case AllocationQueryType:
-		data, err = s.QueryAllocations(request.Query)
+		data, err = s.QueryAllocations(ctx, request.Query)
 	case AssetQueryType:
-		data, err = s.QueryAssets(request.Query)
+		data, err = s.QueryAssets(ctx, request.Query)
 	case CloudCostQueryType:
 		data, err = s.QueryCloudCosts(ctx, request.Query)
 	case EfficiencyQueryType:
-		data, err = s.QueryEfficiency(request.Query)
+		data, err = s.QueryEfficiency(ctx, request.Query)
 	default:
 		return nil, fmt.Errorf("unsupported query type: %s", request.Query.QueryType)
 	}
@@ -506,7 +506,10 @@ func generateQueryID() string {
 	return fmt.Sprintf("query-%s", hex.EncodeToString(bytes))
 }
 
-func (s *MCPServer) QueryAllocations(query *OpenCostQueryRequest) (*AllocationResponse, error) {
+// QueryAllocations translates an MCP query into an allocation query and transforms the result.
+// The cost model does not accept a context yet, so ctx is checked before the
+// query starts and again before the result is transformed.
+func (s *MCPServer) QueryAllocations(ctx context.Context, query *OpenCostQueryRequest) (*AllocationResponse, error) {
 	// 1. Parse Window
 	window, err := opencost.ParseWindowWithOffset(query.Window, 0) // 0 offset for UTC
 	if err != nil {
@@ -567,6 +570,10 @@ func (s *MCPServer) QueryAllocations(query *OpenCostQueryRequest) (*AllocationRe
 		filterString = ""
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("allocation query aborted: %w", err)
+	}
+
 	// 4. Call the existing QueryAllocation function with all parameters
 	asr, err := s.costModel.QueryAllocation(
 		window,
@@ -584,6 +591,9 @@ func (s *MCPServer) QueryAllocations(query *OpenCostQueryRequest) (*AllocationRe
 	if err != nil {
 		return nil, fmt.Errorf("failed to query allocations: %w", err)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("allocation query aborted: %w", err)
+	}
 
 	// 5. Handle the AllocationSetRange result
 	if asr == nil || len(asr.Allocations) == 0 {
@@ -593,10 +603,50 @@ func (s *MCPServer) QueryAllocations(query *OpenCostQueryRequest) (*AllocationRe
 	}
 
 	// 6. Transform the result to MCP format
-	// If we have multiple sets, we'll combine them or return the first one
-	// For now, let's return the first allocation set
-	firstSet := asr.Allocations[0]
-	return transformAllocationSet(firstSet), nil
+	return transformAllocationSetRange(asr), nil
+}
+
+// transformAllocationSetRange converts every set in the range into the MCP's
+// AllocationResponse format. A single set keeps the "allocations" key; when
+// step < window without accumulation there is one set per step, and each is
+// keyed by its window so no step is dropped.
+func transformAllocationSetRange(asr *opencost.AllocationSetRange) *AllocationResponse {
+	if asr == nil {
+		return &AllocationResponse{Allocations: make(map[string]*AllocationSet)}
+	}
+
+	sets := make([]*opencost.AllocationSet, 0, len(asr.Allocations))
+	for _, set := range asr.Allocations {
+		if set != nil {
+			sets = append(sets, set)
+		}
+	}
+
+	if len(sets) <= 1 {
+		if len(sets) == 0 {
+			return &AllocationResponse{Allocations: make(map[string]*AllocationSet)}
+		}
+		return transformAllocationSet(sets[0])
+	}
+
+	mcpAllocations := make(map[string]*AllocationSet, len(sets))
+	for i, set := range sets {
+		mcpSet := transformAllocationSet(set).Allocations["allocations"]
+		key := allocationSetKey(set.Window, i)
+		mcpSet.Name = key
+		mcpAllocations[key] = mcpSet
+	}
+
+	return &AllocationResponse{Allocations: mcpAllocations}
+}
+
+// allocationSetKey returns the window as an RFC 3339 interval ("start/end"),
+// falling back to an index when the window is open-ended.
+func allocationSetKey(window opencost.Window, i int) string {
+	if window.Start() == nil || window.End() == nil {
+		return fmt.Sprintf("allocations-%d", i)
+	}
+	return window.Start().UTC().Format(time.RFC3339) + "/" + window.End().UTC().Format(time.RFC3339)
 }
 
 // transformAllocationSet converts an opencost.AllocationSet into the MCP's AllocationResponse format.
@@ -646,7 +696,10 @@ func transformAllocationSet(allocSet *opencost.AllocationSet) *AllocationRespons
 	}
 }
 
-func (s *MCPServer) QueryAssets(query *OpenCostQueryRequest) (*AssetResponse, error) {
+// QueryAssets translates an MCP query into an asset query and transforms the result.
+// The cost model does not accept a context yet, so ctx is checked before the
+// query starts and again before the result is transformed.
+func (s *MCPServer) QueryAssets(ctx context.Context, query *OpenCostQueryRequest) (*AssetResponse, error) {
 	// 1. Parse Window
 	window, err := opencost.ParseWindowWithOffset(query.Window, 0) // 0 offset for UTC
 	if err != nil {
@@ -657,10 +710,17 @@ func (s *MCPServer) QueryAssets(query *OpenCostQueryRequest) (*AssetResponse, er
 	start := *window.Start()
 	end := *window.End()
 
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("asset query aborted: %w", err)
+	}
+
 	// 3. Call CostModel to get the asset set
 	assetSet, err := s.costModel.ComputeAssets(start, end)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute assets: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("asset query aborted: %w", err)
 	}
 
 	// 4. Transform Response for the MCP API
@@ -1105,7 +1165,9 @@ func defaultEfficiencyStep(windowDuration time.Duration) time.Duration {
 }
 
 // QueryEfficiency queries allocation data and computes efficiency metrics with recommendations.
-func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyResponse, error) {
+// The cost model does not accept a context yet, so ctx is checked before the
+// query starts and again before metrics are computed.
+func (s *MCPServer) QueryEfficiency(ctx context.Context, query *OpenCostQueryRequest) (*EfficiencyResponse, error) {
 	// 1. Parse Window
 	window, err := opencost.ParseWindowWithOffset(query.Window, 0)
 	if err != nil {
@@ -1173,6 +1235,10 @@ func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyRes
 		accumulateBy = opencost.AccumulateOptionAll
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("efficiency query aborted: %w", err)
+	}
+
 	asr, err := s.costModel.QueryAllocation(
 		window,
 		step,
@@ -1188,6 +1254,9 @@ func (s *MCPServer) QueryEfficiency(query *OpenCostQueryRequest) (*EfficiencyRes
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query allocations: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("efficiency query aborted: %w", err)
 	}
 
 	// 5. Handle empty results
