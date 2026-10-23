@@ -8,6 +8,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
 )
@@ -192,12 +193,33 @@ func (ara *AssumeRole) UnmarshalJSON(b []byte) error {
 }
 
 func (ara *AssumeRole) CreateAWSConfig(region string) (aws.Config, error) {
-	cfg, _ := ara.Authorizer.CreateAWSConfig(region)
+	cfg, err := ara.Authorizer.CreateAWSConfig(region)
+	if err != nil {
+		log.Errorf("AWS: AssumeRole: failed to create base AWS config for role '%s': %s", ara.RoleARN, err.Error())
+		return cfg, fmt.Errorf("AssumeRole: failed to create base AWS config for role '%s': %w", ara.RoleARN, err)
+	}
 	// Create the credentials from AssumeRoleProvider to assume the role
 	// referenced by the RoleARN.
 	stsSvc := sts.NewFromConfig(cfg)
-	creds := stscreds.NewAssumeRoleProvider(stsSvc, ara.RoleARN)
-	cfg.Credentials = aws.NewCredentialsCache(creds)
+	assumeRoleProvider := stscreds.NewAssumeRoleProvider(stsSvc, ara.RoleARN)
+
+	// AssumeRoleProvider resolves credentials lazily, on the first signed AWS
+	// API call. Without this wrapper, a broken cross-account trust policy or
+	// missing sts:AssumeRole permissions only surfaces as a generic error
+	// from whatever unrelated AWS call happened to trigger the credential
+	// refresh, several layers away from any AssumeRole context. Log clearly
+	// here, at the source, so the authorizer type, target role ARN, and
+	// underlying STS error are always visible together.
+	roleARN := ara.RoleARN
+	wrappedProvider := aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+		creds, err := assumeRoleProvider.Retrieve(ctx)
+		if err != nil {
+			log.Errorf("AWS: AssumeRole: failed to assume role '%s': %s", roleARN, err.Error())
+			return creds, fmt.Errorf("AssumeRole: failed to assume role '%s': %w", roleARN, err)
+		}
+		return creds, nil
+	})
+	cfg.Credentials = aws.NewCredentialsCache(wrappedProvider)
 	return cfg, nil
 }
 
