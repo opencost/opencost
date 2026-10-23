@@ -32,7 +32,7 @@ func (a *infoAggregator) LabelValues() []string {
 func (a *infoAggregator) Update(value float64, timestamp time.Time, additionalInfo map[string]string) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	a.additionalInfo = maps.Clone(additionalInfo)
+	a.additionalInfo = additionalInfo
 }
 
 func (a *infoAggregator) Value() []MetricValue {
