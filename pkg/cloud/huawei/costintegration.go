@@ -191,13 +191,19 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 			if item.TimeDimensionValue != nil {
 				day = *item.TimeDimensionValue
 			}
-			epID, known := enterpriseProjects.lookup(resource.ID, day)
-			properties := propertiesFor(epID, known)
-
-			cc := opencost.NewCloudCost(winStart, winEnd, properties, 0,
-				listAmount, netAmount, netAmount, netAmount, listAmount)
-
-			ccsr.LoadCloudCost(cc)
+			// A day billed to several Enterprise Projects is split across
+			// them, one CloudCost each, in proportion to what each was billed.
+			shares := enterpriseProjects.lookup(resource.ID, day)
+			if len(shares) == 0 {
+				ccsr.LoadCloudCost(opencost.NewCloudCost(winStart, winEnd, propertiesFor("", false), 0,
+					listAmount, netAmount, netAmount, netAmount, listAmount))
+				continue
+			}
+			for _, ep := range shares {
+				list, net := listAmount*ep.share, netAmount*ep.share
+				ccsr.LoadCloudCost(opencost.NewCloudCost(winStart, winEnd, propertiesFor(ep.id, true), 0,
+					list, net, net, net, list))
+			}
 		}
 	}
 

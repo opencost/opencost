@@ -251,7 +251,10 @@ func fetchCostAnalysedBills(beginTime, endTime string, costType, amountType stri
 	return fetchCostAnalysedBillsBy(costQueryDimensions, beginTime, endTime, costType, amountType)
 }
 
-func fetchCostAnalysedBillsBy(dimensions []string, beginTime, endTime string, costType, amountType string) ([]bssintlmodel.CostDataByDimension, error) {
+// fetchCostAnalysedBillsBy is fetchCostAnalysedBills grouped by the given
+// dimensions and, when filters are given, narrowed to the matching costs on
+// the BSS side.
+func fetchCostAnalysedBillsBy(dimensions []string, beginTime, endTime string, costType, amountType string, filters ...bssintlmodel.FilterV2) ([]bssintlmodel.CostDataByDimension, error) {
 	client, err := newBssClient()
 	if err != nil {
 		return nil, err
@@ -282,6 +285,9 @@ func fetchCostAnalysedBillsBy(dimensions []string, beginTime, endTime string, co
 				Offset:     &offset,
 				Limit:      &limit,
 			},
+		}
+		if len(filters) > 0 {
+			req.Body.Filters = &filters
 		}
 
 		resp, err := client.ListCosts(req)

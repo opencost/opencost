@@ -42,9 +42,13 @@ const (
 // billCache holds the average hourly cost BSS billed for each resource of the
 // billedHourlyServices, keyed by lower-cased resource ID.
 type billCache struct {
-	mu        sync.Mutex
-	nextFetch time.Time
-	hourly    map[string]float64
+	mu         sync.Mutex
+	nextFetch  time.Time
+	hourly     map[string]float64
+	refreshing bool
+
+	// refreshes tracks the background refresh, so tests can wait for it.
+	refreshes sync.WaitGroup
 }
 
 // ClusterManagementPricing prices the CCE cluster itself (its control plane)
@@ -62,32 +66,49 @@ func (h *Huawei) ClusterManagementPricing() (string, float64, error) {
 }
 
 // billedHourlyCost returns the average hourly cost BSS billed for the
-// resource, refreshing the cache when it is due.
+// resource, as cached. When the cache is due, it is refreshed in the
+// background: ClusterManagementPricing runs on the metrics update path, which
+// must not wait on paginated BSS queries. Until the first refresh lands, the
+// resource has no cost, as before this was implemented.
 func (h *Huawei) billedHourlyCost(resourceID string) (float64, bool) {
 	c := &h.bills
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	now := time.Now().UTC()
-	if !now.Before(c.nextFetch) {
-		hourly, err := fetchBilledHourlyCosts(now)
-		if err != nil {
-			log.Warnf("huawei cloud: reading billing history failed, the CCE cluster is priced at 0: %v", err)
-			c.nextFetch = now.Add(billRetryInterval)
-		} else if len(hourly) == 0 && len(c.hourly) > 0 {
-			// A successful read with nothing in it is more likely a gap in
-			// BSS's data than every tracked resource vanishing: keep the
-			// last known costs and read again soon.
-			log.Warnf("huawei cloud: billing history came back empty, keeping the last known CCE cost")
-			c.nextFetch = now.Add(billRetryInterval)
-		} else {
-			c.hourly = hourly
-			c.nextFetch = now.Add(billRefreshInterval)
-		}
+	if !c.refreshing && !now.Before(c.nextFetch) {
+		c.refreshing = true
+		c.refreshes.Add(1)
+		go c.refresh(now)
 	}
 
 	cost, ok := c.hourly[strings.ToLower(strings.TrimSpace(resourceID))]
 	return cost, ok
+}
+
+// refresh reads the billing history and updates the cache. Only one runs at
+// a time (see billedHourlyCost); the read itself is outside the lock.
+func (c *billCache) refresh(now time.Time) {
+	defer c.refreshes.Done()
+	hourly, err := fetchBilledHourlyCosts(now)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.refreshing = false
+	switch {
+	case err != nil:
+		log.Warnf("huawei cloud: reading billing history failed, keeping the last known CCE cost: %v", err)
+		c.nextFetch = now.Add(billRetryInterval)
+	case len(hourly) == 0 && len(c.hourly) > 0:
+		// A successful read with nothing in it is more likely a gap in BSS's
+		// data than every tracked resource vanishing: keep the last known
+		// costs and read again soon.
+		log.Warnf("huawei cloud: billing history came back empty, keeping the last known CCE cost")
+		c.nextFetch = now.Add(billRetryInterval)
+	default:
+		c.hourly = hourly
+		c.nextFetch = now.Add(billRefreshInterval)
+	}
 }
 
 // fetchBilledHourlyCosts reads the last billLookbackDays complete days of
@@ -99,9 +120,15 @@ func fetchBilledHourlyCosts(now time.Time) (map[string]float64, error) {
 	// BSS's end_time is inclusive: yesterday is the last complete day.
 	end := today.AddDate(0, 0, -1).Format(bssDateLayout)
 
-	// A composite RESOURCE_ID carries its service code; a bare one does not,
-	// so the service is requested as a dimension too.
-	rows, err := fetchCostAnalysedBillsBy([]string{"RESOURCE_ID", "CLOUD_SERVICE_TYPE"}, begin, end, "ORIGINAL_COST", "NET_AMOUNT")
+	// Only the billedHourlyServices are read, filtered on the BSS side: the
+	// account's whole bill can run to many pages. A composite RESOURCE_ID
+	// carries its service code; a bare one does not, so the service is
+	// requested as a dimension too.
+	onlyBilledServices := bssintlmodel.FilterV2{
+		Operator:     0, // include
+		FilterFactor: &bssintlmodel.FilterFactor{Key: "CLOUD_SERVICE_TYPE", Value: billedHourlyServices},
+	}
+	rows, err := fetchCostAnalysedBillsBy([]string{"RESOURCE_ID", "CLOUD_SERVICE_TYPE"}, begin, end, "ORIGINAL_COST", "NET_AMOUNT", onlyBilledServices)
 	if err != nil {
 		return nil, err
 	}

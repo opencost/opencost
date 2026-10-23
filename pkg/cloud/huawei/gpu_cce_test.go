@@ -1,8 +1,10 @@
 package huawei
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,6 +115,11 @@ func TestClusterManagementPricing_KeepsCostOnEmptyBilling(t *testing.T) {
 	h.bills.hourly = map[string]float64{testCCEClusterID: 0.35}
 	h.bills.nextFetch = time.Now().Add(-time.Minute)
 
+	if _, cost, err := h.ClusterManagementPricing(); err != nil || cost != 0.35 {
+		t.Fatalf("expected the cached 0.35/h while refreshing, got %v %v", cost, err)
+	}
+	h.bills.refreshes.Wait()
+
 	_, cost, err := h.ClusterManagementPricing()
 	if err != nil || cost != 0.35 {
 		t.Fatalf("expected the last known 0.35/h to be kept, got %v %v", cost, err)
@@ -138,9 +145,59 @@ func TestClusterManagementPricing_BareResourceID(t *testing.T) {
 	t.Setenv(env.HuaweiCCEClusterIDEnvVar, testCCEClusterID)
 
 	h := newBilledTestProvider(t)
+	h.ClusterManagementPricing()
+	h.bills.refreshes.Wait()
 	_, cost, err := h.ClusterManagementPricing()
 	// (4.80 + 4.80) / (2 days * 24h); the first, partial day is dropped.
 	if err != nil || !approxEqual(cost, 0.2) {
 		t.Fatalf("expected 0.2/h for the bare cluster ID, got %v %v", cost, err)
+	}
+}
+
+// TestClusterManagementPricing_RefreshesInBackground checks the metrics path
+// never waits on BSS: while a refresh is in flight, ClusterManagementPricing
+// answers from the cache. The refresh asks BSS for CCE costs only.
+func TestClusterManagementPricing_RefreshesInBackground(t *testing.T) {
+	release := make(chan struct{})
+	requests := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		requests <- string(body)
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"total_count": 0, "cost_data": []}`))
+	}))
+	t.Cleanup(server.Close)
+	bssEndpointOverride = server.URL
+	t.Cleanup(func() { bssEndpointOverride = "" })
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+	t.Setenv(env.HuaweiCCEClusterIDEnvVar, testCCEClusterID)
+
+	h := newBilledTestProvider(t)
+	h.bills.hourly = map[string]float64{testCCEClusterID: 0.35}
+
+	done := make(chan float64)
+	go func() {
+		_, cost, _ := h.ClusterManagementPricing()
+		done <- cost
+	}()
+	select {
+	case cost := <-done:
+		if cost != 0.35 {
+			t.Errorf("expected the cached 0.35/h, got %v", cost)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("ClusterManagementPricing waited on the BSS read")
+	}
+
+	requestBody := <-requests
+	close(release)
+	h.bills.refreshes.Wait()
+	for _, want := range []string{`"filters"`, `"CLOUD_SERVICE_TYPE"`, `"hws.service.type.cce"`} {
+		if !strings.Contains(requestBody, want) {
+			t.Errorf("expected the billing read to filter on the CCE service, missing %s in %s", want, requestBody)
+		}
 	}
 }
