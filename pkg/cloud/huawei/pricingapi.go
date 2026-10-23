@@ -239,7 +239,7 @@ var costQueryDimensions = []string{"RESOURCE_ID", "CLOUD_SERVICE_TYPE", "REGION_
 // costType/amountType select which cost figure comes back in Cost.Amount (see
 // costintegration.go for how the two are combined with Cost.OfficialAmount to
 // populate OpenCost's CloudCost fields).
-func fetchCostAnalysedBills(projectID string, beginTime, endTime string, costType, amountType string) ([]bssintlmodel.CostDataByDimension, error) {
+func fetchCostAnalysedBills(beginTime, endTime string, costType, amountType string) ([]bssintlmodel.CostDataByDimension, error) {
 	return fetchCostAnalysedBillsBy(costQueryDimensions, beginTime, endTime, costType, amountType)
 }
 

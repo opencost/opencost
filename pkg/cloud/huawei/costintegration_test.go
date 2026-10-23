@@ -309,8 +309,10 @@ func TestCostIntegration_GetCloudCost_LiveBSS(t *testing.T) {
 	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
 	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
 
+	// No projectID: the bill is account-wide, so none is needed (and none is
+	// resolved from instance metadata, which a test process cannot reach).
 	ci := &CostIntegration{
-		CostConfiguration: CostConfiguration{ProjectID: "test-project", Region: "la-south-2"},
+		CostConfiguration: CostConfiguration{Region: "la-south-2"},
 	}
 
 	start := time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)
@@ -335,6 +337,9 @@ func TestCostIntegration_GetCloudCost_LiveBSS(t *testing.T) {
 				continue
 			}
 			found = true
+			if cc.Properties.AccountID != "test-domain" {
+				t.Fatalf("expected the account (domain ID) as AccountID, got %q", cc.Properties.AccountID)
+			}
 			if cc.Properties.Service != "Elastic Cloud Server" {
 				t.Fatalf("expected service 'Elastic Cloud Server', got %q", cc.Properties.Service)
 			}

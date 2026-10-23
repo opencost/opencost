@@ -45,13 +45,12 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 	// BSS's end_time is inclusive; OpenCost windows are end-exclusive.
 	endTime := end.AddDate(0, 0, -1).Format(bssDateLayout)
 
-	projectID, err := ci.resolveProjectID()
-	if err != nil {
-		ci.ConnectionStatus = cloud.InvalidConfiguration
-		return nil, fmt.Errorf("getting huawei cloud cost data: %w", err)
-	}
+	// The bill is account-wide and BSS authenticates with the account's
+	// credentials, so no project is resolved here: costs outside a known
+	// Enterprise Project are attributed to the account itself.
+	accountKey := ci.Key()
 
-	rows, err := fetchCostAnalysedBills(projectID, beginTime, endTime, "ORIGINAL_COST", "NET_AMOUNT")
+	rows, err := fetchCostAnalysedBills(beginTime, endTime, "ORIGINAL_COST", "NET_AMOUNT")
 	if err != nil {
 		ci.ConnectionStatus = cloud.FailedConnection
 		return nil, fmt.Errorf("getting huawei cloud cost data: %w", err)
@@ -112,7 +111,7 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 			// account and its platform as the invoice entity, so "Account" and
 			// "Invoice Entity" in the UI split the bill by Enterprise Project
 			// and by platform.
-			accountID, accountName, invoiceEntity := projectID, "", ""
+			accountID, accountName, invoiceEntity := accountKey, "", ""
 			if known {
 				ep := ci.enterpriseProject(epID)
 				labels[EnterpriseProjectIDLabel] = ep.ID

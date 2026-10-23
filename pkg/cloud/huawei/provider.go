@@ -16,7 +16,9 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/env"
 )
 
@@ -201,7 +203,13 @@ func (h *Huawei) DownloadPricingData() error {
 	h.BaseGPUPrice = c.GPU
 	h.ProjectID = resolveProviderProjectID(c.ProjectID)
 
-	h.Pricing = make(map[string]*HuaweiPricing)
+	// The live prices are only replaced once BSS has answered: a refresh that
+	// fails (e.g. a transient BSS error while pricing a new node pool) keeps the
+	// previous prices rather than dropping every node, disk and load balancer
+	// to the static rates until the next refresh.
+	if h.Pricing == nil {
+		h.Pricing = make(map[string]*HuaweiPricing)
+	}
 	h.ValidPricingKeys = make(map[string]bool)
 
 	if h.Clientset == nil {
@@ -293,14 +301,15 @@ func (h *Huawei) DownloadPricingData() error {
 
 	ratings, err := fetchOnDemandRatings(h.ProjectID, products)
 	if err != nil {
-		log.Errorf("Failed to fetch Huawei Cloud BSS pricing data, falling back to static defaults: %v", err)
+		log.Errorf("Failed to fetch Huawei Cloud BSS pricing data, keeping the previous prices (static defaults where there are none): %v", err)
 		return nil
 	}
 	if ratings.ProductRatingResults == nil {
-		log.Warnf("Huawei Cloud BSS demandPrice returned no pricing results")
+		log.Warnf("Huawei Cloud BSS demandPrice returned no pricing results, keeping the previous prices")
 		return nil
 	}
 
+	pricing := make(map[string]*HuaweiPricing, len(*ratings.ProductRatingResults))
 	for _, result := range *ratings.ProductRatingResults {
 		if result.Id == nil || result.Amount == nil {
 			continue
@@ -310,7 +319,7 @@ func (h *Huawei) DownloadPricingData() error {
 			continue
 		}
 		if combo, ok := nodeCombos[features]; ok {
-			h.Pricing[features] = &HuaweiPricing{
+			pricing[features] = &HuaweiPricing{
 				NodeAttributes: &HuaweiNodeAttributes{
 					Type:  combo.instanceType,
 					OS:    combo.os,
@@ -319,20 +328,21 @@ func (h *Huawei) DownloadPricingData() error {
 			}
 		} else if combo, ok := pvCombos[features]; ok {
 			perGBHour := result.Amount.Div(evsReferenceSizeGBDecimal)
-			h.Pricing[features] = &HuaweiPricing{
+			pricing[features] = &HuaweiPricing{
 				PVAttributes: &HuaweiPVAttributes{
 					Type:  combo.storageClass,
 					Price: perGBHour.String(),
 				},
 			}
 		} else if _, ok := lbCombos[features]; ok {
-			h.Pricing[features] = &HuaweiPricing{
+			pricing[features] = &HuaweiPricing{
 				LoadBalancerAttributes: &HuaweiLoadBalancerAttributes{
 					Price: result.Amount.String(),
 				},
 			}
 		}
 	}
+	h.Pricing = pricing
 
 	return nil
 }
@@ -638,18 +648,39 @@ func (h *Huawei) ClusterInfo() (map[string]string, error) {
 	return m, nil
 }
 
+// UpdateConfigFromConfigMap applies the pricing ConfigMap to the stored
+// config. The new rates reach the provider through RefreshCustomPricing,
+// which the settings pipeline calls when the config changes.
+func (h *Huawei) UpdateConfigFromConfigMap(cm map[string]string) (*models.CustomPricing, error) {
+	return h.Config.UpdateFromMap(cm)
+}
+
+// UpdateConfig applies a JSON object of custom pricing fields to the stored
+// config, the same way CustomProvider does.
+func (h *Huawei) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
+	a := make(map[string]interface{})
+	if err := json.NewDecoder(r).Decode(&a); err != nil {
+		return nil, err
+	}
+	return h.Config.Update(func(c *models.CustomPricing) error {
+		for k, v := range a {
+			kUpper := utils.ToTitle.String(k)
+			vstr, ok := v.(string)
+			if !ok {
+				return fmt.Errorf("type error while updating config for %s", kUpper)
+			}
+			if err := models.SetCustomPricingField(c, kUpper, vstr); err != nil {
+				return fmt.Errorf("error setting custom pricing field: %w", err)
+			}
+		}
+		return nil
+	})
+}
+
 // The methods below satisfy models.Provider but have no Huawei Cloud
 // implementation. They return zero values, which the cost model treats as "no
 // data available" rather than an error, the same way pkg/cloud/stackit does for
 // the capabilities it does not support.
-
-func (h *Huawei) UpdateConfigFromConfigMap(cm map[string]string) (*models.CustomPricing, error) {
-	return &models.CustomPricing{}, nil
-}
-
-func (h *Huawei) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
-	return &models.CustomPricing{}, nil
-}
 
 func (h *Huawei) GetAddresses() ([]byte, error) {
 	return []byte{}, nil

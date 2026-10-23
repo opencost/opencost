@@ -18,6 +18,8 @@ import (
 // of pkg/cloud/huawei, they are read from the environment, so they never need to be
 // written to disk in a config file or serialized by the admin config-export API.
 type CostConfiguration struct {
+	// ProjectID is optional and not used to query the bill, which is
+	// account-wide; it only tells configurations apart (see Equals).
 	ProjectID string `json:"projectID"`
 	Region    string `json:"region"`
 
@@ -54,9 +56,8 @@ type PriceFactor struct {
 	Factor       float64 `json:"factor"`
 }
 
-// Validate does not require a projectID: when it is absent, it is resolved
-// from the instance metadata service at integration time (see resolveProjectID),
-// so a node with an IAM agency attached needs none configured.
+// Validate does not require a projectID: the bill is account-wide, so the
+// billing query needs no project (see GetCloudCost).
 func (c *CostConfiguration) Validate() error {
 	if c.Region == "" {
 		return fmt.Errorf("CostConfiguration: missing region")
@@ -112,22 +113,6 @@ func (c *CostConfiguration) Key() string {
 	return opencost.HuaweiProvider
 }
 
-// resolveProjectID returns the configured project ID, falling back to the
-// instance metadata service for nodes that have an IAM agency attached but no
-// project ID provisioned. The lookup is deliberately here rather than in
-// UnmarshalJSON: unmarshalling a config must not touch the network. Results are
-// cached, see projectIDCacheTTL.
-func (c *CostConfiguration) resolveProjectID() (string, error) {
-	if c.ProjectID != "" {
-		return c.ProjectID, nil
-	}
-	projectID, err := huaweiProjectIDFromMetadata()
-	if err != nil {
-		return "", fmt.Errorf("CostConfiguration: no projectID configured and IAM agency metadata lookup failed: %w", err)
-	}
-	return projectID, nil
-}
-
 func (c *CostConfiguration) Provider() string {
 	return opencost.HuaweiProvider
 }
@@ -148,8 +133,7 @@ func (c *CostConfiguration) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return fmt.Errorf("CostConfiguration: UnmarshalJSON: %w", err)
 	}
-	// An empty projectID is allowed: it is resolved from instance metadata at
-	// integration time instead (see resolveProjectID).
+	// An empty projectID is allowed: the account-wide billing query needs none.
 	c.ProjectID = projectID
 
 	region, err := cloud.GetInterfaceValue[string](fmap, "region")

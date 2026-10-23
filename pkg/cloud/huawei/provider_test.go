@@ -390,11 +390,71 @@ func TestHuawei_UnimplementedStubs(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	h.ApplyReservedInstancePricing(map[string]*models.Node{})
-	if _, err := h.UpdateConfig(nil, "customPricing"); err != nil {
+}
+
+// updatableProviderConfig is a ProviderConfig whose updates apply to an
+// in-memory CustomPricing, or fail with err when it is set.
+type updatableProviderConfig struct {
+	fakeProviderConfig
+	err error
+}
+
+func (u *updatableProviderConfig) Update(update func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	if u.err != nil {
+		return nil, u.err
+	}
+	if err := update(u.customPricing); err != nil {
+		return nil, err
+	}
+	return u.customPricing, nil
+}
+
+func (u *updatableProviderConfig) UpdateFromMap(cm map[string]string) (*models.CustomPricing, error) {
+	return u.Update(func(c *models.CustomPricing) error {
+		for k, v := range cm {
+			if err := models.SetCustomPricingField(c, k, v); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func TestHuawei_UpdateConfigFromConfigMap(t *testing.T) {
+	cfg := &updatableProviderConfig{fakeProviderConfig: fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.018901"}}}
+	h := &Huawei{Config: cfg}
+
+	got, err := h.UpdateConfigFromConfigMap(map[string]string{"CPU": "0.05", "RAM": "0.006"})
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if _, err := h.UpdateConfigFromConfigMap(map[string]string{}); err != nil {
+	if got.CPU != "0.05" || got.RAM != "0.006" || cfg.customPricing.CPU != "0.05" {
+		t.Fatalf("expected the ConfigMap rates to be stored, got %+v", got)
+	}
+
+	cfg.err = fmt.Errorf("write failed")
+	if _, err := h.UpdateConfigFromConfigMap(map[string]string{"CPU": "0.06"}); err == nil {
+		t.Fatalf("expected the config error to propagate")
+	}
+}
+
+func TestHuawei_UpdateConfig(t *testing.T) {
+	cfg := &updatableProviderConfig{fakeProviderConfig: fakeProviderConfig{customPricing: &models.CustomPricing{}}}
+	h := &Huawei{Config: cfg}
+
+	got, err := h.UpdateConfig(strings.NewReader(`{"CPU": "0.05", "storage": "0.0002"}`), "customPricing")
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.CPU != "0.05" || got.Storage != "0.0002" {
+		t.Fatalf("expected the posted rates to be stored, got %+v", got)
+	}
+
+	if _, err := h.UpdateConfig(strings.NewReader(`{"CPU": 0.05}`), "customPricing"); err == nil {
+		t.Fatalf("expected an error for a non-string value")
+	}
+	if _, err := h.UpdateConfig(strings.NewReader(`not json`), "customPricing"); err == nil {
+		t.Fatalf("expected an error for an invalid body")
 	}
 }
 
@@ -584,6 +644,48 @@ func TestHuawei_DownloadPricingData_SkipsUnmappedStorageClass(t *testing.T) {
 	}
 	if len(h.Pricing) != 0 {
 		t.Fatalf("expected no live pricing for an unmapped storage class or empty ratings response, got %+v", h.Pricing)
+	}
+}
+
+// TestHuawei_DownloadPricingData_KeepsPricesWhenBSSFails covers a refresh that
+// fails: the prices from the last successful download must survive it rather
+// than every node, disk and load balancer dropping to the static rates.
+func TestHuawei_DownloadPricingData_KeepsPricesWhenBSSFails(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error_code": "CBC.0999", "error_msg": "unavailable"}`, http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	bssEndpointOverride = server.URL
+	defer func() { bssEndpointOverride = "" }()
+
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+	node := &clustercache.Node{
+		Labels: map[string]string{
+			"topology.kubernetes.io/region":    "la-south-2",
+			"node.kubernetes.io/instance-type": "c7n.2xlarge.4",
+			"kubernetes.io/os":                 "linux",
+		},
+	}
+	previous := map[string]*HuaweiPricing{
+		"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Type: "c7n.2xlarge.4", OS: "linux", Price: "1.234"}},
+	}
+	h := &Huawei{
+		Clientset:     &clustercache.MockClusterCache{Nodes: []*clustercache.Node{node}},
+		Config:        &fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.0345", RAM: "0.0046", ProjectID: "test-project"}},
+		ClusterRegion: "la-south-2",
+		Pricing:       previous,
+	}
+
+	if err := h.DownloadPricingData(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := h.Pricing["la-south-2,c7n.2xlarge.4,linux"]
+	if !ok || got.NodeAttributes == nil || got.NodeAttributes.Price != "1.234" {
+		t.Fatalf("expected the previous live price to be kept, got %+v", h.Pricing)
 	}
 }
 
