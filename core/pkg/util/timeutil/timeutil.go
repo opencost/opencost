@@ -111,7 +111,7 @@ func ParseUTCOffset(offsetStr string) (time.Duration, error) {
 		}
 		mins := sig * int(mins64)
 
-		offset = time.Duration(hrs)*time.Hour + time.Duration(mins)
+		offset = time.Duration(hrs)*time.Hour + time.Duration(mins)*time.Minute
 	}
 
 	return offset, nil
