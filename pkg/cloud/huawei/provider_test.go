@@ -759,6 +759,71 @@ func TestHuawei_DownloadPricingData_KeepsPricesWhenBSSFails(t *testing.T) {
 	}
 }
 
+// TestHuawei_DownloadPricingData_KeepsPricesMissingFromPartialResponse covers a
+// response that prices only some of the products asked for: the others keep
+// their previous live price instead of dropping to the static rates.
+func TestHuawei_DownloadPricingData_KeepsPricesMissingFromPartialResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// node-0 is priced, the load balancer (lb-1) is not.
+		w.Write([]byte(`{"product_rating_results": [{"id": "node-0", "amount": "2.000"}]}`))
+	}))
+	defer server.Close()
+
+	bssEndpointOverride = server.URL
+	defer func() { bssEndpointOverride = "" }()
+
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+	node := &clustercache.Node{
+		Labels: map[string]string{
+			"topology.kubernetes.io/region":    "la-south-2",
+			"node.kubernetes.io/instance-type": "c7n.2xlarge.4",
+			"kubernetes.io/os":                 "linux",
+		},
+	}
+	h := &Huawei{
+		Clientset:     &clustercache.MockClusterCache{Nodes: []*clustercache.Node{node}},
+		Config:        &fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.0345", RAM: "0.0046", ProjectID: "test-project"}},
+		ClusterRegion: "la-south-2",
+		Pricing: map[string]*HuaweiPricing{
+			"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Type: "c7n.2xlarge.4", OS: "linux", Price: "1.234"}},
+			"la-south-2,LoadBalancerUsage":   {LoadBalancerAttributes: &HuaweiLoadBalancerAttributes{Price: "0.071"}},
+		},
+	}
+
+	if err := h.DownloadPricingData(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := h.Pricing["la-south-2,c7n.2xlarge.4,linux"]; got == nil || got.NodeAttributes.Price != "2" {
+		t.Fatalf("expected the node to take the new price, got %+v", got)
+	}
+	if got := h.Pricing["la-south-2,LoadBalancerUsage"]; got == nil || got.LoadBalancerAttributes.Price != "0.071" {
+		t.Fatalf("expected the load balancer to keep its previous price, got %+v", got)
+	}
+}
+
+// TestHuawei_GetConfigDoesNotWriteSharedConfig checks the defaults GetConfig
+// fills in go on a copy: the config's cached value is shared with other
+// goroutines and only Update may change it, under the config's lock.
+func TestHuawei_GetConfigDoesNotWriteSharedConfig(t *testing.T) {
+	shared := &models.CustomPricing{CPU: "0.0345"}
+	h := &Huawei{Config: &fakeProviderConfig{customPricing: shared}}
+
+	c, err := h.GetConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.CurrencyCode != "USD" || c.CPU != "0.0345" {
+		t.Fatalf("expected the defaults on top of the config, got %+v", c)
+	}
+	if shared.CurrencyCode != "" || shared.Discount != "" || shared.DefaultLBPrice != "" {
+		t.Fatalf("GetConfig must not write the shared config, got %+v", shared)
+	}
+}
+
 // TestHuawei_PVPricing_RefreshesOnCacheMiss covers a storage class that got
 // its first PV after the last download: PVPricing must re-download and use
 // the live price rather than stay on the static default.

@@ -348,6 +348,16 @@ func (h *Huawei) DownloadPricingData() error {
 		log.Warnf("Huawei Cloud BSS demandPrice returned no usable pricing results, keeping the previous prices")
 		return nil
 	}
+	// Likewise for a partial response: a product it left unpriced keeps the
+	// live price it had, rather than dropping to the static rates.
+	for _, features := range idToFeatures {
+		if _, priced := pricing[features]; priced {
+			continue
+		}
+		if previous, ok := h.Pricing[features]; ok {
+			pricing[features] = previous
+		}
+	}
 	h.Pricing = pricing
 
 	return nil
@@ -613,10 +623,15 @@ func (h *Huawei) LoadBalancerPricing() (*models.LoadBalancer, error) {
 }
 
 func (h *Huawei) GetConfig() (*models.CustomPricing, error) {
-	c, err := h.Config.GetCustomPricingData()
+	shared, err := h.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
+	// GetCustomPricingData returns the config's cached value, which other
+	// goroutines read concurrently and Update writes under the config's own
+	// lock: the defaults go on a copy, never on the shared value.
+	cp := *shared
+	c := &cp
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}

@@ -171,6 +171,21 @@ func canonicalServiceCode(serviceType string) string {
 	return strings.TrimPrefix(normalized, serviceTypeCodePrefix)
 }
 
+// serviceTypeCode returns the Service Type Code for a CLOUD_SERVICE_TYPE
+// value: the value itself when it is a code, or the code of the service it
+// names when it is an English name, so that one service is reported the same
+// way whichever form BSS used. An unrecognized name yields "".
+func serviceTypeCode(serviceType string) string {
+	trimmed := strings.TrimSpace(serviceType)
+	if strings.HasPrefix(strings.ToLower(trimmed), serviceTypeCodePrefix) {
+		return trimmed
+	}
+	if svc, ok := lookupService(trimmed); ok && len(svc.codes) > 0 {
+		return serviceTypeCodePrefix + svc.codes[0]
+	}
+	return ""
+}
+
 // lookupService finds the service a CLOUD_SERVICE_TYPE value names in the
 // active table, HUAWEICLOUD_SERVICE_CATEGORIES entries first (see
 // serviceTable).

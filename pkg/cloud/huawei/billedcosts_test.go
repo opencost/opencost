@@ -2,6 +2,7 @@ package huawei
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	bssintlmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2/model"
@@ -38,18 +39,23 @@ func newBilledTestProvider(t *testing.T) *Huawei {
 
 func TestBilledResourceID(t *testing.T) {
 	cases := []struct {
-		name, resourceID, wantID string
-		wantOK                   bool
+		name, resourceID, serviceType, wantID string
+		wantOK                                bool
 	}{
-		{"cce cluster", cceResourceID(testCCEClusterID, "cce-prod"), testCCEClusterID, true},
-		{"cce cluster without name", cceResourceID(testCCEClusterID, "null"), testCCEClusterID, true},
-		{"not a cce cluster", "hws.service.type.ec2:hws.resource.type.vm:" + testCCEClusterID + ":node-1", "", false},
-		{"null id", cceResourceID("null", "cce"), "", false},
-		{"not composite", testCCEClusterID, "", false},
+		{"cce cluster", cceResourceID(testCCEClusterID, "cce-prod"), "", testCCEClusterID, true},
+		{"cce cluster without name", cceResourceID(testCCEClusterID, "null"), "", testCCEClusterID, true},
+		{"not a cce cluster", "hws.service.type.ec2:hws.resource.type.vm:" + testCCEClusterID + ":node-1", "", "", false},
+		{"null id", cceResourceID("null", "cce"), "", "", false},
+		{"bare id without service", testCCEClusterID, "", "", false},
+		// A bare RESOURCE_ID is identified as CCE by the service dimension,
+		// in either form BSS reports it.
+		{"bare id, service code", testCCEClusterID, "hws.service.type.cce", testCCEClusterID, true},
+		{"bare id, service name", strings.ToUpper(testCCEClusterID), "Cloud Container Engine", testCCEClusterID, true},
+		{"bare id, other service", testCCEClusterID, "Elastic Cloud Server", "", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			id, ok := billedResourceID(tc.resourceID)
+			id, ok := billedResourceID(tc.resourceID, tc.serviceType)
 			if id != tc.wantID || ok != tc.wantOK {
 				t.Fatalf("got (%q, %v), want (%q, %v)", id, ok, tc.wantID, tc.wantOK)
 			}

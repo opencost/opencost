@@ -74,6 +74,12 @@ func (h *Huawei) billedHourlyCost(resourceID string) (float64, bool) {
 		if err != nil {
 			log.Warnf("huawei cloud: reading billing history failed, the CCE cluster is priced at 0: %v", err)
 			c.nextFetch = now.Add(billRetryInterval)
+		} else if len(hourly) == 0 && len(c.hourly) > 0 {
+			// A successful read with nothing in it is more likely a gap in
+			// BSS's data than every tracked resource vanishing: keep the
+			// last known costs and read again soon.
+			log.Warnf("huawei cloud: billing history came back empty, keeping the last known CCE cost")
+			c.nextFetch = now.Add(billRetryInterval)
 		} else {
 			c.hourly = hourly
 			c.nextFetch = now.Add(billRefreshInterval)
@@ -93,8 +99,9 @@ func fetchBilledHourlyCosts(now time.Time) (map[string]float64, error) {
 	// BSS's end_time is inclusive: yesterday is the last complete day.
 	end := today.AddDate(0, 0, -1).Format(bssDateLayout)
 
-	// RESOURCE_ID alone is enough: the service code is packed into it.
-	rows, err := fetchCostAnalysedBillsBy([]string{"RESOURCE_ID"}, begin, end, "ORIGINAL_COST", "NET_AMOUNT")
+	// A composite RESOURCE_ID carries its service code; a bare one does not,
+	// so the service is requested as a dimension too.
+	rows, err := fetchCostAnalysedBillsBy([]string{"RESOURCE_ID", "CLOUD_SERVICE_TYPE"}, begin, end, "ORIGINAL_COST", "NET_AMOUNT")
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +118,7 @@ func fetchBilledHourlyCosts(now time.Time) (map[string]float64, error) {
 func billedHourlyCosts(rows []bssintlmodel.CostDataByDimension) map[string]float64 {
 	daily := make(map[string]map[string]float64) // resource ID -> day -> cost
 	for _, row := range rows {
-		id, ok := billedResourceID(dimensionValue(row.Dimensions, "RESOURCE_ID"))
+		id, ok := billedResourceID(dimensionValue(row.Dimensions, "RESOURCE_ID"), dimensionValue(row.Dimensions, "CLOUD_SERVICE_TYPE"))
 		if !ok || row.Costs == nil {
 			continue
 		}
@@ -150,21 +157,24 @@ func billedHourlyCosts(rows []bssintlmodel.CostDataByDimension) map[string]float
 	return hourly
 }
 
-// billedResourceID returns the lower-cased resource ID a composite BSS
-// RESOURCE_ID refers to, if it is a resource of the billedHourlyServices.
-func billedResourceID(resourceID string) (string, bool) {
-	fields := strings.Split(resourceID, ":")
-	if len(fields) != bssResourceIDFields {
-		return "", false
+// billedResourceID returns the lower-cased ID of the resource a BSS row
+// refers to, if it is a resource of the billedHourlyServices. A composite
+// RESOURCE_ID carries both the service code and the resource ID; a bare one
+// is the resource ID itself, and serviceType -- the CLOUD_SERVICE_TYPE
+// dimension, as a code or an English name -- names the service.
+func billedResourceID(resourceID, serviceType string) (string, bool) {
+	id, service := resourceID, serviceType
+	if fields := strings.Split(resourceID, ":"); len(fields) == bssResourceIDFields {
+		id, service = fields[2], fields[0]
 	}
 	tracked := false
 	for _, svc := range billedHourlyServices {
-		if fields[0] == svc {
+		if canonicalServiceCode(service) == canonicalServiceCode(svc) {
 			tracked = true
 			break
 		}
 	}
-	id := strings.ToLower(strings.TrimSpace(fields[2]))
+	id = strings.ToLower(strings.TrimSpace(id))
 	if !tracked || id == "" || id == bssNullField {
 		return "", false
 	}

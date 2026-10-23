@@ -341,8 +341,14 @@ func TestCostIntegration_GetCloudCost_LiveBSS(t *testing.T) {
 			if cc.Properties.AccountID != "test-domain" {
 				t.Fatalf("expected the account (domain ID) as AccountID, got %q", cc.Properties.AccountID)
 			}
-			if cc.Properties.Service != "Elastic Cloud Server" {
-				t.Fatalf("expected service 'Elastic Cloud Server', got %q", cc.Properties.Service)
+			// The row names the service in English; it must be reported as
+			// it is when BSS gives the code (hws.service.type.ec2), so one
+			// service is not split in two by the form a row uses.
+			if cc.Properties.Service != "ECS" {
+				t.Fatalf("expected service 'ECS', got %q", cc.Properties.Service)
+			}
+			if got := cc.Properties.Labels[ServiceCodeLabel]; got != "hws.service.type.ec2" {
+				t.Fatalf("expected service code hws.service.type.ec2, got %q", got)
 			}
 			if cc.Properties.RegionID != "la-south-2" {
 				t.Fatalf("expected region la-south-2, got %q", cc.Properties.RegionID)

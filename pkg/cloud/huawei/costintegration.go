@@ -105,6 +105,17 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		}
 		priceFactor := ci.priceFactor(service, resource.Type)
 
+		// BSS reports the service as a code or as an English name; both are
+		// reported as the code and its display name, so one service is not
+		// split in two by the form a row happens to use. An unrecognized
+		// name is kept as is.
+		serviceCode, serviceName := serviceTypeCode(serviceType), serviceType
+		if serviceCode != "" {
+			serviceName = serviceDisplayName(serviceCode)
+		} else {
+			serviceCode = serviceType
+		}
+
 		// The properties depend on the Enterprise Project, which is per day
 		// (see resourceEnterpriseProjects): built once per Enterprise Project.
 		propsByEP := map[string]*opencost.CloudCostProperties{}
@@ -113,8 +124,8 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 				return p
 			}
 			labels := opencost.CloudCostLabels{}
-			if serviceType != "" {
-				labels[ServiceCodeLabel] = serviceType
+			if serviceCode != "" {
+				labels[ServiceCodeLabel] = serviceCode
 			}
 			if resource.Type != "" {
 				labels[ResourceTypeLabel] = resource.Type
@@ -146,7 +157,7 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 				InvoiceEntityID:   invoiceEntity,
 				InvoiceEntityName: invoiceEntity,
 				RegionID:          region,
-				Service:           serviceDisplayName(serviceType),
+				Service:           serviceName,
 				Category:          selectHuaweiCategory(serviceType),
 				Labels:            labels,
 			}

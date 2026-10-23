@@ -1,6 +1,8 @@
 package huawei
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -80,5 +82,65 @@ func TestClusterManagementPricing(t *testing.T) {
 	name, cost, err := h.ClusterManagementPricing()
 	if err != nil || name != cceProvisionerName || cost != 0.35 {
 		t.Fatalf("expected CCE at the billed 0.35/h, got %q %v %v", name, cost, err)
+	}
+}
+
+// billingServer stands in for BSS cost-analysed-bills with a fixed body.
+func billingServer(t *testing.T, body string) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+
+	bssEndpointOverride = server.URL
+	t.Cleanup(func() { bssEndpointOverride = "" })
+
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+}
+
+// TestClusterManagementPricing_KeepsCostOnEmptyBilling covers a refresh that
+// reads an empty billing history: the last known cost must survive it rather
+// than the cluster dropping to 0 until the next refresh.
+func TestClusterManagementPricing_KeepsCostOnEmptyBilling(t *testing.T) {
+	billingServer(t, `{"total_count": 0, "cost_data": []}`)
+	t.Setenv(env.HuaweiCCEClusterIDEnvVar, testCCEClusterID)
+
+	h := newBilledTestProvider(t)
+	h.bills.hourly = map[string]float64{testCCEClusterID: 0.35}
+	h.bills.nextFetch = time.Now().Add(-time.Minute)
+
+	_, cost, err := h.ClusterManagementPricing()
+	if err != nil || cost != 0.35 {
+		t.Fatalf("expected the last known 0.35/h to be kept, got %v %v", cost, err)
+	}
+	if until := time.Until(h.bills.nextFetch); until > billRetryInterval || until <= 0 {
+		t.Fatalf("expected a retry within %v, next fetch in %v", billRetryInterval, until)
+	}
+}
+
+// TestClusterManagementPricing_BareResourceID covers a bill whose RESOURCE_ID
+// is the bare cluster ID: the service dimension identifies it as CCE.
+func TestClusterManagementPricing_BareResourceID(t *testing.T) {
+	today := time.Now().UTC()
+	day := func(n int) string { return today.AddDate(0, 0, -n).Format(bssDateLayout) }
+	billingServer(t, `{"total_count": 1, "cost_data": [{"dimensions": [
+		{"key": "RESOURCE_ID", "value": "`+testCCEClusterID+`"},
+		{"key": "CLOUD_SERVICE_TYPE", "value": "Cloud Container Engine"}
+	], "costs": [
+		{"time_dimension_value": "`+day(3)+`", "amount": "1.00"},
+		{"time_dimension_value": "`+day(2)+`", "amount": "4.80"},
+		{"time_dimension_value": "`+day(1)+`", "amount": "4.80"}
+	]}]}`)
+	t.Setenv(env.HuaweiCCEClusterIDEnvVar, testCCEClusterID)
+
+	h := newBilledTestProvider(t)
+	_, cost, err := h.ClusterManagementPricing()
+	// (4.80 + 4.80) / (2 days * 24h); the first, partial day is dropped.
+	if err != nil || !approxEqual(cost, 0.2) {
+		t.Fatalf("expected 0.2/h for the bare cluster ID, got %v %v", cost, err)
 	}
 }
