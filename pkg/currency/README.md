@@ -25,6 +25,31 @@ amount, err := converter.Convert(100.0, "USD", "EUR")
 
 Get a free API key from [exchangerate-api.com](https://www.exchangerate-api.com/) (1,500 requests/month).
 
+## Using a Different Rate Provider
+
+Rates come from exchangerate-api.com by default. To use another source, implement `RateProvider` and set it on the config. `APIKey` is then not required.
+
+```go
+type RateProvider interface {
+    // FetchRates returns the rates for one unit of baseCurrency, keyed by ISO 4217 code.
+    FetchRates(baseCurrency string) (map[string]float64, error)
+}
+
+converter, err := currency.NewConverter(currency.Config{
+    Provider: myProvider,
+    CacheTTL: 24 * time.Hour,
+})
+```
+
+Caching works the same with any provider.
+
+Built-in providers:
+
+| Provider | Constructor |
+|---|---|
+| [exchangerate-api.com](https://www.exchangerate-api.com/) (default) | `currency.NewExchangeRateAPIProvider(apiKey, timeout)` |
+| [allratestoday.com](https://allratestoday.com/) | `currency.NewAllRatesTodayProvider(apiKey, timeout)` |
+
 ## How it Works
 
 The package fetches exchange rates and caches them for 24 hours. This keeps API usage low - most plugins use under 50 requests per month.

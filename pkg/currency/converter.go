@@ -8,14 +8,14 @@ import (
 )
 
 type currencyConverter struct {
-	client client
-	cache  cache
-	config Config
-	mu     sync.RWMutex
+	provider RateProvider
+	cache    cache
+	config   Config
+	mu       sync.RWMutex
 }
 
 func NewConverter(config Config) (Converter, error) {
-	if config.APIKey == "" {
+	if config.Provider == nil && config.APIKey == "" {
 		return nil, fmt.Errorf("API key is required")
 	}
 
@@ -27,13 +27,16 @@ func NewConverter(config Config) (Converter, error) {
 		config.APITimeout = 10 * time.Second
 	}
 
-	client := newExchangeRateClient(config.APIKey, config.APITimeout)
+	provider := config.Provider
+	if provider == nil {
+		provider = newExchangeRateClient(config.APIKey, config.APITimeout)
+	}
 	cache := newMemoryCache(config.CacheTTL)
 
 	return &currencyConverter{
-		client: client,
-		cache:  cache,
-		config: config,
+		provider: provider,
+		cache:    cache,
+		config:   config,
 	}, nil
 }
 
@@ -89,17 +92,21 @@ func (c *currencyConverter) fetchAndCacheRates(baseCurrency string) (map[string]
 		return cachedRates.rates, nil
 	}
 
-	response, err := c.client.fetchRates(baseCurrency)
+	rates, err := c.provider.FetchRates(baseCurrency)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch rates from API: %w", err)
 	}
 
+	if len(rates) == 0 {
+		return nil, fmt.Errorf("no conversion rates returned for %s", baseCurrency)
+	}
+
 	cachedRates := &cachedRates{
-		rates:     response.ConversionRates,
-		baseCode:  response.BaseCode,
+		rates:     rates,
+		baseCode:  baseCurrency,
 		fetchedAt: time.Now(),
 	}
 	c.cache.set(baseCurrency, cachedRates)
 
-	return response.ConversionRates, nil
+	return rates, nil
 }
