@@ -137,12 +137,9 @@ opencost:
       pullPolicy: Never           # use the side-loaded image
     collectorDataSource:
       enabled: true
-      scrapeInterval: 30s
   prometheus:
     internal:
       enabled: false
-  ui:
-    enabled: false
 EOF
 helm install opencost opencost --repo https://opencost.github.io/opencost-helm-chart \
   -n opencost --create-namespace -f values.yaml
@@ -151,7 +148,6 @@ kubectl -n opencost logs deploy/opencost -f
 
 Notes:
 
-- The chart already sets `LOG_LEVEL`. Adding it again through `extraEnv` fails the install with `duplicate entries for key`.
 - Without persistence, these startup warnings are expected: `/var/configs permission denied` (falls back to in-memory), `failed to resolve path`, and `localhost:9003 connection refused`.
 - Rebuild, `kind load`, then `kubectl -n opencost rollout restart deploy/opencost` to pick up a new image under the same tag.
 
