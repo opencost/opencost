@@ -221,6 +221,48 @@ func TestServiceTable_OverrideCoversCodesAndNames(t *testing.T) {
 	}
 }
 
+// TestServiceTypeCode_KeepsIdentityUnderGroupingOverride checks that a
+// HUAWEICLOUD_SERVICE_CATEGORIES entry grouping services under one category
+// changes their category but not their identity: Bare Metal Server stays BMS
+// in both forms BSS may report it, and a service only the file knows still
+// resolves to its code.
+func TestServiceTypeCode_KeepsIdentityUnderGroupingOverride(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "categories.json")
+	content := `[
+		{"category": "Shared", "codes": ["ec2", "bms"]},
+		{"category": "Compute", "codes": ["maas"], "names": ["model as a service"]}
+	]`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(env.HuaweiServiceCategoriesEnvVar, path)
+	serviceTableOnce = sync.Once{}
+	defer func() {
+		serviceTableOnce = sync.Once{}
+		activeServiceTable = nil
+	}()
+
+	cases := map[string]string{
+		"Bare Metal Server":    "hws.service.type.bms",
+		"hws.service.type.bms": "hws.service.type.bms",
+		"Elastic Cloud Server": "hws.service.type.ec2",
+		"Model as a Service":   "hws.service.type.maas",
+	}
+	for service, want := range cases {
+		if got := serviceTypeCode(service); got != want {
+			t.Errorf("serviceTypeCode(%q) = %q, want %q", service, got, want)
+		}
+	}
+	for _, service := range []string{"Bare Metal Server", "hws.service.type.bms", "Elastic Cloud Server"} {
+		if got := selectHuaweiCategory(service); got != opencost.SharedCategory {
+			t.Errorf("selectHuaweiCategory(%q) = %q, want the override's Shared", service, got)
+		}
+	}
+	if got := serviceDisplayName(serviceTypeCode("Bare Metal Server")); got != "BMS" {
+		t.Errorf("expected Bare Metal Server to be reported as BMS, got %q", got)
+	}
+}
+
 // TestServices_OneServicePerEntry guards the table's invariant that an entry
 // is a single service: no code or name may appear in two entries, and the
 // services that used to share an entry with another one stand alone.

@@ -175,13 +175,19 @@ func canonicalServiceCode(serviceType string) string {
 // value: the value itself when it is a code, or the code of the service it
 // names when it is an English name, so that one service is reported the same
 // way whichever form BSS used. An unrecognized name yields "".
+//
+// The built-in table answers first: a HUAWEICLOUD_SERVICE_CATEGORIES entry
+// may group several services under one category, and must not make one of
+// them report as another. The file only names services the table lacks.
 func serviceTypeCode(serviceType string) string {
 	trimmed := strings.TrimSpace(serviceType)
 	if strings.HasPrefix(strings.ToLower(trimmed), serviceTypeCodePrefix) {
 		return trimmed
 	}
-	if svc, ok := lookupService(trimmed); ok && len(svc.codes) > 0 {
-		return serviceTypeCodePrefix + svc.codes[0]
+	for _, table := range [][]service{services, serviceTable()} {
+		if svc, ok := lookupIn(table, trimmed); ok && len(svc.codes) > 0 {
+			return serviceTypeCodePrefix + svc.codes[0]
+		}
 	}
 	return ""
 }
