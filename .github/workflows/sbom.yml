@@ -70,19 +70,10 @@ jobs:
             echo "RELEASE_VERSION=$version" >> $GITHUB_OUTPUT
           fi
 
-      - name: Make Branch Name
-        id: branch
-        if: github.event_name != 'pull_request'
-        env:
-          RELEASE_VERSION: ${{ steps.version_number.outputs.RELEASE_VERSION }}
-        run: |
-          echo "BRANCH_NAME=v${RELEASE_VERSION%.*}" >> $GITHUB_OUTPUT
-
       - name: Checkout Repo
-        if: github.event_name != 'workflow_run'
         uses: actions/checkout@v6.0.2
         with:
-          ref: ${{ github.event_name != 'pull_request' && steps.branch.outputs.BRANCH_NAME || '' }}
+          ref: ${{ github.event_name != 'pull_request' && format('refs/tags/v{0}', steps.version_number.outputs.RELEASE_VERSION) || '' }}
 
       - name: Set OpenCost Image Tag
         id: image_tag
