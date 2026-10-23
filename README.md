@@ -205,6 +205,7 @@ Retrieve cost allocation data with filtering and aggregation.
 - `accumulate` (optional): Whether to accumulate over time
 - `share_idle` (optional): Whether to share idle costs
 - `include_idle` (optional): Whether to include idle resources
+- `filter` (optional): Allocation filter expression, same syntax as the `filter` parameter of the `/allocation` API (e.g., `label[app]:"cost-analyzer"`, `namespace:"production"+label[team]:"data"`)
 
 #### `get_asset_costs`
 Retrieve asset cost data including nodes, disks, load balancers, and more.
