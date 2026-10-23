@@ -365,8 +365,8 @@ func (h *Huawei) RefreshCustomPricing() error {
 // would otherwise hammer the demandPrice API on every node of every cycle.
 const pricingRefreshCooldown = 10 * time.Minute
 
-// tryRefreshPricing re-runs DownloadPricingData to pick up node flavors that
-// joined the cluster after the last download, and reports whether h.Pricing may
+// tryRefreshPricing re-runs DownloadPricingData to pick up node flavors and
+// storage classes that appeared after the last download, and reports whether h.Pricing may
 // have changed. It is a no-op within pricingRefreshCooldown of the last attempt.
 //
 // The caller holds DownloadPricingDataLock for reading; DownloadPricingData takes
@@ -395,14 +395,14 @@ func (h *Huawei) tryRefreshPricing() bool {
 	err := h.DownloadPricingData()
 	h.DownloadPricingDataLock.RLock()
 	if err != nil {
-		log.Warnf("huawei cloud: refreshing pricing data after a node pricing cache miss failed: %v", err)
+		log.Warnf("huawei cloud: refreshing pricing data after a pricing cache miss failed: %v", err)
 		return false
 	}
 	return true
 }
 
 // NodePricing returns the live BSS on-demand price for the node's flavor if
-// available, or the static base CPU/RAM rates otherwise. Since BSS returns a single
+// available, or the static base CPU/RAM/GPU rates otherwise. Since BSS returns a single
 // total instance price with no CPU/RAM split, Node.Cost carries the live total and
 // BaseCPUPrice/BaseRAMPrice remain set so the cost model can still weight the
 // CPU-vs-RAM allocation split, the same pattern pkg/cloud/otc uses.
@@ -442,11 +442,18 @@ func (h *Huawei) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		}
 	}
 	if !ok || pricing.NodeAttributes == nil {
+		// The unit costs are set to the base rates rather than left empty: with
+		// no Cost, VCPUCost or GPUCost, GetNodeCost splits a price it rebuilds
+		// from the defaults across CPU/RAM/GPU, and for a GPU node that path
+		// multiplies the per-GiB RAM rate by RAM bytes.
 		return &models.Node{
 			VCPU:             vcpu,
 			RAM:              ramGB,
 			GPU:              gpu,
 			GPUName:          gpuName,
+			VCPUCost:         h.BaseCPUPrice,
+			RAMCost:          h.BaseRAMPrice,
+			GPUCost:          h.BaseGPUPrice,
 			BaseCPUPrice:     h.BaseCPUPrice,
 			BaseRAMPrice:     h.BaseRAMPrice,
 			BaseGPUPrice:     h.BaseGPUPrice,
@@ -475,7 +482,16 @@ func (h *Huawei) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	h.DownloadPricingDataLock.RLock()
 	defer h.DownloadPricingDataLock.RUnlock()
 
-	if pricing, ok := h.Pricing[pvk.Features()]; ok && pricing.PVAttributes != nil {
+	pricing, ok := h.Pricing[pvk.Features()]
+	if !ok || pricing.PVAttributes == nil {
+		// Cache miss: DownloadPricingData only priced the storage classes that
+		// had PVs when it ran, so a class first used later would otherwise stay
+		// on the static default until restart. Same recovery as NodePricing.
+		if h.tryRefreshPricing() {
+			pricing, ok = h.Pricing[pvk.Features()]
+		}
+	}
+	if ok && pricing.PVAttributes != nil {
 		return &models.PV{
 			Cost:  pricing.PVAttributes.Price,
 			Class: pvk.GetStorageClass(),

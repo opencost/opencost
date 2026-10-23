@@ -5,6 +5,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 func TestCostConfiguration_Validate(t *testing.T) {
@@ -80,9 +81,18 @@ func TestCostConfiguration_Sanitize(t *testing.T) {
 }
 
 func TestCostConfiguration_KeyAndProvider(t *testing.T) {
+	t.Setenv(env.HuaweiDomainIDEnvVar, "")
 	c := &CostConfiguration{ProjectID: "proj-1", Region: "la-south-2"}
-	if c.Key() != "proj-1" {
-		t.Fatalf("expected key proj-1, got %s", c.Key())
+	if c.Key() != "Huawei" {
+		t.Fatalf("expected key Huawei without a domain ID, got %s", c.Key())
+	}
+
+	// The bill is account-wide: configurations for other projects or regions
+	// of the same account must share the key so it is ingested once.
+	t.Setenv(env.HuaweiDomainIDEnvVar, "domain-1")
+	other := &CostConfiguration{ProjectID: "proj-2", Region: "cn-north-4"}
+	if c.Key() != "domain-1" || other.Key() != "domain-1" {
+		t.Fatalf("expected both keys to be domain-1, got %s and %s", c.Key(), other.Key())
 	}
 	if c.Provider() != "Huawei" {
 		t.Fatalf("expected provider Huawei, got %s", c.Provider())

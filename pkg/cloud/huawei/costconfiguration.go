@@ -8,6 +8,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 // CostConfiguration holds the configuration needed to query historical billing
@@ -98,14 +99,17 @@ func (c *CostConfiguration) Sanitize() cloud.Config {
 	}
 }
 
-// Key identifies this integration. The project ID is the natural identifier,
-// but it is optional (see Validate), so the region stands in when it is absent
-// -- an account has one Huawei integration per region either way.
+// Key identifies this integration by account, not by project or region. The
+// BSS bill is account-wide and is queried with the process-wide credentials
+// (see newBssClient), so two configurations for different projects or regions
+// would each ingest the same bill and CloudCost would sum it twice; sharing
+// one key collapses them into a single integration. The domain ID is the
+// account ID; without it, the credentials still reach a single account.
 func (c *CostConfiguration) Key() string {
-	if c.ProjectID != "" {
-		return c.ProjectID
+	if domainID := env.GetHuaweiDomainID(); domainID != "" {
+		return domainID
 	}
-	return c.Region
+	return opencost.HuaweiProvider
 }
 
 // resolveProjectID returns the configured project ID, falling back to the

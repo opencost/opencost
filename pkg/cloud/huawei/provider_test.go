@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/models"
@@ -152,6 +153,25 @@ func TestHuawei_NodePricing_FallsBackToBaseWhenNoLivePricing(t *testing.T) {
 	}
 	if node.Cost != "" {
 		t.Fatalf("expected empty Cost when falling back, got %q", node.Cost)
+	}
+}
+
+// TestHuawei_NodePricing_GPUFallbackSetsUnitCosts guards the GPU node fallback:
+// with no live price, the unit costs must be the base rates. Left empty, they
+// send GetNodeCost into its GPU ratio path, which multiplies the per-GiB RAM
+// rate by RAM bytes and prices an 8 vCPU/32 GiB/1 GPU node in the millions.
+func TestHuawei_NodePricing_GPUFallbackSetsUnitCosts(t *testing.T) {
+	h := &Huawei{BaseCPUPrice: "0.018901", BaseRAMPrice: "0.0025202", BaseGPUPrice: "0.216468"}
+	h.lastPricingRefresh.Store(time.Now().UnixNano())
+	node, _, err := h.NodePricing(&huaweiKey{VCPU: "8", RAMBytes: 32 * 1024 * 1024 * 1024, GPUs: 1})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if node.GPU != "1" {
+		t.Fatalf("expected GPU 1, got %q", node.GPU)
+	}
+	if node.VCPUCost != "0.018901" || node.RAMCost != "0.0025202" || node.GPUCost != "0.216468" {
+		t.Fatalf("expected base unit costs, got cpu=%q ram=%q gpu=%q", node.VCPUCost, node.RAMCost, node.GPUCost)
 	}
 }
 
@@ -564,6 +584,46 @@ func TestHuawei_DownloadPricingData_SkipsUnmappedStorageClass(t *testing.T) {
 	}
 	if len(h.Pricing) != 0 {
 		t.Fatalf("expected no live pricing for an unmapped storage class or empty ratings response, got %+v", h.Pricing)
+	}
+}
+
+// TestHuawei_PVPricing_RefreshesOnCacheMiss covers a storage class that got
+// its first PV after the last download: PVPricing must re-download and use
+// the live price rather than stay on the static default.
+func TestHuawei_PVPricing_RefreshesOnCacheMiss(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"product_rating_results": [{"id": "pv-0", "amount": "0.700"}]}`))
+	}))
+	defer server.Close()
+
+	bssEndpointOverride = server.URL
+	defer func() { bssEndpointOverride = "" }()
+
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+	pv := &clustercache.PersistentVolume{Spec: v1.PersistentVolumeSpec{StorageClassName: "csi-disk-dss"}}
+	h := &Huawei{
+		Clientset: &clustercache.MockClusterCache{
+			PersistentVolumes: []*clustercache.PersistentVolume{pv},
+			StorageClasses: []*clustercache.StorageClass{{
+				Name:       "csi-disk-dss",
+				Parameters: map[string]string{everestDiskVolumeTypeParam: "SSD"},
+			}},
+		},
+		Config:        &fakeProviderConfig{customPricing: &models.CustomPricing{Storage: "0.0001512", ProjectID: "test-project"}},
+		ClusterRegion: "la-south-2",
+		Pricing:       map[string]*HuaweiPricing{},
+	}
+
+	got, err := h.PVPricing(h.GetPVKey(pv, map[string]string{}, "la-south-2"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Cost != "0.007" { // 0.700 / evsReferenceSizeGB(100)
+		t.Fatalf("expected live PV price 0.007 after refresh, got %q", got.Cost)
 	}
 }
 
