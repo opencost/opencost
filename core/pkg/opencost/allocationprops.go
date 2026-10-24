@@ -73,28 +73,29 @@ func (apt *AllocationProperty) GetAliasedLabelDefault() string {
 }
 
 const (
-	AllocationNilProp            AllocationProperty = ""
-	AllocationClusterProp                           = "cluster"
-	AllocationNodeProp                              = "node"
-	AllocationContainerProp                         = "container"
-	AllocationControllerProp                        = "controller"
-	AllocationControllerKindProp                    = "controllerKind"
-	AllocationNamespaceProp                         = "namespace"
-	AllocationPodProp                               = "pod"
-	AllocationProviderIDProp                        = "providerID"
-	AllocationServiceProp                           = "service"
-	AllocationLabelProp                             = "label"
-	AllocationAnnotationProp                        = "annotation"
-	AllocationNamespaceLabelProp                    = "namespaceLabel"
-	AllocationDeploymentProp                        = "deployment"
-	AllocationStatefulSetProp                       = "statefulset"
-	AllocationDaemonSetProp                         = "daemonset"
-	AllocationJobProp                               = "job"
-	AllocationDepartmentProp                        = "department"
-	AllocationEnvironmentProp                       = "environment"
-	AllocationOwnerProp                             = "owner"
-	AllocationProductProp                           = "product"
-	AllocationTeamProp                              = "team"
+	AllocationNilProp                 AllocationProperty = ""
+	AllocationClusterProp                                = "cluster"
+	AllocationNodeProp                                   = "node"
+	AllocationContainerProp                              = "container"
+	AllocationControllerProp                             = "controller"
+	AllocationControllerNamespaceProp                    = "controllerNamespace"
+	AllocationControllerKindProp                         = "controllerKind"
+	AllocationNamespaceProp                              = "namespace"
+	AllocationPodProp                                    = "pod"
+	AllocationProviderIDProp                             = "providerID"
+	AllocationServiceProp                                = "service"
+	AllocationLabelProp                                  = "label"
+	AllocationAnnotationProp                             = "annotation"
+	AllocationNamespaceLabelProp                         = "namespaceLabel"
+	AllocationDeploymentProp                             = "deployment"
+	AllocationStatefulSetProp                            = "statefulset"
+	AllocationDaemonSetProp                              = "daemonset"
+	AllocationJobProp                                    = "job"
+	AllocationDepartmentProp                             = "department"
+	AllocationEnvironmentProp                            = "environment"
+	AllocationOwnerProp                                  = "owner"
+	AllocationProductProp                                = "product"
+	AllocationTeamProp                                   = "team"
 )
 
 func ParseProperties(props []string) ([]AllocationProperty, error) {
@@ -126,6 +127,8 @@ func ParseProperty(text string) (AllocationProperty, error) {
 		return AllocationContainerProp, nil
 	case "controller":
 		return AllocationControllerProp, nil
+	case "controllernamespace":
+		return AllocationControllerNamespaceProp, nil
 	case "controllerkind":
 		return AllocationControllerKindProp, nil
 	case "namespace":
@@ -371,6 +374,16 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 	// identifies allocations.
 	names := []string{}
 
+	// If the namespace is already part of the aggregation, there is no need
+	// to include it in the controllerNamespace key, since it would be duplicated.
+	namespaceInAgg := false
+	for _, agg := range aggregateBy {
+		if agg == AllocationNamespaceProp {
+			namespaceInAgg = true
+			break
+		}
+	}
+
 	for _, agg := range aggregateBy {
 		switch true {
 		case agg == AllocationClusterProp:
@@ -400,6 +413,24 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 				controller = UnallocatedSuffix
 			} else if p.ControllerKind != "" {
 				controller = fmt.Sprintf("%s:%s", p.ControllerKind, controller)
+			}
+			names = append(names, controller)
+		case agg == AllocationControllerNamespaceProp:
+			controller := p.Controller
+			if controller == "" {
+				// Indicate that allocation has no controller
+				controller = UnallocatedSuffix
+			} else if p.ControllerKind != "" {
+				if p.Namespace != "" && !namespaceInAgg {
+					// Include the namespace so that controllers with the same
+					// kind/name in different namespaces are not collapsed into
+					// a single entry.
+					controller = fmt.Sprintf("%s:%s:%s", p.ControllerKind, p.Namespace, controller)
+				} else {
+					controller = fmt.Sprintf("%s:%s", p.ControllerKind, controller)
+				}
+			} else if p.Namespace != "" && !namespaceInAgg {
+				controller = fmt.Sprintf("%s:%s", p.Namespace, controller)
 			}
 			names = append(names, controller)
 		case agg == AllocationPodProp:
