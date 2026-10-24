@@ -263,6 +263,40 @@ func TestServiceTypeCode_KeepsIdentityUnderGroupingOverride(t *testing.T) {
 	}
 }
 
+// TestSelectHuaweiCategory_LongestQualifiedNameWins covers a qualified name
+// that contains the names of two services: with an SFS-only override listed
+// ahead of the built-in table, "Scalable File Service Turbo (pay-per-use)"
+// must still resolve to SFS Turbo, not to SFS through its shorter name.
+func TestSelectHuaweiCategory_LongestQualifiedNameWins(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "categories.json")
+	if err := os.WriteFile(path, []byte(`[{"category": "Shared", "codes": ["sfs"]}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(env.HuaweiServiceCategoriesEnvVar, path)
+	serviceTableOnce = sync.Once{}
+	defer func() {
+		serviceTableOnce = sync.Once{}
+		activeServiceTable = nil
+	}()
+
+	cases := map[string]string{
+		"Scalable File Service Turbo (pay-per-use)": opencost.StorageCategory,
+		"Scalable File Service Turbo":               opencost.StorageCategory,
+		"hws.service.type.sfsturbo":                 opencost.StorageCategory,
+		"Scalable File Service (pay-per-use)":       opencost.SharedCategory,
+		"Scalable File Service":                     opencost.SharedCategory,
+		"hws.service.type.sfs":                      opencost.SharedCategory,
+	}
+	for service, want := range cases {
+		if got := selectHuaweiCategory(service); got != want {
+			t.Errorf("selectHuaweiCategory(%q) = %q, want %q", service, got, want)
+		}
+	}
+	if got := serviceTypeCode("Scalable File Service Turbo (pay-per-use)"); got != "hws.service.type.sfsturbo" {
+		t.Errorf("expected SFS Turbo's code, got %q", got)
+	}
+}
+
 // TestServices_OneServicePerEntry guards the table's invariant that an entry
 // is a single service: no code or name may appear in two entries, and the
 // services that used to share an entry with another one stand alone.

@@ -1,8 +1,11 @@
 package huawei
 
 import (
+	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/shopspring/decimal"
 
 	"github.com/opencost/opencost/core/pkg/log"
 )
@@ -37,9 +40,11 @@ type resourceEnterpriseProjects struct {
 }
 
 // billedAmounts is what BSS billed one Enterprise Project for a resource on
-// one day: the net amount and the list (official) amount.
+// one day: the net amount and the list (official) amount. They are kept as
+// decimals, as BSS reports them, so that amounts which cancel out sum to
+// exactly zero (see allocate): in floating point, 0.10 + 0.20 - 0.30 does not.
 type billedAmounts struct {
-	net, list float64
+	net, list decimal.Decimal
 }
 
 // enterpriseProjectCost is the part of a resource's daily cost that belongs
@@ -69,8 +74,8 @@ func (r resourceEnterpriseProjects) split(resourceID, day string, net, list floa
 	}
 	sort.Strings(ids)
 
-	byNet := func(id string) float64 { return billed[id].net }
-	byList := func(id string) float64 { return billed[id].list }
+	byNet := func(id string) decimal.Decimal { return billed[id].net }
+	byList := func(id string) decimal.Decimal { return billed[id].list }
 	nets := allocate(net, ids, byNet, byList)
 	lists := allocate(list, ids, byList, byNet)
 	costs := make([]enterpriseProjectCost, 0, len(ids))
@@ -88,24 +93,38 @@ func (r resourceEnterpriseProjects) split(resourceID, day string, net, list floa
 // do not account for is split evenly. If all are zero, the amounts carry no
 // information (BSS left them out), so the other amount's proportions are
 // used instead (fallback), and an even split only when it has none either.
-func allocate(total float64, ids []string, billed, fallback func(string) float64) []float64 {
-	sum, allZero := 0.0, true
+func allocate(total float64, ids []string, billed, fallback func(string) decimal.Decimal) []float64 {
+	sum, allZero := decimal.Zero, true
 	for _, id := range ids {
-		sum += billed(id)
-		allZero = allZero && billed(id) == 0
+		sum = sum.Add(billed(id))
+		allZero = allZero && billed(id).IsZero()
 	}
 	if allZero && fallback != nil {
 		return allocate(total, ids, fallback, nil)
 	}
 	parts := make([]float64, len(ids))
 	for i, id := range ids {
-		if sum != 0 {
-			parts[i] = total * billed(id) / sum
+		amount := billed(id).InexactFloat64()
+		if !sum.IsZero() {
+			parts[i] = total * amount / sum.InexactFloat64()
 		} else {
-			parts[i] = billed(id) + total/float64(len(ids))
+			parts[i] = amount + total/float64(len(ids))
 		}
 	}
 	return parts
+}
+
+// parseCostDecimal parses a BSS amount exactly; a missing one is zero, and an
+// unparsable one is zero with an error.
+func parseCostDecimal(s *string) (decimal.Decimal, error) {
+	if s == nil || strings.TrimSpace(*s) == "" {
+		return decimal.Zero, nil
+	}
+	d, err := decimal.NewFromString(strings.TrimSpace(*s))
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("unable to parse amount %q: %w", *s, err)
+	}
+	return d, nil
 }
 
 // fetchResourceEnterpriseProjects maps every resource billed in [beginTime,
@@ -123,7 +142,7 @@ func fetchResourceEnterpriseProjects(beginTime, endTime string) (resourceEnterpr
 		return projects, err
 	}
 	latestDay := map[string]string{}
-	latestAmount := map[string]float64{}
+	latestAmount := map[string]decimal.Decimal{}
 	for _, row := range rows {
 		resourceID := dimensionValue(row.Dimensions, "RESOURCE_ID")
 		epID := strings.TrimSpace(dimensionValue(row.Dimensions, enterpriseProjectDimension))
@@ -142,15 +161,13 @@ func fetchResourceEnterpriseProjects(beginTime, endTime string) (resourceEnterpr
 				continue
 			}
 			day := *item.TimeDimensionValue
-			net, err := parseCostAmount(item.Amount)
+			net, err := parseCostDecimal(item.Amount)
 			if err != nil {
 				log.Warnf("huawei cloud: Enterprise Project %s of %s on %s has an unparsable amount, counting it as 0: %v", epID, id, day, err)
-				net = 0
 			}
-			list, err := parseCostAmount(item.OfficialAmount)
+			list, err := parseCostDecimal(item.OfficialAmount)
 			if err != nil {
 				log.Warnf("huawei cloud: Enterprise Project %s of %s on %s has an unparsable official amount, counting it as 0: %v", epID, id, day, err)
-				list = 0
 			}
 			if projects.byDay[id] == nil {
 				projects.byDay[id] = map[string]map[string]*billedAmounts{}
@@ -163,12 +180,12 @@ func fetchResourceEnterpriseProjects(beginTime, endTime string) (resourceEnterpr
 				amounts = &billedAmounts{}
 				projects.byDay[id][day][epID] = amounts
 			}
-			amounts.net += net
-			amounts.list += list
+			amounts.net = amounts.net.Add(net)
+			amounts.list = amounts.list.Add(list)
 
 			// The latest day's Enterprise Project answers for days with no
 			// record; when that day was split, the larger share does.
-			if day > latestDay[id] || (day == latestDay[id] && amounts.net > latestAmount[id]) {
+			if day > latestDay[id] || (day == latestDay[id] && amounts.net.GreaterThan(latestAmount[id])) {
 				latestDay[id] = day
 				latestAmount[id] = amounts.net
 				projects.latest[id] = epID

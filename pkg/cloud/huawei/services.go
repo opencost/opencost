@@ -48,9 +48,9 @@ type service struct {
 // services maps the Huawei Cloud services this integration recognizes onto
 // OpenCost asset categories. Anything not listed here is reported as Other.
 // Each entry is a single service; distinct services in the same category
-// (ECS and BMS, SFS and SFS Turbo) get entries of their own. A name that
-// contains another one ("sfs turbo"/"scalable file service turbo") comes
-// before it, since substring matching takes the first entry that matches.
+// (ECS and BMS, SFS and SFS Turbo) get entries of their own. Substring
+// matching takes the longest name, so a name that contains another one
+// ("scalable file service turbo") wins over it wherever it is listed.
 //
 // The entries for ECS, EVS, OBS, RDS, ELB, VPC (Elastic IP bandwidth is billed
 // under this service type as a "Fixed Bandwidth" resource, not under its own
@@ -225,12 +225,17 @@ func lookupIn(table []service, serviceType string) (service, bool) {
 	}
 
 	// Last resort: a display name carrying a qualifier, e.g. "Elastic Load
-	// Balance (Shared)".
+	// Balance (Shared)". The longest name contained wins, so "Scalable File
+	// Service Turbo (pay-per-use)" is SFS Turbo even when an SFS entry ("scalable
+	// file service") comes first, as a HUAWEICLOUD_SERVICE_CATEGORIES entry
+	// does; on a tie, the earlier entry wins.
+	best, bestLen := service{}, 0
 	for _, svc := range table {
-		if slices.ContainsFunc(svc.names, func(name string) bool { return strings.Contains(normalized, name) }) {
-			return svc, true
+		for _, name := range svc.names {
+			if len(name) > bestLen && strings.Contains(normalized, name) {
+				best, bestLen = svc, len(name)
+			}
 		}
 	}
-
-	return service{}, false
+	return best, bestLen > 0
 }

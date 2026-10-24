@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/opencost/opencost/pkg/env"
 )
 
@@ -229,30 +231,31 @@ func TestCostIntegration_GetCloudCost_ZeroSumAcrossEnterpriseProjects(t *testing
 }
 
 func TestAllocate(t *testing.T) {
-	ids := []string{"a", "b"}
-	amounts := func(a, b float64) func(string) float64 {
-		return func(id string) float64 {
-			if id == "a" {
-				return a
-			}
-			return b
+	// amounts returns what each of the projects a, b, c... was billed.
+	amounts := func(values ...string) func(string) decimal.Decimal {
+		return func(id string) decimal.Decimal {
+			return decimal.RequireFromString(values[id[0]-'a'])
 		}
 	}
 	cases := []struct {
 		name             string
+		ids              []string
 		total            float64
-		billed, fallback func(string) float64
+		billed, fallback func(string) decimal.Decimal
 		want             []float64
 	}{
-		{"proportional", 24, amounts(10, 14), nil, []float64{10, 14}},
-		{"proportional, scaled", 12, amounts(10, 14), nil, []float64{5, 7}},
-		{"zero-sum keeps signed amounts", 0, amounts(10, -10), nil, []float64{10, -10}},
-		{"zero-sum, unaccounted total split evenly", 2, amounts(10, -10), nil, []float64{11, -9}},
-		{"nothing billed uses the fallback", 30, amounts(0, 0), amounts(1, 2), []float64{10, 20}},
-		{"nothing billed, no fallback: even", 30, amounts(0, 0), nil, []float64{15, 15}},
+		{"proportional", []string{"a", "b"}, 24, amounts("10", "14"), nil, []float64{10, 14}},
+		{"proportional, scaled", []string{"a", "b"}, 12, amounts("10", "14"), nil, []float64{5, 7}},
+		{"zero-sum keeps signed amounts", []string{"a", "b"}, 0, amounts("10", "-10"), nil, []float64{10, -10}},
+		{"zero-sum, unaccounted total split evenly", []string{"a", "b"}, 2, amounts("10", "-10"), nil, []float64{11, -9}},
+		// In floating point 0.10 + 0.20 - 0.30 leaves a residue, which would
+		// take the proportional branch and give every project 0.
+		{"fractional zero-sum across three projects", []string{"a", "b", "c"}, 0, amounts("0.10", "0.20", "-0.30"), nil, []float64{0.10, 0.20, -0.30}},
+		{"nothing billed uses the fallback", []string{"a", "b"}, 30, amounts("0", "0"), amounts("1", "2"), []float64{10, 20}},
+		{"nothing billed, no fallback: even", []string{"a", "b"}, 30, amounts("0", "0"), nil, []float64{15, 15}},
 	}
 	for _, tc := range cases {
-		got := allocate(tc.total, ids, tc.billed, tc.fallback)
+		got := allocate(tc.total, tc.ids, tc.billed, tc.fallback)
 		for i := range got {
 			if math.Abs(got[i]-tc.want[i]) > 1e-9 {
 				t.Errorf("%s: got %v, want %v", tc.name, got, tc.want)
