@@ -42,6 +42,11 @@ type Huawei struct {
 	Pricing          map[string]*HuaweiPricing
 	ValidPricingKeys map[string]bool
 
+	// configGeneration counts the config updates RefreshCustomPricing has
+	// applied, so a download can tell whether the config changed while it
+	// was talking to BSS (see DownloadPricingData).
+	configGeneration uint64
+
 	// downloads serializes DownloadPricingData, so a slower download cannot
 	// publish over a newer one. Pricing lookups never wait on it.
 	downloads sync.Mutex
@@ -204,6 +209,10 @@ func (h *Huawei) DownloadPricingData() error {
 	h.downloads.Lock()
 	defer h.downloads.Unlock()
 
+	h.DownloadPricingDataLock.RLock()
+	generation := h.configGeneration
+	h.DownloadPricingDataLock.RUnlock()
+
 	c, err := h.Config.GetCustomPricingData()
 	if err != nil {
 		return err
@@ -217,6 +226,20 @@ func (h *Huawei) DownloadPricingData() error {
 
 	h.DownloadPricingDataLock.Lock()
 	defer h.DownloadPricingDataLock.Unlock()
+
+	// RefreshCustomPricing may have applied a config update meanwhile. Its
+	// base rates are then the current ones, not those read above; and live
+	// prices fetched for a project the config has since moved away from are
+	// dropped (the previous prices stay until a download for the new one).
+	if h.configGeneration != generation {
+		if current, err := h.Config.GetCustomPricingData(); err == nil {
+			c = current
+		}
+		if h.ProjectID != "" && h.ProjectID != projectID {
+			log.Infof("huawei cloud: the project ID changed during a pricing download, dropping its results for %s", projectID)
+			projectID, live = h.ProjectID, nil
+		}
+	}
 
 	h.BaseCPUPrice = c.CPU
 	h.BaseRAMPrice = c.RAM
@@ -407,6 +430,7 @@ func (h *Huawei) RefreshCustomPricing() error {
 	if err != nil {
 		return err
 	}
+	h.configGeneration++
 	h.BaseCPUPrice = c.CPU
 	h.BaseRAMPrice = c.RAM
 	h.BaseGPUPrice = c.GPU

@@ -1117,3 +1117,106 @@ func TestHuawei_GetConfigKeepsConfiguredValues(t *testing.T) {
 		t.Errorf("DefaultLBPrice = %q, want 0.071", c.DefaultLBPrice)
 	}
 }
+
+// swappableProviderConfig is a ProviderConfig whose pricing can be replaced
+// while other goroutines read it, as a settings update does.
+type swappableProviderConfig struct {
+	fakeProviderConfig
+	mu sync.Mutex
+}
+
+func (s *swappableProviderConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.fakeProviderConfig.GetCustomPricingData()
+}
+
+func (s *swappableProviderConfig) set(c *models.CustomPricing) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.customPricing = c
+}
+
+// TestHuawei_DownloadPricingData_KeepsConfigUpdatedMeanwhile applies a config
+// update while a download waits on BSS. The update and pricing lookups must
+// not wait for the download, and the download, once it lands, must not put
+// back the rates and project ID it started from: with the same project its
+// live prices are published under the new rates; with a new project they
+// were fetched for the old one and are dropped.
+func TestHuawei_DownloadPricingData_KeepsConfigUpdatedMeanwhile(t *testing.T) {
+	cases := map[string]struct {
+		updatedProject string
+		wantPrice      string
+	}{
+		"rates change":   {updatedProject: "proj-a", wantPrice: "2"},
+		"project change": {updatedProject: "proj-b", wantPrice: "1.0"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			arrived, release := make(chan struct{}, 1), make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				arrived <- struct{}{}
+				<-release
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{"product_rating_results": [{"id": "node-0", "amount": "2"}]}`))
+			}))
+			defer server.Close()
+			var released sync.Once
+			releaseBSS := func() { released.Do(func() { close(release) }) }
+			defer releaseBSS()
+
+			bssEndpointOverride = server.URL
+			defer func() { bssEndpointOverride = "" }()
+			t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+			t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+			t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+			node := flavorNode("c7n.2xlarge.4")
+			cfg := &swappableProviderConfig{fakeProviderConfig: fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.01", RAM: "0.001", ProjectID: "proj-a"}}}
+			h := &Huawei{
+				Clientset: &clustercache.MockClusterCache{Nodes: []*clustercache.Node{node}},
+				Config:    cfg,
+				Pricing: map[string]*HuaweiPricing{
+					"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Price: "1.0"}},
+				},
+			}
+
+			downloaded := make(chan error, 1)
+			go func() { downloaded <- h.DownloadPricingData() }()
+			<-arrived
+
+			// The update lands while BSS has not answered yet.
+			cfg.set(&models.CustomPricing{CPU: "0.02", RAM: "0.002", ProjectID: tc.updatedProject})
+			done := make(chan error, 1)
+			go func() {
+				err := h.RefreshCustomPricing()
+				h.NodePricing(h.GetKey(node.Labels, node))
+				done <- err
+			}()
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatalf("the config update or a pricing lookup waited on BSS")
+			}
+
+			releaseBSS()
+			if err := <-downloaded; err != nil {
+				t.Fatalf("unexpected download error: %v", err)
+			}
+			h.DownloadPricingDataLock.RLock()
+			defer h.DownloadPricingDataLock.RUnlock()
+			if h.BaseCPUPrice != "0.02" || h.BaseRAMPrice != "0.002" {
+				t.Errorf("the download put back the old rates: cpu %q ram %q", h.BaseCPUPrice, h.BaseRAMPrice)
+			}
+			if h.ProjectID != tc.updatedProject {
+				t.Errorf("the download put back project %q, want %q", h.ProjectID, tc.updatedProject)
+			}
+			if got := h.Pricing["la-south-2,c7n.2xlarge.4,linux"]; got == nil || got.NodeAttributes.Price != tc.wantPrice {
+				t.Errorf("expected the node priced at %s, got %+v", tc.wantPrice, got)
+			}
+		})
+	}
+}
