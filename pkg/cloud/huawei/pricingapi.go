@@ -1,7 +1,9 @@
 package huawei
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -9,11 +11,13 @@ import (
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/global"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/provider"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/config"
+	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/sdkerr"
 	bssintl "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2"
 	bssintlmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2/model"
 	bssintlregion "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/bssintl/v2/region"
 	"github.com/shopspring/decimal"
 
+	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud/httputil"
 	"github.com/opencost/opencost/pkg/env"
 )
@@ -221,6 +225,81 @@ func fetchOnDemandRatings(projectID string, products []bssintlmodel.DemandProduc
 		return nil, fmt.Errorf("querying huawei cloud BSS demandPrice: %w", err)
 	}
 	return resp, nil
+}
+
+// maxRatingRequests bounds the demandPrice requests one pricing download makes
+// while isolating the products BSS rejects (see fetchOnDemandRatingResults).
+// Halving a batch with one rejected product takes about 2*log2(n)+1 requests,
+// so this covers several rejected products in a batch of a few hundred.
+const maxRatingRequests = 32
+
+// fetchOnDemandRatingResults prices products with as few demandPrice requests
+// as it can, without letting one product BSS cannot price (an unsupported
+// flavor, a spec not sold in the region) cost the rest of the batch their
+// live prices: BSS rejects the whole request for it. A rejected batch is
+// halved and each half priced on its own, down to the single rejected
+// products, which are left unpriced and keep their static rates. Any other
+// failure -- authentication, throttling, an outage -- is returned as is.
+func fetchOnDemandRatingResults(projectID string, products []bssintlmodel.DemandProductInfo) ([]bssintlmodel.DemandProductRatingResult, error) {
+	budget := maxRatingRequests
+	return rateIsolatingRejected(projectID, products, &budget)
+}
+
+func rateIsolatingRejected(projectID string, products []bssintlmodel.DemandProductInfo, budget *int) ([]bssintlmodel.DemandProductRatingResult, error) {
+	if len(products) == 0 {
+		return nil, nil
+	}
+	if *budget <= 0 {
+		log.Warnf("huawei cloud: BSS demandPrice request budget spent, %d products keep their previous or static prices", len(products))
+		return nil, nil
+	}
+	*budget--
+
+	resp, err := fetchOnDemandRatings(projectID, products)
+	if err == nil {
+		if resp.ProductRatingResults == nil {
+			return nil, nil
+		}
+		return *resp.ProductRatingResults, nil
+	}
+	if !isProductRejection(err) {
+		return nil, err
+	}
+	if len(products) == 1 {
+		p := products[0]
+		log.Warnf("huawei cloud: BSS cannot price %s %s in %s, it keeps its previous or static price: %v", p.CloudServiceType, p.ResourceSpec, p.Region, err)
+		return nil, nil
+	}
+
+	mid := len(products) / 2
+	first, err := rateIsolatingRejected(projectID, products[:mid], budget)
+	if err != nil {
+		return nil, err
+	}
+	second, err := rateIsolatingRejected(projectID, products[mid:], budget)
+	if err != nil {
+		return nil, err
+	}
+	return append(first, second...), nil
+}
+
+// isProductRejection reports whether BSS refused a demandPrice request for
+// what it asked to price (400/404, e.g. "Product not found"), as opposed to
+// who asked or when: authentication, permissions, throttling and server
+// errors are not something a smaller batch would fix.
+func isProductRejection(err error) bool {
+	status := 0
+	var byRef *sdkerr.ServiceResponseError
+	var byValue sdkerr.ServiceResponseError
+	switch {
+	case errors.As(err, &byRef):
+		status = byRef.StatusCode
+	case errors.As(err, &byValue):
+		status = byValue.StatusCode
+	default:
+		return false
+	}
+	return status == http.StatusBadRequest || status == http.StatusNotFound
 }
 
 // costQueryPageSize is the page size used when paginating the BSS cost-analysed-bills

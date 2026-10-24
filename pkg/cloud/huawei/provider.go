@@ -299,14 +299,13 @@ func (h *Huawei) DownloadPricingData() error {
 		i++
 	}
 
-	ratings, err := fetchOnDemandRatings(h.ProjectID, products)
+	// A product BSS cannot price is isolated from the batch rather than
+	// failing it (see fetchOnDemandRatingResults); an authentication or
+	// transient failure still fails the whole download.
+	results, err := fetchOnDemandRatingResults(h.ProjectID, products)
 	if err != nil {
 		log.Errorf("Failed to fetch Huawei Cloud BSS pricing data, keeping the previous prices (static defaults where there are none): %v", err)
 		return nil
-	}
-	var results []bssintlmodel.DemandProductRatingResult
-	if ratings.ProductRatingResults != nil {
-		results = *ratings.ProductRatingResults
 	}
 
 	pricing := make(map[string]*HuaweiPricing, len(results))

@@ -32,47 +32,80 @@ const enterpriseProjectDimension = "ENTERPRISE_PROJECT_ID"
 // migration), and BSS bills each day to the Enterprise Project the resource
 // was in that day -- to more than one when it moved during the day.
 type resourceEnterpriseProjects struct {
-	byDay  map[string]map[string]map[string]float64 // resource ID -> day -> Enterprise Project ID -> net amount
-	latest map[string]string                        // resource ID -> Enterprise Project of its latest billed day
+	byDay  map[string]map[string]map[string]*billedAmounts // resource ID -> day -> Enterprise Project ID -> amounts
+	latest map[string]string                               // resource ID -> Enterprise Project of its latest billed day
 }
 
-// enterpriseProjectShare is the part of a resource's daily cost billed to
-// one Enterprise Project.
-type enterpriseProjectShare struct {
-	id    string
-	share float64
+// billedAmounts is what BSS billed one Enterprise Project for a resource on
+// one day: the net amount and the list (official) amount.
+type billedAmounts struct {
+	net, list float64
 }
 
-// lookup returns how the resource's cost on day splits across Enterprise
-// Projects: in proportion to what each was billed that day, or, for a day
-// with no record, all to the Enterprise Project of its latest billed day.
-// It returns nil when the resource has no Enterprise Project at all.
-func (r resourceEnterpriseProjects) lookup(resourceID, day string) []enterpriseProjectShare {
-	amounts, ok := r.byDay[resourceID][day]
-	if !ok || len(amounts) == 0 {
+// enterpriseProjectCost is the part of a resource's daily cost that belongs
+// to one Enterprise Project.
+type enterpriseProjectCost struct {
+	id        string
+	net, list float64
+}
+
+// split divides a resource's daily net and list cost across the Enterprise
+// Projects it was billed to that day, each in proportion to what each was
+// billed, or, for a day with no record, gives it all to the Enterprise
+// Project of its latest billed day. It returns nil when the resource has no
+// Enterprise Project at all.
+func (r resourceEnterpriseProjects) split(resourceID, day string, net, list float64) []enterpriseProjectCost {
+	billed, ok := r.byDay[resourceID][day]
+	if !ok || len(billed) == 0 {
 		if ep, ok := r.latest[resourceID]; ok {
-			return []enterpriseProjectShare{{id: ep, share: 1}}
+			return []enterpriseProjectCost{{id: ep, net: net, list: list}}
 		}
 		return nil
 	}
 
-	ids := make([]string, 0, len(amounts))
-	total := 0.0
-	for id, amount := range amounts {
+	ids := make([]string, 0, len(billed))
+	for id := range billed {
 		ids = append(ids, id)
-		total += amount
 	}
 	sort.Strings(ids)
 
-	shares := make([]enterpriseProjectShare, 0, len(ids))
-	for _, id := range ids {
-		share := 1 / float64(len(ids)) // nothing billed to weigh by: split evenly
-		if total != 0 {
-			share = amounts[id] / total
-		}
-		shares = append(shares, enterpriseProjectShare{id: id, share: share})
+	byNet := func(id string) float64 { return billed[id].net }
+	byList := func(id string) float64 { return billed[id].list }
+	nets := allocate(net, ids, byNet, byList)
+	lists := allocate(list, ids, byList, byNet)
+	costs := make([]enterpriseProjectCost, 0, len(ids))
+	for i, id := range ids {
+		costs = append(costs, enterpriseProjectCost{id: id, net: nets[i], list: lists[i]})
 	}
-	return shares
+	return costs
+}
+
+// allocate divides total across ids in proportion to what each was billed.
+//
+// When the billed amounts sum to zero there is no proportion to use. If some
+// are nonzero -- a charge in one Enterprise Project and an equal adjustment
+// in another -- each keeps its own signed amount, and whatever of total they
+// do not account for is split evenly. If all are zero, the amounts carry no
+// information (BSS left them out), so the other amount's proportions are
+// used instead (fallback), and an even split only when it has none either.
+func allocate(total float64, ids []string, billed, fallback func(string) float64) []float64 {
+	sum, allZero := 0.0, true
+	for _, id := range ids {
+		sum += billed(id)
+		allZero = allZero && billed(id) == 0
+	}
+	if allZero && fallback != nil {
+		return allocate(total, ids, fallback, nil)
+	}
+	parts := make([]float64, len(ids))
+	for i, id := range ids {
+		if sum != 0 {
+			parts[i] = total * billed(id) / sum
+		} else {
+			parts[i] = billed(id) + total/float64(len(ids))
+		}
+	}
+	return parts
 }
 
 // fetchResourceEnterpriseProjects maps every resource billed in [beginTime,
@@ -84,7 +117,7 @@ func (r resourceEnterpriseProjects) lookup(resourceID, day string) []enterpriseP
 // the days that pair was billed and the amounts: that is enough to split every
 // cost of the main query across the Enterprise Projects of its own day.
 func fetchResourceEnterpriseProjects(beginTime, endTime string) (resourceEnterpriseProjects, error) {
-	projects := resourceEnterpriseProjects{byDay: map[string]map[string]map[string]float64{}, latest: map[string]string{}}
+	projects := resourceEnterpriseProjects{byDay: map[string]map[string]map[string]*billedAmounts{}, latest: map[string]string{}}
 	rows, err := fetchCostAnalysedBillsBy([]string{"RESOURCE_ID", enterpriseProjectDimension}, beginTime, endTime, "ORIGINAL_COST", "NET_AMOUNT")
 	if err != nil {
 		return projects, err
@@ -109,24 +142,35 @@ func fetchResourceEnterpriseProjects(beginTime, endTime string) (resourceEnterpr
 				continue
 			}
 			day := *item.TimeDimensionValue
-			amount, err := parseCostAmount(item.Amount)
+			net, err := parseCostAmount(item.Amount)
 			if err != nil {
 				log.Warnf("huawei cloud: Enterprise Project %s of %s on %s has an unparsable amount, counting it as 0: %v", epID, id, day, err)
-				amount = 0
+				net = 0
+			}
+			list, err := parseCostAmount(item.OfficialAmount)
+			if err != nil {
+				log.Warnf("huawei cloud: Enterprise Project %s of %s on %s has an unparsable official amount, counting it as 0: %v", epID, id, day, err)
+				list = 0
 			}
 			if projects.byDay[id] == nil {
-				projects.byDay[id] = map[string]map[string]float64{}
+				projects.byDay[id] = map[string]map[string]*billedAmounts{}
 			}
 			if projects.byDay[id][day] == nil {
-				projects.byDay[id][day] = map[string]float64{}
+				projects.byDay[id][day] = map[string]*billedAmounts{}
 			}
-			projects.byDay[id][day][epID] += amount
+			amounts := projects.byDay[id][day][epID]
+			if amounts == nil {
+				amounts = &billedAmounts{}
+				projects.byDay[id][day][epID] = amounts
+			}
+			amounts.net += net
+			amounts.list += list
 
 			// The latest day's Enterprise Project answers for days with no
 			// record; when that day was split, the larger share does.
-			if day > latestDay[id] || (day == latestDay[id] && projects.byDay[id][day][epID] > latestAmount[id]) {
+			if day > latestDay[id] || (day == latestDay[id] && amounts.net > latestAmount[id]) {
 				latestDay[id] = day
-				latestAmount[id] = projects.byDay[id][day][epID]
+				latestAmount[id] = amounts.net
 				projects.latest[id] = epID
 			}
 		}

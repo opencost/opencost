@@ -155,3 +155,109 @@ func TestCostIntegration_GetCloudCost_DaySplitAcrossEnterpriseProjects(t *testin
 		}
 	}
 }
+
+// TestCostIntegration_GetCloudCost_ZeroSumAcrossEnterpriseProjects covers a
+// day whose Enterprise Project amounts cancel out: a $10 charge in one and a
+// $10 adjustment in another. With no proportion to split by, each must keep
+// its own signed amount (scaled by the price factor), not an even share of
+// the $0 total.
+func TestCostIntegration_GetCloudCost_ZeroSumAcrossEnterpriseProjects(t *testing.T) {
+	const node = "hws.service.type.ec2:hws.resource.type.vm:0a1b2c3d-0000-4000-8000-000000000002:node-adjusted"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Groupby []struct {
+				Key string `json:"key"`
+			} `json:"groupby"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("Content-Type", "application/json")
+		if len(body.Groupby) == 2 {
+			w.Write([]byte(`{"total_count": 2, "cost_data": [
+				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-a"}],
+				 "costs": [{"time_dimension_value": "2026-09-22", "amount": "10", "official_amount": "10"}]},
+				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-b"}],
+				 "costs": [{"time_dimension_value": "2026-09-22", "amount": "-10", "official_amount": "0"}]}
+			]}`))
+			return
+		}
+		w.Write([]byte(`{"total_count": 1, "cost_data": [{"dimensions": [
+			{"key": "RESOURCE_ID", "value": "` + node + `"},
+			{"key": "CLOUD_SERVICE_TYPE", "value": "hws.service.type.ec2"},
+			{"key": "REGION_CODE", "value": "la-south-2"}
+		], "costs": [
+			{"time_dimension_value": "2026-09-22", "amount": "0", "official_amount": "10"}
+		]}]}`))
+	}))
+	defer server.Close()
+
+	bssEndpointOverride = server.URL
+	defer func() { bssEndpointOverride = "" }()
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+	ci := &CostIntegration{CostConfiguration: CostConfiguration{
+		Region: "la-south-2",
+		EnterpriseProjects: []EnterpriseProject{
+			{ID: "ep-a", Name: "ep-a", Platform: "platform-a"},
+			{ID: "ep-b", Name: "ep-b", Platform: "platform-b"},
+		},
+		PriceFactors: []PriceFactor{{Service: "ec2", Factor: 0.5}},
+	}}
+	start := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
+	ccsr, err := ci.GetCloudCost(start, start.AddDate(0, 0, 1))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	type cost struct{ net, list float64 }
+	want := map[string]cost{"platform-a": {5, 10}, "platform-b": {-5, 0}}
+	got := map[string]cost{}
+	for _, ccs := range ccsr.CloudCostSets {
+		for _, cc := range ccs.CloudCosts {
+			c := got[cc.Properties.InvoiceEntityID]
+			c.net += cc.NetCost.Cost
+			c.list += cc.ListCost.Cost
+			got[cc.Properties.InvoiceEntityID] = c
+		}
+	}
+	for platform, w := range want {
+		if c := got[platform]; math.Abs(c.net-w.net) > 1e-9 || math.Abs(c.list-w.list) > 1e-9 {
+			t.Errorf("%s: net %v list %v, want net %v list %v", platform, c.net, c.list, w.net, w.list)
+		}
+	}
+}
+
+func TestAllocate(t *testing.T) {
+	ids := []string{"a", "b"}
+	amounts := func(a, b float64) func(string) float64 {
+		return func(id string) float64 {
+			if id == "a" {
+				return a
+			}
+			return b
+		}
+	}
+	cases := []struct {
+		name             string
+		total            float64
+		billed, fallback func(string) float64
+		want             []float64
+	}{
+		{"proportional", 24, amounts(10, 14), nil, []float64{10, 14}},
+		{"proportional, scaled", 12, amounts(10, 14), nil, []float64{5, 7}},
+		{"zero-sum keeps signed amounts", 0, amounts(10, -10), nil, []float64{10, -10}},
+		{"zero-sum, unaccounted total split evenly", 2, amounts(10, -10), nil, []float64{11, -9}},
+		{"nothing billed uses the fallback", 30, amounts(0, 0), amounts(1, 2), []float64{10, 20}},
+		{"nothing billed, no fallback: even", 30, amounts(0, 0), nil, []float64{15, 15}},
+	}
+	for _, tc := range cases {
+		got := allocate(tc.total, ids, tc.billed, tc.fallback)
+		for i := range got {
+			if math.Abs(got[i]-tc.want[i]) > 1e-9 {
+				t.Errorf("%s: got %v, want %v", tc.name, got, tc.want)
+				break
+			}
+		}
+	}
+}

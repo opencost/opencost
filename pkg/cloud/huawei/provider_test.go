@@ -1,11 +1,14 @@
 package huawei
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -802,6 +805,121 @@ func TestHuawei_DownloadPricingData_KeepsPricesMissingFromPartialResponse(t *tes
 	}
 	if got := h.Pricing["la-south-2,LoadBalancerUsage"]; got == nil || got.LoadBalancerAttributes.Price != "0.071" {
 		t.Fatalf("expected the load balancer to keep its previous price, got %+v", got)
+	}
+}
+
+// ratingServer stands in for BSS demandPrice: it rejects, with status, any
+// request containing a product whose resource_spec is in rejected, and
+// otherwise prices every product it is sent at 1.5. It counts requests.
+func ratingServer(t *testing.T, status int, rejected ...string) *int {
+	t.Helper()
+	var requests int
+	var mu sync.Mutex
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requests++
+		mu.Unlock()
+		var body struct {
+			ProductInfos []struct {
+				ID           string `json:"id"`
+				ResourceSpec string `json:"resource_spec"`
+			} `json:"product_infos"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decoding demandPrice request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		for _, p := range body.ProductInfos {
+			if slices.Contains(rejected, p.ResourceSpec) {
+				w.WriteHeader(status)
+				w.Write([]byte(`{"error_code": "CBC.30000052", "error_msg": "Product not found."}`))
+				return
+			}
+		}
+		results := make([]string, 0, len(body.ProductInfos))
+		for _, p := range body.ProductInfos {
+			results = append(results, `{"id": "`+p.ID+`", "amount": "1.5"}`)
+		}
+		w.Write([]byte(`{"product_rating_results": [` + strings.Join(results, ",") + `]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	bssEndpointOverride = server.URL
+	t.Cleanup(func() { bssEndpointOverride = "" })
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+	return &requests
+}
+
+func flavorNode(instanceType string) *clustercache.Node {
+	return &clustercache.Node{Labels: map[string]string{
+		"topology.kubernetes.io/region":    "la-south-2",
+		"node.kubernetes.io/instance-type": instanceType,
+		"kubernetes.io/os":                 "linux",
+	}}
+}
+
+// TestHuawei_DownloadPricingData_IsolatesRejectedProducts covers a batch BSS
+// rejects because of one product it cannot price: the other flavors, the
+// disk and the load balancer must still get live prices.
+func TestHuawei_DownloadPricingData_IsolatesRejectedProducts(t *testing.T) {
+	requests := ratingServer(t, http.StatusBadRequest, "x9.unsupported.linux")
+
+	pv := &clustercache.PersistentVolume{Spec: v1.PersistentVolumeSpec{StorageClassName: "csi-disk-dss"}}
+	h := &Huawei{
+		Clientset: &clustercache.MockClusterCache{
+			Nodes:             []*clustercache.Node{flavorNode("c7n.2xlarge.4"), flavorNode("x9.unsupported"), flavorNode("s7n.large.2")},
+			PersistentVolumes: []*clustercache.PersistentVolume{pv},
+			StorageClasses: []*clustercache.StorageClass{{
+				Name:       "csi-disk-dss",
+				Parameters: map[string]string{everestDiskVolumeTypeParam: "SSD"},
+			}},
+		},
+		Config:        &fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.0345", RAM: "0.0046", ProjectID: "test-project"}},
+		ClusterRegion: "la-south-2",
+	}
+
+	if err := h.DownloadPricingData(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, features := range []string{"la-south-2,c7n.2xlarge.4,linux", "la-south-2,s7n.large.2,linux", "la-south-2,csi-disk-dss", "la-south-2,LoadBalancerUsage"} {
+		if _, ok := h.Pricing[features]; !ok {
+			t.Errorf("expected a live price for %s despite the rejected product, got %+v", features, h.Pricing)
+		}
+	}
+	if _, ok := h.Pricing["la-south-2,x9.unsupported,linux"]; ok {
+		t.Errorf("expected the rejected flavor to stay unpriced")
+	}
+	if *requests > maxRatingRequests {
+		t.Errorf("expected at most %d requests, got %d", maxRatingRequests, *requests)
+	}
+}
+
+// TestHuawei_DownloadPricingData_DoesNotSplitOnAuthFailure checks that a
+// failure smaller batches cannot fix -- here permissions -- is not retried
+// product by product: one request, and the previous prices stay.
+func TestHuawei_DownloadPricingData_DoesNotSplitOnAuthFailure(t *testing.T) {
+	requests := ratingServer(t, http.StatusForbidden, "c7n.2xlarge.4.linux")
+
+	previous := map[string]*HuaweiPricing{
+		"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Price: "1.234"}},
+	}
+	h := &Huawei{
+		Clientset:     &clustercache.MockClusterCache{Nodes: []*clustercache.Node{flavorNode("c7n.2xlarge.4"), flavorNode("s7n.large.2")}},
+		Config:        &fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.0345", RAM: "0.0046", ProjectID: "test-project"}},
+		ClusterRegion: "la-south-2",
+		Pricing:       previous,
+	}
+
+	if err := h.DownloadPricingData(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if *requests != 1 {
+		t.Errorf("expected a single request for a permission failure, got %d", *requests)
+	}
+	if got := h.Pricing["la-south-2,c7n.2xlarge.4,linux"]; got == nil || got.NodeAttributes.Price != "1.234" {
+		t.Errorf("expected the previous price to be kept, got %+v", h.Pricing)
 	}
 }
 

@@ -185,24 +185,24 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 				return nil, fmt.Errorf("parsing huawei cloud official cost amount: %w", err)
 			}
 
-			netAmount *= priceFactor
-
 			day := ""
 			if item.TimeDimensionValue != nil {
 				day = *item.TimeDimensionValue
 			}
 			// A day billed to several Enterprise Projects is split across
-			// them, one CloudCost each, in proportion to what each was billed.
-			shares := enterpriseProjects.lookup(resource.ID, day)
-			if len(shares) == 0 {
+			// them, one CloudCost each (see resourceEnterpriseProjects.split).
+			// The price factor scales each project's net amount.
+			costs := enterpriseProjects.split(resource.ID, day, netAmount, listAmount)
+			if len(costs) == 0 {
+				net := netAmount * priceFactor
 				ccsr.LoadCloudCost(opencost.NewCloudCost(winStart, winEnd, propertiesFor("", false), 0,
-					listAmount, netAmount, netAmount, netAmount, listAmount))
+					listAmount, net, net, net, listAmount))
 				continue
 			}
-			for _, ep := range shares {
-				list, net := listAmount*ep.share, netAmount*ep.share
+			for _, ep := range costs {
+				net := ep.net * priceFactor
 				ccsr.LoadCloudCost(opencost.NewCloudCost(winStart, winEnd, propertiesFor(ep.id, true), 0,
-					list, net, net, net, list))
+					ep.list, net, net, net, ep.list))
 			}
 		}
 	}
