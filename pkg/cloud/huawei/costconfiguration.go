@@ -102,13 +102,25 @@ func (c *CostConfiguration) Sanitize() cloud.Config {
 	}
 }
 
-// Key identifies this integration by account, not by project or region. The
-// BSS bill is account-wide and is queried with the process-wide credentials
-// (see newBssClient), so two configurations for different projects or regions
+// Key identifies this integration. It is the same for every Huawei
+// configuration: the BSS bill is account-wide and is queried with the
+// process-wide credentials (see newBssClient), so an OpenCost instance reaches
+// a single account, and two configurations for different projects or regions
 // would each ingest the same bill and CloudCost would sum it twice; sharing
-// one key collapses them into a single integration. The domain ID is the
-// account ID; without it, the credentials still reach a single account.
+// one key collapses them into a single integration.
+//
+// It is also invariant. A key derived from the environment (the domain ID)
+// would change when the environment does, while the controller keeps the key
+// a configuration was stored under: it could then no longer update or disable
+// it. The account still shows in the costs it reports (see accountID).
 func (c *CostConfiguration) Key() string {
+	return opencost.HuaweiProvider
+}
+
+// accountID is the account the costs of this integration are reported
+// under when no Enterprise Project applies: the domain ID, the account's ID,
+// when it is set.
+func accountID() string {
 	if domainID := env.GetHuaweiDomainID(); domainID != "" {
 		return domainID
 	}

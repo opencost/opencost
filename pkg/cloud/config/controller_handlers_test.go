@@ -277,3 +277,32 @@ func Test_HuaweiConfigAddAndUpdateHandlers(t *testing.T) {
 		t.Fatalf("expected 200 updating the Huawei config, got %v: %v", w.Code, w.Body.String())
 	}
 }
+
+// Test_HuaweiConfigSurvivesDomainIDChange covers a Huawei configuration added
+// through the API before HUAWEICLOUD_DOMAIN_ID is set, as when the domain ID
+// is added on a restart: the controller must still find it under the key it
+// was stored with, to update and to disable it.
+func Test_HuaweiConfigSurvivesDomainIDChange(t *testing.T) {
+	t.Setenv(env.HuaweiDomainIDEnvVar, "")
+	controller := &Controller{
+		storage: &MemoryControllerStorage{},
+	}
+
+	original := &huawei.CostConfiguration{Region: "la-south-2"}
+	if err := controller.CreateConfig(original); err != nil {
+		t.Fatalf("unexpected error creating the config: %v", err)
+	}
+	storedKey := original.Key()
+
+	t.Setenv(env.HuaweiDomainIDEnvVar, "domain-id")
+
+	if err := controller.UpdateConfig(&huawei.CostConfiguration{Region: "la-north-2"}); err != nil {
+		t.Fatalf("expected the stored config to be found for update after the domain ID change: %v", err)
+	}
+	if err := controller.DisableConfig(storedKey, ConfigControllerSource.String()); err != nil {
+		t.Fatalf("expected the stored config to be disabled after the domain ID change: %v", err)
+	}
+	if got := (&huawei.CostConfiguration{Region: "la-north-2"}).Key(); got != storedKey {
+		t.Fatalf("the key changed with the domain ID: stored %q, now %q", storedKey, got)
+	}
+}

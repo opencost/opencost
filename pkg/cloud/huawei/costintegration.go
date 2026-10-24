@@ -54,7 +54,7 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 	// The bill is account-wide and BSS authenticates with the account's
 	// credentials, so no project is resolved here: costs outside a known
 	// Enterprise Project are attributed to the account itself.
-	accountKey := ci.Key()
+	accountKey := accountID()
 
 	rows, err := fetchCostAnalysedBills(beginTime, endTime, "ORIGINAL_COST", "NET_AMOUNT")
 	if err != nil {

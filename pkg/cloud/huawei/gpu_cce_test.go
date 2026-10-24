@@ -1,6 +1,7 @@
 package huawei
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -199,5 +200,54 @@ func TestClusterManagementPricing_RefreshesInBackground(t *testing.T) {
 		if !strings.Contains(requestBody, want) {
 			t.Errorf("expected the billing read to filter on the CCE service, missing %s in %s", want, requestBody)
 		}
+	}
+}
+
+// TestClusterManagementPricing_PrepaidClusterIsAmortized covers a CCE cluster
+// on a prepaid plan: $72 paid for 30 days. The billing read must ask BSS for
+// AMORTIZED_COST, which spreads the payment as $2.40 a day ($0.10/h); with
+// ORIGINAL_COST the whole $72 lands on the day it was paid.
+func TestClusterManagementPricing_PrepaidClusterIsAmortized(t *testing.T) {
+	today := time.Now().UTC()
+	day := func(n int) string { return today.AddDate(0, 0, -n).Format(bssDateLayout) }
+	costTypes := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			CostType string `json:"cost_type"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		costTypes <- body.CostType
+		w.Header().Set("Content-Type", "application/json")
+		if body.CostType != "AMORTIZED_COST" {
+			// The payment as billed: all of it on the day it was made.
+			w.Write([]byte(`{"total_count": 1, "cost_data": [{"dimensions": [
+				{"key": "RESOURCE_ID", "value": "` + cceResourceID(testCCEClusterID, "cce-prod") + `"}
+			], "costs": [{"time_dimension_value": "` + day(2) + `", "amount": "72"}]}]}`))
+			return
+		}
+		w.Write([]byte(`{"total_count": 1, "cost_data": [{"dimensions": [
+			{"key": "RESOURCE_ID", "value": "` + cceResourceID(testCCEClusterID, "cce-prod") + `"}
+		], "costs": [
+			{"time_dimension_value": "` + day(3) + `", "amount": "2.40"},
+			{"time_dimension_value": "` + day(2) + `", "amount": "2.40"},
+			{"time_dimension_value": "` + day(1) + `", "amount": "2.40"}
+		]}]}`))
+	}))
+	t.Cleanup(server.Close)
+	bssEndpointOverride = server.URL
+	t.Cleanup(func() { bssEndpointOverride = "" })
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+	t.Setenv(env.HuaweiCCEClusterIDEnvVar, testCCEClusterID)
+
+	h := newBilledTestProvider(t)
+	h.ClusterManagementPricing()
+	h.bills.refreshes.Wait()
+	if got := <-costTypes; got != "AMORTIZED_COST" {
+		t.Fatalf("expected the billing read to ask for AMORTIZED_COST, got %q", got)
+	}
+	if _, cost, err := h.ClusterManagementPricing(); err != nil || !approxEqual(cost, 0.1) {
+		t.Fatalf("expected the prepaid cluster at 0.10/h, got %v %v", cost, err)
 	}
 }

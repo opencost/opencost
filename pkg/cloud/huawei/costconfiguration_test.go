@@ -84,15 +84,23 @@ func TestCostConfiguration_KeyAndProvider(t *testing.T) {
 	t.Setenv(env.HuaweiDomainIDEnvVar, "")
 	c := &CostConfiguration{ProjectID: "proj-1", Region: "la-south-2"}
 	if c.Key() != "Huawei" {
-		t.Fatalf("expected key Huawei without a domain ID, got %s", c.Key())
+		t.Fatalf("expected key Huawei, got %s", c.Key())
+	}
+	if accountID() != "Huawei" {
+		t.Fatalf("expected account Huawei without a domain ID, got %s", accountID())
 	}
 
 	// The bill is account-wide: configurations for other projects or regions
-	// of the same account must share the key so it is ingested once.
+	// share the key, so it is ingested once. Setting the domain ID changes the
+	// account the costs are reported under, never the key a configuration
+	// was stored under.
 	t.Setenv(env.HuaweiDomainIDEnvVar, "domain-1")
 	other := &CostConfiguration{ProjectID: "proj-2", Region: "cn-north-4"}
-	if c.Key() != "domain-1" || other.Key() != "domain-1" {
-		t.Fatalf("expected both keys to be domain-1, got %s and %s", c.Key(), other.Key())
+	if c.Key() != "Huawei" || other.Key() != "Huawei" {
+		t.Fatalf("expected both keys to stay Huawei, got %s and %s", c.Key(), other.Key())
+	}
+	if accountID() != "domain-1" {
+		t.Fatalf("expected account domain-1, got %s", accountID())
 	}
 	if c.Provider() != "Huawei" {
 		t.Fatalf("expected provider Huawei, got %s", c.Provider())

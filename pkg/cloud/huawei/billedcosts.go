@@ -128,7 +128,11 @@ func fetchBilledHourlyCosts(now time.Time) (map[string]float64, error) {
 		Operator:     0, // include
 		FilterFactor: &bssintlmodel.FilterFactor{Key: "CLOUD_SERVICE_TYPE", Value: billedHourlyServices},
 	}
-	rows, err := fetchCostAnalysedBillsBy([]string{"RESOURCE_ID", "CLOUD_SERVICE_TYPE"}, begin, end, "ORIGINAL_COST", "NET_AMOUNT", onlyBilledServices)
+	// AMORTIZED_COST spreads a prepaid (yearly/monthly) cluster's payment
+	// over the days it covers; ORIGINAL_COST would put it all on the day it
+	// was paid, pricing that week at many times the real hourly rate and the
+	// following weeks at nothing. Pay-per-use costs are the same either way.
+	rows, err := fetchCostAnalysedBillsBy([]string{"RESOURCE_ID", "CLOUD_SERVICE_TYPE"}, begin, end, "AMORTIZED_COST", "NET_AMOUNT", onlyBilledServices)
 	if err != nil {
 		return nil, err
 	}
