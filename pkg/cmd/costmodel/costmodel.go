@@ -3,6 +3,7 @@ package costmodel
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -403,16 +404,26 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 
 	// Start HTTP server on configured port
 	port := env.GetMCPHTTPPort()
-	log.Infof("Starting MCP HTTP server on port %d...", port)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return fmt.Errorf("failed to listen on MCP port %d: %w", port, err)
+	}
 
+	log.Infof("Starting MCP HTTP server on port %d...", port)
+	startMCPHTTPServer(ctx, listener, loggingHandler)
+
+	log.Info("MCP server started successfully")
+	return nil
+}
+
+func startMCPHTTPServer(ctx context.Context, listener net.Listener, handler http.Handler) {
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
-		Handler: loggingHandler,
+		Handler: handler,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			log.Errorf("MCP server failed: %v", err)
 		}
 	}()
@@ -429,9 +440,6 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 			log.Info("MCP server shut down successfully")
 		}
 	}()
-
-	log.Info("MCP server started successfully")
-	return nil
 }
 
 // Tool argument structures for MCP server
