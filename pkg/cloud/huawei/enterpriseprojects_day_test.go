@@ -264,3 +264,116 @@ func TestAllocate(t *testing.T) {
 		}
 	}
 }
+
+// epBillingServer stands in for BSS: the Enterprise Project query (grouped by
+// resource and project) gets epRows, the main cost query gets costRows.
+func epBillingServer(t *testing.T, epRows, costRows string) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Groupby []struct {
+				Key string `json:"key"`
+			} `json:"groupby"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("Content-Type", "application/json")
+		if len(body.Groupby) == 2 {
+			w.Write([]byte(`{"total_count": 1, "cost_data": [` + epRows + `]}`))
+			return
+		}
+		w.Write([]byte(`{"total_count": 1, "cost_data": [` + costRows + `]}`))
+	}))
+	t.Cleanup(server.Close)
+	bssEndpointOverride = server.URL
+	t.Cleanup(func() { bssEndpointOverride = "" })
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+}
+
+func epRow(resourceID, epID, day, amount string) string {
+	return `{"dimensions": [{"key": "RESOURCE_ID", "value": "` + resourceID + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "` + epID + `"}],
+		"costs": [{"time_dimension_value": "` + day + `", "amount": "` + amount + `", "official_amount": "` + amount + `"}]}`
+}
+
+func mainCostRow(resourceID, day, amount string) string {
+	return `{"dimensions": [{"key": "RESOURCE_ID", "value": "` + resourceID + `"},
+		{"key": "CLOUD_SERVICE_TYPE", "value": "hws.service.type.obs"}, {"key": "REGION_CODE", "value": "la-south-2"}],
+		"costs": [{"time_dimension_value": "` + day + `", "amount": "` + amount + `", "official_amount": "` + amount + `"}]}`
+}
+
+// netByPlatform runs GetCloudCost over one day and sums the net cost by
+// invoice entity (platform); costs outside any project sum under "".
+func netByPlatform(t *testing.T, day time.Time) map[string]float64 {
+	t.Helper()
+	ci := &CostIntegration{CostConfiguration: CostConfiguration{
+		Region: "la-south-2",
+		EnterpriseProjects: []EnterpriseProject{
+			{ID: "ep-a", Name: "ep-a", Platform: "platform-a"},
+			{ID: "ep-b", Name: "ep-b", Platform: "platform-b"},
+		},
+	}}
+	ccsr, err := ci.GetCloudCost(day, day.AddDate(0, 0, 1))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := map[string]float64{}
+	for _, ccs := range ccsr.CloudCostSets {
+		for _, cc := range ccs.CloudCosts {
+			got[cc.Properties.InvoiceEntityID] += cc.NetCost.Cost
+		}
+	}
+	return got
+}
+
+func assertNet(t *testing.T, got, want map[string]float64) {
+	t.Helper()
+	for platform, w := range want {
+		if math.Abs(got[platform]-w) > 1e-9 {
+			t.Errorf("platform %q: net %v, want %v (all: %v)", platform, got[platform], w, got)
+		}
+	}
+}
+
+// TestCostIntegration_GetCloudCost_ResourceSpellingsNotPooled covers one bucket
+// BSS spells two ways (an empty last field and "null"), +$10 billed to ep-a
+// under one spelling and -$10 to ep-b under the other: each cost row is split
+// by its own spelling's amounts, so the zero-sum split is not applied twice.
+func TestCostIntegration_GetCloudCost_ResourceSpellingsNotPooled(t *testing.T) {
+	const bucket = "hws.service.type.obs:hws.resource.type.bucket:my-bucket"
+	epBillingServer(t,
+		epRow(bucket+":", "ep-a", "2026-09-22", "10")+","+epRow(bucket+":null", "ep-b", "2026-09-22", "-10"),
+		mainCostRow(bucket+":", "2026-09-22", "10")+","+mainCostRow(bucket+":null", "2026-09-22", "-10"))
+
+	got := netByPlatform(t, time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC))
+	assertNet(t, got, map[string]float64{"platform-a": 10, "platform-b": -10})
+}
+
+// TestCostIntegration_GetCloudCost_UnassignedEnterpriseProjectCharges covers a
+// day with $10 billed to ep-a and $14 billed to no Enterprise Project: the
+// $14 stays at the account level instead of going to ep-a.
+func TestCostIntegration_GetCloudCost_UnassignedEnterpriseProjectCharges(t *testing.T) {
+	const bucket = "hws.service.type.obs:hws.resource.type.bucket:shared-bucket:shared-bucket"
+	epBillingServer(t,
+		epRow(bucket, "ep-a", "2026-09-22", "10")+","+epRow(bucket, "null", "2026-09-22", "14"),
+		mainCostRow(bucket, "2026-09-22", "24"))
+
+	got := netByPlatform(t, time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC))
+	assertNet(t, got, map[string]float64{"platform-a": 10, "": 14})
+}
+
+// TestCostIntegration_GetCloudCost_LatestProjectAfterAdjustment covers a
+// latest billed day with ep-a +$10, ep-b +$9 and then ep-a -$5 (rows of two
+// spellings of one bucket): ep-b ends the day ahead, so a later day with no
+// Enterprise Project record goes to ep-b, not to the running maximum ep-a.
+func TestCostIntegration_GetCloudCost_LatestProjectAfterAdjustment(t *testing.T) {
+	const bucket = "hws.service.type.obs:hws.resource.type.bucket:busy-bucket"
+	epBillingServer(t,
+		epRow(bucket+":", "ep-a", "2026-09-22", "10")+","+
+			epRow(bucket+":", "ep-b", "2026-09-22", "9")+","+
+			epRow(bucket+":null", "ep-a", "2026-09-22", "-5"),
+		mainCostRow(bucket+":", "2026-09-23", "7"))
+
+	got := netByPlatform(t, time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC))
+	assertNet(t, got, map[string]float64{"platform-b": 7, "platform-a": 0})
+}

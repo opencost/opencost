@@ -20,6 +20,7 @@ func TestParseProvider(t *testing.T) {
 		{"OTC", ProviderOTC},
 		{"OVH", ProviderOVH},
 		{"STACKIT", ProviderSTACKIT},
+		{"Huawei", ProviderHuawei},
 		// Case-insensitive
 		{"aws", ProviderAWS},
 		{"gcp", ProviderGCP},
@@ -31,6 +32,7 @@ func TestParseProvider(t *testing.T) {
 		{"otc", ProviderOTC},
 		{"ovh", ProviderOVH},
 		{"stackit", ProviderSTACKIT},
+		{"huawei", ProviderHuawei},
 		{"AWS", ProviderAWS},
 		{"AZURE", ProviderAzure},
 		// Aliases
@@ -51,6 +53,8 @@ func TestParseProvider(t *testing.T) {
 		{"ovhcloud", ProviderOVH},
 		{"ovh-mks", ProviderOVH},
 		{"ske", ProviderSTACKIT},
+		{"huaweicloud", ProviderHuawei},
+		{"HuaweiCloud", ProviderHuawei},
 		// Unknown input returns Custom
 		{"", ProviderCustom},
 		{"unknown", ProviderCustom},

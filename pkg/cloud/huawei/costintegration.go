@@ -192,7 +192,7 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 			// A day billed to several Enterprise Projects is split across
 			// them, one CloudCost each (see resourceEnterpriseProjects.split).
 			// The price factor scales each project's net amount.
-			costs := enterpriseProjects.split(resource.ID, day, netAmount, listAmount)
+			costs := enterpriseProjects.split(resourceID, resource.ID, day, netAmount, listAmount)
 			if len(costs) == 0 {
 				net := netAmount * priceFactor
 				ccsr.LoadCloudCost(opencost.NewCloudCost(winStart, winEnd, propertiesFor("", false), 0,
@@ -200,8 +200,11 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 				continue
 			}
 			for _, ep := range costs {
+				// A share billed to no Enterprise Project stays at the
+				// account level.
 				net := ep.net * priceFactor
-				ccsr.LoadCloudCost(opencost.NewCloudCost(winStart, winEnd, propertiesFor(ep.id, true), 0,
+				properties := propertiesFor(ep.id, ep.id != unassignedEnterpriseProject)
+				ccsr.LoadCloudCost(opencost.NewCloudCost(winStart, winEnd, properties, 0,
 					ep.list, net, net, net, ep.list))
 			}
 		}

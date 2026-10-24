@@ -34,10 +34,22 @@ const enterpriseProjectDimension = "ENTERPRISE_PROJECT_ID"
 // Enterprise Projects (a CCE node created before its pool had one, a manual
 // migration), and BSS bills each day to the Enterprise Project the resource
 // was in that day -- to more than one when it moved during the day.
+//
+// The amounts are keyed by RESOURCE_ID exactly as BSS spells it, the same
+// spelling as the main cost query's rows they split: BSS may spell one
+// resource more than one way ("...:bucket:" and "...:bucket:null"), and
+// pooling the spellings would apply each one's amounts to every row. Only
+// latest, which picks a project rather than amounts, uses the normalized ID.
 type resourceEnterpriseProjects struct {
-	byDay  map[string]map[string]map[string]*billedAmounts // resource ID -> day -> Enterprise Project ID -> amounts
-	latest map[string]string                               // resource ID -> Enterprise Project of its latest billed day
+	byDay  map[string]map[string]map[string]*billedAmounts // raw RESOURCE_ID -> day -> Enterprise Project ID -> amounts
+	latest map[string]string                               // normalized resource ID -> Enterprise Project of its latest billed day
 }
+
+// unassignedEnterpriseProject is the Enterprise Project ID under which the
+// charges BSS billed to no Enterprise Project are recorded. They are a share
+// of their own, reported at the account level, so that they are not
+// attributed to a project they were not billed to.
+const unassignedEnterpriseProject = ""
 
 // billedAmounts is what BSS billed one Enterprise Project for a resource on
 // one day: the net amount and the list (official) amount. They are kept as
@@ -57,10 +69,11 @@ type enterpriseProjectCost struct {
 // split divides a resource's daily net and list cost across the Enterprise
 // Projects it was billed to that day, each in proportion to what each was
 // billed, or, for a day with no record, gives it all to the Enterprise
-// Project of its latest billed day. It returns nil when the resource has no
-// Enterprise Project at all.
-func (r resourceEnterpriseProjects) split(resourceID, day string, net, list float64) []enterpriseProjectCost {
-	billed, ok := r.byDay[resourceID][day]
+// Project of its latest billed day. rawID is RESOURCE_ID as the cost row
+// spells it, resourceID its normalized form. It returns nil when the
+// resource has no Enterprise Project record at all.
+func (r resourceEnterpriseProjects) split(rawID, resourceID, day string, net, list float64) []enterpriseProjectCost {
+	billed, ok := r.byDay[rawID][day]
 	if !ok || len(billed) == 0 {
 		if ep, ok := r.latest[resourceID]; ok {
 			return []enterpriseProjectCost{{id: ep, net: net, list: list}}
@@ -141,15 +154,20 @@ func fetchResourceEnterpriseProjects(beginTime, endTime string) (resourceEnterpr
 	if err != nil {
 		return projects, err
 	}
-	latestDay := map[string]string{}
-	latestAmount := map[string]decimal.Decimal{}
+
+	// Each normalized resource's net amount per day and project, across its
+	// spellings, to pick the project of its latest day once all rows are in.
+	daily := map[string]map[string]map[string]decimal.Decimal{}
 	for _, row := range rows {
-		resourceID := dimensionValue(row.Dimensions, "RESOURCE_ID")
-		epID := strings.TrimSpace(dimensionValue(row.Dimensions, enterpriseProjectDimension))
-		if resourceID == "" || epID == "" || epID == bssNullField {
+		rawID := dimensionValue(row.Dimensions, "RESOURCE_ID")
+		if rawID == "" {
 			continue
 		}
-		id := describeResource(resourceID).ID
+		epID := strings.TrimSpace(dimensionValue(row.Dimensions, enterpriseProjectDimension))
+		if epID == bssNullField {
+			epID = unassignedEnterpriseProject
+		}
+		id := describeResource(rawID).ID
 		if row.Costs == nil || len(*row.Costs) == 0 {
 			if _, ok := projects.latest[id]; !ok {
 				projects.latest[id] = epID
@@ -163,34 +181,59 @@ func fetchResourceEnterpriseProjects(beginTime, endTime string) (resourceEnterpr
 			day := *item.TimeDimensionValue
 			net, err := parseCostDecimal(item.Amount)
 			if err != nil {
-				log.Warnf("huawei cloud: Enterprise Project %s of %s on %s has an unparsable amount, counting it as 0: %v", epID, id, day, err)
+				log.Warnf("huawei cloud: Enterprise Project %q of %s on %s has an unparsable amount, counting it as 0: %v", epID, id, day, err)
 			}
 			list, err := parseCostDecimal(item.OfficialAmount)
 			if err != nil {
-				log.Warnf("huawei cloud: Enterprise Project %s of %s on %s has an unparsable official amount, counting it as 0: %v", epID, id, day, err)
+				log.Warnf("huawei cloud: Enterprise Project %q of %s on %s has an unparsable official amount, counting it as 0: %v", epID, id, day, err)
 			}
-			if projects.byDay[id] == nil {
-				projects.byDay[id] = map[string]map[string]*billedAmounts{}
+			if projects.byDay[rawID] == nil {
+				projects.byDay[rawID] = map[string]map[string]*billedAmounts{}
 			}
-			if projects.byDay[id][day] == nil {
-				projects.byDay[id][day] = map[string]*billedAmounts{}
+			if projects.byDay[rawID][day] == nil {
+				projects.byDay[rawID][day] = map[string]*billedAmounts{}
 			}
-			amounts := projects.byDay[id][day][epID]
+			amounts := projects.byDay[rawID][day][epID]
 			if amounts == nil {
 				amounts = &billedAmounts{}
-				projects.byDay[id][day][epID] = amounts
+				projects.byDay[rawID][day][epID] = amounts
 			}
 			amounts.net = amounts.net.Add(net)
 			amounts.list = amounts.list.Add(list)
 
-			// The latest day's Enterprise Project answers for days with no
-			// record; when that day was split, the larger share does.
-			if day > latestDay[id] || (day == latestDay[id] && amounts.net.GreaterThan(latestAmount[id])) {
-				latestDay[id] = day
-				latestAmount[id] = amounts.net
-				projects.latest[id] = epID
+			if daily[id] == nil {
+				daily[id] = map[string]map[string]decimal.Decimal{}
+			}
+			if daily[id][day] == nil {
+				daily[id][day] = map[string]decimal.Decimal{}
+			}
+			daily[id][day][epID] = daily[id][day][epID].Add(net)
+		}
+	}
+
+	// The project of a resource's latest billed day answers for its days with
+	// no record. It is picked from the day's final amounts, not as the rows
+	// arrive, so a later adjustment to a project counts; when the day was
+	// split, the largest net amount wins, and on a tie the lowest ID.
+	for id, byDay := range daily {
+		latestDay := ""
+		for day := range byDay {
+			if day > latestDay {
+				latestDay = day
 			}
 		}
+		eps := make([]string, 0, len(byDay[latestDay]))
+		for ep := range byDay[latestDay] {
+			eps = append(eps, ep)
+		}
+		sort.Strings(eps)
+		winner := eps[0]
+		for _, ep := range eps[1:] {
+			if byDay[latestDay][ep].GreaterThan(byDay[latestDay][winner]) {
+				winner = ep
+			}
+		}
+		projects.latest[id] = winner
 	}
 	return projects, nil
 }
