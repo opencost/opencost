@@ -943,8 +943,9 @@ func TestHuawei_GetConfigDoesNotWriteSharedConfig(t *testing.T) {
 }
 
 // TestHuawei_PVPricing_RefreshesOnCacheMiss covers a storage class that got
-// its first PV after the last download: PVPricing must re-download and use
-// the live price rather than stay on the static default.
+// its first PV after the last download: the lookup that misses answers with
+// the static default without waiting, and starts a background refresh after
+// which the class has its live price.
 func TestHuawei_PVPricing_RefreshesOnCacheMiss(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -973,12 +974,103 @@ func TestHuawei_PVPricing_RefreshesOnCacheMiss(t *testing.T) {
 		Pricing:       map[string]*HuaweiPricing{},
 	}
 
-	got, err := h.PVPricing(h.GetPVKey(pv, map[string]string{}, "la-south-2"))
+	key := h.GetPVKey(pv, map[string]string{}, "la-south-2")
+	got, err := h.PVPricing(key)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Cost != "0.0001512" {
+		t.Fatalf("expected the static default while the refresh runs, got %q", got.Cost)
+	}
+
+	h.refreshes.Wait()
+	got, err = h.PVPricing(key)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got.Cost != "0.007" { // 0.700 / evsReferenceSizeGB(100)
 		t.Fatalf("expected live PV price 0.007 after refresh, got %q", got.Cost)
+	}
+}
+
+// TestHuawei_PricingLookupsDoNotWaitOnBSS holds BSS's answer and checks that
+// pricing lookups keep answering meanwhile: both a cache miss, which starts a
+// refresh, and a lookup made while a full download is in flight.
+func TestHuawei_PricingLookupsDoNotWaitOnBSS(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"product_rating_results": [{"id": "node-0", "amount": "2.000"}]}`))
+	}))
+	defer server.Close()
+	var released sync.Once
+	releaseBSS := func() { released.Do(func() { close(release) }) }
+	defer releaseBSS()
+
+	bssEndpointOverride = server.URL
+	defer func() { bssEndpointOverride = "" }()
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+	node := flavorNode("c7n.2xlarge.4")
+	h := &Huawei{
+		Clientset:    &clustercache.MockClusterCache{Nodes: []*clustercache.Node{node}},
+		Config:       &fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.0345", RAM: "0.0046", ProjectID: "test-project"}},
+		BaseCPUPrice: "0.0345",
+		BaseRAMPrice: "0.0046",
+		Pricing: map[string]*HuaweiPricing{
+			"la-south-2,s7n.large.2,linux": {NodeAttributes: &HuaweiNodeAttributes{Price: "0.5"}},
+		},
+	}
+
+	answers := make(chan *models.Node, 2)
+	go func() {
+		// A miss: starts a background refresh, which blocks on BSS.
+		n, _, _ := h.NodePricing(h.GetKey(node.Labels, node))
+		answers <- n
+	}()
+	go func() {
+		// A cached flavor, looked up while that refresh is in flight.
+		other := flavorNode("s7n.large.2")
+		n, _, _ := h.NodePricing(h.GetKey(other.Labels, other))
+		answers <- n
+	}()
+	for i := 0; i < 2; i++ {
+		select {
+		case n := <-answers:
+			if n == nil || (n.Cost != "0.5" && !n.UsesBaseCPUPrice) {
+				t.Errorf("expected a cached or base price, got %+v", n)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("a pricing lookup waited on BSS")
+		}
+	}
+
+	// A full download in flight does not hold the lock lookups need either.
+	downloaded := make(chan error, 1)
+	go func() { downloaded <- h.DownloadPricingData() }()
+	looked := make(chan struct{})
+	go func() {
+		h.LoadBalancerPricing()
+		h.PricingSourceStatus()
+		close(looked)
+	}()
+	select {
+	case <-looked:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("a pricing lookup waited on an in-flight download")
+	}
+
+	// Let BSS answer and wait for the refresh and the download to land.
+	releaseBSS()
+	h.refreshes.Wait()
+	if err := <-downloaded; err != nil {
+		t.Fatalf("unexpected download error: %v", err)
+	}
+	if got := h.Pricing["la-south-2,c7n.2xlarge.4,linux"]; got == nil || got.NodeAttributes.Price != "2" {
+		t.Fatalf("expected the refreshed live price once BSS answered, got %+v", got)
 	}
 }
 

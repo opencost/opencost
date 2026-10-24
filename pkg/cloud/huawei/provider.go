@@ -28,19 +28,30 @@ import (
 // any key missing from a live query falls back to the static configs/huawei.json
 // defaults, the same fallback pattern pkg/cloud/otc uses.
 type Huawei struct {
-	Clientset               clustercache.ClusterCache
-	Config                  models.ProviderConfig
-	ClusterRegion           string
-	ClusterAccountID        string
-	ProjectID               string
+	Clientset        clustercache.ClusterCache
+	Config           models.ProviderConfig
+	ClusterRegion    string
+	ClusterAccountID string
+	ProjectID        string
+
+	// DownloadPricingDataLock guards the fields below it, which pricing
+	// lookups read. DownloadPricingData only holds it to publish what it has
+	// downloaded, never while it talks to the metadata service or BSS.
 	DownloadPricingDataLock sync.RWMutex
 
 	Pricing          map[string]*HuaweiPricing
 	ValidPricingKeys map[string]bool
 
-	// lastPricingRefresh is the UnixNano of the last NodePricing-triggered
-	// DownloadPricingData attempt, used to rate-limit it (see tryRefreshPricing).
+	// downloads serializes DownloadPricingData, so a slower download cannot
+	// publish over a newer one. Pricing lookups never wait on it.
+	downloads sync.Mutex
+
+	// lastPricingRefresh is the UnixNano of the last cache-miss refresh,
+	// used to rate-limit them (see refreshPricingInBackground).
 	lastPricingRefresh atomic.Int64
+
+	// refreshes tracks background refreshes, so tests can wait for them.
+	refreshes sync.WaitGroup
 
 	// bills caches what BSS billed for the CCE cluster, which is how
 	// ClusterManagementPricing prices it (see billedcosts.go).
@@ -190,30 +201,61 @@ func resolveProviderProjectID(configProjectID string) string {
 }
 
 func (h *Huawei) DownloadPricingData() error {
-	h.DownloadPricingDataLock.Lock()
-	defer h.DownloadPricingDataLock.Unlock()
+	h.downloads.Lock()
+	defer h.downloads.Unlock()
 
 	c, err := h.Config.GetCustomPricingData()
 	if err != nil {
 		return err
 	}
 
+	// The metadata lookup, the cluster discovery and the BSS requests all run
+	// without DownloadPricingDataLock: they can take seconds, and pricing
+	// lookups keep answering from the current prices meanwhile.
+	projectID := resolveProviderProjectID(c.ProjectID)
+	live, validKeys, requested := h.fetchLivePricing(projectID)
+
+	h.DownloadPricingDataLock.Lock()
+	defer h.DownloadPricingDataLock.Unlock()
+
 	h.BaseCPUPrice = c.CPU
 	h.BaseRAMPrice = c.RAM
 	h.BaseGPUPrice = c.GPU
-	h.ProjectID = resolveProviderProjectID(c.ProjectID)
-
-	// The live prices are only replaced once BSS has answered: a refresh that
-	// fails (e.g. a transient BSS error while pricing a new node pool) keeps the
-	// previous prices rather than dropping every node, disk and load balancer
-	// to the static rates until the next refresh.
+	h.ProjectID = projectID
+	h.ValidPricingKeys = validKeys
 	if h.Pricing == nil {
 		h.Pricing = make(map[string]*HuaweiPricing)
 	}
-	h.ValidPricingKeys = make(map[string]bool)
 
-	if h.Clientset == nil {
+	// The live prices are only replaced once BSS has answered with something
+	// usable: a refresh that fails (e.g. a transient BSS error while pricing a
+	// new node pool) keeps the previous prices rather than dropping every
+	// node, disk and load balancer to the static rates until the next refresh.
+	if live == nil {
 		return nil
+	}
+	// Likewise for a partial response: a product it left unpriced keeps the
+	// live price it had, rather than dropping to the static rates.
+	for _, features := range requested {
+		if _, priced := live[features]; priced {
+			continue
+		}
+		if previous, ok := h.Pricing[features]; ok {
+			live[features] = previous
+		}
+	}
+	h.Pricing = live
+	return nil
+}
+
+// fetchLivePricing queries BSS demandPrice for every node flavor, storage class
+// and the load balancer currently in the cluster. It returns the live prices
+// (nil when BSS gave nothing usable), the pricing keys of what the cluster
+// holds, and the keys it asked BSS to price. It touches no shared state.
+func (h *Huawei) fetchLivePricing(projectID string) (map[string]*HuaweiPricing, map[string]bool, []string) {
+	validKeys := map[string]bool{}
+	if h.Clientset == nil {
+		return nil, validKeys, nil
 	}
 
 	type nodeCombo struct {
@@ -229,7 +271,7 @@ func (h *Huawei) DownloadPricingData() error {
 		}
 		os, _ := util.GetOperatingSystem(node.Labels)
 		nodeCombos[key.Features()] = nodeCombo{region: region, instanceType: instanceType, os: os}
-		h.ValidPricingKeys[key.Features()] = true
+		validKeys[key.Features()] = true
 	}
 
 	// Map each StorageClass to the Huawei EVS volume type code (SATA/SAS/GPSSD/SSD)
@@ -261,7 +303,7 @@ func (h *Huawei) DownloadPricingData() error {
 		}
 		key := h.GetPVKey(pv, map[string]string{}, h.ClusterRegion)
 		pvCombos[key.Features()] = pvCombo{region: h.ClusterRegion, storageClass: pv.Spec.StorageClassName, evsType: evsType}
-		h.ValidPricingKeys[key.Features()] = true
+		validKeys[key.Features()] = true
 	}
 
 	// The cluster's Shared (Basic) ELB on-demand price is queried once per region,
@@ -273,39 +315,43 @@ func (h *Huawei) DownloadPricingData() error {
 	}
 
 	if len(nodeCombos) == 0 && len(pvCombos) == 0 && len(lbCombos) == 0 {
-		return nil
+		return nil, validKeys, nil
 	}
 
 	products := make([]bssintlmodel.DemandProductInfo, 0, len(nodeCombos)+len(pvCombos)+len(lbCombos))
 	idToFeatures := make(map[string]string, len(nodeCombos)+len(pvCombos)+len(lbCombos))
+	requested := make([]string, 0, len(nodeCombos)+len(pvCombos)+len(lbCombos))
 
 	i := 0
 	for features, combo := range nodeCombos {
 		id := fmt.Sprintf("node-%d", i)
 		products = append(products, buildNodeProductInfo(id, combo.region, combo.instanceType, combo.os))
 		idToFeatures[id] = features
+		requested = append(requested, features)
 		i++
 	}
 	for features, combo := range pvCombos {
 		id := fmt.Sprintf("pv-%d", i)
 		products = append(products, buildVolumeProductInfo(id, combo.region, combo.evsType))
 		idToFeatures[id] = features
+		requested = append(requested, features)
 		i++
 	}
 	for features, region := range lbCombos {
 		id := fmt.Sprintf("lb-%d", i)
 		products = append(products, buildLoadBalancerProductInfo(id, region))
 		idToFeatures[id] = features
+		requested = append(requested, features)
 		i++
 	}
 
 	// A product BSS cannot price is isolated from the batch rather than
 	// failing it (see fetchOnDemandRatingResults); an authentication or
 	// transient failure still fails the whole download.
-	results, err := fetchOnDemandRatingResults(h.ProjectID, products)
+	results, err := fetchOnDemandRatingResults(projectID, products)
 	if err != nil {
 		log.Errorf("Failed to fetch Huawei Cloud BSS pricing data, keeping the previous prices (static defaults where there are none): %v", err)
-		return nil
+		return nil, validKeys, requested
 	}
 
 	pricing := make(map[string]*HuaweiPricing, len(results))
@@ -345,21 +391,9 @@ func (h *Huawei) DownloadPricingData() error {
 	// entries missing an id or amount -- is no better than a failed request.
 	if len(pricing) == 0 {
 		log.Warnf("Huawei Cloud BSS demandPrice returned no usable pricing results, keeping the previous prices")
-		return nil
+		return nil, validKeys, requested
 	}
-	// Likewise for a partial response: a product it left unpriced keeps the
-	// live price it had, rather than dropping to the static rates.
-	for _, features := range idToFeatures {
-		if _, priced := pricing[features]; priced {
-			continue
-		}
-		if previous, ok := h.Pricing[features]; ok {
-			pricing[features] = previous
-		}
-	}
-	h.Pricing = pricing
-
-	return nil
+	return pricing, validKeys, requested
 }
 
 // RefreshCustomPricing reloads the base prices and project ID from config,
@@ -390,40 +424,37 @@ func (h *Huawei) RefreshCustomPricing() error {
 // would otherwise hammer the demandPrice API on every node of every cycle.
 const pricingRefreshCooldown = 10 * time.Minute
 
-// tryRefreshPricing re-runs DownloadPricingData to pick up node flavors and
-// storage classes that appeared after the last download, and reports whether h.Pricing may
-// have changed. It is a no-op within pricingRefreshCooldown of the last attempt.
-//
-// The caller holds DownloadPricingDataLock for reading; DownloadPricingData takes
-// it for writing, so the read lock is released around the call and reacquired
-// before returning (the caller's deferred RUnlock stays balanced). This mirrors
-// pkg/cloud/otc's NodePricing.
-func (h *Huawei) tryRefreshPricing() bool {
+// refreshPricingInBackground starts DownloadPricingData in the background to
+// pick up node flavors and storage classes that appeared after the last
+// download, unless one started within pricingRefreshCooldown. The lookup that
+// triggered it is not held up: it answers from the current or static prices,
+// and lookups after the refresh lands see the new ones. Pricing lookups run on
+// the cost model's metrics path, which must not wait on BSS.
+func (h *Huawei) refreshPricingInBackground() {
 	if h.Config == nil {
 		// Config is a required dependency for DownloadPricingData; a Huawei
 		// value without one (e.g. not yet fully constructed) should still
 		// degrade to base pricing rather than panic on a nil interface call.
-		return false
+		return
 	}
 
 	last := h.lastPricingRefresh.Load()
 	now := time.Now().UnixNano()
 	if last != 0 && time.Duration(now-last) < pricingRefreshCooldown {
-		return false
+		return
 	}
 	// CompareAndSwap so concurrent missing-key lookups collapse into one refresh.
 	if !h.lastPricingRefresh.CompareAndSwap(last, now) {
-		return false
+		return
 	}
 
-	h.DownloadPricingDataLock.RUnlock()
-	err := h.DownloadPricingData()
-	h.DownloadPricingDataLock.RLock()
-	if err != nil {
-		log.Warnf("huawei cloud: refreshing pricing data after a pricing cache miss failed: %v", err)
-		return false
-	}
-	return true
+	h.refreshes.Add(1)
+	go func() {
+		defer h.refreshes.Done()
+		if err := h.DownloadPricingData(); err != nil {
+			log.Warnf("huawei cloud: refreshing pricing data after a pricing cache miss failed: %v", err)
+		}
+	}()
 }
 
 // NodePricing returns the live BSS on-demand price for the node's flavor if
@@ -457,14 +488,11 @@ func (h *Huawei) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 	if !ok || pricing.NodeAttributes == nil {
 		// Cache miss. DownloadPricingData only queries BSS for the node flavors
 		// present in the cluster cache at the time it ran, so any flavor that
-		// joins later -- an autoscaled GPU pool, a new node pool -- is missing
-		// from h.Pricing until the process restarts, and every node of that
-		// flavor silently falls back to default pricing forever. Re-download
-		// once (rate-limited, since NodePricing runs per node per cycle) and
-		// retry, the same recovery pkg/cloud/otc does on a miss.
-		if h.tryRefreshPricing() {
-			pricing, ok = h.Pricing[key.Features()]
-		}
+		// joins later -- an autoscaled GPU pool, a new node pool -- would be
+		// missing from h.Pricing until the process restarts. Refresh in the
+		// background (rate-limited, since NodePricing runs per node per
+		// cycle); this lookup falls back to the base rates meanwhile.
+		h.refreshPricingInBackground()
 	}
 	if !ok || pricing.NodeAttributes == nil {
 		// The unit costs are set to the base rates rather than left empty: with
@@ -512,9 +540,7 @@ func (h *Huawei) PVPricing(pvk models.PVKey) (*models.PV, error) {
 		// Cache miss: DownloadPricingData only priced the storage classes that
 		// had PVs when it ran, so a class first used later would otherwise stay
 		// on the static default until restart. Same recovery as NodePricing.
-		if h.tryRefreshPricing() {
-			pricing, ok = h.Pricing[pvk.Features()]
-		}
+		h.refreshPricingInBackground()
 	}
 	if ok && pricing.PVAttributes != nil {
 		return &models.PV{

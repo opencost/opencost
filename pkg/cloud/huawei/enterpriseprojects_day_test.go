@@ -253,6 +253,10 @@ func TestAllocate(t *testing.T) {
 		{"fractional zero-sum across three projects", []string{"a", "b", "c"}, 0, amounts("0.10", "0.20", "-0.30"), nil, []float64{0.10, 0.20, -0.30}},
 		{"nothing billed uses the fallback", []string{"a", "b"}, 30, amounts("0", "0"), amounts("1", "2"), []float64{10, 20}},
 		{"nothing billed, no fallback: even", []string{"a", "b"}, 30, amounts("0", "0"), nil, []float64{15, 15}},
+		// The fallback is a weight, never an amount: list 0/0 with net
+		// +10/-10 must not give list costs of +10/-10.
+		{"nothing billed, fallback cancels: even", []string{"a", "b"}, 0, amounts("0", "0"), amounts("10", "-10"), []float64{0, 0}},
+		{"nothing billed, fallback cancels, total split evenly", []string{"a", "b"}, 30, amounts("0", "0"), amounts("10", "-10"), []float64{15, 15}},
 	}
 	for _, tc := range cases {
 		got := allocate(tc.total, tc.ids, tc.billed, tc.fallback)

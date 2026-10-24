@@ -116,24 +116,51 @@ func (r resourceEnterpriseProjects) split(rawID, resourceID, region, day string,
 // in another -- each keeps its own signed amount, and whatever of total they
 // do not account for is split evenly. If all are zero, the amounts carry no
 // information (BSS left them out), so the other amount's proportions are
-// used instead (fallback), and an even split only when it has none either.
+// used instead (fallback) -- only as weights, never as amounts: when they sum
+// to zero too, there is no proportion there either and total is split evenly.
 func allocate(total float64, ids []string, billed, fallback func(string) decimal.Decimal) []float64 {
 	sum, allZero := decimal.Zero, true
 	for _, id := range ids {
 		sum = sum.Add(billed(id))
 		allZero = allZero && billed(id).IsZero()
 	}
-	if allZero && fallback != nil {
-		return allocate(total, ids, fallback, nil)
+	if allZero {
+		if fallback != nil {
+			weights := decimal.Zero
+			for _, id := range ids {
+				weights = weights.Add(fallback(id))
+			}
+			if !weights.IsZero() {
+				return proportional(total, ids, fallback, weights)
+			}
+		}
+		return evenly(total, len(ids))
 	}
+	if !sum.IsZero() {
+		return proportional(total, ids, billed, sum)
+	}
+	parts := evenly(total, len(ids))
+	for i, id := range ids {
+		parts[i] += billed(id).InexactFloat64()
+	}
+	return parts
+}
+
+// proportional divides total across ids in proportion to weight, which sum
+// to the nonzero sum.
+func proportional(total float64, ids []string, weight func(string) decimal.Decimal, sum decimal.Decimal) []float64 {
 	parts := make([]float64, len(ids))
 	for i, id := range ids {
-		amount := billed(id).InexactFloat64()
-		if !sum.IsZero() {
-			parts[i] = total * amount / sum.InexactFloat64()
-		} else {
-			parts[i] = amount + total/float64(len(ids))
-		}
+		parts[i] = total * weight(id).InexactFloat64() / sum.InexactFloat64()
+	}
+	return parts
+}
+
+// evenly divides total into n equal parts.
+func evenly(total float64, n int) []float64 {
+	parts := make([]float64, n)
+	for i := range parts {
+		parts[i] = total / float64(n)
 	}
 	return parts
 }
