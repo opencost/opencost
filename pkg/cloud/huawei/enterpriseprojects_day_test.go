@@ -27,12 +27,12 @@ func TestCostIntegration_GetCloudCost_EnterpriseProjectChangesMidWindow(t *testi
 		}
 		json.NewDecoder(r.Body).Decode(&body)
 		w.Header().Set("Content-Type", "application/json")
-		if len(body.Groupby) == 2 {
+		if len(body.Groupby) > 1 && body.Groupby[1].Key == enterpriseProjectDimension {
 			// The ep-sentinel row first: a "last one wins" map would get day 22 wrong.
 			w.Write([]byte(`{"total_count": 2, "cost_data": [
-				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-sentinel-id"}],
+				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-sentinel-id"}, {"key": "REGION_CODE", "value": "la-south-2"}],
 				 "costs": [{"time_dimension_value": "2026-09-23", "amount": "4"}]},
-				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "0"}],
+				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "0"}, {"key": "REGION_CODE", "value": "la-south-2"}],
 				 "costs": [{"time_dimension_value": "2026-09-22", "amount": "4"}]}
 			]}`))
 			return
@@ -99,11 +99,11 @@ func TestCostIntegration_GetCloudCost_DaySplitAcrossEnterpriseProjects(t *testin
 		}
 		json.NewDecoder(r.Body).Decode(&body)
 		w.Header().Set("Content-Type", "application/json")
-		if len(body.Groupby) == 2 {
+		if len(body.Groupby) > 1 && body.Groupby[1].Key == enterpriseProjectDimension {
 			w.Write([]byte(`{"total_count": 2, "cost_data": [
-				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-a"}],
+				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-a"}, {"key": "REGION_CODE", "value": "la-south-2"}],
 				 "costs": [{"time_dimension_value": "2026-09-22", "amount": "10"}]},
-				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-b"}],
+				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-b"}, {"key": "REGION_CODE", "value": "la-south-2"}],
 				 "costs": [{"time_dimension_value": "2026-09-22", "amount": "14"}]}
 			]}`))
 			return
@@ -173,11 +173,11 @@ func TestCostIntegration_GetCloudCost_ZeroSumAcrossEnterpriseProjects(t *testing
 		}
 		json.NewDecoder(r.Body).Decode(&body)
 		w.Header().Set("Content-Type", "application/json")
-		if len(body.Groupby) == 2 {
+		if len(body.Groupby) > 1 && body.Groupby[1].Key == enterpriseProjectDimension {
 			w.Write([]byte(`{"total_count": 2, "cost_data": [
-				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-a"}],
+				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-a"}, {"key": "REGION_CODE", "value": "la-south-2"}],
 				 "costs": [{"time_dimension_value": "2026-09-22", "amount": "10", "official_amount": "10"}]},
-				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-b"}],
+				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + node + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "ep-b"}, {"key": "REGION_CODE", "value": "la-south-2"}],
 				 "costs": [{"time_dimension_value": "2026-09-22", "amount": "-10", "official_amount": "0"}]}
 			]}`))
 			return
@@ -277,7 +277,7 @@ func epBillingServer(t *testing.T, epRows, costRows string) {
 		}
 		json.NewDecoder(r.Body).Decode(&body)
 		w.Header().Set("Content-Type", "application/json")
-		if len(body.Groupby) == 2 {
+		if len(body.Groupby) > 1 && body.Groupby[1].Key == enterpriseProjectDimension {
 			w.Write([]byte(`{"total_count": 1, "cost_data": [` + epRows + `]}`))
 			return
 		}
@@ -292,13 +292,22 @@ func epBillingServer(t *testing.T, epRows, costRows string) {
 }
 
 func epRow(resourceID, epID, day, amount string) string {
-	return `{"dimensions": [{"key": "RESOURCE_ID", "value": "` + resourceID + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "` + epID + `"}],
+	return epRowIn("la-south-2", resourceID, epID, day, amount)
+}
+
+func epRowIn(region, resourceID, epID, day, amount string) string {
+	return `{"dimensions": [{"key": "RESOURCE_ID", "value": "` + resourceID + `"}, {"key": "ENTERPRISE_PROJECT_ID", "value": "` + epID + `"},
+		{"key": "REGION_CODE", "value": "` + region + `"}],
 		"costs": [{"time_dimension_value": "` + day + `", "amount": "` + amount + `", "official_amount": "` + amount + `"}]}`
 }
 
 func mainCostRow(resourceID, day, amount string) string {
+	return mainCostRowIn("la-south-2", resourceID, day, amount)
+}
+
+func mainCostRowIn(region, resourceID, day, amount string) string {
 	return `{"dimensions": [{"key": "RESOURCE_ID", "value": "` + resourceID + `"},
-		{"key": "CLOUD_SERVICE_TYPE", "value": "hws.service.type.obs"}, {"key": "REGION_CODE", "value": "la-south-2"}],
+		{"key": "CLOUD_SERVICE_TYPE", "value": "hws.service.type.obs"}, {"key": "REGION_CODE", "value": "` + region + `"}],
 		"costs": [{"time_dimension_value": "` + day + `", "amount": "` + amount + `", "official_amount": "` + amount + `"}]}`
 }
 
@@ -376,4 +385,19 @@ func TestCostIntegration_GetCloudCost_LatestProjectAfterAdjustment(t *testing.T)
 
 	got := netByPlatform(t, time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC))
 	assertNet(t, got, map[string]float64{"platform-b": 7, "platform-a": 0})
+}
+
+// TestCostIntegration_GetCloudCost_RegionsNotPooled covers a RESOURCE_ID
+// shared across regions -- a charge with no resource of its own -- with +$10
+// billed to ep-a in one region and -$10 to ep-b in another: each region's
+// cost row is split by its own region's amounts, so the zero-sum split is
+// not applied twice.
+func TestCostIntegration_GetCloudCost_RegionsNotPooled(t *testing.T) {
+	const charge = "obs-request-charges"
+	epBillingServer(t,
+		epRowIn("la-south-2", charge, "ep-a", "2026-09-22", "10")+","+epRowIn("la-north-2", charge, "ep-b", "2026-09-22", "-10"),
+		mainCostRowIn("la-south-2", charge, "2026-09-22", "10")+","+mainCostRowIn("la-north-2", charge, "2026-09-22", "-10"))
+
+	got := netByPlatform(t, time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC))
+	assertNet(t, got, map[string]float64{"platform-a": 10, "platform-b": -10})
 }

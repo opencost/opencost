@@ -40,9 +40,19 @@ const enterpriseProjectDimension = "ENTERPRISE_PROJECT_ID"
 // resource more than one way ("...:bucket:" and "...:bucket:null"), and
 // pooling the spellings would apply each one's amounts to every row. Only
 // latest, which picks a project rather than amounts, uses the normalized ID.
+//
+// Both are also keyed by region (see regionKey), as the main query's rows
+// are: charges with no resource of their own share one RESOURCE_ID across
+// regions, and pooling the regions would likewise apply each region's
+// amounts to every region's row.
 type resourceEnterpriseProjects struct {
-	byDay  map[string]map[string]map[string]*billedAmounts // raw RESOURCE_ID -> day -> Enterprise Project ID -> amounts
-	latest map[string]string                               // normalized resource ID -> Enterprise Project of its latest billed day
+	byDay  map[string]map[string]map[string]*billedAmounts // regionKey(raw RESOURCE_ID) -> day -> Enterprise Project ID -> amounts
+	latest map[string]string                               // regionKey(normalized resource ID) -> Enterprise Project of its latest billed day
+}
+
+// regionKey keys a resource ID by region, for resourceEnterpriseProjects.
+func regionKey(resourceID, region string) string {
+	return resourceID + "|" + region
 }
 
 // unassignedEnterpriseProject is the Enterprise Project ID under which the
@@ -70,12 +80,13 @@ type enterpriseProjectCost struct {
 // Projects it was billed to that day, each in proportion to what each was
 // billed, or, for a day with no record, gives it all to the Enterprise
 // Project of its latest billed day. rawID is RESOURCE_ID as the cost row
-// spells it, resourceID its normalized form. It returns nil when the
-// resource has no Enterprise Project record at all.
-func (r resourceEnterpriseProjects) split(rawID, resourceID, day string, net, list float64) []enterpriseProjectCost {
-	billed, ok := r.byDay[rawID][day]
+// spells it, resourceID its normalized form, and region the row's
+// REGION_CODE. It returns nil when the resource has no Enterprise Project
+// record at all in that region.
+func (r resourceEnterpriseProjects) split(rawID, resourceID, region, day string, net, list float64) []enterpriseProjectCost {
+	billed, ok := r.byDay[regionKey(rawID, region)][day]
 	if !ok || len(billed) == 0 {
-		if ep, ok := r.latest[resourceID]; ok {
+		if ep, ok := r.latest[regionKey(resourceID, region)]; ok {
 			return []enterpriseProjectCost{{id: ep, net: net, list: list}}
 		}
 		return nil
@@ -150,7 +161,9 @@ func parseCostDecimal(s *string) (decimal.Decimal, error) {
 // cost of the main query across the Enterprise Projects of its own day.
 func fetchResourceEnterpriseProjects(beginTime, endTime string) (resourceEnterpriseProjects, error) {
 	projects := resourceEnterpriseProjects{byDay: map[string]map[string]map[string]*billedAmounts{}, latest: map[string]string{}}
-	rows, err := fetchCostAnalysedBillsBy([]string{"RESOURCE_ID", enterpriseProjectDimension}, beginTime, endTime, "ORIGINAL_COST", "NET_AMOUNT")
+	// Resource, Enterprise Project and region: the three dimensions BSS
+	// allows, and the region keeps the main query's regional rows apart.
+	rows, err := fetchCostAnalysedBillsBy([]string{"RESOURCE_ID", enterpriseProjectDimension, "REGION_CODE"}, beginTime, endTime, "ORIGINAL_COST", "NET_AMOUNT")
 	if err != nil {
 		return projects, err
 	}
@@ -167,7 +180,8 @@ func fetchResourceEnterpriseProjects(beginTime, endTime string) (resourceEnterpr
 		if epID == bssNullField {
 			epID = unassignedEnterpriseProject
 		}
-		id := describeResource(rawID).ID
+		region := dimensionValue(row.Dimensions, "REGION_CODE")
+		rawKey, id := regionKey(rawID, region), regionKey(describeResource(rawID).ID, region)
 		if row.Costs == nil || len(*row.Costs) == 0 {
 			if _, ok := projects.latest[id]; !ok {
 				projects.latest[id] = epID
@@ -187,16 +201,16 @@ func fetchResourceEnterpriseProjects(beginTime, endTime string) (resourceEnterpr
 			if err != nil {
 				log.Warnf("huawei cloud: Enterprise Project %q of %s on %s has an unparsable official amount, counting it as 0: %v", epID, id, day, err)
 			}
-			if projects.byDay[rawID] == nil {
-				projects.byDay[rawID] = map[string]map[string]*billedAmounts{}
+			if projects.byDay[rawKey] == nil {
+				projects.byDay[rawKey] = map[string]map[string]*billedAmounts{}
 			}
-			if projects.byDay[rawID][day] == nil {
-				projects.byDay[rawID][day] = map[string]*billedAmounts{}
+			if projects.byDay[rawKey][day] == nil {
+				projects.byDay[rawKey][day] = map[string]*billedAmounts{}
 			}
-			amounts := projects.byDay[rawID][day][epID]
+			amounts := projects.byDay[rawKey][day][epID]
 			if amounts == nil {
 				amounts = &billedAmounts{}
-				projects.byDay[rawID][day][epID] = amounts
+				projects.byDay[rawKey][day][epID] = amounts
 			}
 			amounts.net = amounts.net.Add(net)
 			amounts.list = amounts.list.Add(list)

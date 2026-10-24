@@ -242,7 +242,7 @@ func TestCostIntegration_GetCloudCost_ResourceDetails(t *testing.T) {
 	if !slices.Equal(requestedGroupbys[0], costQueryDimensions) {
 		t.Errorf("cost query group-by = %v, want %v", requestedGroupbys[0], costQueryDimensions)
 	}
-	if want := []string{"RESOURCE_ID", enterpriseProjectDimension}; !slices.Equal(requestedGroupbys[1], want) {
+	if want := []string{"RESOURCE_ID", enterpriseProjectDimension, "REGION_CODE"}; !slices.Equal(requestedGroupbys[1], want) {
 		t.Errorf("Enterprise Project query group-by = %v, want %v", requestedGroupbys[1], want)
 	}
 

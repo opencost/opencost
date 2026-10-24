@@ -212,7 +212,7 @@ func TestCostIntegration_GetCloudCost_PriceFactorForBareResourceID(t *testing.T)
 					t.Errorf("unexpected error decoding request: %v", err)
 				}
 				w.Header().Set("Content-Type", "application/json")
-				if len(body.Groupby) == 2 && body.Groupby[1].Key == enterpriseProjectDimension {
+				if len(body.Groupby) > 1 && body.Groupby[1].Key == enterpriseProjectDimension {
 					w.Write([]byte(`{"total_count": 0, "cost_data": []}`))
 					return
 				}
@@ -276,11 +276,11 @@ func TestCostIntegration_GetCloudCost_EnterpriseProjectsAndPriceFactors(t *testi
 		}
 		w.Header().Set("Content-Type", "application/json")
 
-		if len(body.Groupby) == 2 && body.Groupby[1].Key == enterpriseProjectDimension {
+		if len(body.Groupby) > 1 && body.Groupby[1].Key == enterpriseProjectDimension {
 			w.Write([]byte(`{"total_count": 3, "cost_data": [
-				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + testRDSResourceID + `"}, {"key": "` + enterpriseProjectDimension + `", "value": "ep-prod-id"}]},
-				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + testMaaSResourceID + `"}, {"key": "` + enterpriseProjectDimension + `", "value": "0"}]},
-				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + testSimResourceID + `"}, {"key": "` + enterpriseProjectDimension + `", "value": "ep-sim-id"}]}
+				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + testRDSResourceID + `"}, {"key": "` + enterpriseProjectDimension + `", "value": "ep-prod-id"}, {"key": "REGION_CODE", "value": "la-north-2"}]},
+				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + testMaaSResourceID + `"}, {"key": "` + enterpriseProjectDimension + `", "value": "0"}, {"key": "REGION_CODE", "value": "la-north-2"}]},
+				{"dimensions": [{"key": "RESOURCE_ID", "value": "` + testSimResourceID + `"}, {"key": "` + enterpriseProjectDimension + `", "value": "ep-sim-id"}, {"key": "REGION_CODE", "value": "la-north-2"}]}
 			]}`))
 			return
 		}
@@ -371,7 +371,7 @@ func TestCostIntegration_GetCloudCost_EnterpriseProjectLookupFails(t *testing.T)
 			} `json:"groupby"`
 		}
 		json.NewDecoder(r.Body).Decode(&body)
-		if len(body.Groupby) == 2 {
+		if len(body.Groupby) > 1 && body.Groupby[1].Key == enterpriseProjectDimension {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(`{"error_code": "CBC.0100", "error_msg": "invalid parameter"}`))
 			return
