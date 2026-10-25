@@ -117,6 +117,9 @@ func TestHuawei_RefreshCustomPricing(t *testing.T) {
 	if err := h.RefreshCustomPricing(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	// The project change starts a download (with no Clientset, it queries
+	// nothing); it reads h.Config, which this test replaces below.
+	h.refreshes.Wait()
 	if h.BaseCPUPrice != "0.05" || h.BaseRAMPrice != "0.006" || h.BaseGPUPrice != "1.2" {
 		t.Fatalf("base prices not reloaded: cpu=%s ram=%s gpu=%s", h.BaseCPUPrice, h.BaseRAMPrice, h.BaseGPUPrice)
 	}
@@ -1142,53 +1145,118 @@ func (s *swappableProviderConfig) set(c *models.CustomPricing) {
 	s.customPricing = c
 }
 
+// projectBSS stands in for BSS demandPrice. It prices node-0 by the
+// request's project (proj-a at 2, proj-b at 3), reports each request's project
+// on arrived, and holds each project's requests until release(project), so a
+// test can tell which project's download published what.
+type projectBSS struct {
+	arrived chan string
+	mu      sync.Mutex
+	gates   map[string]chan struct{}
+}
+
+func newProjectBSS(t *testing.T) *projectBSS {
+	t.Helper()
+	b := &projectBSS{arrived: make(chan string, 8), gates: map[string]chan struct{}{}}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ProjectID string `json:"project_id"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		b.arrived <- body.ProjectID
+		<-b.gate(body.ProjectID)
+		amount := map[string]string{"proj-a": "2", "proj-b": "3"}[body.ProjectID]
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"product_rating_results": [{"id": "node-0", "amount": "` + amount + `"}]}`))
+	}))
+	// Cleanups run last-registered first: every gate opens before the server
+	// closes, which waits for the requests in flight.
+	t.Cleanup(server.Close)
+	t.Cleanup(b.releaseAll)
+
+	bssEndpointOverride = server.URL
+	t.Cleanup(func() { bssEndpointOverride = "" })
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+	t.Setenv(env.HuaweiProjectIDEnvVar, "")
+	return b
+}
+
+func (b *projectBSS) gate(project string) chan struct{} {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	g, ok := b.gates[project]
+	if !ok {
+		g = make(chan struct{})
+		b.gates[project] = g
+	}
+	return g
+}
+
+// release lets the requests for project through, now and from then on.
+func (b *projectBSS) release(project string) {
+	g := b.gate(project)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	select {
+	case <-g:
+	default:
+		close(g)
+	}
+}
+
+func (b *projectBSS) releaseAll() {
+	for _, project := range []string{"proj-a", "proj-b", ""} {
+		b.release(project)
+	}
+}
+
+// nodePrice returns the live price of the flavorNode("c7n.2xlarge.4") node.
+func nodePrice(h *Huawei) string {
+	h.DownloadPricingDataLock.RLock()
+	defer h.DownloadPricingDataLock.RUnlock()
+	if p := h.Pricing["la-south-2,c7n.2xlarge.4,linux"]; p != nil && p.NodeAttributes != nil {
+		return p.NodeAttributes.Price
+	}
+	return ""
+}
+
 // TestHuawei_DownloadPricingData_KeepsConfigUpdatedMeanwhile applies a config
 // update while a download waits on BSS. The update and pricing lookups must
 // not wait for the download, and the download, once it lands, must not put
 // back the rates and project ID it started from: with the same project its
 // live prices are published under the new rates; with a new project they
-// were fetched for the old one and are dropped.
+// were fetched for the old one and are dropped, and a download for the new
+// project replaces them.
 func TestHuawei_DownloadPricingData_KeepsConfigUpdatedMeanwhile(t *testing.T) {
 	cases := map[string]struct {
 		updatedProject string
-		wantPrice      string
+		wantPrice      string // once the in-flight download lands
+		wantFinal      string // once every download has landed
 	}{
-		"rates change":   {updatedProject: "proj-a", wantPrice: "2"},
-		"project change": {updatedProject: "proj-b", wantPrice: "1.0"},
+		"rates change":   {updatedProject: "proj-a", wantPrice: "2", wantFinal: "2"},
+		"project change": {updatedProject: "proj-b", wantPrice: "1.0", wantFinal: "3"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			arrived, release := make(chan struct{}, 1), make(chan struct{})
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				arrived <- struct{}{}
-				<-release
-				w.Header().Set("Content-Type", "application/json")
-				w.Write([]byte(`{"product_rating_results": [{"id": "node-0", "amount": "2"}]}`))
-			}))
-			defer server.Close()
-			var released sync.Once
-			releaseBSS := func() { released.Do(func() { close(release) }) }
-			defer releaseBSS()
-
-			bssEndpointOverride = server.URL
-			defer func() { bssEndpointOverride = "" }()
-			t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
-			t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
-			t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+			bss := newProjectBSS(t)
 
 			node := flavorNode("c7n.2xlarge.4")
 			cfg := &swappableProviderConfig{fakeProviderConfig: fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.01", RAM: "0.001", ProjectID: "proj-a"}}}
 			h := &Huawei{
 				Clientset: &clustercache.MockClusterCache{Nodes: []*clustercache.Node{node}},
 				Config:    cfg,
+				ProjectID: "proj-a",
 				Pricing: map[string]*HuaweiPricing{
 					"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Price: "1.0"}},
 				},
 			}
+			defer h.refreshes.Wait()
 
 			downloaded := make(chan error, 1)
 			go func() { downloaded <- h.DownloadPricingData() }()
-			<-arrived
+			<-bss.arrived
 
 			// The update lands while BSS has not answered yet.
 			cfg.set(&models.CustomPricing{CPU: "0.02", RAM: "0.002", ProjectID: tc.updatedProject})
@@ -1207,20 +1275,28 @@ func TestHuawei_DownloadPricingData_KeepsConfigUpdatedMeanwhile(t *testing.T) {
 				t.Fatalf("the config update or a pricing lookup waited on BSS")
 			}
 
-			releaseBSS()
+			// Only proj-a's download goes through: one for proj-b, if any,
+			// waits at BSS and cannot publish yet.
+			bss.release("proj-a")
 			if err := <-downloaded; err != nil {
 				t.Fatalf("unexpected download error: %v", err)
 			}
 			h.DownloadPricingDataLock.RLock()
-			defer h.DownloadPricingDataLock.RUnlock()
 			if h.BaseCPUPrice != "0.02" || h.BaseRAMPrice != "0.002" {
 				t.Errorf("the download put back the old rates: cpu %q ram %q", h.BaseCPUPrice, h.BaseRAMPrice)
 			}
 			if h.ProjectID != tc.updatedProject {
 				t.Errorf("the download put back project %q, want %q", h.ProjectID, tc.updatedProject)
 			}
-			if got := h.Pricing["la-south-2,c7n.2xlarge.4,linux"]; got == nil || got.NodeAttributes.Price != tc.wantPrice {
-				t.Errorf("expected the node priced at %s, got %+v", tc.wantPrice, got)
+			h.DownloadPricingDataLock.RUnlock()
+			if got := nodePrice(h); got != tc.wantPrice {
+				t.Errorf("expected the node priced at %s, got %q", tc.wantPrice, got)
+			}
+
+			bss.release("proj-b")
+			h.refreshes.Wait()
+			if got := nodePrice(h); got != tc.wantFinal {
+				t.Errorf("expected the node priced at %s once every download landed, got %q", tc.wantFinal, got)
 			}
 		})
 	}
@@ -1262,6 +1338,8 @@ func TestHuawei_UpdateConfig_ReloadsProjectID(t *testing.T) {
 	t.Setenv(env.HuaweiProjectIDEnvVar, "")
 	cfg := &lockedProviderConfig{swappableProviderConfig{fakeProviderConfig: fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.01", ProjectID: "proj-a"}}}}
 	h := &Huawei{Config: cfg, ProjectID: "proj-a"}
+	// Each project change starts a download (with no Clientset, it queries nothing).
+	defer h.refreshes.Wait()
 
 	if _, err := h.UpdateConfigFromConfigMap(map[string]string{"projectID": "proj-b"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1289,40 +1367,26 @@ func TestHuawei_UpdateConfig_ReloadsProjectID(t *testing.T) {
 // TestHuawei_DownloadPricingData_DropsResultsAfterConfigMapProjectChange
 // changes only the project ID through UpdateConfigFromConfigMap while a
 // download waits on BSS. The download must drop the prices it fetched for the
-// previous project and must not put that project ID back.
+// previous project and must not put that project ID back; the new project's
+// prices then come from a download of their own.
 func TestHuawei_DownloadPricingData_DropsResultsAfterConfigMapProjectChange(t *testing.T) {
-	t.Setenv(env.HuaweiProjectIDEnvVar, "")
-	arrived, release := make(chan struct{}, 1), make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		arrived <- struct{}{}
-		<-release
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"product_rating_results": [{"id": "node-0", "amount": "2"}]}`))
-	}))
-	defer server.Close()
-	var released sync.Once
-	releaseBSS := func() { released.Do(func() { close(release) }) }
-	defer releaseBSS()
-
-	bssEndpointOverride = server.URL
-	defer func() { bssEndpointOverride = "" }()
-	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
-	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
-	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+	bss := newProjectBSS(t)
 
 	node := flavorNode("c7n.2xlarge.4")
 	cfg := &lockedProviderConfig{swappableProviderConfig{fakeProviderConfig: fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.01", RAM: "0.001", ProjectID: "proj-a"}}}}
 	h := &Huawei{
 		Clientset: &clustercache.MockClusterCache{Nodes: []*clustercache.Node{node}},
 		Config:    cfg,
+		ProjectID: "proj-a",
 		Pricing: map[string]*HuaweiPricing{
 			"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Price: "1.0"}},
 		},
 	}
+	defer h.refreshes.Wait()
 
 	downloaded := make(chan error, 1)
 	go func() { downloaded <- h.DownloadPricingData() }()
-	<-arrived
+	<-bss.arrived
 
 	updated := make(chan error, 1)
 	go func() {
@@ -1338,16 +1402,74 @@ func TestHuawei_DownloadPricingData_DropsResultsAfterConfigMapProjectChange(t *t
 		t.Fatalf("the ConfigMap update waited on BSS")
 	}
 
-	releaseBSS()
+	bss.release("proj-a")
 	if err := <-downloaded; err != nil {
 		t.Fatalf("unexpected download error: %v", err)
 	}
 	h.DownloadPricingDataLock.RLock()
-	defer h.DownloadPricingDataLock.RUnlock()
-	if h.ProjectID != "proj-b" {
-		t.Errorf("the download put back project %q, want proj-b", h.ProjectID)
+	project := h.ProjectID
+	h.DownloadPricingDataLock.RUnlock()
+	if project != "proj-b" {
+		t.Errorf("the download put back project %q, want proj-b", project)
 	}
-	if got := h.Pricing["la-south-2,c7n.2xlarge.4,linux"]; got == nil || got.NodeAttributes.Price != "1.0" {
-		t.Errorf("expected proj-a prices dropped and the node kept at 1.0, got %+v", got)
+	if got := nodePrice(h); got != "1.0" {
+		t.Errorf("expected proj-a prices dropped and the node kept at 1.0, got %q", got)
+	}
+
+	bss.release("proj-b")
+	h.refreshes.Wait()
+	if got := nodePrice(h); got != "3" {
+		t.Errorf("expected proj-b's price 3 once its download landed, got %q", got)
+	}
+}
+
+// TestHuawei_ProjectChangeRefreshesCachedPricing covers a fully cached
+// cluster: no lookup misses the cache, so nothing else would refresh the
+// prices, and a cache-miss refresh ran just before, so the cooldown would
+// discard one. A ConfigMap update of the project ID alone must still replace
+// the previous project's prices with the new one's.
+func TestHuawei_ProjectChangeRefreshesCachedPricing(t *testing.T) {
+	bss := newProjectBSS(t)
+	bss.releaseAll()
+
+	node := flavorNode("c7n.2xlarge.4")
+	cfg := &lockedProviderConfig{swappableProviderConfig{fakeProviderConfig: fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.01", RAM: "0.001", ProjectID: "proj-a"}}}}
+	h := &Huawei{
+		Clientset: &clustercache.MockClusterCache{Nodes: []*clustercache.Node{node}},
+		Config:    cfg,
+		ProjectID: "proj-a",
+		Pricing: map[string]*HuaweiPricing{
+			"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Price: "2"}},
+		},
+	}
+	h.lastPricingRefresh.Store(time.Now().UnixNano())
+	defer h.refreshes.Wait()
+
+	if _, err := h.UpdateConfigFromConfigMap(map[string]string{"projectID": "proj-b"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	h.refreshes.Wait()
+
+	select {
+	case got := <-bss.arrived:
+		if got != "proj-b" {
+			t.Errorf("expected a demandPrice request for proj-b, got one for %q", got)
+		}
+	default:
+		t.Fatalf("expected the project change to start a download")
+	}
+	if got := nodePrice(h); got != "3" {
+		t.Errorf("expected the node repriced at proj-b's 3, got %q", got)
+	}
+
+	// The same project again starts no download.
+	if _, err := h.UpdateConfigFromConfigMap(map[string]string{"projectID": "proj-b"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	h.refreshes.Wait()
+	select {
+	case got := <-bss.arrived:
+		t.Errorf("expected no download for an unchanged project, got a request for %q", got)
+	default:
 	}
 }

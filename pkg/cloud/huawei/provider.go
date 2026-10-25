@@ -423,23 +423,42 @@ func (h *Huawei) fetchLivePricing(projectID string) (map[string]*HuaweiPricing, 
 // skipping the cluster discovery and live BSS queries DownloadPricingData does.
 // The project ID is only replaced when the env var or config sets one: the
 // metadata fallback in resolveProviderProjectID is a network call.
+//
+// When the project ID changes, the live prices in the cache belong to the
+// previous project, and lookups only refresh them on a cache miss, so a fully
+// cached cluster would keep them: a download for the new project is started
+// in the background instead.
 func (h *Huawei) RefreshCustomPricing() error {
+	projectChanged, err := h.reloadCustomPricing()
+	if err != nil {
+		return err
+	}
+	if projectChanged {
+		h.startPricingRefresh()
+	}
+	return nil
+}
+
+// reloadCustomPricing applies the config to the provider for
+// RefreshCustomPricing and reports whether the project ID changed.
+func (h *Huawei) reloadCustomPricing() (bool, error) {
 	h.DownloadPricingDataLock.Lock()
 	defer h.DownloadPricingDataLock.Unlock()
 	c, err := h.Config.GetCustomPricingData()
 	if err != nil {
-		return err
+		return false, err
 	}
 	h.configGeneration++
 	h.BaseCPUPrice = c.CPU
 	h.BaseRAMPrice = c.RAM
 	h.BaseGPUPrice = c.GPU
+	previous := h.ProjectID
 	if projectID := env.GetHuaweiProjectID(); projectID != "" {
 		h.ProjectID = projectID
 	} else if c.ProjectID != "" {
 		h.ProjectID = c.ProjectID
 	}
-	return nil
+	return h.ProjectID != previous, nil
 }
 
 // pricingRefreshCooldown bounds how often a NodePricing cache miss may trigger a
@@ -471,12 +490,30 @@ func (h *Huawei) refreshPricingInBackground() {
 	if !h.lastPricingRefresh.CompareAndSwap(last, now) {
 		return
 	}
+	h.downloadInBackground("after a pricing cache miss")
+}
 
+// startPricingRefresh starts DownloadPricingData in the background regardless
+// of pricingRefreshCooldown, for a refresh that must not be skipped. It also
+// restarts the cooldown, since the download it starts covers the cache misses
+// that would have triggered one.
+func (h *Huawei) startPricingRefresh() {
+	if h.Config == nil {
+		return
+	}
+	h.lastPricingRefresh.Store(time.Now().UnixNano())
+	h.downloadInBackground("after a project ID change")
+}
+
+// downloadInBackground runs DownloadPricingData in a goroutine tracked by
+// h.refreshes. Downloads run one at a time (h.downloads), so one started while
+// another is in flight runs once that one ends rather than being dropped.
+func (h *Huawei) downloadInBackground(reason string) {
 	h.refreshes.Add(1)
 	go func() {
 		defer h.refreshes.Done()
 		if err := h.DownloadPricingData(); err != nil {
-			log.Warnf("huawei cloud: refreshing pricing data after a pricing cache miss failed: %v", err)
+			log.Warnf("huawei cloud: refreshing pricing data %s failed: %v", reason, err)
 		}
 	}()
 }
