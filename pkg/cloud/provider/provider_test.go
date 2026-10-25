@@ -7,6 +7,7 @@ import (
 	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/storage"
+	"github.com/opencost/opencost/pkg/cloud/huawei"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/env"
@@ -349,6 +350,27 @@ func TestGetClusterPropertiesHonorsHuaweiEnvOnCCENode(t *testing.T) {
 	t.Setenv(env.CloudProviderVar, "otc")
 	if cp := getClusterProperties(node); cp.provider != opencost.OTCProvider {
 		t.Fatalf("expected provider %q, got %q", opencost.OTCProvider, cp.provider)
+	}
+}
+
+// TestNewProviderHonorsHuaweiEnvAliases covers a cluster whose nodes carry no
+// provider labels (e.g. self-managed Kubernetes on ECS): detection returns
+// DEFAULT and CLOUD_PROVIDER decides, so every Huawei alias ParseProvider
+// accepts must select the Huawei provider rather than CustomProvider.
+func TestNewProviderHonorsHuaweiEnvAliases(t *testing.T) {
+	cache := &clustercache.MockClusterCache{Nodes: []*clustercache.Node{{Labels: map[string]string{}}}}
+
+	for _, value := range []string{"Huawei", "huawei", "huaweicloud", " HuaweiCloud "} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv(env.CloudProviderVar, value)
+			p, err := NewProvider(cache, "", config.NewConfigFileManager(storage.NewMemoryStorage()))
+			if err != nil {
+				t.Fatalf("NewProvider returned error: %v", err)
+			}
+			if _, ok := p.(*huawei.Huawei); !ok {
+				t.Fatalf("expected *huawei.Huawei, got %T", p)
+			}
+		})
 	}
 }
 

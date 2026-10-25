@@ -96,6 +96,12 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 
 	// If provider is DEFAULT, check for explicitly set cloud provider from environment variable
 	envProvider := env.GetCloudProvider()
+	// Accept the Huawei Cloud aliases (e.g. "huawei", "huaweicloud") the same
+	// way the CCE detection in getClusterProperties does, rather than letting
+	// them miss the cases below and fall back to CustomProvider.
+	if opencost.ParseProvider(envProvider) == opencost.HuaweiProvider {
+		envProvider = opencost.HuaweiProvider
+	}
 	if cp.provider == "DEFAULT" && envProvider != "" {
 		log.Infof("Using cloud provider from environment variable: %s", envProvider)
 		cp.provider = envProvider
@@ -215,7 +221,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			ClusterRegion: cp.region,
 		}, nil
 	case opencost.HuaweiProvider:
-		log.Info("Found node label \"os.name\" starting with \"Huawei_Cloud\", using Huawei Cloud Provider")
+		log.Info("Using Huawei Cloud Provider")
 		return &huawei.Huawei{
 			Clientset:        cache,
 			ClusterRegion:    cp.region,
