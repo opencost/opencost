@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -160,6 +161,8 @@ func TestClusterManagementPricing_BareResourceID(t *testing.T) {
 // answers from the cache. The refresh asks BSS for CCE costs only.
 func TestClusterManagementPricing_RefreshesInBackground(t *testing.T) {
 	release := make(chan struct{})
+	var released sync.Once
+	releaseBSS := func() { released.Do(func() { close(release) }) }
 	requests := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -178,6 +181,13 @@ func TestClusterManagementPricing_RefreshesInBackground(t *testing.T) {
 
 	h := newBilledTestProvider(t)
 	h.bills.hourly = map[string]float64{testCCEClusterID: 0.35}
+	// Registered last, so it runs first: if the test fails while the refresh
+	// is held at BSS, the handler is released before the server closes (which
+	// waits for it) and the refresh lands before the endpoint is reset.
+	t.Cleanup(func() {
+		releaseBSS()
+		h.bills.refreshes.Wait()
+	})
 
 	done := make(chan float64)
 	go func() {
@@ -194,7 +204,7 @@ func TestClusterManagementPricing_RefreshesInBackground(t *testing.T) {
 	}
 
 	requestBody := <-requests
-	close(release)
+	releaseBSS()
 	h.bills.refreshes.Wait()
 	for _, want := range []string{`"filters"`, `"CLOUD_SERVICE_TYPE"`, `"hws.service.type.cce"`} {
 		if !strings.Contains(requestBody, want) {

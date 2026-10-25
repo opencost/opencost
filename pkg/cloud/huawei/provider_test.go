@@ -1033,6 +1033,12 @@ func TestHuawei_PricingLookupsDoNotWaitOnBSS(t *testing.T) {
 			"la-south-2,s7n.large.2,linux": {NodeAttributes: &HuaweiNodeAttributes{Price: "0.5"}},
 		},
 	}
+	// Runs before the deferred endpoint reset and server close: a test that
+	// fails while the refresh is held at BSS releases it and lets it land.
+	defer func() {
+		releaseBSS()
+		h.refreshes.Wait()
+	}()
 
 	answers := make(chan *models.Node, 2)
 	go func() {
@@ -1253,7 +1259,12 @@ func TestHuawei_DownloadPricingData_KeepsConfigUpdatedMeanwhile(t *testing.T) {
 					"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Price: "1.0"}},
 				},
 			}
-			defer h.refreshes.Wait()
+			// Release BSS before waiting: a test that fails while a download
+			// is held at BSS would otherwise wait on it forever.
+			defer func() {
+				bss.releaseAll()
+				h.refreshes.Wait()
+			}()
 
 			downloaded := make(chan error, 1)
 			go func() { downloaded <- h.DownloadPricingData() }()
@@ -1387,7 +1398,12 @@ func TestHuawei_DownloadPricingData_DropsResultsAfterConfigMapProjectChange(t *t
 			"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Price: "1.0"}},
 		},
 	}
-	defer h.refreshes.Wait()
+	// Release BSS before waiting: a test that fails while a download
+	// is held at BSS would otherwise wait on it forever.
+	defer func() {
+		bss.releaseAll()
+		h.refreshes.Wait()
+	}()
 
 	downloaded := make(chan error, 1)
 	go func() { downloaded <- h.DownloadPricingData() }()
@@ -1448,7 +1464,12 @@ func TestHuawei_ProjectChangeRefreshesCachedPricing(t *testing.T) {
 		},
 	}
 	h.lastPricingRefresh.Store(time.Now().UnixNano())
-	defer h.refreshes.Wait()
+	// Release BSS before waiting: a test that fails while a download
+	// is held at BSS would otherwise wait on it forever.
+	defer func() {
+		bss.releaseAll()
+		h.refreshes.Wait()
+	}()
 
 	if _, err := h.UpdateConfigFromConfigMap(map[string]string{"projectID": "proj-b"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
