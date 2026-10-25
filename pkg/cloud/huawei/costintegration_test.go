@@ -629,8 +629,9 @@ func TestCostIntegration_GetCloudCost_AmortizedCosts(t *testing.T) {
 }
 
 // TestCostIntegration_GetCloudCost_AmortizedQueryFails checks that a failed
-// amortized query does not fail the bill: the original costs stand in for the
-// amortized ones, as they did before the amortized query existed.
+// amortized query fails the window rather than reporting the original costs
+// as the amortized ones: the ingestor stores what GetCloudCost returns as
+// covered, so only an error lets it retry the window once BSS answers.
 func TestCostIntegration_GetCloudCost_AmortizedQueryFails(t *testing.T) {
 	const resource = "hws.service.type.ec2:hws.resource.type.vm:aaaa:prepaid-node"
 	amortizedBillServer(t, map[string]string{
@@ -641,17 +642,13 @@ func TestCostIntegration_GetCloudCost_AmortizedQueryFails(t *testing.T) {
 	ci := &CostIntegration{CostConfiguration: CostConfiguration{Region: "la-south-2"}}
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	ccsr, err := ci.GetCloudCost(start, start.AddDate(0, 0, 1))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatalf("expected an error when the amortized cost query fails")
 	}
-	cc := dailyCost(ccsr, resource, start)
-	if cc == nil {
-		t.Fatalf("no CloudCost for %s", resource)
+	if ccsr != nil {
+		t.Errorf("expected no result alongside the error, got %+v", ccsr)
 	}
-	if cc.NetCost.Cost != 72 || cc.AmortizedNetCost.Cost != 72 || cc.AmortizedCost.Cost != 72 {
-		t.Errorf("net/amortized net/amortized %v/%v/%v, want 72 each", cc.NetCost.Cost, cc.AmortizedNetCost.Cost, cc.AmortizedCost.Cost)
-	}
-	if got := cc.Properties.Labels[EnterpriseProjectIDLabel]; got != "ep-a" {
-		t.Errorf("Enterprise Project %q, want ep-a", got)
+	if ci.GetStatus() != cloud.FailedConnection {
+		t.Errorf("expected FailedConnection, got %v", ci.GetStatus())
 	}
 }

@@ -49,9 +49,6 @@ const (
 	// amortizedMetrics: AMORTIZED_COST amounts, for AmortizedCost and
 	// AmortizedNetCost.
 	amortizedMetrics
-	// allMetrics: ORIGINAL_COST amounts standing in for the amortized ones
-	// too, when the amortized query failed.
-	allMetrics
 )
 
 // newCloudCost builds the CloudCost for one share of a resource's daily cost,
@@ -60,14 +57,10 @@ const (
 // the same CloudCost (CloudCostSet.Insert adds them), which ends up with all
 // of its metrics.
 func (m costMetrics) newCloudCost(start, end time.Time, properties *opencost.CloudCostProperties, net, list float64) *opencost.CloudCost {
-	switch m {
-	case originalMetrics:
-		return opencost.NewCloudCost(start, end, properties, 0, list, net, 0, net, 0)
-	case amortizedMetrics:
+	if m == amortizedMetrics {
 		return opencost.NewCloudCost(start, end, properties, 0, 0, 0, net, 0, list)
-	default:
-		return opencost.NewCloudCost(start, end, properties, 0, list, net, net, net, list)
 	}
+	return opencost.NewCloudCost(start, end, properties, 0, list, net, 0, net, 0)
 }
 
 // GetCloudCost queries BSS for costs across [start, end) and returns them as a
@@ -94,14 +87,15 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		ci.setStatus(cloud.FailedConnection)
 		return nil, fmt.Errorf("getting huawei cloud cost data: %w", err)
 	}
-	// The amortized costs are reported apart from the original ones; without
-	// them, the original costs stand in for them, as they would for
-	// pay-per-use resources anyway, rather than failing the whole bill.
-	originalUse := originalMetrics
+	// The amortized costs fail the window too: the ingestor stores what this
+	// returns as covered and does not ask again, so original costs standing in
+	// for them would keep a prepaid resource's charge on its purchase day, and
+	// one prepaid before the window would lose its daily charges for good. An
+	// error leaves the window to be retried once BSS answers.
 	amortizedRows, err := fetchCostAnalysedBills(beginTime, endTime, amortizedCostType, "NET_AMOUNT")
 	if err != nil {
-		log.Warnf("huawei cloud cost: reporting original costs as the amortized ones, the amortized cost query failed: %v", err)
-		originalUse, amortizedRows = allMetrics, nil
+		ci.setStatus(cloud.FailedConnection)
+		return nil, fmt.Errorf("getting huawei cloud amortized cost data: %w", err)
 	}
 
 	ccsr, err := opencost.NewCloudCostSetRange(start, end, opencost.AccumulateOptionDay, ci.Key())
@@ -120,7 +114,7 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 	}
 
 	if len(rows) > 0 {
-		if err := ci.loadCosts(ccsr, start, beginTime, endTime, originalCostType, rows, originalUse); err != nil {
+		if err := ci.loadCosts(ccsr, start, beginTime, endTime, originalCostType, rows, originalMetrics); err != nil {
 			return nil, err
 		}
 	}
