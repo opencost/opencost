@@ -721,7 +721,17 @@ func (h *Huawei) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	defer h.DownloadPricingDataLock.RUnlock()
 
 	if h.ClusterRegion != "" {
-		if pricing, ok := h.Pricing[loadBalancerFeatures(h.ClusterRegion)]; ok && pricing.LoadBalancerAttributes != nil {
+		pricing, ok := h.Pricing[loadBalancerFeatures(h.ClusterRegion)]
+		if !ok || pricing.LoadBalancerAttributes == nil {
+			// Cache miss: BSS left the ELB out of the last download (or
+			// rejected it) while pricing the nodes and PVs, whose lookups then
+			// hit the cache and refresh nothing. Same recovery as NodePricing,
+			// so a regional rate that becomes available replaces the default.
+			h.refreshPricingInBackground()
+		} else if len(h.stalePrices) > 0 {
+			h.refreshPricingInBackground()
+		}
+		if ok && pricing.LoadBalancerAttributes != nil {
 			if cost, err := strconv.ParseFloat(pricing.LoadBalancerAttributes.Price, 64); err == nil {
 				return &models.LoadBalancer{Cost: cost}, nil
 			}

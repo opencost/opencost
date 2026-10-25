@@ -1722,3 +1722,115 @@ func TestHuawei_ProjectChangeRetriesAfterPartialResponse(t *testing.T) {
 		t.Fatalf("expected no download once every price is the new project's, got %d requests", n)
 	}
 }
+
+// TestHuawei_LoadBalancerPricing_RefreshesWhenBSSOmittedIt covers a download
+// in which BSS priced the nodes but left the ELB out: every node lookup then
+// hits the cache, so only the ELB lookup's own cache miss can schedule the
+// download that picks up its regional rate once BSS publishes it. The miss
+// answers with the default meanwhile, is rate-limited like any other, and
+// stops refreshing once the ELB is priced.
+func TestHuawei_LoadBalancerPricing_RefreshesWhenBSSOmittedIt(t *testing.T) {
+	var lbPriced atomic.Bool
+	requests := make(chan struct{}, 16)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ProductInfos []struct {
+				ID string `json:"id"`
+			} `json:"product_infos"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		requests <- struct{}{}
+		var results []string
+		for _, p := range body.ProductInfos {
+			switch {
+			case strings.HasPrefix(p.ID, "node-"):
+				results = append(results, `{"id": "`+p.ID+`", "amount": "2"}`)
+			case strings.HasPrefix(p.ID, "lb-") && lbPriced.Load():
+				results = append(results, `{"id": "`+p.ID+`", "amount": "0.08"}`)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"product_rating_results": [` + strings.Join(results, ", ") + `]}`))
+	}))
+	t.Cleanup(server.Close)
+	bssEndpointOverride = server.URL
+	t.Cleanup(func() { bssEndpointOverride = "" })
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+	node := flavorNode("c7n.2xlarge.4")
+	h := &Huawei{
+		Clientset:     &clustercache.MockClusterCache{Nodes: []*clustercache.Node{node}},
+		Config:        &fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.01", RAM: "0.001", ProjectID: "proj-a"}},
+		ClusterRegion: "la-south-2",
+	}
+	defer h.refreshes.Wait()
+	drain := func() int {
+		n := 0
+		for {
+			select {
+			case <-requests:
+				n++
+			default:
+				return n
+			}
+		}
+	}
+	lbCost := func() float64 {
+		lb, err := h.LoadBalancerPricing()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		h.refreshes.Wait()
+		return lb.Cost
+	}
+	expireCooldown := func() {
+		h.lastPricingRefresh.Store(time.Now().Add(-pricingRefreshCooldown - time.Second).UnixNano())
+	}
+
+	// The download prices the node and leaves the ELB out.
+	if err := h.DownloadPricingData(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	h.lastPricingRefresh.Store(time.Now().UnixNano())
+	drain()
+	if got := nodePrice(h); got != "2" {
+		t.Fatalf("expected the node priced at 2, got %q", got)
+	}
+	if got := lbCost(); got != 0.053 {
+		t.Fatalf("expected the default ELB price 0.053 while BSS omits it, got %v", got)
+	}
+	if n := drain(); n != 0 {
+		t.Fatalf("expected no refresh within the cooldown, got %d requests", n)
+	}
+
+	// BSS publishes the ELB rate. Past the cooldown, the ELB's cache miss
+	// refreshes -- the node lookups, all cache hits, would not.
+	lbPriced.Store(true)
+	expireCooldown()
+	if _, _, err := h.NodePricing(h.GetKey(node.Labels, node)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	h.refreshes.Wait()
+	if n := drain(); n != 0 {
+		t.Fatalf("expected a cached node lookup to refresh nothing, got %d requests", n)
+	}
+	if got := lbCost(); got != 0.053 {
+		t.Fatalf("expected the ELB lookup to answer with the default while it refreshes, got %v", got)
+	}
+	if n := drain(); n == 0 {
+		t.Fatalf("expected the ELB cache miss to refresh")
+	}
+	if got := lbCost(); got != 0.08 {
+		t.Fatalf("expected the live ELB price 0.08 after the refresh, got %v", got)
+	}
+
+	// Priced now: the ELB lookup refreshes nothing more.
+	drain()
+	expireCooldown()
+	lbCost()
+	if n := drain(); n != 0 {
+		t.Fatalf("expected no refresh once the ELB is priced, got %d requests", n)
+	}
+}
