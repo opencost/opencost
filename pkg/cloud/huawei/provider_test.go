@@ -220,6 +220,10 @@ func TestHuawei_NodePricing_UsesLivePricingWhenAvailable(t *testing.T) {
 
 func TestHuawei_PVPricing_FallsBackToStaticDefault(t *testing.T) {
 	h := &Huawei{Config: &fakeProviderConfig{customPricing: &models.CustomPricing{Storage: "0.00007"}}}
+	// The cache miss starts a background pricing refresh; wait for it so it
+	// cannot outlive this test and read package globals (metadataEndpoint,
+	// bssEndpointOverride) while a later test replaces them.
+	defer h.refreshes.Wait()
 	pv, err := h.PVPricing(&huaweiPVKey{StorageClassName: "sata"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
