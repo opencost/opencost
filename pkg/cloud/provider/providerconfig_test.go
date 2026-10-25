@@ -12,8 +12,10 @@ import (
 
 func newTestProviderConfig(t *testing.T) *ProviderConfig {
 	t.Helper()
-	t.Setenv("CONFIG_PATH", "configs")
-	return NewProviderConfig(config.NewConfigFileManager(storage.NewFileStorage(t.TempDir())), "pricing.json")
+	// Memory storage: file storage cannot write the config on Windows
+	// (WriteLocked is not implemented there), and these tests are about the
+	// copy-on-write publication, not the file.
+	return NewProviderConfig(config.NewConfigFileManager(storage.NewMemoryStorage()), "pricing.json")
 }
 
 // TestProviderConfig_UpdateIsCopyOnWrite checks that Update publishes a new
