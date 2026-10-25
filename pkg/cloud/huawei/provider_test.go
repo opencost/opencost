@@ -1338,12 +1338,15 @@ func TestHuawei_UpdateConfig_ReloadsProjectID(t *testing.T) {
 	t.Setenv(env.HuaweiProjectIDEnvVar, "")
 	cfg := &lockedProviderConfig{swappableProviderConfig{fakeProviderConfig: fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.01", ProjectID: "proj-a"}}}}
 	h := &Huawei{Config: cfg, ProjectID: "proj-a"}
-	// Each project change starts a download (with no Clientset, it queries nothing).
+	// Each project change starts a download (with no Clientset, it queries
+	// nothing), which writes h.ProjectID: every update waits for it before
+	// the fields are read.
 	defer h.refreshes.Wait()
 
 	if _, err := h.UpdateConfigFromConfigMap(map[string]string{"projectID": "proj-b"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	h.refreshes.Wait()
 	if h.ProjectID != "proj-b" || h.configGeneration != 1 {
 		t.Fatalf("ConfigMap update not reloaded: project %q, generation %d", h.ProjectID, h.configGeneration)
 	}
@@ -1351,6 +1354,7 @@ func TestHuawei_UpdateConfig_ReloadsProjectID(t *testing.T) {
 	if _, err := h.UpdateConfig(strings.NewReader(`{"projectID": "proj-c"}`), ""); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	h.refreshes.Wait()
 	if h.ProjectID != "proj-c" || h.configGeneration != 2 {
 		t.Fatalf("JSON update not reloaded: project %q, generation %d", h.ProjectID, h.configGeneration)
 	}
