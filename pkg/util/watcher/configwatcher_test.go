@@ -158,6 +158,7 @@ func TestConfigMapWatchersStop(t *testing.T){
 	}
 	cmw.Stop()
 
+	// Checking if 'stop' is not nil..
 	if cmw.stop != nil{
 		t.Errorf("Expected stop to be nil after after Stop()")
 	}
@@ -169,6 +170,8 @@ func TestConfigMapWatchersStop(t *testing.T){
 		t.Errorf("Expected stopChan to be closed..")
 	}
 
+
+	//Idempotency Check so repeated calls doesn't crash the production
 	cmw.Stop()
 
 }
