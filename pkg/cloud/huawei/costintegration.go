@@ -32,34 +32,76 @@ type CostIntegration struct {
 	status     cloud.ConnectionStatus
 }
 
+// BSS cost_type values: whether upfront and reserved charges are reported on
+// the day they were billed, or spread across the period they cover.
+const (
+	originalCostType  = "ORIGINAL_COST"
+	amortizedCostType = "AMORTIZED_COST"
+)
+
+// costMetrics says which CloudCost metrics a cost query's amounts fill.
+type costMetrics int
+
+const (
+	// originalMetrics: ORIGINAL_COST amounts, for ListCost, NetCost and
+	// InvoicedCost.
+	originalMetrics costMetrics = iota
+	// amortizedMetrics: AMORTIZED_COST amounts, for AmortizedCost and
+	// AmortizedNetCost.
+	amortizedMetrics
+	// allMetrics: ORIGINAL_COST amounts standing in for the amortized ones
+	// too, when the amortized query failed.
+	allMetrics
+)
+
+// newCloudCost builds the CloudCost for one share of a resource's daily cost,
+// with the net and list amounts in the metrics m fills and zero in the rest.
+// The two cost queries' shares of the same resource and day are loaded into
+// the same CloudCost (CloudCostSet.Insert adds them), which ends up with all
+// of its metrics.
+func (m costMetrics) newCloudCost(start, end time.Time, properties *opencost.CloudCostProperties, net, list float64) *opencost.CloudCost {
+	switch m {
+	case originalMetrics:
+		return opencost.NewCloudCost(start, end, properties, 0, list, net, 0, net, 0)
+	case amortizedMetrics:
+		return opencost.NewCloudCost(start, end, properties, 0, 0, 0, net, 0, list)
+	default:
+		return opencost.NewCloudCost(start, end, properties, 0, list, net, net, net, list)
+	}
+}
+
 // GetCloudCost queries BSS for costs across [start, end) and returns them as a
 // CloudCostSetRange, one CloudCost per resource/service/region combination per day.
 //
 // BSS's cost query separates "cost_type" (ORIGINAL_COST vs AMORTIZED_COST, i.e.
 // whether upfront/reserved charges are spread across their billing period) from
 // "amount_type" (PAYMENT_AMOUNT vs NET_AMOUNT, i.e. before or after account-level
-// discounts). A single query with cost_type=ORIGINAL_COST, amount_type=NET_AMOUNT
-// returns, per Cost entry, both the requested net original amount and the
-// account-independent list/official price (Cost.OfficialAmount), which is enough to
-// populate ListCost and NetCost accurately. AmortizedCost/AmortizedNetCost reuse
-// those same two values as an approximation (this does not yet issue the second,
-// cost_type=AMORTIZED_COST query that would let those differ from ListCost/NetCost)
-// -- the same simplification pkg/cloud/stackit's CostIntegration makes for the same
-// reason: the two cost_type variants require separate API calls.
+// discounts). A query with amount_type=NET_AMOUNT returns, per Cost entry, both
+// the net amount (Cost.Amount) and the account-independent list/official price
+// (Cost.OfficialAmount). The cost_type variants take a query each:
+// ORIGINAL_COST fills ListCost, NetCost and InvoicedCost, and AMORTIZED_COST
+// fills AmortizedCost and AmortizedNetCost, so a prepaid month is reported on
+// the day it was paid in the former and a day at a time in the latter. Each is
+// split across Enterprise Projects by that cost_type's own records, since the
+// amortized days of a prepaid resource are not in the original bill.
 func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCostSetRange, error) {
 	beginTime := start.Format(bssDateLayout)
 	// BSS's end_time is inclusive; OpenCost windows are end-exclusive.
 	endTime := end.AddDate(0, 0, -1).Format(bssDateLayout)
 
-	// The bill is account-wide and BSS authenticates with the account's
-	// credentials, so no project is resolved here: costs outside a known
-	// Enterprise Project are attributed to the account itself.
-	accountKey := accountID()
-
-	rows, err := fetchCostAnalysedBills(beginTime, endTime, "ORIGINAL_COST", "NET_AMOUNT")
+	rows, err := fetchCostAnalysedBills(beginTime, endTime, originalCostType, "NET_AMOUNT")
 	if err != nil {
 		ci.setStatus(cloud.FailedConnection)
 		return nil, fmt.Errorf("getting huawei cloud cost data: %w", err)
+	}
+	// The amortized costs are reported apart from the original ones; without
+	// them, the original costs stand in for them, as they would for
+	// pay-per-use resources anyway, rather than failing the whole bill.
+	originalUse := originalMetrics
+	amortizedRows, err := fetchCostAnalysedBills(beginTime, endTime, amortizedCostType, "NET_AMOUNT")
+	if err != nil {
+		log.Warnf("huawei cloud cost: reporting original costs as the amortized ones, the amortized cost query failed: %v", err)
+		originalUse, amortizedRows = allMetrics, nil
 	}
 
 	ccsr, err := opencost.NewCloudCostSetRange(start, end, opencost.AccumulateOptionDay, ci.Key())
@@ -67,7 +109,7 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		return nil, err
 	}
 
-	if len(rows) == 0 {
+	if len(rows) == 0 && len(amortizedRows) == 0 {
 		ci.updateStatus(func(status cloud.ConnectionStatus) cloud.ConnectionStatus {
 			if status != cloud.SuccessfulConnection {
 				return cloud.MissingData
@@ -77,11 +119,34 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 		return ccsr, nil
 	}
 
+	if len(rows) > 0 {
+		if err := ci.loadCosts(ccsr, start, beginTime, endTime, originalCostType, rows, originalUse); err != nil {
+			return nil, err
+		}
+	}
+	if len(amortizedRows) > 0 {
+		if err := ci.loadCosts(ccsr, start, beginTime, endTime, amortizedCostType, amortizedRows, amortizedMetrics); err != nil {
+			return nil, err
+		}
+	}
+
+	ci.setStatus(cloud.SuccessfulConnection)
+	return ccsr, nil
+}
+
+// loadCosts loads one cost query's rows into ccsr, split across the
+// Enterprise Projects billed for costType, into the metrics the query fills.
+func (ci *CostIntegration) loadCosts(ccsr *opencost.CloudCostSetRange, start time.Time, beginTime, endTime, costType string, rows []bssintlmodel.CostDataByDimension, metrics costMetrics) error {
+	// The bill is account-wide and BSS authenticates with the account's
+	// credentials, so no project is resolved here: costs outside a known
+	// Enterprise Project are attributed to the account itself.
+	accountKey := accountID()
+
 	// Without Enterprise Projects the bill cannot be split by platform, but it
 	// is still correct, so a failure here is not fatal.
-	enterpriseProjects, err := fetchResourceEnterpriseProjects(beginTime, endTime)
+	enterpriseProjects, err := fetchResourceEnterpriseProjects(beginTime, endTime, costType)
 	if err != nil {
-		log.Warnf("huawei cloud cost: reporting costs without Enterprise Projects, the lookup failed: %v", err)
+		log.Warnf("huawei cloud cost: reporting %s costs without Enterprise Projects, the lookup failed: %v", costType, err)
 	}
 
 	for _, row := range rows {
@@ -178,11 +243,11 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 
 			netAmount, err := parseCostAmount(item.Amount)
 			if err != nil {
-				return nil, fmt.Errorf("parsing huawei cloud cost amount: %w", err)
+				return fmt.Errorf("parsing huawei cloud cost amount: %w", err)
 			}
 			listAmount, err := parseCostAmount(item.OfficialAmount)
 			if err != nil {
-				return nil, fmt.Errorf("parsing huawei cloud official cost amount: %w", err)
+				return fmt.Errorf("parsing huawei cloud official cost amount: %w", err)
 			}
 
 			day := ""
@@ -194,24 +259,18 @@ func (ci *CostIntegration) GetCloudCost(start, end time.Time) (*opencost.CloudCo
 			// The price factor scales each project's net amount.
 			costs := enterpriseProjects.split(resourceID, resource.ID, region, day, netAmount, listAmount)
 			if len(costs) == 0 {
-				net := netAmount * priceFactor
-				ccsr.LoadCloudCost(opencost.NewCloudCost(winStart, winEnd, propertiesFor("", false), 0,
-					listAmount, net, net, net, listAmount))
+				ccsr.LoadCloudCost(metrics.newCloudCost(winStart, winEnd, propertiesFor("", false), netAmount*priceFactor, listAmount))
 				continue
 			}
 			for _, ep := range costs {
 				// A share billed to no Enterprise Project stays at the
 				// account level.
-				net := ep.net * priceFactor
 				properties := propertiesFor(ep.id, ep.id != unassignedEnterpriseProject)
-				ccsr.LoadCloudCost(opencost.NewCloudCost(winStart, winEnd, properties, 0,
-					ep.list, net, net, net, ep.list))
+				ccsr.LoadCloudCost(metrics.newCloudCost(winStart, winEnd, properties, ep.net*priceFactor, ep.list))
 			}
 		}
 	}
-
-	ci.setStatus(cloud.SuccessfulConnection)
-	return ccsr, nil
+	return nil
 }
 
 func (ci *CostIntegration) GetStatus() cloud.ConnectionStatus {

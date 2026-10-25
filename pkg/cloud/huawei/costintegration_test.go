@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -173,11 +174,13 @@ func TestDescribeResource(t *testing.T) {
 // within the three dimensions BSS allows.
 func TestCostIntegration_GetCloudCost_ResourceDetails(t *testing.T) {
 	var requestedGroupbys [][]string
+	var requestedCostTypes []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Groupby []struct {
 				Key string `json:"key"`
 			} `json:"groupby"`
+			CostType string `json:"cost_type"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Fatalf("unexpected error decoding request: %v", err)
@@ -187,6 +190,7 @@ func TestCostIntegration_GetCloudCost_ResourceDetails(t *testing.T) {
 			groupby = append(groupby, g.Key)
 		}
 		requestedGroupbys = append(requestedGroupbys, groupby)
+		requestedCostTypes = append(requestedCostTypes, body.CostType)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{
@@ -230,20 +234,30 @@ func TestCostIntegration_GetCloudCost_ResourceDetails(t *testing.T) {
 	}
 
 	// BSS rejects a group-by of more than three dimensions with CBC.0100. The
-	// costs come from one query and the Enterprise Projects from another.
-	if len(requestedGroupbys) != 2 {
-		t.Fatalf("expected the cost query and the Enterprise Project query, got %v", requestedGroupbys)
+	// costs come from one query and the Enterprise Projects from another, and
+	// each is asked for the original and then for the amortized costs.
+	if len(requestedGroupbys) != 4 {
+		t.Fatalf("expected the cost and Enterprise Project queries for both cost types, got %v", requestedGroupbys)
 	}
 	for _, groupby := range requestedGroupbys {
 		if len(groupby) > 3 {
 			t.Errorf("group-by exceeds the three dimensions BSS allows: %v", groupby)
 		}
 	}
-	if !slices.Equal(requestedGroupbys[0], costQueryDimensions) {
-		t.Errorf("cost query group-by = %v, want %v", requestedGroupbys[0], costQueryDimensions)
+	epDimensions := []string{"RESOURCE_ID", enterpriseProjectDimension, "REGION_CODE"}
+	wantQueries := []struct {
+		groupby  []string
+		costType string
+	}{
+		{costQueryDimensions, originalCostType},
+		{costQueryDimensions, amortizedCostType},
+		{epDimensions, originalCostType},
+		{epDimensions, amortizedCostType},
 	}
-	if want := []string{"RESOURCE_ID", enterpriseProjectDimension, "REGION_CODE"}; !slices.Equal(requestedGroupbys[1], want) {
-		t.Errorf("Enterprise Project query group-by = %v, want %v", requestedGroupbys[1], want)
+	for i, want := range wantQueries {
+		if !slices.Equal(requestedGroupbys[i], want.groupby) || requestedCostTypes[i] != want.costType {
+			t.Errorf("query %d: group-by %v cost_type %q, want %v %q", i, requestedGroupbys[i], requestedCostTypes[i], want.groupby, want.costType)
+		}
 	}
 
 	found := false
@@ -472,5 +486,172 @@ func TestCostIntegration_StatusIsSynchronized(t *testing.T) {
 
 	if got := ci.GetStatus(); got != cloud.MissingData {
 		t.Fatalf("expected MissingData after empty bills, got %v", got)
+	}
+}
+
+// amortizedBillServer stands in for BSS cost-analysed-bills, answering each
+// query by its cost_type and by whether it is grouped by Enterprise Project.
+// A nil body for a query answers it with a BSS error.
+func amortizedBillServer(t *testing.T, bodies map[string]string) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Groupby []struct {
+				Key string `json:"key"`
+			} `json:"groupby"`
+			CostType string `json:"cost_type"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("unexpected error decoding request: %v", err)
+		}
+		query := body.CostType
+		for _, g := range body.Groupby {
+			if g.Key == enterpriseProjectDimension {
+				query += "/EP"
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		answer, ok := bodies[query]
+		if !ok {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error_code": "CBC.0100", "error_msg": "rejected"}`))
+			return
+		}
+		w.Write([]byte(answer))
+	}))
+	t.Cleanup(server.Close)
+
+	bssEndpointOverride = server.URL
+	t.Cleanup(func() { bssEndpointOverride = "" })
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+}
+
+// billRowJSON is one cost-analysed-bills row: a resource in a region, with its
+// Enterprise Project when epID is not empty, and an amount per day.
+func billRowJSON(resourceID, epID string, amounts map[string]string) string {
+	dims := `{"key": "RESOURCE_ID", "value": "` + resourceID + `"}, `
+	if epID != "" {
+		dims += `{"key": "` + enterpriseProjectDimension + `", "value": "` + epID + `"}, `
+	} else {
+		dims += `{"key": "CLOUD_SERVICE_TYPE", "value": "hws.service.type.ec2"}, `
+	}
+	dims += `{"key": "REGION_CODE", "value": "la-south-2"}`
+	days := make([]string, 0, len(amounts))
+	for day := range amounts {
+		days = append(days, day)
+	}
+	slices.Sort(days)
+	costs := make([]string, 0, len(days))
+	for _, day := range days {
+		costs = append(costs, `{"time_dimension_value": "`+day+`", "time_measure_id": 1, "amount": "`+amounts[day]+`", "official_amount": "`+amounts[day]+`"}`)
+	}
+	return `{"dimensions": [` + dims + `], "costs": [` + strings.Join(costs, ", ") + `]}`
+}
+
+func billRowsJSON(rows ...string) string {
+	return `{"total_count": ` + strconv.Itoa(len(rows)) + `, "cost_data": [` + strings.Join(rows, ", ") + `]}`
+}
+
+// dailyCost returns the CloudCost of the resource on the day, or nil.
+func dailyCost(ccsr *opencost.CloudCostSetRange, providerID string, day time.Time) *opencost.CloudCost {
+	for _, ccs := range ccsr.CloudCostSets {
+		if !ccs.Window.Start().Equal(day) {
+			continue
+		}
+		for _, cc := range ccs.CloudCosts {
+			if cc.Properties != nil && cc.Properties.ProviderID == providerID {
+				return cc
+			}
+		}
+	}
+	return nil
+}
+
+// TestCostIntegration_GetCloudCost_AmortizedCosts covers a prepaid resource:
+// paid on its first day, the original bill has it all on that day, while the
+// amortized bill spreads it a day at a time. The original amounts fill
+// ListCost, NetCost and InvoicedCost and the amortized ones AmortizedCost and
+// AmortizedNetCost, both split across Enterprise Projects by their own
+// records. A resource prepaid before the window has amortized days only, and
+// keeps its Enterprise Project on them.
+func TestCostIntegration_GetCloudCost_AmortizedCosts(t *testing.T) {
+	const (
+		prepaid = "hws.service.type.ec2:hws.resource.type.vm:aaaa:prepaid-node"
+		earlier = "hws.service.type.ec2:hws.resource.type.vm:bbbb:earlier-node"
+	)
+	days := map[string]string{"2026-01-01": "2.40", "2026-01-02": "2.40", "2026-01-03": "2.40"}
+	amortizedBillServer(t, map[string]string{
+		originalCostType:          billRowsJSON(billRowJSON(prepaid, "", map[string]string{"2026-01-01": "72"})),
+		amortizedCostType:         billRowsJSON(billRowJSON(prepaid, "", days), billRowJSON(earlier, "", days)),
+		originalCostType + "/EP":  billRowsJSON(billRowJSON(prepaid, "ep-a", map[string]string{"2026-01-01": "72"})),
+		amortizedCostType + "/EP": billRowsJSON(billRowJSON(prepaid, "ep-a", days), billRowJSON(earlier, "ep-b", days)),
+	})
+
+	ci := &CostIntegration{CostConfiguration: CostConfiguration{Region: "la-south-2"}}
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ccsr, err := ci.GetCloudCost(start, start.AddDate(0, 0, 3))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for i := 0; i < 3; i++ {
+		day := start.AddDate(0, 0, i)
+		wantOriginal := 0.0
+		if i == 0 {
+			wantOriginal = 72
+		}
+		for _, r := range []struct {
+			id, ep   string
+			original float64
+		}{{prepaid, "ep-a", wantOriginal}, {earlier, "ep-b", 0}} {
+			cc := dailyCost(ccsr, r.id, day)
+			if cc == nil {
+				t.Fatalf("%s: no CloudCost for %s", day.Format(bssDateLayout), r.id)
+			}
+			if got := cc.Properties.Labels[EnterpriseProjectIDLabel]; got != r.ep {
+				t.Errorf("%s %s: Enterprise Project %q, want %q", day.Format(bssDateLayout), r.id, got, r.ep)
+			}
+			if cc.ListCost.Cost != r.original || cc.NetCost.Cost != r.original || cc.InvoicedCost.Cost != r.original {
+				t.Errorf("%s %s: list/net/invoiced %v/%v/%v, want %v", day.Format(bssDateLayout), r.id,
+					cc.ListCost.Cost, cc.NetCost.Cost, cc.InvoicedCost.Cost, r.original)
+			}
+			if cc.AmortizedNetCost.Cost != 2.40 || cc.AmortizedCost.Cost != 2.40 {
+				t.Errorf("%s %s: amortized net/amortized %v/%v, want 2.40", day.Format(bssDateLayout), r.id,
+					cc.AmortizedNetCost.Cost, cc.AmortizedCost.Cost)
+			}
+		}
+	}
+	if ci.GetStatus() != cloud.SuccessfulConnection {
+		t.Errorf("expected SuccessfulConnection, got %v", ci.GetStatus())
+	}
+}
+
+// TestCostIntegration_GetCloudCost_AmortizedQueryFails checks that a failed
+// amortized query does not fail the bill: the original costs stand in for the
+// amortized ones, as they did before the amortized query existed.
+func TestCostIntegration_GetCloudCost_AmortizedQueryFails(t *testing.T) {
+	const resource = "hws.service.type.ec2:hws.resource.type.vm:aaaa:prepaid-node"
+	amortizedBillServer(t, map[string]string{
+		originalCostType:         billRowsJSON(billRowJSON(resource, "", map[string]string{"2026-01-01": "72"})),
+		originalCostType + "/EP": billRowsJSON(billRowJSON(resource, "ep-a", map[string]string{"2026-01-01": "72"})),
+	})
+
+	ci := &CostIntegration{CostConfiguration: CostConfiguration{Region: "la-south-2"}}
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ccsr, err := ci.GetCloudCost(start, start.AddDate(0, 0, 1))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cc := dailyCost(ccsr, resource, start)
+	if cc == nil {
+		t.Fatalf("no CloudCost for %s", resource)
+	}
+	if cc.NetCost.Cost != 72 || cc.AmortizedNetCost.Cost != 72 || cc.AmortizedCost.Cost != 72 {
+		t.Errorf("net/amortized net/amortized %v/%v/%v, want 72 each", cc.NetCost.Cost, cc.AmortizedNetCost.Cost, cc.AmortizedCost.Cost)
+	}
+	if got := cc.Properties.Labels[EnterpriseProjectIDLabel]; got != "ep-a" {
+		t.Errorf("Enterprise Project %q, want ep-a", got)
 	}
 }

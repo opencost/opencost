@@ -179,18 +179,21 @@ func parseCostDecimal(s *string) (decimal.Decimal, error) {
 }
 
 // fetchResourceEnterpriseProjects maps every resource billed in [beginTime,
-// endTime] to its Enterprise Projects and what each was billed, per day.
+// endTime] to its Enterprise Projects and what each was billed, per day, for
+// the given BSS cost_type (ORIGINAL_COST or AMORTIZED_COST).
 //
 // It is a query of its own because BSS caps a cost query at three group-by
 // dimensions and the main query (costQueryDimensions) already uses them.
 // Grouping by resource and Enterprise Project returns one row per pair, with
 // the days that pair was billed and the amounts: that is enough to split every
-// cost of the main query across the Enterprise Projects of its own day.
-func fetchResourceEnterpriseProjects(beginTime, endTime string) (resourceEnterpriseProjects, error) {
+// cost of the main query across the Enterprise Projects of its own day. The
+// cost_type must be the main query's: an amortized charge is spread over days
+// the original bill has no record of.
+func fetchResourceEnterpriseProjects(beginTime, endTime, costType string) (resourceEnterpriseProjects, error) {
 	projects := resourceEnterpriseProjects{byDay: map[string]map[string]map[string]*billedAmounts{}, latest: map[string]string{}}
 	// Resource, Enterprise Project and region: the three dimensions BSS
 	// allows, and the region keeps the main query's regional rows apart.
-	rows, err := fetchCostAnalysedBillsBy([]string{"RESOURCE_ID", enterpriseProjectDimension, "REGION_CODE"}, beginTime, endTime, "ORIGINAL_COST", "NET_AMOUNT")
+	rows, err := fetchCostAnalysedBillsBy([]string{"RESOURCE_ID", enterpriseProjectDimension, "REGION_CODE"}, beginTime, endTime, costType, "NET_AMOUNT")
 	if err != nil {
 		return projects, err
 	}
