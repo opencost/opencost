@@ -47,6 +47,14 @@ type Huawei struct {
 	// was talking to BSS (see DownloadPricingData).
 	configGeneration uint64
 
+	// projectRefreshPending is set when the project ID changes and cleared
+	// once a download publishes live prices for it. Until then the cached
+	// prices are the previous project's, so every lookup, not only a cache
+	// miss, asks for a refresh (rate-limited like a cache miss): a failed
+	// download is retried even on a fully cached cluster. Guarded by
+	// DownloadPricingDataLock.
+	projectRefreshPending bool
+
 	// downloads serializes DownloadPricingData, so a slower download cannot
 	// publish over a newer one. Pricing lookups never wait on it.
 	downloads sync.Mutex
@@ -268,6 +276,7 @@ func (h *Huawei) DownloadPricingData() error {
 		}
 	}
 	h.Pricing = live
+	h.projectRefreshPending = false
 	return nil
 }
 
@@ -458,7 +467,11 @@ func (h *Huawei) reloadCustomPricing() (bool, error) {
 	} else if c.ProjectID != "" {
 		h.ProjectID = c.ProjectID
 	}
-	return h.ProjectID != previous, nil
+	if h.ProjectID != previous {
+		h.projectRefreshPending = true
+		return true, nil
+	}
+	return false, nil
 }
 
 // pricingRefreshCooldown bounds how often a NodePricing cache miss may trigger a
@@ -554,6 +567,11 @@ func (h *Huawei) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		// background (rate-limited, since NodePricing runs per node per
 		// cycle); this lookup falls back to the base rates meanwhile.
 		h.refreshPricingInBackground()
+	} else if h.projectRefreshPending {
+		// A cached price of the previous project: retry the download for the
+		// current one (see projectRefreshPending), answering from the cache
+		// meanwhile.
+		h.refreshPricingInBackground()
 	}
 	if !ok || pricing.NodeAttributes == nil {
 		// The unit costs are set to the base rates rather than left empty: with
@@ -601,6 +619,8 @@ func (h *Huawei) PVPricing(pvk models.PVKey) (*models.PV, error) {
 		// Cache miss: DownloadPricingData only priced the storage classes that
 		// had PVs when it ran, so a class first used later would otherwise stay
 		// on the static default until restart. Same recovery as NodePricing.
+		h.refreshPricingInBackground()
+	} else if h.projectRefreshPending {
 		h.refreshPricingInBackground()
 	}
 	if ok && pricing.PVAttributes != nil {

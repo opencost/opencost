@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1475,5 +1476,111 @@ func TestHuawei_ProjectChangeRefreshesCachedPricing(t *testing.T) {
 	case got := <-bss.arrived:
 		t.Errorf("expected no download for an unchanged project, got a request for %q", got)
 	default:
+	}
+}
+
+// TestHuawei_ProjectChangeRetriesAfterFailedDownload covers a project change
+// on a fully cached cluster whose download fails: BSS rejects the new
+// project's requests, then recovers. The previous project's prices keep being
+// served, and lookups that hit the cache -- with no cache miss and no manual
+// download -- retry the download under the cooldown until the new project's
+// prices land; after that, cache hits trigger nothing.
+func TestHuawei_ProjectChangeRetriesAfterFailedDownload(t *testing.T) {
+	t.Setenv(env.HuaweiProjectIDEnvVar, "")
+	var failing atomic.Bool
+	failing.Store(true)
+	requests := make(chan string, 16)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ProjectID string `json:"project_id"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		requests <- body.ProjectID
+		w.Header().Set("Content-Type", "application/json")
+		if failing.Load() {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"error_code": "CBC.5000", "error_msg": "unavailable"}`))
+			return
+		}
+		w.Write([]byte(`{"product_rating_results": [{"id": "node-0", "amount": "3"}]}`))
+	}))
+	t.Cleanup(server.Close)
+	bssEndpointOverride = server.URL
+	t.Cleanup(func() { bssEndpointOverride = "" })
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+	node := flavorNode("c7n.2xlarge.4")
+	key := (&Huawei{}).GetKey(node.Labels, node)
+	cfg := &lockedProviderConfig{swappableProviderConfig{fakeProviderConfig: fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.01", RAM: "0.001", ProjectID: "proj-a"}}}}
+	h := &Huawei{
+		Clientset: &clustercache.MockClusterCache{Nodes: []*clustercache.Node{node}},
+		Config:    cfg,
+		ProjectID: "proj-a",
+		Pricing: map[string]*HuaweiPricing{
+			"la-south-2,c7n.2xlarge.4,linux": {NodeAttributes: &HuaweiNodeAttributes{Price: "2"}},
+		},
+	}
+	defer h.refreshes.Wait()
+	drain := func() int {
+		n := 0
+		for {
+			select {
+			case <-requests:
+				n++
+			default:
+				return n
+			}
+		}
+	}
+	lookup := func() string {
+		n, _, err := h.NodePricing(key)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		h.refreshes.Wait()
+		return n.Cost
+	}
+	expireCooldown := func() {
+		h.lastPricingRefresh.Store(time.Now().Add(-pricingRefreshCooldown - time.Second).UnixNano())
+	}
+
+	// The project change's own download fails: the cached price stays.
+	if _, err := h.UpdateConfigFromConfigMap(map[string]string{"projectID": "proj-b"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	h.refreshes.Wait()
+	if drain() == 0 {
+		t.Fatalf("expected the project change to query BSS")
+	}
+	if got := lookup(); got != "2" {
+		t.Fatalf("expected the cached price 2 while BSS fails, got %q", got)
+	}
+	// Within the cooldown, a cache hit does not query BSS again.
+	if n := drain(); n != 0 {
+		t.Fatalf("expected no retry within the cooldown, got %d requests", n)
+	}
+
+	// BSS recovers. Once the cooldown has passed, a cache hit retries and the
+	// new project's price lands.
+	failing.Store(false)
+	expireCooldown()
+	if got := lookup(); got != "2" {
+		t.Fatalf("expected the lookup to answer from the cache while it retries, got %q", got)
+	}
+	if n := drain(); n == 0 {
+		t.Fatalf("expected a cache hit to retry the pending project refresh")
+	}
+	if got := lookup(); got != "3" {
+		t.Fatalf("expected proj-b's price 3 after the retry, got %q", got)
+	}
+
+	// The refresh is no longer pending: cache hits trigger nothing more.
+	drain()
+	expireCooldown()
+	lookup()
+	if n := drain(); n != 0 {
+		t.Fatalf("expected no download once the project's prices landed, got %d requests", n)
 	}
 }
