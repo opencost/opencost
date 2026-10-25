@@ -719,10 +719,25 @@ func (h *Huawei) ClusterInfo() (map[string]string, error) {
 }
 
 // UpdateConfigFromConfigMap applies the pricing ConfigMap to the stored
-// config. The new rates reach the provider through RefreshCustomPricing,
-// which the settings pipeline calls when the config changes.
+// config and then to the provider.
 func (h *Huawei) UpdateConfigFromConfigMap(cm map[string]string) (*models.CustomPricing, error) {
-	return h.Config.UpdateFromMap(cm)
+	return h.applyConfigUpdate(h.Config.UpdateFromMap(cm))
+}
+
+// applyConfigUpdate reloads a successfully stored config update into the
+// provider. The settings pipeline only calls RefreshCustomPricing when the
+// rates or currency change, so a change of project ID alone would otherwise
+// neither reach h.ProjectID nor advance configGeneration, and a pricing
+// download in flight would publish the previous project's prices and put its
+// project ID back.
+func (h *Huawei) applyConfigUpdate(c *models.CustomPricing, err error) (*models.CustomPricing, error) {
+	if err != nil {
+		return c, err
+	}
+	if err := h.RefreshCustomPricing(); err != nil {
+		log.Warnf("huawei cloud: config updated but not reloaded into the provider: %v", err)
+	}
+	return c, nil
 }
 
 // UpdateConfig applies a JSON object of custom pricing fields to the stored
@@ -732,7 +747,7 @@ func (h *Huawei) UpdateConfig(r io.Reader, updateType string) (*models.CustomPri
 	if err := json.NewDecoder(r).Decode(&a); err != nil {
 		return nil, err
 	}
-	return h.Config.Update(func(c *models.CustomPricing) error {
+	return h.applyConfigUpdate(h.Config.Update(func(c *models.CustomPricing) error {
 		for k, v := range a {
 			kUpper := utils.ToTitle.String(k)
 			vstr, ok := v.(string)
@@ -744,7 +759,7 @@ func (h *Huawei) UpdateConfig(r io.Reader, updateType string) (*models.CustomPri
 			}
 		}
 		return nil
-	})
+	}))
 }
 
 // The methods below satisfy models.Provider but have no Huawei Cloud

@@ -327,6 +327,13 @@ func getClusterProperties(node *clustercache.Node) clusterProperties {
 		log.Debug("using Huawei Cloud provider")
 		cp.provider = opencost.HuaweiProvider
 		cp.configFileName = "huawei.json"
+	} else if _, ok := node.Labels["cce.cloud.com/cce-nodepool"]; ok && opencost.ParseProvider(env.GetCloudProvider()) == opencost.HuaweiProvider {
+		// A Huawei Cloud CCE node whose OS image does not carry the
+		// "Huawei_Cloud" os.name prefix looks the same as an OTC one, so an
+		// explicit CLOUD_PROVIDER=huawei settles it rather than the OTC default.
+		log.Debug("using Huawei Cloud provider from environment variable for CCE node")
+		cp.provider = opencost.HuaweiProvider
+		cp.configFileName = "huawei.json"
 	} else if _, ok := node.Labels["cce.cloud.com/cce-nodepool"]; ok { // The node label "cce.cloud.com/cce-nodepool" exists
 		log.Debug("using OTC provider")
 		cp.provider = opencost.OTCProvider

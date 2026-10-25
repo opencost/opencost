@@ -9,6 +9,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/env"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -316,6 +317,38 @@ func TestGetClusterPropertiesDetectsOTC(t *testing.T) {
 	}
 	if cp.configFileName != "otc.json" {
 		t.Fatalf("expected config file otc.json, got %q", cp.configFileName)
+	}
+}
+
+// TestGetClusterPropertiesHonorsHuaweiEnvOnCCENode verifies that a CCE node
+// without the "Huawei_Cloud" os.name prefix (e.g. a custom or Ubuntu image) is
+// classified as Huawei when CLOUD_PROVIDER selects it, rather than as OTC:
+// NewProvider only consults CLOUD_PROVIDER when detection returns DEFAULT.
+func TestGetClusterPropertiesHonorsHuaweiEnvOnCCENode(t *testing.T) {
+	node := &clustercache.Node{
+		Labels: map[string]string{
+			"os.name":                    "Ubuntu_22.04_x86_64",
+			"cce.cloud.com/cce-nodepool": "cce-np",
+		},
+	}
+
+	for _, value := range []string{"Huawei", "huawei", "huaweicloud"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv(env.CloudProviderVar, value)
+			cp := getClusterProperties(node)
+			if cp.provider != opencost.HuaweiProvider {
+				t.Fatalf("expected provider %q, got %q", opencost.HuaweiProvider, cp.provider)
+			}
+			if cp.configFileName != "huawei.json" {
+				t.Fatalf("expected config file huawei.json, got %q", cp.configFileName)
+			}
+		})
+	}
+
+	// Another explicit provider leaves the OTC detection as it was.
+	t.Setenv(env.CloudProviderVar, "otc")
+	if cp := getClusterProperties(node); cp.provider != opencost.OTCProvider {
+		t.Fatalf("expected provider %q, got %q", opencost.OTCProvider, cp.provider)
 	}
 }
 
