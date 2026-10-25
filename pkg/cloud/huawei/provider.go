@@ -47,13 +47,15 @@ type Huawei struct {
 	// was talking to BSS (see DownloadPricingData).
 	configGeneration uint64
 
-	// projectRefreshPending is set when the project ID changes and cleared
-	// once a download publishes live prices for it. Until then the cached
-	// prices are the previous project's, so every lookup, not only a cache
-	// miss, asks for a refresh (rate-limited like a cache miss): a failed
-	// download is retried even on a fully cached cluster. Guarded by
-	// DownloadPricingDataLock.
-	projectRefreshPending bool
+	// stalePrices holds the pricing keys whose cached live price was fetched
+	// for a previous project ID: all of them when the project ID changes, each
+	// cleared once a download prices it for the current project. A partial
+	// BSS response keeps a previous price for what it left out, so a key can
+	// outlive the download that followed the change. While any is left, every
+	// lookup, not only a cache miss, asks for a refresh (rate-limited like a
+	// cache miss), so a failed or partial download is retried even on a fully
+	// cached cluster. Guarded by DownloadPricingDataLock.
+	stalePrices map[string]bool
 
 	// downloads serializes DownloadPricingData, so a slower download cannot
 	// publish over a newer one. Pricing lookups never wait on it.
@@ -265,8 +267,13 @@ func (h *Huawei) DownloadPricingData() error {
 	if live == nil {
 		return nil
 	}
+	// What BSS priced now is priced for the current project.
+	for features := range live {
+		delete(h.stalePrices, features)
+	}
 	// Likewise for a partial response: a product it left unpriced keeps the
-	// live price it had, rather than dropping to the static rates.
+	// live price it had, rather than dropping to the static rates -- and
+	// stays stale if that price was a previous project's.
 	for _, features := range requested {
 		if _, priced := live[features]; priced {
 			continue
@@ -276,7 +283,12 @@ func (h *Huawei) DownloadPricingData() error {
 		}
 	}
 	h.Pricing = live
-	h.projectRefreshPending = false
+	// A key no longer cached (the product left the cluster) is not stale.
+	for features := range h.stalePrices {
+		if _, ok := live[features]; !ok {
+			delete(h.stalePrices, features)
+		}
+	}
 	return nil
 }
 
@@ -467,11 +479,14 @@ func (h *Huawei) reloadCustomPricing() (bool, error) {
 	} else if c.ProjectID != "" {
 		h.ProjectID = c.ProjectID
 	}
-	if h.ProjectID != previous {
-		h.projectRefreshPending = true
-		return true, nil
+	if h.ProjectID == previous {
+		return false, nil
 	}
-	return false, nil
+	h.stalePrices = make(map[string]bool, len(h.Pricing))
+	for features := range h.Pricing {
+		h.stalePrices[features] = true
+	}
+	return true, nil
 }
 
 // pricingRefreshCooldown bounds how often a NodePricing cache miss may trigger a
@@ -567,9 +582,9 @@ func (h *Huawei) NodePricing(key models.Key) (*models.Node, models.PricingMetada
 		// background (rate-limited, since NodePricing runs per node per
 		// cycle); this lookup falls back to the base rates meanwhile.
 		h.refreshPricingInBackground()
-	} else if h.projectRefreshPending {
-		// A cached price of the previous project: retry the download for the
-		// current one (see projectRefreshPending), answering from the cache
+	} else if len(h.stalePrices) > 0 {
+		// Cached prices of a previous project are left: retry the download
+		// for the current one (see stalePrices), answering from the cache
 		// meanwhile.
 		h.refreshPricingInBackground()
 	}
@@ -620,7 +635,7 @@ func (h *Huawei) PVPricing(pvk models.PVKey) (*models.PV, error) {
 		// had PVs when it ran, so a class first used later would otherwise stay
 		// on the static default until restart. Same recovery as NodePricing.
 		h.refreshPricingInBackground()
-	} else if h.projectRefreshPending {
+	} else if len(h.stalePrices) > 0 {
 		h.refreshPricingInBackground()
 	}
 	if ok && pricing.PVAttributes != nil {

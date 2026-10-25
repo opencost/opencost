@@ -1584,3 +1584,120 @@ func TestHuawei_ProjectChangeRetriesAfterFailedDownload(t *testing.T) {
 		t.Fatalf("expected no download once the project's prices landed, got %d requests", n)
 	}
 }
+
+// TestHuawei_ProjectChangeRetriesAfterPartialResponse covers a project change
+// followed by a partial BSS response: the new project's download prices one
+// flavor and leaves the other out, which keeps the previous project's price.
+// The refresh must stay pending, retried by cache hits under the cooldown,
+// until every cached price is the new project's -- then nothing more.
+func TestHuawei_ProjectChangeRetriesAfterPartialResponse(t *testing.T) {
+	t.Setenv(env.HuaweiProjectIDEnvVar, "")
+	var mu sync.Mutex
+	priced := map[string]string{"c7n.2xlarge.4.linux": "3"}
+	requests := make(chan string, 16)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ProjectID    string `json:"project_id"`
+			ProductInfos []struct {
+				ID           string `json:"id"`
+				ResourceSpec string `json:"resource_spec"`
+			} `json:"product_infos"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		requests <- body.ProjectID
+		mu.Lock()
+		var results []string
+		for _, p := range body.ProductInfos {
+			if amount, ok := priced[p.ResourceSpec]; ok {
+				results = append(results, `{"id": "`+p.ID+`", "amount": "`+amount+`"}`)
+			}
+		}
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"product_rating_results": [` + strings.Join(results, ", ") + `]}`))
+	}))
+	t.Cleanup(server.Close)
+	bssEndpointOverride = server.URL
+	t.Cleanup(func() { bssEndpointOverride = "" })
+	t.Setenv(env.HuaweiAccessKeyIDEnvVar, "test-ak")
+	t.Setenv(env.HuaweiAccessKeySecretEnvVar, "test-sk")
+	t.Setenv(env.HuaweiDomainIDEnvVar, "test-domain")
+
+	small, large := flavorNode("c7n.2xlarge.4"), flavorNode("c7n.4xlarge.4")
+	smallKey := (&Huawei{}).GetKey(small.Labels, small)
+	largeKey := (&Huawei{}).GetKey(large.Labels, large)
+	cfg := &lockedProviderConfig{swappableProviderConfig{fakeProviderConfig: fakeProviderConfig{customPricing: &models.CustomPricing{CPU: "0.01", RAM: "0.001", ProjectID: "proj-a"}}}}
+	h := &Huawei{
+		Clientset: &clustercache.MockClusterCache{Nodes: []*clustercache.Node{small, large}},
+		Config:    cfg,
+		ProjectID: "proj-a",
+		Pricing: map[string]*HuaweiPricing{
+			smallKey.Features(): {NodeAttributes: &HuaweiNodeAttributes{Price: "2"}},
+			largeKey.Features(): {NodeAttributes: &HuaweiNodeAttributes{Price: "4"}},
+		},
+	}
+	defer h.refreshes.Wait()
+	drain := func() int {
+		n := 0
+		for {
+			select {
+			case <-requests:
+				n++
+			default:
+				return n
+			}
+		}
+	}
+	price := func(key models.Key) string {
+		n, _, err := h.NodePricing(key)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		h.refreshes.Wait()
+		return n.Cost
+	}
+	expireCooldown := func() {
+		h.lastPricingRefresh.Store(time.Now().Add(-pricingRefreshCooldown - time.Second).UnixNano())
+	}
+
+	// The project change's download prices the small flavor only.
+	if _, err := h.UpdateConfigFromConfigMap(map[string]string{"projectID": "proj-b"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	h.refreshes.Wait()
+	if drain() == 0 {
+		t.Fatalf("expected the project change to query BSS")
+	}
+	if got := price(smallKey); got != "3" {
+		t.Fatalf("expected the small flavor at proj-b's 3, got %q", got)
+	}
+	if got := price(largeKey); got != "4" {
+		t.Fatalf("expected the large flavor to keep the cached 4 BSS left out, got %q", got)
+	}
+	if n := drain(); n != 0 {
+		t.Fatalf("expected no retry within the cooldown, got %d requests", n)
+	}
+
+	// BSS prices both now. Past the cooldown, a cache hit -- even on the
+	// flavor already repriced -- retries, and the large flavor is repriced.
+	mu.Lock()
+	priced["c7n.4xlarge.4.linux"] = "5"
+	mu.Unlock()
+	expireCooldown()
+	price(smallKey)
+	if n := drain(); n == 0 {
+		t.Fatalf("expected a cache hit to retry while a previous project's price is cached")
+	}
+	if got := price(largeKey); got != "5" {
+		t.Fatalf("expected the large flavor at proj-b's 5 after the retry, got %q", got)
+	}
+
+	// Every cached price is proj-b's: cache hits trigger nothing more.
+	drain()
+	expireCooldown()
+	price(smallKey)
+	price(largeKey)
+	if n := drain(); n != 0 {
+		t.Fatalf("expected no download once every price is the new project's, got %d requests", n)
+	}
+}
