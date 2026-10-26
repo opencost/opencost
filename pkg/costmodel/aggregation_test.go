@@ -50,6 +50,56 @@ func TestParseAggregationProperties_All(t *testing.T) {
 	}
 }
 
+
+func TestParseAggregationProperties_Filters(t *testing.T){
+	input := []string{
+		"  namespace  ",      // leading & trailing spaces
+		"  label:app  ",      // label with spaces
+		"annotation:owner  ",   // annotation
+		"",                   // empty string
+		"     ",              // string with only spaces
+		"label:custom-label", //Custom label for testing..
+		"annotation:custom-annotation", //Custom label for testing..
+	}
+
+
+	//Should be the parsed result..
+	expected := []string{
+		"namespace",
+		"label:app",
+		"annotation:owner",
+		"label:custom_label",
+		"annotation:custom_annotation",
+	}
+
+	//Feeding 'input' slice to the function to see what it returns..
+	got,err:= ParseAggregationProperties(input)
+
+	//If the function throws error , it fails the test..
+	if err != nil{
+		t.Fatalf("Unexpected Error : %v",err)
+	}
+
+	//Checking if the result and expected result have the same lengths in the slice..
+	if len(got) != len(expected) {
+		t.Fatalf("expected %d items, but got %d (items: %v)", len(expected), len(got), got)
+	}
+
+
+	//Now checking for each element to be the same , if not , test FAILS..
+	for i:= range expected{
+		if got[i] != expected[i]{
+			t.Errorf("at index %d: expected %q, got %q", i, expected[i], got[i])
+		}
+	}
+
+
+
+}
+
+
+
+
 func TestResolveAccumulateOption(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -511,3 +561,7 @@ func TestComputeAllocationHandlerSummary_MissingWindow_Returns400(t *testing.T) 
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }
+
+
+
+
