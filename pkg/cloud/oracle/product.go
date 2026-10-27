@@ -9,6 +9,7 @@ import (
 )
 
 const blockVolumePartNumber = "B91961"
+const fileStoragePartNumber = "B89057"
 const loadBalancerPartNumber = "B93030"
 
 // egressT1PartNumber for egress to NA, EU, and UK
