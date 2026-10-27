@@ -16,7 +16,7 @@ type currencyConverter struct {
 
 func NewConverter(config Config) (Converter, error) {
 	if config.Provider == nil && config.APIKey == "" {
-		return nil, fmt.Errorf("API key is required")
+		return nil, fmt.Errorf("API key is required when no rate provider is set (Config.Provider is nil)")
 	}
 
 	if config.CacheTTL == 0 {
