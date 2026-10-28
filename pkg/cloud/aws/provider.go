@@ -515,7 +515,7 @@ func (aws *AWS) GetAWSAccessKey() (*AWSAccessKey, error) {
 	}
 
 	if config.AwsServiceKeyName == "" && config.AwsServiceKeySecret == "" {
-		log.DedupedInfof(1, "missing service key values for AWS cloud integration attempting to use service account integration")
+		log.DedupedDebugf(1, "missing service key values for AWS cloud integration attempting to use service account integration")
 	}
 
 	return &AWSAccessKey{AccessKeyID: config.AwsServiceKeyName, SecretAccessKey: config.AwsServiceKeySecret}, nil
@@ -1480,6 +1480,26 @@ func (aws *AWS) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	return &models.LoadBalancer{
 		Cost: hourlyCost,
 	}, nil
+}
+
+// RefreshCustomPricing reloads base price and spot label fields from config.
+// Avoids the full node/PV discovery and external AWS API calls in DownloadPricingData.
+func (aws *AWS) RefreshCustomPricing() error {
+	aws.DownloadPricingDataLock.Lock()
+	defer aws.DownloadPricingDataLock.Unlock()
+	c, err := aws.Config.GetCustomPricingData()
+	if err != nil {
+		return err
+	}
+	aws.BaseCPUPrice = c.CPU
+	aws.BaseRAMPrice = c.RAM
+	aws.BaseGPUPrice = c.GPU
+	aws.BaseSpotCPUPrice = c.SpotCPU
+	aws.BaseSpotRAMPrice = c.SpotRAM
+	aws.BaseSpotGPUPrice = c.SpotGPU
+	aws.SpotLabelName = c.SpotLabel
+	aws.SpotLabelValue = c.SpotLabelValue
+	return nil
 }
 
 // AllNodePricing returns all the billing data fetched.

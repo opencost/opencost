@@ -34,6 +34,20 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 		NodePricing:             []*pricing.NodePricing{},
 		PersistentVolumePricing: []*pricing.PersistentVolumePricing{},
 		ServicePricing:          []*pricing.ServicePricing{},
+		// EKS charges $0.10/hr per cluster for cluster management (¥0.72/hr in China)
+		ClusterPricing: []*pricing.ClusterPricing{
+			{
+				Properties: pricing.ClusterPricingProperties{
+					Provider: cloud.ProviderAWS,
+				},
+				Prices: pricing.Prices{
+					pricing.ResourceCluster: {
+						Unit:  unit.Hour,
+						Price: eksClusterManagementPrice(p.config.CurrencyCode),
+					},
+				},
+			},
+		},
 	}
 	skuToNodeKey := make(map[string]nodeKey)
 	seenNodeKeys := make(map[nodeKey]struct{})
@@ -319,4 +333,13 @@ func (p *AWSPricingSource) GetPricing() (*pricing.PricingSet, error) {
 	}
 
 	return ps, nil
+}
+
+// eksClusterManagementPrice returns the EKS cluster management hourly fee in
+// the requested currency. AWS charges $0.10/hr (USD) or ¥0.72/hr (CNY).
+func eksClusterManagementPrice(currencyCode string) float64 {
+	if strings.ToUpper(currencyCode) == "CNY" {
+		return 0.72
+	}
+	return 0.10
 }

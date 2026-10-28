@@ -76,7 +76,8 @@ otherwise the chart uses the released UI image.
 ### Deploy to a cluster
 
 Install [Helm](https://helm.sh/docs/intro/install/) and configure access to a
-Kubernetes cluster with a running Prometheus. OpenCost is deployed using the
+Kubernetes cluster. The default Prometheus data source also requires a running
+Prometheus server. OpenCost is deployed using the
 [official Helm chart](https://github.com/opencost/opencost-helm-chart); the
 standalone `kubernetes/opencost.yaml` manifest is no longer available.
 
@@ -106,6 +107,10 @@ helm upgrade --install opencost opencost/opencost \
 kubectl -n opencost port-forward service/opencost 9003:9003 9090:9090
 ```
 
+Alternatively, use the Collector data source by adding
+`--set opencost.exporter.collectorDataSource.enabled=true` and
+`--set opencost.prometheus.internal.enabled=false` to the Helm command.
+
 Open [http://localhost:9090](http://localhost:9090) to access the UI.
 You can test the server API with `curl 'http://localhost:9003/allocation?window=60m'`.
 
@@ -113,7 +118,7 @@ You can test the server API with `curl 'http://localhost:9003/allocation?window=
 
 To run locally cd into `cmd/costmodel` and `go run main.go`
 
-OpenCost requires a connection to Prometheus in order to operate so setting the environment variable `PROMETHEUS_SERVER_ENDPOINT` is required.
+With the default Prometheus data source, OpenCost requires a connection to Prometheus in order to operate so setting the environment variable `PROMETHEUS_SERVER_ENDPOINT` is required.
 In order to expose Prometheus to OpenCost it may be required to port-forward using kubectl to your Prometheus endpoint.
 
 For example:
@@ -170,14 +175,9 @@ Testing is provided by the `just test` command which runs
 
 ## Running the integration tests
 
-To run these tests:
+End-to-end tests live in [opencost-integration-tests](https://github.com/opencost/opencost-integration-tests) and run against a running OpenCost set by `OPENCOST_URL`; see its README.
 
-- Make sure you have a kubeconfig that can point to your cluster, and have permissions to create/modify a namespace called "test"
-- Connect to your the Prometheus OpenCost emits to on localhost:9003:
-  `kubectl port-forward --namespace opencost service/prometheus-server 9003:80`
-- Temporary workaround: Copy the default.json file in this project at cloud/default.json to /models/default.json on the machine your test is running on. TODO: fix this and inject the cloud/default.json path into provider.go.
-- Navigate to cost-model/test
-- Run `go test -timeout 700s` from the testing directory. The tests right now take about 10 minutes (600s) to run because they bring up and down pods and wait for Prometheus to scrape data about them.
+`INTEGRATION=true just test-integration` also runs this repo's tests that call external services, such as cloud provider APIs.
 
 ## Code Review Standards
 

@@ -3,6 +3,7 @@ package kubemodel
 import (
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/model/kubemodel"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -18,9 +19,18 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 	nodeResourceCapacitiesFuture := source.WithGroup(grp, metrics.QueryNodeResourceCapacities(start, end))
 	nodeResourcesAllocatableFuture := source.WithGroup(grp, metrics.QueryNodeResourcesAllocatable(start, end))
 
-	localStorageBytesFuture := source.WithGroup(grp, metrics.QueryKMLocalStorageBytes(start, end))
-	localStorageUsedAvgFuture := source.WithGroup(grp, metrics.QueryKMLocalStorageUsedAvg(start, end))
-	localStorageUsedMaxFuture := source.WithGroup(grp, metrics.QueryKMLocalStorageUsedMax(start, end))
+	// Cloud providers do not always charge for a node's local disk (e.g. Azure
+	// includes the OS and temp disks in the VM price), so allow opting out of
+	// collecting local storage to match the legacy assets pipeline.
+	includeLocalDisk := env.IsAssetIncludeLocalDiskCost()
+
+	var localStorageBytesFuture *source.QueryGroupFuture[source.UIDValueResult]
+	var localStorageUsedAvgFuture, localStorageUsedMaxFuture *source.QueryGroupFuture[source.NodeUIDValueResult]
+	if includeLocalDisk {
+		localStorageBytesFuture = source.WithGroup(grp, metrics.QueryKMLocalStorageBytes(start, end))
+		localStorageUsedAvgFuture = source.WithGroup(grp, metrics.QueryKMLocalStorageUsedAvg(start, end))
+		localStorageUsedMaxFuture = source.WithGroup(grp, metrics.QueryKMLocalStorageUsedMax(start, end))
+	}
 
 	nodeMap := make(map[string]*kubemodel.Node)
 
@@ -79,27 +89,29 @@ func (km *KubeModel) computeNodes(kms *kubemodel.KubeModelSet, start, end time.T
 		node.Labels = res.Labels
 	}
 
-	localStorageBytesResult, _ := localStorageBytesFuture.Await()
-	for _, res := range localStorageBytesResult {
-		node, ok := nodeMap[res.UID]
-		if ok {
-			node.FileSystem.CapacityBytes = res.Value
+	if includeLocalDisk {
+		localStorageBytesResult, _ := localStorageBytesFuture.Await()
+		for _, res := range localStorageBytesResult {
+			node, ok := nodeMap[res.UID]
+			if ok {
+				node.FileSystem.CapacityBytes = res.Value
+			}
 		}
-	}
 
-	localStorageUsedAvgResult, _ := localStorageUsedAvgFuture.Await()
-	for _, res := range localStorageUsedAvgResult {
-		node, ok := nodeMap[res.UID]
-		if ok {
-			node.FileSystem.UsageByteAvg = res.Value
+		localStorageUsedAvgResult, _ := localStorageUsedAvgFuture.Await()
+		for _, res := range localStorageUsedAvgResult {
+			node, ok := nodeMap[res.UID]
+			if ok {
+				node.FileSystem.UsageByteAvg = res.Value
+			}
 		}
-	}
 
-	localStorageUsedMaxResult, _ := localStorageUsedMaxFuture.Await()
-	for _, res := range localStorageUsedMaxResult {
-		node, ok := nodeMap[res.UID]
-		if ok {
-			node.FileSystem.UsageByteMax = res.Value
+		localStorageUsedMaxResult, _ := localStorageUsedMaxFuture.Await()
+		for _, res := range localStorageUsedMaxResult {
+			node, ok := nodeMap[res.UID]
+			if ok {
+				node.FileSystem.UsageByteMax = res.Value
+			}
 		}
 	}
 
