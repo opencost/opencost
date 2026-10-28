@@ -86,6 +86,21 @@ func (c *Calculator) calculateComputeTimeSplit(m *InferenceCost) {
 	inputFraction := m.InputProcessingTime / totalTime
 	outputFraction := 1 - inputFraction
 
+	// Prefill rarely outweighs decode: decode runs once per output token while
+	// prefill processes the prompt in a small number of batched passes. A majority
+	// share is legitimate for very short generations (long prompt, few output
+	// tokens), but it also fingerprints a unit mismatch in the timing metrics —
+	// e.g. pairing prefill seconds with summed per-request TPOT, which is
+	// seconds-per-token rather than a duration. Log it so the cause is diagnosable
+	// rather than silently producing a plausible-looking split.
+	if inputFraction > prefillDominanceWarnThreshold {
+		log.Warnf("InferenceCost: prefill time is %.1f%% of total processing time for model %s/%s "+
+			"(prefill=%.3fs decode=%.3fs). Expected for short generations; otherwise check that "+
+			"input and output timing metrics are both durations in seconds.",
+			inputFraction*100, m.Properties.ModelName, m.Properties.Namespace,
+			m.InputProcessingTime, m.OutputProcessingTime)
+	}
+
 	// Determine allocation method based on cache config.
 	// Only set prefix_caching_off when the config was successfully retrieved
 	// and explicitly indicates caching is disabled — not when the metric is absent.
