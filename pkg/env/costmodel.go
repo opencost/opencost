@@ -32,6 +32,23 @@ const (
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
 
+	HuaweiAccessKeyIDEnvVar     = "HUAWEICLOUD_ACCESS_KEY_ID"
+	HuaweiAccessKeySecretEnvVar = "HUAWEICLOUD_SECRET_ACCESS_KEY"
+	HuaweiProjectIDEnvVar       = "HUAWEICLOUD_PROJECT_ID"
+	HuaweiDomainIDEnvVar        = "HUAWEICLOUD_DOMAIN_ID"
+	HuaweiBSSRegionEnvVar       = "HUAWEICLOUD_BSS_REGION"
+	// HuaweiServiceCategoriesEnvVar points to an optional JSON file that adds to
+	// or overrides the built-in Huawei Cloud service-to-category table.
+	HuaweiServiceCategoriesEnvVar = "HUAWEICLOUD_SERVICE_CATEGORIES"
+	// HuaweiCCEClusterIDEnvVar is the ID of the CCE cluster OpenCost runs in,
+	// used to price the cluster itself from the bill.
+	HuaweiCCEClusterIDEnvVar = "HUAWEICLOUD_CCE_CLUSTER_ID"
+
+	// DefaultHuaweiBSSRegion is the international (non-mainland-China) BSS
+	// endpoint, which is what accounts outside mainland China are registered
+	// against.
+	DefaultHuaweiBSSRegion = "ap-southeast-1"
+
 	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
 	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
 	AzureLocaleEnvVar         = "AZURE_LOCALE"
@@ -193,6 +210,50 @@ func GetAlibabaAccessKeyID() string {
 // the Alibaba access key secret for authentication
 func GetAlibabaAccessKeySecret() string {
 	return env.Get(AlibabaAccessKeySecretEnvVar, "")
+}
+
+// GetHuaweiAccessKeyID returns the environment variable value for HuaweiAccessKeyIDEnvVar which represents
+// the Huawei Cloud access key (AK) for authentication
+func GetHuaweiAccessKeyID() string {
+	return env.Get(HuaweiAccessKeyIDEnvVar, "")
+}
+
+// GetHuaweiAccessKeySecret returns the environment variable value for HuaweiAccessKeySecretEnvVar which represents
+// the Huawei Cloud secret key (SK) for authentication
+func GetHuaweiAccessKeySecret() string {
+	return env.Get(HuaweiAccessKeySecretEnvVar, "")
+}
+
+// GetHuaweiProjectID returns the environment variable value for HuaweiProjectIDEnvVar, required for
+// Huawei Cloud regional service authentication (e.g. ECS, EVS)
+func GetHuaweiProjectID() string {
+	return env.Get(HuaweiProjectIDEnvVar, "")
+}
+
+// GetHuaweiDomainID returns the environment variable value for HuaweiDomainIDEnvVar, required for
+// Huawei Cloud global service authentication (e.g. BSS)
+func GetHuaweiDomainID() string {
+	return env.Get(HuaweiDomainIDEnvVar, "")
+}
+
+// GetHuaweiBSSRegion returns the environment variable value for
+// HuaweiBSSRegionEnvVar, which selects the BSS endpoint used to price
+// resources. Defaults to the international endpoint.
+func GetHuaweiBSSRegion() string {
+	return env.Get(HuaweiBSSRegionEnvVar, DefaultHuaweiBSSRegion)
+}
+
+// GetHuaweiServiceCategoriesPath returns the environment variable value for
+// HuaweiServiceCategoriesEnvVar, the path of an optional JSON file of extra
+// Huawei Cloud service categories. Empty means the built-in table alone.
+func GetHuaweiServiceCategoriesPath() string {
+	return env.Get(HuaweiServiceCategoriesEnvVar, "")
+}
+
+// GetHuaweiCCEClusterID returns the environment variable value for
+// HuaweiCCEClusterIDEnvVar, the ID of the CCE cluster OpenCost runs in.
+func GetHuaweiCCEClusterID() string {
+	return env.Get(HuaweiCCEClusterIDEnvVar, "")
 }
 
 // GetAzureOfferID returns the environment variable value for AzureOfferIDEnvVar which represents

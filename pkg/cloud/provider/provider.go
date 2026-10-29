@@ -16,6 +16,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/digitalocean"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/huawei"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
 	"github.com/opencost/opencost/pkg/cloud/otc"
@@ -95,6 +96,12 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 
 	// If provider is DEFAULT, check for explicitly set cloud provider from environment variable
 	envProvider := env.GetCloudProvider()
+	// Accept the Huawei Cloud aliases (e.g. "huawei", "huaweicloud") the same
+	// way the CCE detection in getClusterProperties does, rather than letting
+	// them miss the cases below and fall back to CustomProvider.
+	if opencost.ParseProvider(envProvider) == opencost.HuaweiProvider {
+		envProvider = opencost.HuaweiProvider
+	}
 	if cp.provider == "DEFAULT" && envProvider != "" {
 		log.Infof("Using cloud provider from environment variable: %s", envProvider)
 		cp.provider = envProvider
@@ -113,6 +120,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			cp.configFileName = "scaleway.json"
 		case opencost.OTCProvider:
 			cp.configFileName = "otc.json"
+		case opencost.HuaweiProvider:
+			cp.configFileName = "huawei.json"
 		case opencost.OVHProvider:
 			cp.configFileName = "ovh.json"
 		case opencost.STACKITProvider:
@@ -211,6 +220,14 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Config:        NewProviderConfig(config, cp.configFileName),
 			ClusterRegion: cp.region,
 		}, nil
+	case opencost.HuaweiProvider:
+		log.Info("Using Huawei Cloud Provider")
+		return &huawei.Huawei{
+			Clientset:        cache,
+			ClusterRegion:    cp.region,
+			ClusterAccountID: cp.accountID,
+			Config:           NewProviderConfig(config, cp.configFileName),
+		}, nil
 	case opencost.OVHProvider:
 		log.Info("Found node label \"node.k8s.ovh/type\", using OVH Provider")
 		return &ovh.OVH{
@@ -307,6 +324,22 @@ func getClusterProperties(node *clustercache.Node) clusterProperties {
 		log.Debug("using Oracle provider")
 		cp.provider = opencost.OracleProvider
 		cp.configFileName = "oracle.json"
+	} else if osName, ok := node.Labels["os.name"]; ok && strings.HasPrefix(osName, "Huawei_Cloud") {
+		// Huawei Cloud CCE nodes also carry the "cce.cloud.com/cce-nodepool" label
+		// checked below for OTC, since OTC (Open Telekom Cloud) runs on the same CCE
+		// technology. The "os.name" label (e.g. "Huawei_Cloud_EulerOS_2.0_x86_64") is
+		// what actually distinguishes a native Huawei Cloud cluster, so this check must
+		// run before the OTC one.
+		log.Debug("using Huawei Cloud provider")
+		cp.provider = opencost.HuaweiProvider
+		cp.configFileName = "huawei.json"
+	} else if _, ok := node.Labels["cce.cloud.com/cce-nodepool"]; ok && opencost.ParseProvider(env.GetCloudProvider()) == opencost.HuaweiProvider {
+		// A Huawei Cloud CCE node whose OS image does not carry the
+		// "Huawei_Cloud" os.name prefix looks the same as an OTC one, so an
+		// explicit CLOUD_PROVIDER=huawei settles it rather than the OTC default.
+		log.Debug("using Huawei Cloud provider from environment variable for CCE node")
+		cp.provider = opencost.HuaweiProvider
+		cp.configFileName = "huawei.json"
 	} else if _, ok := node.Labels["cce.cloud.com/cce-nodepool"]; ok { // The node label "cce.cloud.com/cce-nodepool" exists
 		log.Debug("using OTC provider")
 		cp.provider = opencost.OTCProvider
