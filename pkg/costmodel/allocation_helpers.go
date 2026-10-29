@@ -1684,7 +1684,7 @@ func applyLoadBalancersToPods(window opencost.Window, podMap map[podKey]*pod, lb
 		allocs, ok := allocsByService[sKey]
 		// if there are no allocations using the service, add its cost to the Unmounted pod for its cluster
 		if !ok {
-			pod := getUnmountedPodForCluster(window, podMap, sKey.Cluster)
+			pod := getUnmountedPodForCluster(window, podMap, sKey.Cluster, lb.interval())
 			pod.Allocations[opencost.UnmountedSuffix].LoadBalancerCost += lb.TotalCost
 			pod.Allocations[opencost.UnmountedSuffix].Properties.Services = append(pod.Allocations[opencost.UnmountedSuffix].Properties.Services, sKey.Service)
 		}
@@ -1744,7 +1744,7 @@ func applyLoadBalancersToPods(window opencost.Window, podMap map[podKey]*pod, lb
 
 		// If there was no overlap apply to Unmounted pod
 		if len(allocHours) == 0 {
-			pod := getUnmountedPodForCluster(window, podMap, sKey.Cluster)
+			pod := getUnmountedPodForCluster(window, podMap, sKey.Cluster, lb.interval())
 			pod.Allocations[opencost.UnmountedSuffix].LoadBalancerCost += lb.TotalCost
 			pod.Allocations[opencost.UnmountedSuffix].Properties.Services = append(pod.Allocations[opencost.UnmountedSuffix].Properties.Services, sKey.Service)
 		}
@@ -2342,14 +2342,30 @@ func applyPVCsToPods(window opencost.Window, podMap map[podKey]*pod, podPVCMap m
 		// Distribute pvc costs to Allocations
 		for thisPodKey, coeffComponents := range sharedPVCCostCoefficients {
 			pod, ok2 := podMap[thisPodKey]
+			unmounted := false
 			// If pod does not exist or the pod does not have any allocations
 			// get unmounted pod for cluster
 			if !ok2 || len(pod.Allocations) == 0 {
 				// Get namespace unmounted pod, as pvc will have a namespace
-				pod = getUnmountedPodForNamespace(window, podMap, pvc.Cluster, pvc.Namespace)
+				pod = getUnmountedPodForNamespace(window, podMap, pvc.Cluster, pvc.Namespace, pvc.interval())
+				unmounted = true
 			}
 			for _, alloc := range pod.Allocations {
 				s, e := pod.Start, pod.End
+				if unmounted && window.Start() != nil && window.End() != nil {
+					// The unmounted pod's Start and End are bounded by the
+					// observed interval, but its PVC cost has always been
+					// computed over the whole window. Keep that, so dollars
+					// do not change.
+					//
+					// Side effect: the allocation's Start/End span only the
+					// PVC interval while its PVC cost and byte-hours cover
+					// the whole window. Allocation.PVBytes() (JSON pvBytes,
+					// CSV export, MCP) divides byte-hours by the span, so it
+					// reads higher for this allocation (2x for a PVC that
+					// ran half the window). No dollar field is affected.
+					s, e = *window.Start(), *window.End()
+				}
 
 				minutes := e.Sub(s).Minutes()
 				hrs := minutes / 60.0
@@ -2400,7 +2416,7 @@ func applyUnmountedPVs(window opencost.Window, podMap map[podKey]*pod, pvMap map
 		if !mounted {
 
 			// a pv without a pvc will not have a namespace, so get the cluster unmounted pod
-			pod := getUnmountedPodForCluster(window, podMap, pv.Cluster)
+			pod := getUnmountedPodForCluster(window, podMap, pv.Cluster, pv.interval())
 
 			// Calculate pv Cost
 
@@ -2428,7 +2444,7 @@ func applyUnmountedPVCs(window opencost.Window, podMap map[podKey]*pod, pvcMap m
 		if !pvc.Mounted && pvc.Volume != nil {
 
 			// Get namespace unmounted pod, as pvc will have a namespace
-			pod := getUnmountedPodForNamespace(window, podMap, pvc.Cluster, pvc.Namespace)
+			pod := getUnmountedPodForNamespace(window, podMap, pvc.Cluster, pvc.Namespace, pvc.interval())
 
 			// Calculate pv Cost
 
@@ -2456,12 +2472,83 @@ func applyUnmountedPVCs(window opencost.Window, podMap map[podKey]*pod, pvcMap m
 
 /* Helper Helpers */
 
-// getUnmountedPodForCluster retrieve the unmounted pod for a cluster and create it if it does not exist
-func getUnmountedPodForCluster(window opencost.Window, podMap map[podKey]*pod, cluster string) *pod {
+// clampInterval resolves the Start and End to use for an unmounted pod, given
+// the window and the interval over which the unmounted resource was observed.
+//
+// The observed interval is clamped to the window bounds. A nil window bound
+// does not clamp that side. The window bounds are returned instead when the
+// interval is not usable: not valid, has a zero-value time, does not end after
+// it starts, does not overlap the window, or is shorter than one minute once
+// clamped. This guarantees the unmounted allocation spans at least one minute
+// whenever the window does, so per-minute divisions downstream never see zero.
+//
+// A nil window bound that has to be returned has no value, so it comes back as
+// the zero time. Callers must treat a zero time as "unset" (see widenPod).
+func clampInterval(window opencost.Window, observed observedInterval) (time.Time, time.Time) {
+	ws, we := window.Start(), window.End()
+
+	if observed.Valid && !observed.Start.IsZero() && !observed.End.IsZero() && observed.End.After(observed.Start) {
+		start, end := observed.Start, observed.End
+		if ws != nil && start.Before(*ws) {
+			start = *ws
+		}
+		if we != nil && end.After(*we) {
+			end = *we
+		}
+
+		// Also covers intervals with no overlap, where end is not after start.
+		if end.Sub(start) >= time.Minute {
+			return start, end
+		}
+	}
+
+	var start, end time.Time
+	if ws != nil {
+		start = *ws
+	}
+	if we != nil {
+		end = *we
+	}
+	return start, end
+}
+
+// widenPod expands the pod, and its unmounted allocation, to cover [start, end]:
+// the earliest start and the latest end win, so the result does not depend on
+// the order in which resources are applied. A zero time is "unset": it is never
+// adopted from the arguments, and is replaced when already on the pod.
+func widenPod(p *pod, start, end time.Time) {
+	if p == nil {
+		return
+	}
+
+	p.Start, p.End = widenSpan(p.Start, p.End, start, end)
+
+	if alloc, ok := p.Allocations[opencost.UnmountedSuffix]; ok && alloc != nil {
+		alloc.Start, alloc.End = widenSpan(alloc.Start, alloc.End, start, end)
+	}
+}
+
+// widenSpan returns [curStart, curEnd] expanded to cover [start, end], ignoring zero times.
+func widenSpan(curStart, curEnd, start, end time.Time) (time.Time, time.Time) {
+	if !start.IsZero() && (curStart.IsZero() || start.Before(curStart)) {
+		curStart = start
+	}
+	if !end.IsZero() && (curEnd.IsZero() || end.After(curEnd)) {
+		curEnd = end
+	}
+	return curStart, curEnd
+}
+
+// getUnmountedPodForCluster retrieve the unmounted pod for a cluster and create it if it does not exist.
+// The pod spans the given observed interval, clamped to the window, or the whole window
+// if the interval is unusable (see clampInterval). An existing pod is widened to cover it.
+func getUnmountedPodForCluster(window opencost.Window, podMap map[podKey]*pod, cluster string, observed observedInterval) *pod {
 	container := opencost.UnmountedSuffix
 	podName := opencost.UnmountedSuffix
 	namespace := opencost.UnmountedSuffix
 	node := ""
+
+	start, end := clampInterval(window, observed)
 
 	thisPodKey := getUnmountedPodKey(cluster)
 	// Initialize pod and container if they do not already exist
@@ -2469,8 +2556,8 @@ func getUnmountedPodForCluster(window opencost.Window, podMap map[podKey]*pod, c
 	if !ok {
 		thisPod = &pod{
 			Window:      window.Clone(),
-			Start:       *window.Start(),
-			End:         *window.End(),
+			Start:       start,
+			End:         end,
 			Key:         thisPodKey,
 			Allocations: map[string]*opencost.Allocation{},
 		}
@@ -2485,16 +2572,20 @@ func getUnmountedPodForCluster(window opencost.Window, podMap map[podKey]*pod, c
 		thisPod.Node = node
 
 		podMap[thisPodKey] = thisPod
+	} else {
+		widenPod(thisPod, start, end)
 	}
 	return thisPod
 }
 
 // getUnmountedPodForNamespace is as getUnmountedPodForCluster, but keys allocation property pod/namespace field off namespace
 // This creates or adds allocations to an unmounted pod in the specified namespace, rather than in __unmounted__
-func getUnmountedPodForNamespace(window opencost.Window, podMap map[podKey]*pod, cluster string, namespace string) *pod {
+func getUnmountedPodForNamespace(window opencost.Window, podMap map[podKey]*pod, cluster string, namespace string, observed observedInterval) *pod {
 	container := opencost.UnmountedSuffix
 	podName := fmt.Sprintf("%s-unmounted-pvcs", namespace)
 	node := ""
+
+	start, end := clampInterval(window, observed)
 
 	thisPodKey := newPodKey(cluster, namespace, podName)
 	// Initialize pod and container if they do not already exist
@@ -2502,8 +2593,8 @@ func getUnmountedPodForNamespace(window opencost.Window, podMap map[podKey]*pod,
 	if !ok {
 		thisPod = &pod{
 			Window:      window.Clone(),
-			Start:       *window.Start(),
-			End:         *window.End(),
+			Start:       start,
+			End:         end,
 			Key:         thisPodKey,
 			Allocations: map[string]*opencost.Allocation{},
 		}
@@ -2518,6 +2609,8 @@ func getUnmountedPodForNamespace(window opencost.Window, podMap map[podKey]*pod,
 		thisPod.Node = node
 
 		podMap[thisPodKey] = thisPod
+	} else {
+		widenPod(thisPod, start, end)
 	}
 	return thisPod
 }
