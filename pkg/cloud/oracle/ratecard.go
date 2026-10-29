@@ -157,11 +157,14 @@ func (rcs *RateCardStore) ForKey(key models.Key, defaultPricing DefaultPricing) 
 			vcpuFloat /= 2
 			vcpuCost = fmt.Sprintf("%f", vcpuFloat)
 		}
+		// The defaults are unit prices, so they go in the *Cost fields like the
+		// rate card prices below. RAM is a size and GPU is a count; the cost
+		// model fills both in from the node itself.
 		node = &models.Node{
 			Cost:     fmt.Sprintf("%f", totalCost),
 			VCPUCost: vcpuCost,
-			RAM:      defaultPricing.Memory,
-			GPU:      defaultPricing.GPU,
+			RAMCost:  defaultPricing.Memory,
+			GPUCost:  defaultPricing.GPU,
 		}
 	} else {
 		ocpuPrice := rcs.prices[product.OCPU].UnitPrice * cpuPriceMultiplier

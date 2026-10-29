@@ -69,6 +69,31 @@ func TestRCSForKey(t *testing.T) {
 	}
 }
 
+// An unknown shape falls back to the default prices. They are unit prices, so
+// they must go in the *Cost fields and not in the RAM (bytes) and GPU (count)
+// fields, otherwise GPU-less nodes are reported with GPUs and the cost model
+// spreads a flat node price over every node regardless of its size.
+func TestRCSForKey_UnknownShapeDefaultPricing(t *testing.T) {
+	rcs, server := testSetupRateCardStore(t)
+	defer server.Close()
+
+	node, _, err := rcs.ForKey(&oracleKey{
+		instanceType: "VM.Standard.E2.1",
+		labels:       make(map[string]string),
+	}, DefaultPricing{
+		OCPU:   "0.2",
+		Memory: "0.1",
+		GPU:    "0.3",
+	})
+	require.NoError(t, err)
+
+	assert.Empty(t, node.GPU, "GPU is a count and must not be set to a price")
+	assert.Empty(t, node.RAM, "RAM is a size and must not be set to a price")
+	assertFloatStrings(t, "0.1", node.VCPUCost, 0.0001)
+	assertFloatStrings(t, "0.1", node.RAMCost, 0.0001)
+	assertFloatStrings(t, "0.3", node.GPUCost, 0.0001)
+}
+
 func TestRCSForKey_KarpenterFlexShape(t *testing.T) {
 	rcs, server := testSetupRateCardStore(t)
 	defer server.Close()
