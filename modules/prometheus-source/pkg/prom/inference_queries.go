@@ -74,23 +74,14 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceInputProcessingTime(start, en
 }
 
 // QueryInferenceOutputProcessingTime implements MetricsQuerier.QueryInferenceOutputProcessingTime
-//
-// Uses vllm:request_decode_time_seconds_sum — total seconds spent in the DECODE
-// phase — so it is commensurable with the PREFILL seconds returned by
-// QueryInferenceInputProcessingTime.
-//
-// Do not substitute vllm:request_time_per_output_token_seconds_sum here. That
-// histogram observes each request's *mean* time per output token, so its _sum is
-// a sum of per-request averages in seconds-per-token, not a duration. Adding it
-// to prefill seconds skews the compute-time split by roughly the mean output
-// tokens per request, and worst for long generations (more output tokens drives
-// TPOT down while total decode time goes up).
 func (pds *PrometheusMetricsQuerier) QueryInferenceOutputProcessingTime(start, end time.Time) *source.Future[source.InferenceProcessingTimeResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
 
 	resultsChan := make(source.QueryResultsChan, 1)
 
 	go func() {
+		// DECODE-phase seconds. NOT request_time_per_output_token_seconds_sum, which
+		// sums per-request mean seconds-per-token rather than a duration.
 		values, err := queryCounterDelta(ctx, "vllm:request_decode_time_seconds_sum", start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
