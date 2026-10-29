@@ -338,7 +338,7 @@ OpenCost uses **compute-time based allocation** by default:
 
 1. Collects cumulative processing times from [vLLM](https://vllm.ai/):
    - `vllm:request_prefill_time_seconds_sum` — total time spent on input (prefill)
-   - `vllm:request_time_per_output_token_seconds_sum` — total time spent on output (decode)
+   - `vllm:request_decode_time_seconds_sum` — total time spent on output (decode)
 2. Allocates infrastructure cost proportionally: `InputCost = TotalCost × (PrefillTime / TotalTime)`
 3. Calculates per-million rates using `PromptTokens` for input (all delivered prompt tokens) and `GenerationTokens` for output
 
@@ -381,14 +381,14 @@ Cache savings:        6.7% of prompt tokens served from KV cache
 | `vllm:prompt_tokens_total` | Token counts, blended cost rate |
 | `vllm:generation_tokens_total` | Token counts, blended cost rate |
 | `vllm:request_prefill_time_seconds_sum` | Compute-time allocation (input/output split) |
-| `vllm:request_time_per_output_token_seconds_sum` | Compute-time allocation (input/output split) |
+| `vllm:request_decode_time_seconds_sum` | Compute-time allocation (input/output split) |
 | `vllm:prefix_cache_hits_total` | `cacheSavingsFraction` (token-level counter; optional) |
 | `vllm:cache_config_info` | `prefix_caching_off` detection (from `enable_prefix_caching` label; optional) |
 
 All metrics must carry `model_name` and `namespace` labels. Verify availability:
 
 ```bash
-kubectl exec -n <namespace> <vllm-pod> -- curl -s localhost:8000/metrics | grep -E "prompt_tokens|generation_tokens|prefill_time|output_token"
+kubectl exec -n <namespace> <vllm-pod> -- curl -s localhost:8000/metrics | grep -E "prompt_tokens|generation_tokens|prefill_time|decode_time"
 ```
 
 ## Troubleshooting
