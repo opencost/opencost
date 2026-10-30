@@ -35,12 +35,12 @@ Dependencies:
 2. [just](https://github.com/casey/just) (if you don't want to install it , Just read the `justfile` and run the commands manually)
 3. Multi-arch `buildx` builders set up via https://github.com/tonistiigi/binfmt
 4. `manifest-tool` via https://github.com/estesp/manifest-tool
-5. `npm` (if you want to build the UI)
 
 ### Build the backend
 
-1. `just build "<repo>/opencost:<tag>"`
-2. Deploy it with the [Helm chart](https://github.com/opencost/opencost-helm-chart), setting `opencost.exporter.image.fullImageName=<repo>/opencost:<tag>` (see below)
+Run `just build "<registry>/<repo>/opencost:<tag>" "<version>"` to build and push
+the backend image. Use a registry that your Kubernetes cluster can pull from.
+Deploy this image using the Helm values described below.
 
 ### Using Podman
 
@@ -67,18 +67,52 @@ This will:
 > **Note:** make sure you are logged in to your registry (`podman login <registry>`) before running the build.
 
 ### Build the frontend
-The UI is built from [opencost/opencost-ui](https://github.com/opencost/opencost-ui).
+
+The UI is maintained in the [opencost-ui repository](https://github.com/opencost/opencost-ui).
+Follow its build instructions if your change also requires a custom UI image.
+Set `opencost.ui.image.fullImageName` in the Helm values below to deploy that image;
+otherwise the chart uses the released UI image.
 
 ### Deploy to a cluster
 
-1. `kubectl create namespace opencost`
-2. `helm install opencost opencost --repo https://opencost.github.io/opencost-helm-chart --namespace opencost --set opencost.exporter.image.fullImageName=<repo>/opencost:<tag>`
-3. `kubectl -n opencost port-forward service/opencost 9090 9003`
+Install [Helm](https://helm.sh/docs/intro/install/) and configure access to a
+Kubernetes cluster. The default Prometheus data source also requires a running
+Prometheus server. OpenCost is deployed using the
+[official Helm chart](https://github.com/opencost/opencost-helm-chart); the
+standalone `kubernetes/opencost.yaml` manifest is no longer available.
 
-To test, build the OpenCost containers and then push them to a Kubernetes cluster with a running Prometheus, or with the Collector data source enabled (`opencost.exporter.collectorDataSource.enabled=true`).
+Create a `dev-values.yaml` file with your published backend image and the service
+name and namespace of your Prometheus server:
 
-To confirm that the server and UI are running, you can hit [http://localhost:9090](http://localhost:9090) to access the OpenCost UI.
-You can test the server API with `curl http://localhost:9003/allocation/compute -d window=60m -G`.
+```yaml
+opencost:
+  exporter:
+    image:
+      fullImageName: registry.example.com/your-project/opencost:dev
+  prometheus:
+    internal:
+      enabled: true
+      serviceName: prometheus-server
+      namespaceName: prometheus-system
+      port: 80
+```
+
+Then install or update OpenCost and forward the API and UI ports:
+
+```bash
+helm repo add opencost https://opencost.github.io/opencost-helm-chart
+helm repo update
+helm upgrade --install opencost opencost/opencost \
+  --namespace opencost --create-namespace --values dev-values.yaml
+kubectl -n opencost port-forward service/opencost 9003:9003 9090:9090
+```
+
+Alternatively, use the Collector data source by adding
+`--set opencost.exporter.collectorDataSource.enabled=true` and
+`--set opencost.prometheus.internal.enabled=false` to the Helm command.
+
+Open [http://localhost:9090](http://localhost:9090) to access the UI.
+You can test the server API with `curl 'http://localhost:9003/allocation?window=60m'`.
 
 ## Running locally
 
