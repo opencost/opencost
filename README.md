@@ -287,7 +287,7 @@ We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for informati
 
 ## Community
 
-If you need any support or have any questions on contributing to the project, you can reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
+If you need any support or have any questions on contributing to the project, you can reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-community-meeting-cncf) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
 
 ## FAQ
 
