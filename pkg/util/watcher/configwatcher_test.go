@@ -144,3 +144,35 @@ func TestConfigMapWatcherWithAdd(t *testing.T) {
 		t.Errorf("Failed to run configmap handler for 'third'\n")
 	}
 }
+
+
+// TestConfigMapWatchersStop verifies that Stop() cleanly shuts down the watcher:
+// 1. Safely handles a nil stop channel without panicking.
+// 2. Closes an active stop channel and clears the reference to nil.
+// 3. Is idempotent (calling Stop multiple times does not panic on a closed channel).
+func TestConfigMapWatchersStop(t *testing.T){
+	// Test calling Stop on a nil stop channel (should not panic)
+	stopChan:= make(chan struct{})
+	cmw := &ConfigMapWatchers{
+		stop: stopChan,
+	}
+	cmw.Stop()
+
+	// Checking if 'stop' is not nil..
+	if cmw.stop != nil{
+		t.Errorf("Expected stop to be nil after after Stop()")
+	}
+
+	select{
+	case <- stopChan:
+		//Successfull ! .. The channel was closed.
+	default:
+		t.Errorf("Expected stopChan to be closed..")
+	}
+
+
+	//Idempotency Check so repeated calls doesn't crash the production
+	cmw.Stop()
+
+}
+
