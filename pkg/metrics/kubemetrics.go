@@ -13,6 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/validation"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 )
 
 //--------------------------------------------------------------------------
@@ -188,8 +189,9 @@ func getPersistentVolumeClaimClass(claim *clustercache.PersistentVolumeClaim) st
 
 // toResourceUnitValue accepts a resource name and quantity and returns the sanitized resource, the unit, and the value in the units.
 // Returns an empty string for resource and unit if there was a failure.
+
 func toResourceUnitValue(resourceName v1.ResourceName, quantity resource.Quantity) (resource string, unit string, value float64) {
-	resource = resourceName.String()
+	resource = promutil.SanitizeLabelName(resourceName.String())
 
 	switch resourceName {
 	case v1.ResourceCPU:

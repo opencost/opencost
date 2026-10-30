@@ -1595,7 +1595,7 @@ func TestToResourceUnitValue(t *testing.T) {
 			name:         "ephemeral storage is reported in bytes",
 			resourceName: v1.ResourceEphemeralStorage,
 			quantity:     resource.MustParse("3Ki"),
-			wantResource: "ephemeral-storage",
+			wantResource: "ephemeral_storage",
 			wantUnit:     "byte",
 			wantValue:    3072,
 		},
@@ -1608,31 +1608,28 @@ func TestToResourceUnitValue(t *testing.T) {
 			wantValue:    10,
 		},
 		{
-			// Regression guard: the resource name is no longer sanitized, so the
-			// hyphen and case are preserved verbatim ("hugepages-2Mi", not
-			// "hugepages_2Mi").
-			name:         "huge pages keep their raw name and are bytes",
+			// Resource names are sanitized to valid Prometheus label values matching KSM conventions.
+			name:         "huge pages are sanitized and reported in bytes",
 			resourceName: v1.ResourceName(v1.ResourceHugePagesPrefix + "2Mi"),
 			quantity:     resource.MustParse("4Ki"),
-			wantResource: "hugepages-2Mi",
+			wantResource: "hugepages_2Mi",
 			wantUnit:     "byte",
 			wantValue:    4096,
 		},
 		{
-			// Regression guard: extended resource names keep '.' and '/'
-			// ("nvidia.com/gpu", not "nvidia_com_gpu").
-			name:         "extended resource keeps dotted slashed name and is integer",
+			// Resource names are sanitized to valid Prometheus label values matching KSM conventions.
+			name:         "extended resource is sanitized and reported as integer",
 			resourceName: v1.ResourceName("nvidia.com/gpu"),
 			quantity:     resource.MustParse("2"),
-			wantResource: "nvidia.com/gpu",
+			wantResource: "nvidia_com_gpu",
 			wantUnit:     "integer",
 			wantValue:    2,
 		},
 		{
-			name:         "attachable volume resource keeps raw name and is bytes",
+			name:         "attachable volume resource is sanitized and reported in bytes",
 			resourceName: v1.ResourceName(v1.ResourceAttachableVolumesPrefix + "aws-ebs"),
 			quantity:     resource.MustParse("5"),
-			wantResource: "attachable-volumes-aws-ebs",
+			wantResource: "attachable_volumes_aws_ebs",
 			wantUnit:     "byte",
 			wantValue:    5,
 		},
