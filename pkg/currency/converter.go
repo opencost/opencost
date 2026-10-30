@@ -29,7 +29,11 @@ func NewConverter(config Config) (Converter, error) {
 
 	provider := config.Provider
 	if provider == nil {
-		provider = newExchangeRateClient(config.APIKey, config.APITimeout)
+		var err error
+		provider, err = newNamedProvider(config.ProviderName, config.APIKey, config.APITimeout)
+		if err != nil {
+			return nil, err
+		}
 	}
 	cache := newMemoryCache(config.CacheTTL)
 
@@ -38,6 +42,18 @@ func NewConverter(config Config) (Converter, error) {
 		cache:    cache,
 		config:   config,
 	}, nil
+}
+
+// newNamedProvider returns the built-in provider selected by name.
+func newNamedProvider(name, apiKey string, timeout time.Duration) (RateProvider, error) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "", ProviderExchangeRateAPI:
+		return newExchangeRateClient(apiKey, timeout), nil
+	case ProviderAllRatesToday:
+		return NewAllRatesTodayProvider(apiKey, timeout), nil
+	default:
+		return nil, fmt.Errorf("unknown rate provider %q (use %q or %q)", name, ProviderExchangeRateAPI, ProviderAllRatesToday)
+	}
 }
 
 func (c *currencyConverter) Convert(amount float64, from, to string) (float64, error) {
