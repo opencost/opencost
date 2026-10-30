@@ -40,7 +40,7 @@ converter, err := currency.NewConverter(currency.Config{
 | `ProviderName` | Provider | Key |
 |---|---|---|
 | `exchangerate-api` (default when empty) | [exchangerate-api.com](https://www.exchangerate-api.com/) | free key, 1,500 requests/month |
-| `allratestoday` | [allratestoday.com](https://allratestoday.com/) | free key |
+| `allratestoday` | [allratestoday.com](https://allratestoday.com/) | free trial key; a [paid plan](https://allratestoday.com/pricing/) is needed for ongoing use |
 
 An unknown name returns an error from `NewConverter`.
 
