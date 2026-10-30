@@ -6,13 +6,13 @@ Thanks for your help improving the OpenCost project! There are many ways to cont
 * contributing documentation here or to the [OpenCost website](https://github.com/opencost/opencost-website)
 * joining the discussion in the [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel
 * keep up with community events using our [Calendar](https://bit.ly/opencost-calendar)
-* participating in the fortnightly [OpenCost Working Group](https://bit.ly/opencost-calendar) meetings ([notes here](https://bit.ly/opencost-meeting))
+* participating in the fortnightly [OpenCost Working Group](https://bit.ly/opencost-calendar) meetings ([notes here](https://docs.google.com/document/d/1hDl-t7hCNN4MlDoloojTsVH0Mso-9H2p1TYPlmMeSUM/edit))
 * committing software via the workflow below
 
 ## Getting Help
 
 If you have a question about OpenCost or have encountered problems using it,
-you can start by asking a question on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
+you can start by asking a question on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-community-meeting-cncf) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
 
 ## Workflow
 
@@ -182,7 +182,7 @@ Please write a commit message with Fixes Issue # if there is an outstanding issu
 
 **Code Quality:** While lint warnings are acceptable in some cases (e.g., comments on exported functions are nice but not strictly required), please address any critical issues reported by `go vet`.
 
-Please reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
+Please reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-community-meeting-cncf) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
 
 ## Third Party Attributions
 

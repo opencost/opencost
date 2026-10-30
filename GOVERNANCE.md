@@ -17,7 +17,7 @@ There are 4 levels of membership in the OpenCost community.
 
 Contributors are community members who contribute in concrete ways to the project. Anyone can contribute to the project and become a contributor, regardless of their skillset. There is no expectation of commitment to the project, no specific skill requirements, and no selection process. There are many ways to contribute to the project, which may be one or more of the following (but not limited to):
 
-- Participate in community discussions in the `#opencost` channel in [CNCF Slack](https://slack.cncf.io/) or at [community meetings](https://bit.ly/opencost-meeting)
+- Participate in community discussions in the `#opencost` channel in [CNCF Slack](https://slack.cncf.io/) or at [community meetings](https://bit.ly/opencost-community-meeting-cncf)
 - Report, comment on, and sometimes resolve Issues
 - Occasionally submit PRs
 - Try out new releases
@@ -80,7 +80,7 @@ A new maintainer must be nominated by an existing maintainer. The nominating mai
 
 ### Community Meetings
 
-The [OpenCost Community Meeting](https://bit.ly/opencost-meeting) is every 2 weeks at 1pm Pacific. Community Members are encouraged to attend and discuss development, events, and any other OpenCost community items of interest.
+The [OpenCost Community Meeting](https://bit.ly/opencost-community-meeting-cncf) is every 2 weeks at 1pm Pacific. Community Members are encouraged to attend and discuss development, events, and any other OpenCost community items of interest.
 
 ### Issue/PR Timelines
 
