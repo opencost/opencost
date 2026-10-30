@@ -70,7 +70,7 @@ func TestConvertMeterToPricings(t *testing.T) {
 		info := meterInfo("Virtual Machines", "D2 Series Windows", "D2s v3", "AU Southeast", 0.3)
 		results, err := convertMeterToPricings(info, regions, baseCPUPrice)
 		require.NoError(t, err)
-		key := "australiasoutheast,Standard_D2s_v3,ondemand,windows"
+		key := "australiasoutheast,standard_d2s_v3,ondemand,windows"
 		pricing, ok := results[key]
 		require.Truef(t, ok, "expected a pricing entry under key %q", key)
 		require.NotNil(t, pricing.Node)
@@ -102,10 +102,10 @@ func TestConvertMeterToPricings(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := map[string]*AzurePricing{
-			"japanwest,Standard_E96a_v4,preemptible": {
+			"japanwest,standard_e96a_v4,preemptible": {
 				Node: &models.Node{Cost: "10.000000", BaseCPUPrice: "0.30000", UsageType: "preemptible"},
 			},
-			"japanwest,Standard_E96as_v4,preemptible": {
+			"japanwest,standard_e96as_v4,preemptible": {
 				Node: &models.Node{Cost: "10.000000", BaseCPUPrice: "0.30000", UsageType: "preemptible"},
 			},
 		}
@@ -732,21 +732,21 @@ func Test_buildAzureRetailPricesURL(t *testing.T) {
 			region:       "eastus",
 			skuName:      "Standard_D8ds_v5",
 			currencyCode: "USD",
-			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='USD'&$filter=armRegionName+eq+%27eastus%27+and+armSkuName+eq+%27Standard_D8ds_v5%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='USD'&$filter=armRegionName+eq+%27eastus%27+and+tolower%28armSkuName%29+eq+%27standard_d8ds_v5%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
 		},
 		{
 			name:         "no currency code",
 			region:       "westus",
 			skuName:      "Standard_D4s_v3",
 			currencyCode: "",
-			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&$filter=armRegionName+eq+%27westus%27+and+armSkuName+eq+%27Standard_D4s_v3%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&$filter=armRegionName+eq+%27westus%27+and+tolower%28armSkuName%29+eq+%27standard_d4s_v3%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
 		},
 		{
 			name:         "no region",
 			region:       "",
 			skuName:      "Standard_D8s_v3",
 			currencyCode: "EUR",
-			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='EUR'&$filter=armSkuName+eq+%27Standard_D8s_v3%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='EUR'&$filter=tolower%28armSkuName%29+eq+%27standard_d8s_v3%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
 		},
 		{
 			name:         "no sku name",
@@ -774,14 +774,21 @@ func Test_buildAzureRetailPricesURL(t *testing.T) {
 			region:       "south-central-us",
 			skuName:      "Standard_B2s",
 			currencyCode: "USD",
-			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='USD'&$filter=armRegionName+eq+%27south-central-us%27+and+armSkuName+eq+%27Standard_B2s%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='USD'&$filter=armRegionName+eq+%27south-central-us%27+and+tolower%28armSkuName%29+eq+%27standard_b2s%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
 		},
 		{
 			name:         "sku name with underscores",
 			region:       "eastus2",
 			skuName:      "Standard_E16_v3",
 			currencyCode: "CAD",
-			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='CAD'&$filter=armRegionName+eq+%27eastus2%27+and+armSkuName+eq+%27Standard_E16_v3%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='CAD'&$filter=armRegionName+eq+%27eastus2%27+and+tolower%28armSkuName%29+eq+%27standard_e16_v3%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
+		},
+		{
+			name:         "lower-case sku name from an AKS node label",
+			region:       "switzerlandnorth",
+			skuName:      "standard_e8ads_v5",
+			currencyCode: "CHF",
+			expected:     "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='CHF'&$filter=armRegionName+eq+%27switzerlandnorth%27+and+tolower%28armSkuName%29+eq+%27standard_e8ads_v5%27+and+serviceFamily+eq+%27Compute%27+and+type+eq+%27Consumption%27+and+contains%28meterName%2C%27Low+Priority%27%29+eq+false",
 		},
 	}
 
@@ -789,6 +796,32 @@ func Test_buildAzureRetailPricesURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result := buildAzureRetailPricesURL(tc.region, tc.skuName, tc.currencyCode)
 			require.Equal(t, tc.expected, result, "URL mismatch for test case: %s", tc.name)
+		})
+	}
+}
+
+func TestAzureKeyMatchesMeterKeyRegardlessOfInstanceTypeCase(t *testing.T) {
+	category, subcategory, name, region := "Virtual Machines", "Eadsv5 Series", "E8ads v5", "US East"
+	rate := 0.606637
+	info := commerce.MeterInfo{
+		MeterCategory:    &category,
+		MeterSubCategory: &subcategory,
+		MeterName:        &name,
+		MeterRegion:      &region,
+		MeterRates:       map[string]*float64{"0": &rate},
+	}
+	pricings, err := convertMeterToPricings(info, map[string]string{"eastus": "US East"}, "0.30000")
+	require.NoError(t, err)
+
+	for _, instanceType := range []string{"Standard_E8ads_v5", "standard_e8ads_v5", "STANDARD_E8ADS_V5"} {
+		t.Run(instanceType, func(t *testing.T) {
+			key := &azureKey{Labels: map[string]string{
+				"node.kubernetes.io/instance-type": instanceType,
+				"topology.kubernetes.io/region":    "eastus",
+			}}
+			pricing, ok := pricings[key.Features()]
+			require.Truef(t, ok, "no pricing under node key %q", key.Features())
+			require.Equal(t, "0.606637", pricing.Node.Cost)
 		})
 	}
 }
@@ -806,7 +839,7 @@ func TestAzureKeyFeaturesOS(t *testing.T) {
 				"node.kubernetes.io/instance-type": "Standard_D4s_v3",
 				"topology.kubernetes.io/region":    "eastus",
 			},
-			expected: "eastus,Standard_D4s_v3,ondemand,windows",
+			expected: "eastus,standard_d4s_v3,ondemand,windows",
 		},
 		{
 			name: "windows node via beta.kubernetes.io/os",
@@ -815,7 +848,7 @@ func TestAzureKeyFeaturesOS(t *testing.T) {
 				"node.kubernetes.io/instance-type": "Standard_D4s_v3",
 				"topology.kubernetes.io/region":    "eastus",
 			},
-			expected: "eastus,Standard_D4s_v3,ondemand,windows",
+			expected: "eastus,standard_d4s_v3,ondemand,windows",
 		},
 		{
 			name: "linux node",
@@ -824,7 +857,7 @@ func TestAzureKeyFeaturesOS(t *testing.T) {
 				"node.kubernetes.io/instance-type": "Standard_D4s_v3",
 				"topology.kubernetes.io/region":    "eastus",
 			},
-			expected: "eastus,Standard_D4s_v3,ondemand",
+			expected: "eastus,standard_d4s_v3,ondemand",
 		},
 		{
 			name: "no OS label defaults to linux key",
@@ -832,7 +865,7 @@ func TestAzureKeyFeaturesOS(t *testing.T) {
 				"node.kubernetes.io/instance-type": "Standard_D4s_v3",
 				"topology.kubernetes.io/region":    "eastus",
 			},
-			expected: "eastus,Standard_D4s_v3,ondemand",
+			expected: "eastus,standard_d4s_v3,ondemand",
 		},
 		{
 			name: "windows case-insensitive",
@@ -841,7 +874,7 @@ func TestAzureKeyFeaturesOS(t *testing.T) {
 				"node.kubernetes.io/instance-type": "Standard_D4s_v3",
 				"topology.kubernetes.io/region":    "eastus",
 			},
-			expected: "eastus,Standard_D4s_v3,ondemand,windows",
+			expected: "eastus,standard_d4s_v3,ondemand,windows",
 		},
 	}
 
