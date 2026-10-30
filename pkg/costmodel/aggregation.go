@@ -48,10 +48,6 @@ func ParseAggregationProperties(aggregations []string) ([]string, error) {
 			if aggregate != "" {
 				if prop, err := opencost.ParseProperty(aggregate); err == nil {
 					aggregateBy = append(aggregateBy, string(prop))
-				} else if strings.HasPrefix(aggregate, "label:") {
-					aggregateBy = append(aggregateBy, aggregate)
-				} else if strings.HasPrefix(aggregate, "annotation:") {
-					aggregateBy = append(aggregateBy, aggregate)
 				}
 			}
 		}
