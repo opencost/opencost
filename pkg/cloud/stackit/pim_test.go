@@ -1,6 +1,10 @@
 package stackit
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -243,5 +247,67 @@ func TestPaginationTermination(t *testing.T) {
 	flavors = parsePIMVMFlavors([]pimSKU{})
 	if len(flavors) != 0 {
 		t.Errorf("expected 0 flavors from empty input, got %d", len(flavors))
+	}
+}
+
+// rewriteTransport sends every request to a test server.
+type rewriteTransport struct {
+	target *url.URL
+}
+
+func (rt rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.URL.Scheme = rt.target.Scheme
+	req.URL.Host = rt.target.Host
+	return http.DefaultTransport.RoundTrip(req)
+}
+
+func TestDownloadPIMPricingOmitsMetroFilter(t *testing.T) {
+	// The PIM API returns 5xx for "metro": false on compute SKUs.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decoding request body: %v", err)
+		}
+		if _, ok := body["metro"]; ok {
+			t.Errorf("request body must not contain metro, got %v", body)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case body["generalProductGroup"] == "Virtual Machines":
+			_, _ = w.Write([]byte(`{"meta":{},"data":[
+				{"prices":[{"value":"0.1"}],"productSpecificAttributes":{"flavor":"c1i.2","vCPU":2,"ram":4,"metro":false}},
+				{"prices":[{"value":"0.2"}],"productSpecificAttributes":{"flavor":"c1i.2","vCPU":2,"ram":4,"metro":true}}
+			]}`))
+		case body["categoryName"] == "Storage":
+			_, _ = w.Write([]byte(`{"meta":{},"data":[
+				{"unitBilling":"per GB/hour","prices":[{"value":"0.0001"}],"productSpecificAttributes":{"class":"storage_premium_perf0","metro":false}},
+				{"unitBilling":"per GB/hour","prices":[{"value":"0.0002"}],"productSpecificAttributes":{"class":"storage_premium_perf0","metro":true}}
+			]}`))
+		default:
+			_, _ = w.Write([]byte(`{"meta":{},"data":[]}`))
+		}
+	}))
+	defer srv.Close()
+
+	target, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := pimHTTPClient.Transport
+	pimHTTPClient.Transport = rewriteTransport{target: target}
+	defer func() { pimHTTPClient.Transport = orig }()
+
+	flavors, storage, err := downloadPIMPricing()
+	if err != nil {
+		t.Fatalf("downloadPIMPricing() error: %v", err)
+	}
+	if got := flavors["c1i.2"]; got == nil || got.HourlyCost != "0.1" {
+		t.Errorf("expected non-metro c1i.2 price 0.1, got %+v", got)
+	}
+	if got := storage["storage_premium_perf0"]; got == nil || got.CostPerGBHr != "0.0001" {
+		t.Errorf("expected non-metro storage price 0.0001, got %+v", got)
 	}
 }
