@@ -29,6 +29,8 @@ const (
 
 	BillingLabel  = "ovh.opencost.io/billing"
 	NodepoolLabel = "nodepool"
+	// OVHLBFlavorAnnotation is the only supported annotation for OVH load balancer flavor detection.
+	OVHLBFlavorAnnotation = "loadbalancer.ovhcloud.com/flavor"
 
 	microcentsPerUnit = 100_000_000.0
 	hoursPerMonth     = 730.0
@@ -57,11 +59,26 @@ type OVH struct {
 	Config           models.ProviderConfig
 	Pricing          map[string]*OVHFlavorPricing
 	VolumePricing    map[string]float64
+	LBPricing        map[string]*OVHLBPricing
 	ClusterRegion    string
 	ClusterAccountID string
 	DownloadLock     sync.RWMutex
 	catalogURL       string
 	monthlyNodepools []string
+}
+
+// Default OVH Load Balancer flavor hourly fallback prices (derived from public cloud catalog)
+var defaultOVHLBPricing = map[string]float64{
+	"small":  0.0083,
+	"medium": 0.0208,
+	"large":  0.0556,
+	"xl":     0.2083,
+}
+
+// OVHLBPricing holds hourly and monthly pricing for an OVH load balancer flavor.
+type OVHLBPricing struct {
+	HourlyPrice  float64
+	MonthlyPrice float64 // monthly price converted to hourly (/730)
 }
 
 // OVHFlavorPricing holds pricing and specs for an OVH instance flavor.
@@ -143,16 +160,17 @@ type ovhGPU struct {
 	Model  string `json:"model"`
 }
 
-// parseCatalog extracts instance and volume pricing from the OVH public cloud catalog.
-func parseCatalog(data []byte) (map[string]*OVHFlavorPricing, map[string]float64, error) {
+// parseCatalog extracts instance, volume, and load balancer pricing from the OVH public cloud catalog.
+func parseCatalog(data []byte) (map[string]*OVHFlavorPricing, map[string]float64, map[string]*OVHLBPricing, error) {
 	var catalog ovhCatalog
 	if err := json.Unmarshal(data, &catalog); err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal OVH catalog: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to unmarshal OVH catalog: %w", err)
 	}
 
 	// Find the project.2018 plan and collect addon planCodes
 	instanceAddons := make(map[string]bool)
 	volumeAddons := make(map[string]bool)
+	lbAddons := make(map[string]bool)
 
 	var projectPlan *ovhPlan
 	for i := range catalog.Plans {
@@ -162,7 +180,7 @@ func parseCatalog(data []byte) (map[string]*OVHFlavorPricing, map[string]float64
 		}
 	}
 	if projectPlan == nil {
-		return nil, nil, fmt.Errorf("project.2018 plan not found in OVH catalog")
+		return nil, nil, nil, fmt.Errorf("project.2018 plan not found in OVH catalog")
 	}
 
 	for _, family := range projectPlan.AddonFamilies {
@@ -175,21 +193,28 @@ func parseCatalog(data []byte) (map[string]*OVHFlavorPricing, map[string]float64
 			for _, a := range family.Addons {
 				volumeAddons[a] = true
 			}
+		case "octavia-loadbalancer", "loadbalancer":
+			for _, a := range family.Addons {
+				lbAddons[a] = true
+			}
 		}
 	}
 
 	pricing := make(map[string]*OVHFlavorPricing)
 	volumePricing := make(map[string]float64)
+	lbPricing := make(map[string]*OVHLBPricing)
 
 	for _, addon := range catalog.Addons {
 		if instanceAddons[addon.PlanCode] {
 			parseInstanceAddon(addon, pricing)
 		} else if volumeAddons[addon.PlanCode] {
 			parseVolumeAddon(addon, volumePricing)
+		} else if lbAddons[addon.PlanCode] {
+			parseLoadBalancerAddon(addon, lbPricing)
 		}
 	}
 
-	return pricing, volumePricing, nil
+	return pricing, volumePricing, lbPricing, nil
 }
 
 // parseInstanceAddon extracts flavor pricing from an instance addon entry.
@@ -279,6 +304,94 @@ func parseVolumeAddon(addon ovhAddon, volumePricing map[string]float64) {
 		}
 	}
 	volumePricing[volumeType] = float64(addon.Pricings[0].Price) / microcentsPerUnit
+}
+
+// parseLoadBalancerAddon extracts load balancer flavor pricing from an addon entry.
+func parseLoadBalancerAddon(addon ovhAddon, lbPricing map[string]*OVHLBPricing) {
+	planCode := addon.PlanCode
+	isMonthly := strings.Contains(planCode, ".month.") || strings.Contains(planCode, ".monthly.")
+
+	flavor := ""
+	if addon.Blobs != nil && addon.Blobs.Technical != nil && addon.Blobs.Technical.Name != "" {
+		flavor = addon.Blobs.Technical.Name
+	}
+	if flavor == "" {
+		switch {
+		case strings.Contains(planCode, "loadbalancer-xl"):
+			flavor = "xl"
+		case strings.Contains(planCode, "loadbalancer-l"):
+			flavor = "large"
+		case strings.Contains(planCode, "loadbalancer-m"):
+			flavor = "medium"
+		case strings.Contains(planCode, "loadbalancer-s"):
+			flavor = "small"
+		case strings.Contains(planCode, "loadbalancer-unit"):
+			flavor = "unit"
+		default:
+			return
+		}
+	}
+	flavor = normalizeFlavor(flavor)
+
+	if len(addon.Pricings) == 0 {
+		return
+	}
+
+	targetType := "consumption"
+	if isMonthly {
+		targetType = "monthly.postpaid"
+	}
+	var rawPrice float64
+	matched := false
+	for _, p := range addon.Pricings {
+		if p.Type == targetType || (!isMonthly && p.Type == "consumption") {
+			rawPrice = float64(p.Price) / microcentsPerUnit
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		rawPrice = float64(addon.Pricings[0].Price) / microcentsPerUnit
+	}
+
+	entry, exists := lbPricing[flavor]
+	if !exists {
+		entry = &OVHLBPricing{}
+		lbPricing[flavor] = entry
+	}
+
+	if isMonthly {
+		entry.MonthlyPrice = rawPrice / hoursPerMonth
+	} else if entry.HourlyPrice == 0 {
+		entry.HourlyPrice = rawPrice
+	}
+}
+
+// normalizeFlavor maps various flavor aliases to canonical flavor names: "small", "medium", "large", "xl".
+func normalizeFlavor(flavor string) string {
+	f := strings.ToLower(strings.TrimSpace(flavor))
+	f = strings.TrimPrefix(f, "octavia-loadbalancer.")
+	switch {
+	case f == "small" || f == "s" || strings.HasSuffix(f, "loadbalancer-s"):
+		return "small"
+	case f == "medium" || f == "m" || strings.HasSuffix(f, "loadbalancer-m"):
+		return "medium"
+	case f == "large" || f == "l" || strings.HasSuffix(f, "loadbalancer-l"):
+		return "large"
+	case f == "xl" || f == "xlarge" || strings.HasSuffix(f, "loadbalancer-xl"):
+		return "xl"
+	default:
+		return f
+	}
+}
+
+// extractLBFlavor retrieves the load balancer flavor from service annotations.
+// Only the annotation "loadbalancer.ovhcloud.com/flavor" is used for flavor detection.
+func extractLBFlavor(service *clustercache.Service) string {
+	if service == nil || len(service.Annotations) == 0 {
+		return ""
+	}
+	return service.Annotations[OVHLBFlavorAnnotation]
 }
 
 // ovhKey implements models.Key for OVH nodes.
@@ -400,15 +513,16 @@ func (c *OVH) DownloadPricingData() error {
 		return fmt.Errorf("failed to read OVH catalog response: %w", err)
 	}
 
-	pricing, volumePricing, err := parseCatalog(body)
+	pricing, volumePricing, lbPricing, err := parseCatalog(body)
 	if err != nil {
 		return err
 	}
 
 	c.Pricing = pricing
 	c.VolumePricing = volumePricing
+	c.LBPricing = lbPricing
 
-	log.Infof("Loaded OVH pricing: %d flavors, %d volume types", len(pricing), len(volumePricing))
+	log.Infof("Loaded OVH pricing: %d flavors, %d volume types, %d lb flavors", len(pricing), len(volumePricing), len(lbPricing))
 	return nil
 }
 
@@ -491,11 +605,58 @@ func (c *OVH) NetworkPricing() (*models.Network, error) {
 	}, nil
 }
 
-// LoadBalancerPricing returns static load balancer pricing for OVH.
-func (c *OVH) LoadBalancerPricing() (*models.LoadBalancer, error) {
+// ServiceLoadBalancerPricing returns flavor-aware load balancer pricing for OVH.
+func (c *OVH) ServiceLoadBalancerPricing(service *clustercache.Service) (*models.LoadBalancer, error) {
+	c.DownloadLock.RLock()
+	defer c.DownloadLock.RUnlock()
+
+	rawFlavor := extractLBFlavor(service)
+	flavor := normalizeFlavor(rawFlavor)
+	if flavor == "" {
+		flavor = "small"
+	}
+
+	isMonthly := false
+	if service != nil {
+		if service.Annotations != nil && service.Annotations[BillingLabel] == "monthly" {
+			isMonthly = true
+		} else if service.Labels != nil && service.Labels[BillingLabel] == "monthly" {
+			isMonthly = true
+		}
+	}
+
+	var cost float64
+	if lbPricing, ok := c.LBPricing[flavor]; ok {
+		if isMonthly && lbPricing.MonthlyPrice > 0 {
+			cost = lbPricing.MonthlyPrice
+		} else if lbPricing.HourlyPrice > 0 {
+			cost = lbPricing.HourlyPrice
+		}
+	}
+
+	if cost == 0 {
+		if defaultPricing, ok := defaultOVHLBPricing[flavor]; ok {
+			cost = defaultPricing
+		} else if smallPricing, ok := c.LBPricing["small"]; ok {
+			if isMonthly && smallPricing.MonthlyPrice > 0 {
+				cost = smallPricing.MonthlyPrice
+			} else if smallPricing.HourlyPrice > 0 {
+				cost = smallPricing.HourlyPrice
+			}
+		}
+		if cost == 0 {
+			cost = defaultOVHLBPricing["small"]
+		}
+	}
+
 	return &models.LoadBalancer{
-		Cost: 0.012,
+		Cost: cost,
 	}, nil
+}
+
+// LoadBalancerPricing returns default load balancer pricing for OVH.
+func (c *OVH) LoadBalancerPricing() (*models.LoadBalancer, error) {
+	return c.ServiceLoadBalancerPricing(nil)
 }
 
 // GpuPricing returns GPU-specific pricing (not used for OVH).
