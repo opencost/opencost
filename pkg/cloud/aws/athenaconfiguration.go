@@ -230,6 +230,7 @@ func ConvertAwsAthenaInfoToConfig(aai AwsAthenaInfo) cloud.KeyedConfig {
 	// Wrap Authorizer with AssumeRole if MasterPayerArn is set
 	if aai.MasterPayerARN != "" {
 		authorizer = &AssumeRole{
+			ExternalID: aai.ExternalID,
 			Authorizer: authorizer,
 			RoleARN:    aai.MasterPayerARN,
 		}
