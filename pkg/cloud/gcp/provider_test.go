@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -59,6 +60,38 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		{
 			input:    "n4-highmem-16",
 			expected: "n4standard",
+		},
+		{
+			input:    "n4a-standard-4",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4a-highcpu-4",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4a-highmem-8",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4d-standard-4",
+			expected: "n4dstandard",
+		},
+		{
+			input:    "n4d-highcpu-8",
+			expected: "n4dstandard",
+		},
+		{
+			input:    "n4d-highmem-16",
+			expected: "n4dstandard",
+		},
+		{
+			input:    "n4ax-highcpu-4",
+			expected: "n4axhighcpu",
+		},
+		{
+			input:    "n4d2-highmem-16",
+			expected: "n4d2highmem",
 		},
 	}
 
@@ -190,6 +223,25 @@ func TestKeyFeatures(t *testing.T) {
 			},
 			exp: "asia-southeast1,t2dstandard,ondemand",
 		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n4a-highcpu-4",
+					"topology.kubernetes.io/region":    "us-central1",
+				},
+			},
+			exp: "us-central1,n4astandard,ondemand",
+		},
+		{
+			key: &gcpKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": "n4d-standard-4",
+					"cloud.google.com/gke-spot":        "true",
+					"topology.kubernetes.io/region":    "us-central1",
+				},
+			},
+			exp: "us-central1,n4dstandard,preemptible",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -200,6 +252,67 @@ func TestKeyFeatures(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParsePageN4Families(t *testing.T) {
+	fileBytes, err := os.ReadFile("./test/n4_skus.json")
+	assert.NoError(t, err)
+
+	inputKeys := map[string]models.Key{
+		"us-central1,n4astandard,ondemand": &gcpKey{Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "n4a-highcpu-4",
+			"topology.kubernetes.io/region":    "us-central1",
+		}},
+		"us-central1,n4astandard,preemptible": &gcpKey{Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "n4a-standard-4",
+			"cloud.google.com/gke-spot":        "true",
+			"topology.kubernetes.io/region":    "us-central1",
+		}},
+		"us-central1,n4dstandard,ondemand": &gcpKey{Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "n4d-standard-4",
+			"topology.kubernetes.io/region":    "us-central1",
+		}},
+		"us-central1,n4dstandard,preemptible": &gcpKey{Labels: map[string]string{
+			"node.kubernetes.io/instance-type": "n4d-standard-4",
+			"cloud.google.com/gke-spot":        "true",
+			"topology.kubernetes.io/region":    "us-central1",
+		}},
+	}
+
+	testGCP := &GCP{}
+	actualPrices, token, err := testGCP.parsePage(bytes.NewReader(fileBytes), inputKeys, map[string]models.PVKey{})
+	assert.NoError(t, err)
+	assert.Empty(t, token)
+
+	expected := map[string]struct {
+		cpu       float64
+		ram       float64
+		usageType string
+	}{
+		"us-central1,n4astandard,ondemand":    {cpu: 0.02646, ram: 0.00301, usageType: "ondemand"},
+		"us-central1,n4astandard,preemptible": {cpu: 0.01055, ram: 0.001201, usageType: "preemptible"},
+		"us-central1,n4dstandard,ondemand":    {cpu: 0.02911, ram: 0.00331, usageType: "ondemand"},
+		"us-central1,n4dstandard,preemptible": {cpu: 0.01553, ram: 0.001767, usageType: "preemptible"},
+	}
+	for key, want := range expected {
+		for _, suffix := range []string{"", ",gpu"} {
+			pricing, ok := actualPrices[key+suffix]
+			if assert.True(t, ok, "missing pricing key %s", key+suffix) {
+				cpu, err := strconv.ParseFloat(pricing.Node.VCPUCost, 64)
+				assert.NoError(t, err)
+				ram, err := strconv.ParseFloat(pricing.Node.RAMCost, 64)
+				assert.NoError(t, err)
+				assert.InDelta(t, want.cpu, cpu, 1e-12)
+				assert.InDelta(t, want.ram, ram, 1e-12)
+				assert.Equal(t, want.usageType, pricing.Node.UsageType)
+				assert.False(t, pricing.Node.UsesBaseCPUPrice)
+			}
+			assert.True(t, testGCP.ValidPricingKeys[key+suffix])
+		}
+	}
+	assert.Len(t, actualPrices, 8)
+	assert.False(t, testGCP.ValidPricingKeys["us-central1,n4ahighcpu,ondemand"])
+	assert.False(t, testGCP.ValidPricingKeys["us-central1,n4dhighcpu,ondemand"])
 }
 
 // tests basic parsing of GCP pricing API responses
@@ -973,6 +1086,22 @@ func TestGCP_CombinedDiscountForNode(t *testing.T) {
 			negotiatedDiscount: 0.20,
 			expectedDiscount:   0.20, // E2 has no sustained use discount
 		},
+		{
+			name:               "N4A instance has no sustained-use discount",
+			instanceType:       "n4a-highcpu-4",
+			isPreemptible:      false,
+			defaultDiscount:    0.30,
+			negotiatedDiscount: 0.20,
+			expectedDiscount:   0.20,
+		},
+		{
+			name:               "N4D instance has no sustained-use discount",
+			instanceType:       "n4d-standard-4",
+			isPreemptible:      false,
+			defaultDiscount:    0.30,
+			negotiatedDiscount: 0.20,
+			expectedDiscount:   0.20,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1037,6 +1166,8 @@ func TestSustainedUseDiscount(t *testing.T) {
 			isPreemptible:   false,
 			expected:        0.30,
 		},
+		{name: "N4A instance", class: "n4a", defaultDiscount: 0.30, expected: 0.0},
+		{name: "N4D instance", class: "n4d", defaultDiscount: 0.30, expected: 0.0},
 	}
 
 	for _, tt := range tests {
