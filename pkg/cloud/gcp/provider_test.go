@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	"github.com/google/martian/log"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/httputil"
@@ -20,6 +21,7 @@ import (
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/api/compute/v1"
+	"google.golang.org/api/option"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -592,6 +594,111 @@ func TestGCP_GetDisks(t *testing.T) {
 	// This line should not be reached due to panic, but if it is, we expect an error
 	if err == nil {
 		t.Error("Expected error due to nil metadata client")
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func newFakeMetadataServer(projectID string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Metadata-Flavor", "Google")
+		_, _ = w.Write([]byte(projectID))
+	}))
+}
+
+func newFakeComputeService(t *testing.T, handler http.HandlerFunc) (*compute.Service, *httptest.Server) {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	svc, err := compute.NewService(t.Context(), option.WithoutAuthentication(), option.WithEndpoint(srv.URL+"/"))
+	if err != nil {
+		srv.Close()
+		t.Fatalf("compute.NewService: %v", err)
+	}
+	return svc, srv
+}
+
+func fakeMetadataClient(srv *httptest.Server) *metadata.Client {
+	return metadata.NewClient(&http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			r2 := r.Clone(r.Context())
+			r2.URL.Host = srv.Listener.Addr().String()
+			r2.URL.Scheme = "http"
+			return http.DefaultTransport.RoundTrip(r2)
+		}),
+	})
+}
+
+func TestGetAllDisks_Pagination(t *testing.T) {
+	page1 := &compute.DiskAggregatedList{
+		Items:         map[string]compute.DisksScopedList{"zones/us-central1-a": {Disks: []*compute.Disk{{Name: "disk-1"}}}},
+		NextPageToken: "tok",
+	}
+	page2 := &compute.DiskAggregatedList{
+		Items: map[string]compute.DisksScopedList{"zones/us-central1-a": {Disks: []*compute.Disk{{Name: "disk-2"}}}},
+	}
+
+	svc, computeSrv := newFakeComputeService(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("pageToken") == "tok" {
+			_ = json.NewEncoder(w).Encode(page2)
+		} else {
+			_ = json.NewEncoder(w).Encode(page1)
+		}
+	})
+	defer computeSrv.Close()
+
+	metaSrv := newFakeMetadataServer("test-project")
+	defer metaSrv.Close()
+
+	got, err := getAllDisksWithService(&GCP{MetadataClient: fakeMetadataClient(metaSrv)}, svc)
+	if err != nil {
+		t.Fatalf("getAllDisksWithService: %v", err)
+	}
+
+	total := 0
+	for _, sl := range got.Items {
+		total += len(sl.Disks)
+	}
+	if total != 2 {
+		t.Errorf("expected 2 disks across all pages, got %d", total)
+	}
+}
+
+func TestGetAllAddresses_Pagination(t *testing.T) {
+	page1 := &compute.AddressAggregatedList{
+		Items:         map[string]compute.AddressesScopedList{"regions/us-central1": {Addresses: []*compute.Address{{Name: "addr-1"}}}},
+		NextPageToken: "tok",
+	}
+	page2 := &compute.AddressAggregatedList{
+		Items: map[string]compute.AddressesScopedList{"regions/us-central1": {Addresses: []*compute.Address{{Name: "addr-2"}}}},
+	}
+
+	svc, computeSrv := newFakeComputeService(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("pageToken") == "tok" {
+			_ = json.NewEncoder(w).Encode(page2)
+		} else {
+			_ = json.NewEncoder(w).Encode(page1)
+		}
+	})
+	defer computeSrv.Close()
+
+	metaSrv := newFakeMetadataServer("test-project")
+	defer metaSrv.Close()
+
+	got, err := getAllAddressesWithService(&GCP{MetadataClient: fakeMetadataClient(metaSrv)}, svc)
+	if err != nil {
+		t.Fatalf("getAllAddressesWithService: %v", err)
+	}
+
+	total := 0
+	for _, sl := range got.Items {
+		total += len(sl.Addresses)
+	}
+	if total != 2 {
+		t.Errorf("expected 2 addresses across all pages, got %d", total)
 	}
 }
 
