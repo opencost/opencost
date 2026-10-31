@@ -195,6 +195,10 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		WriteData(w, nil, fmt.Errorf("error parsing window (%s): %s", window, err))
 		return
 	}
+	if timeutil.DurationString(duration) == "" {
+		WriteData(w, nil, fmt.Errorf("illegal window: %s", window))
+		return
+	}
 
 	end := time.Now()
 	if offset != "" {
