@@ -84,7 +84,7 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 	if env.IsKubeRbacProxyEnabled() {
 		restConfig, err := restclient.InClusterConfig()
 		if err != nil {
-			log.Errorf("%s was set to true but failed to get in-cluster config: %s", env.KubeRbacProxyEnabledEnvVar, err)
+			return nil, fmt.Errorf("%s was set to true but failed to get in-cluster config: %w", env.KubeRbacProxyEnabledEnvVar, err)
 		}
 		auth.BearerToken = restConfig.BearerToken
 		tlsCaCert, err = certutil.NewPool(ServiceCA)
@@ -100,11 +100,12 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		} else {
 			tlsCaCert.AppendCertsFromPEM(systemCa)
 		}
-		mTlsCa, err := os.ReadFile(env.GetPromMtlsAuthCAFile())
+		mTlsCaFile := env.GetPromMtlsAuthCAFile()
+		mTlsCa, err := os.ReadFile(mTlsCaFile)
 		if err != nil {
 			log.Errorf("mTLS options were set but failed to load PROM_MTLS_AUTH_CA_FILE: %s", err)
-		} else {
-			tlsCaCert.AppendCertsFromPEM(mTlsCa)
+		} else if !tlsCaCert.AppendCertsFromPEM(mTlsCa) {
+			log.Errorf("mTLS options were set but PROM_MTLS_AUTH_CA_FILE %s contains no valid PEM certificates", mTlsCaFile)
 		}
 		mTlsKeyPair, err := tls.LoadX509KeyPair(env.GetPromMtlsAuthCrtFile(), env.GetPromMtlsAuthKeyFile())
 		if err != nil {
