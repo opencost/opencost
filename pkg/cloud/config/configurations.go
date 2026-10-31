@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/cloud"
@@ -79,20 +80,55 @@ func (c *Configurations) UnmarshalJSON(bytes []byte) error {
 	// This has been tested for backwards compatability, and it works in both config formats.
 	// It also coincidentally works if you mix-and-match both the old format and the new
 	// format.
-	// Create defined type to gain access to default Unmarshalling, then convert to pointer
+	// Create defined type to gain access to default Unmarshalling without recursing into UnmarshalJSON.
 	type confUnmarshaller Configurations
-	err := json.Unmarshal(bytes, (*confUnmarshaller)(c))
+	var unwrapped confUnmarshaller
+	unmarshalErr := json.Unmarshal(bytes, &unwrapped)
 	// If unmarshal is successful, return
-	if err == nil {
+	if unmarshalErr == nil {
+		*c = Configurations(unwrapped)
 		return nil
 	}
 
-	// Attempt to unmarshal into old config object
-	multiConfig := &MultiCloudConfig{}
-	err = json.Unmarshal(bytes, multiConfig)
-	if err != nil {
-		return err
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(bytes, &rawFields); err != nil {
+		return unmarshalErr
 	}
+
+	legacyFields := make(map[string]json.RawMessage)
+	for rawKey, raw := range rawFields {
+		for _, legacyKey := range []string{"aws", "azure", "gcp", "alibaba"} {
+			if strings.EqualFold(rawKey, legacyKey) && strings.HasPrefix(strings.TrimSpace(string(raw)), "[") {
+				legacyFields[rawKey] = raw
+				delete(rawFields, rawKey)
+				break
+			}
+		}
+	}
+
+	var remaining confUnmarshaller
+	if len(rawFields) > 0 {
+		remainingBytes, err := json.Marshal(rawFields)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(remainingBytes, &remaining); err != nil {
+			return err
+		}
+	}
+
+	multiConfig := &MultiCloudConfig{}
+	if len(legacyFields) > 0 {
+		legacyBytes, err := json.Marshal(legacyFields)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(legacyBytes, multiConfig); err != nil {
+			return err
+		}
+	}
+
+	*c = Configurations(remaining)
 	multiConfig.loadConfigurations(c)
 	return nil
 }
