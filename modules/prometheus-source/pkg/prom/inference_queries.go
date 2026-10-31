@@ -10,6 +10,31 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 )
 
+// Token counters per model server. The token queries read every engine's
+// counter and add the deltas per (model_name, namespace), so vLLM and SGLang
+// pods are both counted without needing to know which engine serves a model.
+//
+// SGLang has no prefill-time counter or cache_config_info equivalent, so the
+// processing-time and cache-config queries stay vLLM-only: SGLang models fall
+// back to the multiplier split, and their cache savings come from cached tokens.
+var (
+	inferencePromptTokenMetrics = []string{
+		"vllm:prompt_tokens_total",
+		"sglang:prompt_tokens_total",
+	}
+	inferenceGenerationTokenMetrics = []string{
+		"vllm:generation_tokens_total",
+		"sglang:generation_tokens_total",
+	}
+	// sglang:cached_tokens_total is split by cache_source (device, host,
+	// storage, or total when the breakdown is unavailable); each request is
+	// counted under exactly one source, so summing the sources is correct.
+	inferenceCachedTokenMetrics = []string{
+		"vllm:prefix_cache_hits_total",
+		"sglang:cached_tokens_total",
+	}
+)
+
 // QueryInferencePromptTokens implements MetricsQuerier.QueryInferencePromptTokens
 func (pds *PrometheusMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
@@ -19,7 +44,7 @@ func (pds *PrometheusMetricsQuerier) QueryInferencePromptTokens(start, end time.
 
 	// Execute query asynchronously
 	go func() {
-		values, err := queryCounterDelta(ctx, "vllm:prompt_tokens_total", start, end)
+		values, err := queryCounterDeltaSum(ctx, inferencePromptTokenMetrics, start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
@@ -40,7 +65,7 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceGenerationTokens(start, end t
 	resultsChan := make(source.QueryResultsChan, 1)
 
 	go func() {
-		values, err := queryCounterDelta(ctx, "vllm:generation_tokens_total", start, end)
+		values, err := queryCounterDeltaSum(ctx, inferenceGenerationTokenMetrics, start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
@@ -102,7 +127,7 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceCachedTokens(start, end time.
 	resultsChan := make(source.QueryResultsChan, 1)
 
 	go func() {
-		values, err := queryCounterDelta(ctx, "vllm:prefix_cache_hits_total", start, end)
+		values, err := queryCounterDeltaSum(ctx, inferenceCachedTokenMetrics, start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
@@ -261,6 +286,23 @@ func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[s
 			delta = endVal
 		}
 		out[key] = delta
+	}
+	return out, nil
+}
+
+// queryCounterDeltaSum returns the sum of queryCounterDelta over several counter
+// metrics, per (model_name, namespace). A metric with no series contributes
+// nothing, so an engine that is not deployed costs only two empty queries.
+func queryCounterDeltaSum(ctx *Context, metrics []string, start, end time.Time) (map[string]float64, error) {
+	out := make(map[string]float64)
+	for _, metric := range metrics {
+		values, err := queryCounterDelta(ctx, metric, start, end)
+		if err != nil {
+			return nil, err
+		}
+		for key, value := range values {
+			out[key] += value
+		}
 	}
 	return out, nil
 }
