@@ -1,11 +1,11 @@
 # AI Inference Cost Tracking
 
-OpenCost tracks infrastructure costs for AI inference workloads running [vLLM](https://vllm.ai/)-based models ([llm-d](https://llm-d.ai/) and compatible deployments). It exposes costs both as Prometheus metrics and as queryable REST API endpoints.
+OpenCost tracks infrastructure costs for AI inference workloads running models on [vLLM](https://vllm.ai/) or [SGLang](https://github.com/sgl-project/sglang) ([llm-d](https://llm-d.ai/) and compatible deployments). It exposes costs both as Prometheus metrics and as queryable REST API endpoints.
 
 ## Overview
 
 The inference cost tracking feature:
-1. Collects token metrics from [vLLM](https://vllm.ai/) via Prometheus (`prompt_tokens_total`, `generation_tokens_total`, prefill/decode timing, KV cache hits)
+1. Collects token metrics from [vLLM](https://vllm.ai/) and [SGLang](https://github.com/sgl-project/sglang) via Prometheus (`prompt_tokens_total`, `generation_tokens_total`, KV cache hits, and prefill/decode timing on vLLM)
 2. Collects infrastructure costs (GPU, CPU, RAM, shared infra) from OpenCost's allocation layer
 3. Calculates blended and differentiated (input/output) cost per million tokens under two cost bases: `allocation` and `usage`
 4. Exports Inference Prometheus gauge metrics per model/namespace
@@ -276,7 +276,7 @@ metadata:
     llm-d.ai/model: "Qwen3-32B"   # must match --served-model-name (or --model if --served-model-name is not set)
 ```
 
-`--served-model-name` controls the exact string vLLM uses as the `model_name` label in Prometheus metrics. Set the pod label to that same value. If `--served-model-name` is not set, vLLM uses the fully-qualified `--model` path (e.g. `Qwen/Qwen3-32B`) as `model_name`, so the pod label must match that instead.
+`--served-model-name` controls the exact string vLLM uses as the `model_name` label in Prometheus metrics. Set the pod label to that same value. If `--served-model-name` is not set, vLLM uses the fully-qualified `--model` path (e.g. `Qwen/Qwen3-32B`) as `model_name`, so the pod label must match that instead. SGLang behaves the same way: `--served-model-name`, or the `--model-path` value when it is not set.
 
 If this label is missing or the value differs from `model_name` in vLLM metrics, the allocation join fails: **token counts will appear in the API response but all cost fields will be zero** and `allocationMethod` will be empty.
 
@@ -384,6 +384,18 @@ Cache savings:        6.7% of prompt tokens served from KV cache
 | `vllm:request_decode_time_seconds_sum` | Compute-time allocation (input/output split) |
 | `vllm:prefix_cache_hits_total` | `cacheSavingsFraction` (token-level counter; optional) |
 | `vllm:cache_config_info` | `prefix_caching_off` detection (from `enable_prefix_caching` label; optional) |
+
+## Required [SGLang](https://github.com/sgl-project/sglang) Metrics
+
+Requires SGLang started with `--enable-metrics`.
+
+| Metric | Required for |
+|--------|-------------|
+| `sglang:prompt_tokens_total` | Token counts, blended cost rate |
+| `sglang:generation_tokens_total` | Token counts, blended cost rate |
+| `sglang:cached_tokens_total` | `cacheSavingsFraction` (summed over `cache_source`; optional) |
+
+SGLang has no prefill-time counter or `cache_config_info` equivalent, so SGLang models always use the `multiplier` input/output split, and `prefix_caching_off` is never detected for them. Token counts from vLLM and SGLang pods serving the same model in the same namespace are added together.
 
 All metrics must carry `model_name` and `namespace` labels. Verify availability:
 
