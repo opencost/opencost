@@ -183,3 +183,69 @@ func TestContext_alignWindow(t *testing.T) {
 		})
 	}
 }
+
+// TestNewPrometheusTransport_DisableHTTP2 verifies that when DisableHTTP2 is
+// set on PrometheusClientConfig, the resulting transport has TLSNextProto set
+// to a non-nil empty map — the canonical Go mechanism for disabling HTTP/2
+// ALPN negotiation and forcing HTTP/1.1.
+func TestNewPrometheusTransport_DisableHTTP2(t *testing.T) {
+	cfg := &PrometheusClientConfig{
+		Timeout:               5 * time.Second,
+		KeepAlive:             30 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		TLSInsecureSkipVerify: false,
+		DisableHTTP2:          true,
+	}
+
+	transport := newPrometheusTransport(cfg)
+
+	// TLSNextProto must be non-nil and empty to disable HTTP/2.
+	if transport.TLSNextProto == nil {
+		t.Fatal("Expected TLSNextProto to be non-nil when DisableHTTP2=true")
+	}
+	if len(transport.TLSNextProto) != 0 {
+		t.Errorf("Expected TLSNextProto to be empty, got %d entries", len(transport.TLSNextProto))
+	}
+
+	// Verify other transport fields are set from config.
+	if transport.TLSHandshakeTimeout != cfg.TLSHandshakeTimeout {
+		t.Errorf("TLSHandshakeTimeout mismatch: got %v, want %v", transport.TLSHandshakeTimeout, cfg.TLSHandshakeTimeout)
+	}
+	if transport.TLSClientConfig == nil {
+		t.Fatal("Expected TLSClientConfig to be set")
+	}
+	if transport.TLSClientConfig.InsecureSkipVerify != cfg.TLSInsecureSkipVerify {
+		t.Errorf("InsecureSkipVerify mismatch: got %v, want %v", transport.TLSClientConfig.InsecureSkipVerify, cfg.TLSInsecureSkipVerify)
+	}
+}
+
+// TestNewPrometheusTransport_HTTP2EnabledByDefault verifies that when
+// DisableHTTP2 is false (the default), TLSNextProto is NOT set — allowing
+// Go's net/http to negotiate HTTP/2 via ALPN as normal.
+func TestNewPrometheusTransport_HTTP2EnabledByDefault(t *testing.T) {
+	cfg := &PrometheusClientConfig{
+		Timeout:      5 * time.Second,
+		DisableHTTP2: false,
+	}
+
+	transport := newPrometheusTransport(cfg)
+
+	// TLSNextProto must remain nil so Go can auto-configure HTTP/2.
+	if transport.TLSNextProto != nil {
+		t.Error("Expected TLSNextProto to be nil when DisableHTTP2=false (HTTP/2 should be allowed)")
+	}
+}
+
+// TestPrometheusClientConfig_DisableHTTP2Field verifies the DisableHTTP2 field
+// is correctly stored and retrieved from PrometheusClientConfig.
+func TestPrometheusClientConfig_DisableHTTP2Field(t *testing.T) {
+	cfg := &PrometheusClientConfig{DisableHTTP2: true}
+	if !cfg.DisableHTTP2 {
+		t.Error("Expected DisableHTTP2 to be true")
+	}
+
+	cfg2 := &PrometheusClientConfig{DisableHTTP2: false}
+	if cfg2.DisableHTTP2 {
+		t.Error("Expected DisableHTTP2 to be false")
+	}
+}
