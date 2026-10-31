@@ -64,19 +64,20 @@ func ValidAssetFilterParams() []string {
 // representations to v1 filter param keys for legacy filter config support
 // (e.g. reports). Example mapping: "cluster" -> "filterClusters"
 var AllocationPropToV1FilterParamKey = map[string]string{
-	opencost.AllocationClusterProp:        ParamFilterClusters,
-	opencost.AllocationNodeProp:           ParamFilterNodes,
-	opencost.AllocationNamespaceProp:      ParamFilterNamespaces,
-	opencost.AllocationControllerProp:     ParamFilterControllers,
-	opencost.AllocationControllerKindProp: ParamFilterControllerKinds,
-	opencost.AllocationPodProp:            ParamFilterPods,
-	opencost.AllocationLabelProp:          ParamFilterLabels,
-	opencost.AllocationServiceProp:        ParamFilterServices,
-	opencost.AllocationDepartmentProp:     ParamFilterDepartments,
-	opencost.AllocationEnvironmentProp:    ParamFilterEnvironments,
-	opencost.AllocationOwnerProp:          ParamFilterOwners,
-	opencost.AllocationProductProp:        ParamFilterProducts,
-	opencost.AllocationTeamProp:           ParamFilterTeams,
+	opencost.AllocationClusterProp:             ParamFilterClusters,
+	opencost.AllocationNodeProp:                ParamFilterNodes,
+	opencost.AllocationNamespaceProp:           ParamFilterNamespaces,
+	opencost.AllocationControllerProp:          ParamFilterControllers,
+	opencost.AllocationControllerNamespaceProp: ParamFilterControllers,
+	opencost.AllocationControllerKindProp:      ParamFilterControllerKinds,
+	opencost.AllocationPodProp:                 ParamFilterPods,
+	opencost.AllocationLabelProp:               ParamFilterLabels,
+	opencost.AllocationServiceProp:             ParamFilterServices,
+	opencost.AllocationDepartmentProp:          ParamFilterDepartments,
+	opencost.AllocationEnvironmentProp:         ParamFilterEnvironments,
+	opencost.AllocationOwnerProp:               ParamFilterOwners,
+	opencost.AllocationProductProp:             ParamFilterProducts,
+	opencost.AllocationTeamProp:                ParamFilterTeams,
 }
 
 // Map to store Kubecost Asset property to Asset Filter types.
