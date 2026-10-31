@@ -422,6 +422,82 @@ func TestMetricSynthesizerCPUAllocation(t *testing.T) {
 	metricSynth.Update(updateSet3)
 }
 
+// TestMetricSynthesizerCPUAllocation_RequestMetricGracePeriod simulates the request-side
+// scraper (clusterCacheScraper.scrapePods()) intermittently missing a tick while the
+// usage-side scraper (statSummaryScraper) keeps reporting, since the two scrapes run
+// concurrently and independently. The request should be retained for up to
+// maxRequestMetricAge cycles instead of immediately falling back to usage-only allocation.
+func TestMetricSynthesizerCPUAllocation_RequestMetricGracePeriod(t *testing.T) {
+	container1Info := map[string]string{
+		source.NamespaceLabel: "namespace1",
+		source.NodeLabel:      "node1",
+		source.InstanceLabel:  "node1",
+		source.PodLabel:       "pod1",
+		source.UIDLabel:       "pod-uuid1",
+		source.ContainerLabel: "container1",
+	}
+
+	const startingCPUSeconds float64 = 506000.0
+	const requestValue float64 = 8.0
+	const usageValue float64 = 1.0
+
+	requestUpdate := metric.Update{
+		Name:   metric.KubePodContainerResourceRequests,
+		Labels: toCpuResource(container1Info),
+		Value:  requestValue,
+	}
+
+	usageUpdateAt := func(seconds float64) metric.Update {
+		return metric.Update{
+			Name:   metric.ContainerCPUUsageSecondsTotal,
+			Labels: maps.Clone(container1Info),
+			Value:  startingCPUSeconds + seconds,
+		}
+	}
+
+	// scrape 0: request + usage sample 1 (no rate yet, alloc = request)
+	updateSet0 := &metric.UpdateSet{
+		Timestamp: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC),
+		Updates:   []metric.Update{requestUpdate, usageUpdateAt(0)},
+	}
+
+	// scrapes 1-3: request-side scraper misses this pod/container entirely, usage keeps
+	// coming in at a rate well below the request (usageValue/scrape < requestValue)
+	missingRequestSets := make([]*metric.UpdateSet, 0, maxRequestMetricAge)
+	for i := 1; i <= maxRequestMetricAge; i++ {
+		missingRequestSets = append(missingRequestSets, &metric.UpdateSet{
+			Timestamp: time.Date(2026, time.January, 1, 0, 0, 30*i, 0, time.UTC),
+			Updates:   []metric.Update{usageUpdateAt(usageValue * float64(i) * 30.0)},
+		})
+	}
+
+	scrape := 0
+	updater := NewFuncUpdater(func(us *metric.UpdateSet) {
+		if scrape == 0 {
+			assertMetricValue(t, us, metric.ContainerCPUAllocation, "container1", requestValue)
+		}
+
+		// while the request is within its grace period, alloc should stay pinned at the
+		// retained request value instead of dropping to raw usage.
+		if scrape >= 1 && scrape <= maxRequestMetricAge {
+			assertMetricValue(t, us, metric.ContainerCPUAllocation, "container1", requestValue)
+		}
+
+		scrape += 1
+	})
+
+	metricSynth := NewMetricSynthesizers(updater, NewContainerCpuAllocationSynthesizer(), NewContainerMemoryAllocationSynthesizer())
+
+	metricSynth.Update(updateSet0)
+	for _, us := range missingRequestSets {
+		metricSynth.Update(us)
+	}
+
+	if scrape != maxRequestMetricAge+1 {
+		t.Fatalf("expected %d scrapes, got %d", maxRequestMetricAge+1, scrape)
+	}
+}
+
 func TestMetricSynthesizerCPUAllocation_UsageOverflow(t *testing.T) {
 	container1Info := map[string]string{
 		source.NamespaceLabel: "namespace1",
@@ -491,9 +567,10 @@ func TestMetricSynthesizerCPUAllocation_UsageOverflow(t *testing.T) {
 		}
 
 		// second scrape
-		//  - container1: alloc = overflow, reset to current sample
+		//  - container1: usage = overflow, reset to current sample (0.0), but request from
+		//    scrape 1 is still retained (within maxRequestMetricAge), so alloc = max(0.2, 0.0)
 		if scrape == 1 {
-			assertMetricValue(t, us, metric.ContainerCPUAllocation, "container1", 0.0)
+			assertMetricValue(t, us, metric.ContainerCPUAllocation, "container1", 0.2)
 		}
 
 		// third scrape
@@ -576,9 +653,10 @@ func TestMetricSynthesizerCPUAllocation_UsageCounterReset(t *testing.T) {
 		}
 
 		// second scrape
-		//  - container1: alloc = (subtract 1000s - usage sample is less than last recorded), reset to 0.0
+		//  - container1: usage sample is less than last recorded, resets to 0.0, but request
+		//    from scrape 1 is still retained (within maxRequestMetricAge), so alloc = max(0.2, 0.0)
 		if scrape == 1 {
-			assertMetricValue(t, us, metric.ContainerCPUAllocation, "container1", 0.0)
+			assertMetricValue(t, us, metric.ContainerCPUAllocation, "container1", 0.2)
 		}
 
 		// third scrape
