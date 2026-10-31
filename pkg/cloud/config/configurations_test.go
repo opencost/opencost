@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/opencost/opencost/pkg/cloud/aws"
@@ -309,5 +310,22 @@ func TestConfigurations_UnmarshalJSON(t *testing.T) {
 				t.Fatalf("actual Configuration did not match expected")
 			}
 		})
+	}
+}
+
+func TestConfigurations_UnmarshalJSON_BothFormatsFail(t *testing.T) {
+	// fails the new format (bigQuery must be an array) and the legacy
+	// MultiCloudConfig format (gcp must be an array of BigQueryConfig)
+	input := []byte(`{"gcp": {"bigQuery": "not-an-array"}}`)
+
+	actual := &Configurations{}
+	err := json.Unmarshal(input, actual)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	for _, want := range []string{"new format:", "legacy format:", "bigQuery", "MultiCloudConfig"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not contain %q", err.Error(), want)
+		}
 	}
 }
