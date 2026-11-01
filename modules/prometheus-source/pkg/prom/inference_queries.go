@@ -14,26 +14,42 @@ import (
 // counter and add the deltas per (model_name, namespace), so vLLM and SGLang
 // pods are both counted without needing to know which engine serves a model.
 //
+// In SGLang prefill/decode disaggregation both workers see every request, and
+// label their metrics with engine_type="prefill" or "decode" ("unified" when
+// not disaggregated). Prompt and cached tokens are counted where the prompt is
+// processed (not decode workers) and generation tokens where they are produced
+// (not prefill workers), so each request is counted once.
+//
 // SGLang has no prefill-time counter or cache_config_info equivalent, so the
-// processing-time and cache-config queries stay vLLM-only: SGLang models fall
-// back to the multiplier split, and their cache savings come from cached tokens.
+// processing-time and cache-config queries read vLLM only, and skip models that
+// SGLang also serves (see notSGLangServed): SGLang models fall back to the
+// multiplier split, and their cache savings come from cached tokens.
 var (
 	inferencePromptTokenMetrics = []string{
 		"vllm:prompt_tokens_total",
-		"sglang:prompt_tokens_total",
+		`sglang:prompt_tokens_total{engine_type!="decode"}`,
 	}
 	inferenceGenerationTokenMetrics = []string{
 		"vllm:generation_tokens_total",
-		"sglang:generation_tokens_total",
+		`sglang:generation_tokens_total{engine_type!="prefill"}`,
 	}
 	// sglang:cached_tokens_total is split by cache_source (device, host,
 	// storage, or total when the breakdown is unavailable); each request is
 	// counted under exactly one source, so summing the sources is correct.
 	inferenceCachedTokenMetrics = []string{
 		"vllm:prefix_cache_hits_total",
-		"sglang:cached_tokens_total",
+		`sglang:cached_tokens_total{engine_type!="decode"}`,
 	}
 )
+
+// notSGLangServed returns a PromQL suffix that drops (model_name, namespace)
+// series also served by SGLang, using the given range and @ modifier for the
+// SGLang side. Appended to the vLLM-only timing and cache-config queries so
+// vLLM's timing or prefix-caching setting is not applied to SGLang's share of a
+// model served by both engines.
+func notSGLangServed(rangeAndAt string) string {
+	return fmt.Sprintf(` unless on (model_name, namespace) sum by (model_name, namespace) (last_over_time(sglang:prompt_tokens_total%s))`, rangeAndAt)
+}
 
 // QueryInferencePromptTokens implements MetricsQuerier.QueryInferencePromptTokens
 func (pds *PrometheusMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
@@ -85,7 +101,7 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceInputProcessingTime(start, en
 	resultsChan := make(source.QueryResultsChan, 1)
 
 	go func() {
-		values, err := queryCounterDelta(ctx, "vllm:request_prefill_time_seconds_sum", start, end)
+		values, err := queryVLLMOnlyCounterDelta(ctx, "vllm:request_prefill_time_seconds_sum", start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
@@ -107,7 +123,7 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceOutputProcessingTime(start, e
 	go func() {
 		// DECODE-phase seconds. NOT request_time_per_output_token_seconds_sum, which
 		// sums per-request mean seconds-per-token rather than a duration.
-		values, err := queryCounterDelta(ctx, "vllm:request_decode_time_seconds_sum", start, end)
+		values, err := queryVLLMOnlyCounterDelta(ctx, "vllm:request_decode_time_seconds_sum", start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
@@ -240,6 +256,16 @@ func cacheConfigMapToQueryResults(configs map[string]*source.InferenceCacheConfi
 // which is the correct behaviour for pods that started mid-window.
 // Negative deltas (counter resets) are treated as resets and the delta is set to the end value (post-reset activity).
 func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[string]float64, error) {
+	return queryCounterDeltaFiltered(ctx, metric, false, start, end)
+}
+
+// queryVLLMOnlyCounterDelta is queryCounterDelta for vLLM-only metrics: it skips
+// models that SGLang also serves in the window (see notSGLangServed).
+func queryVLLMOnlyCounterDelta(ctx *Context, metric string, start, end time.Time) (map[string]float64, error) {
+	return queryCounterDeltaFiltered(ctx, metric, true, start, end)
+}
+
+func queryCounterDeltaFiltered(ctx *Context, metric string, skipSGLangServed bool, start, end time.Time) (map[string]float64, error) {
 	startUnix := start.Unix()
 	// Clamp end to now: last_over_time with a future @ timestamp returns no results.
 	effectiveEnd := end
@@ -262,6 +288,10 @@ func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[s
 
 	// Query counter value at the end of the window.
 	endQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[%dm] @ %d))`, metric, windowMinutes, endUnix)
+	if skipSGLangServed {
+		// Only the end query needs the filter: deltas are computed for end keys.
+		endQuery += notSGLangServed(fmt.Sprintf("[%dm] @ %d", windowMinutes, endUnix))
+	}
 	endVals, err := queryInstantMetric(ctx, endQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
@@ -314,13 +344,14 @@ func queryCounterDeltaSum(ctx *Context, metrics []string, start, end time.Time) 
 func queryCacheConfigs(ctx *Context, t time.Time) (map[string]*source.InferenceCacheConfig, error) {
 	// Join cache_config_info (has enable_prefix_caching label) with
 	// prompt_tokens_total (has model_name) using namespace+pod as the join key.
+	// Models SGLang also serves are skipped: vLLM's setting says nothing about
+	// SGLang's cache hits, so their cache config is left unknown.
 	query := `
 		max by (model_name, namespace, enable_prefix_caching) (
 			sum by (model_name, namespace, pod) (vllm:prompt_tokens_total)
 			* on (namespace, pod) group_left(enable_prefix_caching)
 			max by (namespace, pod, enable_prefix_caching) (vllm:cache_config_info)
-		)
-	`
+		)` + notSGLangServed("[5m]")
 
 	raw, _, err := ctx.query(query, t)
 	if err != nil {

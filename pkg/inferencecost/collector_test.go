@@ -968,6 +968,29 @@ func TestQueryCounterDelta_Formula(t *testing.T) {
 	}
 }
 
+// TestReconcileTokenKeys_AccumulatesExactAndRemappedKeys verifies that when one
+// engine reports "org/model" and another reports "model" for the same pods, the
+// remapped and exact-match counts are added rather than one overwriting the
+// other. Map iteration order is random, so the reconcile runs many times to
+// cover both orders.
+func TestReconcileTokenKeys_AccumulatesExactAndRemappedKeys(t *testing.T) {
+	allocCosts := map[string]*allocationResult{
+		"Qwen3-32B:prod": {allocationTotalCost: 10.0, namespace: "prod"},
+	}
+
+	tokens := map[string]float64{
+		"Qwen/Qwen3-32B:prod": 1000.0, // e.g. vLLM with no --served-model-name
+		"Qwen3-32B:prod":      250.0,  // e.g. SGLang with --served-model-name
+	}
+
+	for i := 0; i < 50; i++ {
+		out, _ := reconcileTokenKeys(tokens, allocCosts)
+		if v := out["Qwen3-32B:prod"]; !floatEq(v, 1250.0) {
+			t.Fatalf("iteration %d: Qwen3-32B:prod want 1250.0 got %v", i, v)
+		}
+	}
+}
+
 // TestReconcileTokenKeys_NoMismatch verifies that when all token keys directly
 // match allocation keys, no re-keying occurs and no entries are dropped.
 func TestReconcileTokenKeys_NoMismatch(t *testing.T) {

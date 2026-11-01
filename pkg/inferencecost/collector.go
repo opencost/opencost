@@ -445,7 +445,9 @@ func reconcileTokenKeys(tokens map[string]float64, allocCosts map[string]*alloca
 			}
 		}
 
-		out[k] = v
+		// Accumulate: a remapped key (e.g. one engine reporting "org/model")
+		// may already have added to this key, in either map iteration order.
+		out[k] += v
 	}
 	return out, remappedKeys
 }

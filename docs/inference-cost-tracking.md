@@ -395,7 +395,11 @@ Requires SGLang started with `--enable-metrics`.
 | `sglang:generation_tokens_total` | Token counts, blended cost rate |
 | `sglang:cached_tokens_total` | `cacheSavingsFraction` (summed over `cache_source`; optional) |
 
-SGLang has no prefill-time counter or `cache_config_info` equivalent, so SGLang models always use the `multiplier` input/output split, and `prefix_caching_off` is never detected for them. Token counts from vLLM and SGLang pods serving the same model in the same namespace are added together.
+With prefill/decode disaggregation, both SGLang workers count every request, labelled `engine_type="prefill"` or `"decode"` (`"unified"` otherwise). Prompt and cached tokens are read from non-decode workers and generation tokens from non-prefill workers, so each request is counted once.
+
+SGLang has no prefill-time counter or `cache_config_info` equivalent, so SGLang models always use the `multiplier` input/output split, and `prefix_caching_off` is never detected for them.
+
+If vLLM and SGLang pods serve the same model in the same namespace, their token counts are added together, and the model uses the `multiplier` split with cache savings from both engines' cached tokens: vLLM's timing and prefix-caching setting are not applied to SGLang's share.
 
 All metrics must carry `model_name` and `namespace` labels. Verify availability:
 

@@ -135,7 +135,7 @@ func (c *valuePromClient) Do(ctx context.Context, req *http.Request) (*http.Resp
 	result := "[]"
 	q := req.URL.Query().Get("query")
 	for metric, value := range c.endValues {
-		if !strings.Contains(q, metric+"[") {
+		if !strings.Contains(q, metric+"[") && !strings.Contains(q, metric+"{") {
 			continue
 		}
 		if strings.Contains(q, "[2m] @") {
@@ -159,7 +159,10 @@ func newValueQuerier(endValues map[string]string) *PrometheusMetricsQuerier {
 
 // TestQueryInferenceTokens_ReadsVLLMAndSGLang pins the token counters each token
 // query reads: one per supported model server. Dropping one would silently zero
-// the cost data for every model served by that engine (#4148).
+// the cost data for every model served by that engine (#4148). The SGLang
+// selectors also pin the worker-role filter: in prefill/decode disaggregation
+// both workers count every request, so prompt and cached tokens must skip
+// decode workers and generation tokens must skip prefill workers.
 func TestQueryInferenceTokens_ReadsVLLMAndSGLang(t *testing.T) {
 	start := time.Now().Add(-time.Hour)
 	end := time.Now()
@@ -175,7 +178,7 @@ func TestQueryInferenceTokens_ReadsVLLMAndSGLang(t *testing.T) {
 				_, err := q.QueryInferencePromptTokens(start, end).Await()
 				return err
 			},
-			want: []string{"vllm:prompt_tokens_total", "sglang:prompt_tokens_total"},
+			want: []string{"vllm:prompt_tokens_total", `sglang:prompt_tokens_total{engine_type!="decode"}`},
 		},
 		{
 			name: "generation tokens",
@@ -183,7 +186,7 @@ func TestQueryInferenceTokens_ReadsVLLMAndSGLang(t *testing.T) {
 				_, err := q.QueryInferenceGenerationTokens(start, end).Await()
 				return err
 			},
-			want: []string{"vllm:generation_tokens_total", "sglang:generation_tokens_total"},
+			want: []string{"vllm:generation_tokens_total", `sglang:generation_tokens_total{engine_type!="prefill"}`},
 		},
 		{
 			name: "cached tokens",
@@ -191,7 +194,7 @@ func TestQueryInferenceTokens_ReadsVLLMAndSGLang(t *testing.T) {
 				_, err := q.QueryInferenceCachedTokens(start, end).Await()
 				return err
 			},
-			want: []string{"vllm:prefix_cache_hits_total", "sglang:cached_tokens_total"},
+			want: []string{"vllm:prefix_cache_hits_total", `sglang:cached_tokens_total{engine_type!="decode"}`},
 		},
 	}
 
@@ -225,6 +228,50 @@ func TestQueryInferenceTokens_ReadsVLLMAndSGLang(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestQueryInferenceVLLMOnly_SkipsSGLangServedModels asserts the vLLM-only
+// timing and cache-config queries drop models that SGLang also serves, so a
+// model served by both engines falls back to the multiplier split and keeps
+// SGLang's cache hits, instead of applying vLLM's timing ratio or
+// prefix-caching setting to SGLang's share.
+func TestQueryInferenceVLLMOnly_SkipsSGLangServedModels(t *testing.T) {
+	start := time.Now().Add(-time.Hour)
+	end := time.Now()
+	const filter = "unless on (model_name, namespace) sum by (model_name, namespace) (last_over_time(sglang:prompt_tokens_total["
+
+	querier, client := newRecordingQuerier()
+	if _, err := querier.QueryInferenceInputProcessingTime(start, end).Await(); err != nil {
+		t.Fatalf("input query returned error: %v", err)
+	}
+	if _, err := querier.QueryInferenceOutputProcessingTime(start, end).Await(); err != nil {
+		t.Fatalf("output query returned error: %v", err)
+	}
+	if _, err := querier.QueryInferenceCacheConfig(end).Await(); err != nil {
+		t.Fatalf("cache config query returned error: %v", err)
+	}
+
+	filtered := 0
+	for _, q := range client.recorded() {
+		switch {
+		case strings.Contains(q, "vllm:cache_config_info") && !strings.Contains(q, "max by (namespace) (vllm:cache_config_info)"):
+			// The cache-config join (not its diagnostic follow-up query).
+			if !strings.Contains(q, filter) {
+				t.Errorf("cache config query does not skip SGLang-served models: %s", q)
+			}
+			filtered++
+		case strings.Contains(q, "_time_seconds_sum[2m] @"):
+			// Start-of-window boundary: deltas are keyed on the end query, so no filter needed.
+		case strings.Contains(q, "_time_seconds_sum["):
+			if !strings.Contains(q, filter) {
+				t.Errorf("end-of-window timing query does not skip SGLang-served models: %s", q)
+			}
+			filtered++
+		}
+	}
+	if filtered != 3 {
+		t.Errorf("expected 3 filtered queries (input end, output end, cache config), got %d", filtered)
 	}
 }
 
