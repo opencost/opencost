@@ -255,11 +255,9 @@ func TestQueryInferenceVLLMOnly_SkipsSGLangServedModels(t *testing.T) {
 	filtered := 0
 	for _, q := range client.recorded() {
 		switch {
-		case strings.Contains(q, "vllm:cache_config_info") && !strings.Contains(q, "max by (namespace) (vllm:cache_config_info)"):
-			// The cache-config join (not its diagnostic follow-up query).
-			if !strings.Contains(q, filter) {
-				t.Errorf("cache config query does not skip SGLang-served models: %s", q)
-			}
+		case strings.Contains(q, "group_left(enable_prefix_caching)") && strings.Contains(q, filter):
+			// The cache-config join. Its diagnostic re-runs the join without the
+			// filter to tell an expected empty result from a pod-label mismatch.
 			filtered++
 		case strings.Contains(q, "_time_seconds_sum[2m] @"):
 			// Start-of-window boundary: deltas are keyed on the end query, so no filter needed.
@@ -272,6 +270,64 @@ func TestQueryInferenceVLLMOnly_SkipsSGLangServedModels(t *testing.T) {
 	}
 	if filtered != 3 {
 		t.Errorf("expected 3 filtered queries (input end, output end, cache config), got %d", filtered)
+	}
+}
+
+// TestQueryInference_AppliesClusterFilter asserts every inference query applies
+// the configured cluster filter to each metric it reads, so a Prometheus shared
+// by several clusters does not add other clusters' tokens, or let another
+// cluster's SGLang deployment suppress this cluster's vLLM timing.
+func TestQueryInference_AppliesClusterFilter(t *testing.T) {
+	start := time.Now().Add(-time.Hour)
+	end := time.Now()
+	const clusterFilter = `cluster_id="local"`
+
+	client := &recordingPromClient{}
+	cfg := &OpenCostPrometheusConfig{ClusterLabel: "cluster_id", ClusterFilter: clusterFilter}
+	querier := newPrometheusMetricsQuerier(cfg, client, NewContextFactory(client, cfg))
+
+	if _, err := querier.QueryInferencePromptTokens(start, end).Await(); err != nil {
+		t.Fatalf("prompt query returned error: %v", err)
+	}
+	if _, err := querier.QueryInferenceInputProcessingTime(start, end).Await(); err != nil {
+		t.Fatalf("input query returned error: %v", err)
+	}
+	if _, err := querier.QueryInferenceCacheConfig(end).Await(); err != nil {
+		t.Fatalf("cache config query returned error: %v", err)
+	}
+
+	want := []string{
+		`vllm:prompt_tokens_total{` + clusterFilter + `}[`,
+		`sglang:prompt_tokens_total{engine_type!="decode", ` + clusterFilter + `}[`,
+		`vllm:request_prefill_time_seconds_sum{` + clusterFilter + `}[`,
+		`last_over_time(sglang:prompt_tokens_total{` + clusterFilter + `}[`,
+		`vllm:cache_config_info{` + clusterFilter + `}`,
+	}
+	queries := strings.Join(client.recorded(), "\n")
+	for _, w := range want {
+		if !strings.Contains(queries, w) {
+			t.Errorf("no query contains %s", w)
+		}
+	}
+	for _, q := range client.recorded() {
+		for _, metric := range []string{"vllm:prompt_tokens_total", "sglang:prompt_tokens_total", "vllm:cache_config_info"} {
+			if strings.Contains(q, metric+"[") || strings.Contains(q, metric+")") {
+				t.Errorf("query reads %s without the cluster filter: %s", metric, q)
+			}
+		}
+	}
+}
+
+func TestWithClusterFilter(t *testing.T) {
+	tests := []struct{ selector, filter, want string }{
+		{"vllm:prompt_tokens_total", "", "vllm:prompt_tokens_total"},
+		{"vllm:prompt_tokens_total", `cluster_id="a"`, `vllm:prompt_tokens_total{cluster_id="a"}`},
+		{`sglang:prompt_tokens_total{engine_type!="decode"}`, `cluster_id="a"`, `sglang:prompt_tokens_total{engine_type!="decode", cluster_id="a"}`},
+	}
+	for _, tc := range tests {
+		if got := withClusterFilter(tc.selector, tc.filter); got != tc.want {
+			t.Errorf("withClusterFilter(%q, %q) = %q, want %q", tc.selector, tc.filter, got, tc.want)
+		}
 	}
 }
 

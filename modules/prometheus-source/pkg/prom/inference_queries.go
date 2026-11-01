@@ -47,8 +47,22 @@ var (
 // SGLang side. Appended to the vLLM-only timing and cache-config queries so
 // vLLM's timing or prefix-caching setting is not applied to SGLang's share of a
 // model served by both engines.
-func notSGLangServed(rangeAndAt string) string {
-	return fmt.Sprintf(` unless on (model_name, namespace) sum by (model_name, namespace) (last_over_time(sglang:prompt_tokens_total%s))`, rangeAndAt)
+func notSGLangServed(clusterFilter, rangeAndAt string) string {
+	return fmt.Sprintf(` unless on (model_name, namespace) sum by (model_name, namespace) (last_over_time(%s%s))`,
+		withClusterFilter("sglang:prompt_tokens_total", clusterFilter), rangeAndAt)
+}
+
+// withClusterFilter adds the configured cluster filter (e.g. cluster_id="a",
+// empty when filtering is off) to a metric selector, so a Prometheus shared by
+// several clusters only contributes this cluster's series.
+func withClusterFilter(selector, clusterFilter string) string {
+	if clusterFilter == "" {
+		return selector
+	}
+	if strings.HasSuffix(selector, "}") {
+		return strings.TrimSuffix(selector, "}") + ", " + clusterFilter + "}"
+	}
+	return selector + "{" + clusterFilter + "}"
 }
 
 // QueryInferencePromptTokens implements MetricsQuerier.QueryInferencePromptTokens
@@ -286,11 +300,13 @@ func queryCounterDeltaFiltered(ctx *Context, metric string, skipSGLangServed boo
 		windowMinutes = 2
 	}
 
+	selector := withClusterFilter(metric, ctx.config.ClusterFilter)
+
 	// Query counter value at the end of the window.
-	endQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[%dm] @ %d))`, metric, windowMinutes, endUnix)
+	endQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[%dm] @ %d))`, selector, windowMinutes, endUnix)
 	if skipSGLangServed {
 		// Only the end query needs the filter: deltas are computed for end keys.
-		endQuery += notSGLangServed(fmt.Sprintf("[%dm] @ %d", windowMinutes, endUnix))
+		endQuery += notSGLangServed(ctx.config.ClusterFilter, fmt.Sprintf("[%dm] @ %d", windowMinutes, endUnix))
 	}
 	endVals, err := queryInstantMetric(ctx, endQuery, effectiveEnd)
 	if err != nil {
@@ -300,7 +316,7 @@ func queryCounterDeltaFiltered(ctx *Context, metric string, skipSGLangServed boo
 	// Query counter value at the start of the window.
 	// Use a narrow 2m lookback here: we want the value just before the window
 	// opens, not a stale value from much earlier that would undercount the delta.
-	startQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[2m] @ %d))`, metric, startUnix)
+	startQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[2m] @ %d))`, selector, startUnix)
 	startVals, err := queryInstantMetric(ctx, startQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
@@ -346,12 +362,14 @@ func queryCacheConfigs(ctx *Context, t time.Time) (map[string]*source.InferenceC
 	// prompt_tokens_total (has model_name) using namespace+pod as the join key.
 	// Models SGLang also serves are skipped: vLLM's setting says nothing about
 	// SGLang's cache hits, so their cache config is left unknown.
-	query := `
+	filter := ctx.config.ClusterFilter
+	join := fmt.Sprintf(`
 		max by (model_name, namespace, enable_prefix_caching) (
-			sum by (model_name, namespace, pod) (vllm:prompt_tokens_total)
+			sum by (model_name, namespace, pod) (%s)
 			* on (namespace, pod) group_left(enable_prefix_caching)
-			max by (namespace, pod, enable_prefix_caching) (vllm:cache_config_info)
-		)` + notSGLangServed("[5m]")
+			max by (namespace, pod, enable_prefix_caching) (%s)
+		)`, withClusterFilter("vllm:prompt_tokens_total", filter), withClusterFilter("vllm:cache_config_info", filter))
+	query := join + notSGLangServed(filter, "[5m]")
 
 	raw, _, err := ctx.query(query, t)
 	if err != nil {
@@ -385,21 +403,27 @@ func queryCacheConfigs(ctx *Context, t time.Time) (map[string]*source.InferenceC
 	// Check for models that have token data but no cache config — likely a join
 	// failure due to pod-label mismatch between cache_config_info and prompt_tokens_total.
 	// Only run the diagnostic query when the join produced nothing; skip it on the happy path.
-	if len(out) == 0 {
-		rawQuery := `max by (namespace) (vllm:cache_config_info)`
-		rawResult, _, rawErr := ctx.query(rawQuery, t)
-		if rawErr == nil {
-			diagResults := NewQueryResults(rawQuery, rawResult, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
-			if diagResults.Error == nil && len(diagResults.Results) > 0 {
-				log.Warnf("InferenceCost: vllm:cache_config_info exists in Prometheus but the join with " +
-					"vllm:prompt_tokens_total produced no results — likely a pod-label mismatch between " +
-					"the two metrics (check that both carry matching 'namespace' and 'pod' labels). " +
-					"prefix_caching_off detection will be disabled; allocation method will be 'compute_time'.")
-			}
-		}
+	// An empty result is expected when every vLLM model is also served by SGLang,
+	// so only warn when the join itself (without that exclusion) is empty too.
+	if len(out) == 0 && !hasResults(ctx, join, t) && hasResults(ctx, fmt.Sprintf(`max by (namespace) (%s)`, withClusterFilter("vllm:cache_config_info", filter)), t) {
+		log.Warnf("InferenceCost: vllm:cache_config_info exists in Prometheus but the join with " +
+			"vllm:prompt_tokens_total produced no results — likely a pod-label mismatch between " +
+			"the two metrics (check that both carry matching 'namespace' and 'pod' labels). " +
+			"prefix_caching_off detection will be disabled.")
 	}
 
 	return out, nil
+}
+
+// hasResults reports whether an instant query evaluated at t returns any series.
+// Query errors count as no results; it is only used for diagnostics.
+func hasResults(ctx *Context, query string, t time.Time) bool {
+	raw, _, err := ctx.query(query, t)
+	if err != nil {
+		return false
+	}
+	results := NewQueryResults(query, raw, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+	return results.Error == nil && len(results.Results) > 0
 }
 
 // queryInstantMetric runs a Prometheus instant query evaluated at t and returns a

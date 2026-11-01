@@ -399,7 +399,9 @@ With prefill/decode disaggregation, both SGLang workers count every request, lab
 
 SGLang has no prefill-time counter or `cache_config_info` equivalent, so SGLang models always use the `multiplier` input/output split, and `prefix_caching_off` is never detected for them.
 
-If vLLM and SGLang pods serve the same model in the same namespace, their token counts are added together, and the model uses the `multiplier` split with cache savings from both engines' cached tokens: vLLM's timing and prefix-caching setting are not applied to SGLang's share.
+If vLLM and SGLang pods serve the same model in the same namespace, their token counts are added together, and the model uses the `multiplier` split with cache savings from both engines' cached tokens: vLLM's timing and prefix-caching setting are not applied to SGLang's share. This detection matches `model_name` exactly, so give both engines the same `--served-model-name`; if one reports `org/model` and the other `model`, their tokens are still combined, but the model may keep vLLM's timing split.
+
+When `CURRENT_CLUSTER_ID_FILTER_ENABLED` is set, every inference query is limited to this cluster's series, for both engines.
 
 All metrics must carry `model_name` and `namespace` labels. Verify availability:
 
