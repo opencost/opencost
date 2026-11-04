@@ -234,6 +234,39 @@ func TestParsePage(t *testing.T) {
 			expectedPrices: nil,
 			expectError:    true,
 		},
+		"C4 SKUs": {
+			// The prices in this file are made up; it only has the C4 core and RAM SKUs.
+			inputFile: "./test/c4_skus.json",
+			inputKeys: map[string]models.Key{
+				"us-central1,c4standard,ondemand": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c4-standard-8",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+			},
+			pvKeys: map[string]models.PVKey{},
+			expectedPrices: map[string]*GCPPricing{
+				"us-central1,c4standard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.032",
+						RAMCost:          "0.004",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c4standard,ondemand,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.032",
+						RAMCost:          "0.004",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+			},
+			expectedToken: "done",
+			expectError:   false,
+		},
 		"SKU file": {
 			// NOTE: SKUs here are copied directly from GCP Billing API. Some of them
 			// are in currency IDR, which relates directly to ticket GTM-52, for which
