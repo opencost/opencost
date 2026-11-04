@@ -1069,6 +1069,13 @@ func TestSustainedUseDiscount(t *testing.T) {
 			expected:        0.0,
 		},
 		{
+			name:            "C4 instance",
+			class:           "c4",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
 			name:            "N2 instance",
 			class:           "n2",
 			defaultDiscount: 0.30,
@@ -1460,4 +1467,13 @@ func TestGCPRefreshCustomPricing(t *testing.T) {
 	if gcp.BaseCPUPrice != "" {
 		t.Errorf("BaseCPUPrice = %q, want empty string", gcp.BaseCPUPrice)
 	}
+}
+
+func TestCombinedDiscountForC4Node(t *testing.T) {
+	gcp := &GCP{}
+
+	// C4 gets no sustained use discount, only the negotiated one.
+	assert.InDelta(t, 0.1, gcp.CombinedDiscountForNode("c4-standard-8", false, 0.30, 0.1), 1e-9)
+	// N1 still gets the default sustained use discount on top of the negotiated one.
+	assert.InDelta(t, 1-(1-0.30)*(1-0.1), gcp.CombinedDiscountForNode("n1-standard-8", false, 0.30, 0.1), 1e-9)
 }
