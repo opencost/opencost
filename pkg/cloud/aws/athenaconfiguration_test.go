@@ -515,6 +515,37 @@ func TestAthenaConfiguration_Equals(t *testing.T) {
 			},
 			expected: false,
 		},
+		"different resultReuseMaxAgeMinutes": {
+			left: AthenaConfiguration{
+				Bucket:                   "bucket",
+				Region:                   "region",
+				Database:                 "database",
+				Catalog:                  "catalog",
+				Table:                    "table",
+				Workgroup:                "workgroup",
+				Account:                  "account",
+				ResultReuseMaxAgeMinutes: 60,
+				Authorizer: &AccessKey{
+					ID:     "id",
+					Secret: "secret",
+				},
+			},
+			right: &AthenaConfiguration{
+				Bucket:                   "bucket",
+				Region:                   "region",
+				Database:                 "database",
+				Catalog:                  "catalog",
+				Table:                    "table",
+				Workgroup:                "workgroup",
+				Account:                  "account",
+				ResultReuseMaxAgeMinutes: 120,
+				Authorizer: &AccessKey{
+					ID:     "id",
+					Secret: "secret",
+				},
+			},
+			expected: false,
+		},
 		"different config": {
 			left: AthenaConfiguration{
 				Bucket:    "bucket",
@@ -579,6 +610,22 @@ func TestAthenaConfiguration_JSON(t *testing.T) {
 				Workgroup:  "workgroup",
 				Account:    "account",
 				Authorizer: &ServiceAccount{},
+			},
+		},
+		"ResultReuseMaxAgeMinutes": {
+			config: AthenaConfiguration{
+				Bucket:                   "bucket",
+				Region:                   "region",
+				Database:                 "database",
+				Catalog:                  "catalog",
+				Table:                    "table",
+				Workgroup:                "workgroup",
+				Account:                  "account",
+				ResultReuseMaxAgeMinutes: 60,
+				Authorizer: &AccessKey{
+					ID:     "id",
+					Secret: "secret",
+				},
 			},
 		},
 		"AssumeRole with AccessKey": {

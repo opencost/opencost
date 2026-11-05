@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"regexp"
@@ -514,7 +515,7 @@ func (aws *AWS) GetAWSAccessKey() (*AWSAccessKey, error) {
 	}
 
 	if config.AwsServiceKeyName == "" && config.AwsServiceKeySecret == "" {
-		log.DedupedInfof(1, "missing service key values for AWS cloud integration attempting to use service account integration")
+		log.DedupedDebugf(1, "missing service key values for AWS cloud integration attempting to use service account integration")
 	}
 
 	return &AWSAccessKey{AccessKeyID: config.AwsServiceKeyName, SecretAccessKey: config.AwsServiceKeySecret}, nil
@@ -944,7 +945,7 @@ func (aws *AWS) DownloadPricingData() error {
 	storageClasses := aws.Clientset.GetAllStorageClasses()
 	storageClassMap := make(map[string]map[string]string)
 	for _, storageClass := range storageClasses {
-		params := storageClass.Parameters
+		params := maps.Clone(storageClass.Parameters)
 		if params != nil {
 			params["provisioner"] = storageClass.Provisioner
 		}
@@ -1481,6 +1482,26 @@ func (aws *AWS) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	}, nil
 }
 
+// RefreshCustomPricing reloads base price and spot label fields from config.
+// Avoids the full node/PV discovery and external AWS API calls in DownloadPricingData.
+func (aws *AWS) RefreshCustomPricing() error {
+	aws.DownloadPricingDataLock.Lock()
+	defer aws.DownloadPricingDataLock.Unlock()
+	c, err := aws.Config.GetCustomPricingData()
+	if err != nil {
+		return err
+	}
+	aws.BaseCPUPrice = c.CPU
+	aws.BaseRAMPrice = c.RAM
+	aws.BaseGPUPrice = c.GPU
+	aws.BaseSpotCPUPrice = c.SpotCPU
+	aws.BaseSpotRAMPrice = c.SpotRAM
+	aws.BaseSpotGPUPrice = c.SpotGPU
+	aws.SpotLabelName = c.SpotLabel
+	aws.SpotLabelValue = c.SpotLabelValue
+	return nil
+}
+
 // AllNodePricing returns all the billing data fetched.
 func (aws *AWS) AllNodePricing() (interface{}, error) {
 	aws.DownloadPricingDataLock.RLock()
@@ -1784,17 +1805,13 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	// Determine cluster name
 	clusterName := c.ClusterName
 	if clusterName == "" {
-		awsClusterID := env.GetAWSClusterID()
-		if awsClusterID != "" {
-			log.Infof("Returning \"%s\" as ClusterName", awsClusterID)
-			clusterName = awsClusterID
-			log.Warnf("Warning - %s will be deprecated in a future release. Use %s instead", env.AWSClusterIDEnvVar, coreenv.ClusterIDEnvVar)
+		if clusterName = env.GetAWSClusterID(); clusterName != "" {
+			log.DedupedWarningf(3, "%s will be deprecated in a future release. Use %s instead", env.AWSClusterIDEnvVar, coreenv.ClusterIDEnvVar)
 		} else if clusterName = coreenv.GetClusterID(); clusterName != "" {
-			log.DedupedInfof(5, "Setting cluster name to %s from %s ", clusterName, coreenv.ClusterIDEnvVar)
+			log.DedupedDebugf(3, "Setting cluster name to %s from %s", clusterName, coreenv.ClusterIDEnvVar)
 		} else {
 			clusterName = defaultClusterName
-			log.DedupedWarningf(5, "Unable to detect cluster name - using default of %s", defaultClusterName)
-			log.DedupedWarningf(5, "Please set cluster name through configmap or via %s env var", coreenv.ClusterIDEnvVar)
+			log.DedupedWarningf(3, "Unable to detect cluster name - using default of %s. Set it through the configmap or the %s env var", defaultClusterName, coreenv.ClusterIDEnvVar)
 		}
 	}
 

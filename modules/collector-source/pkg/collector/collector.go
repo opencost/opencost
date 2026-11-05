@@ -121,6 +121,7 @@ func NewOpenCostMetricStore() metric.MetricStore {
 	memStore.Register(NewDaemonSetUptimeMetricCollector())
 	memStore.Register(NewDaemonSetLabelsMetricCollector())
 	memStore.Register(NewDaemonSetAnnotationsMetricCollector())
+	memStore.Register(NewDaemonSetArgumentsMetricCollector())
 	memStore.Register(NewJobInfoMetricCollector())
 	memStore.Register(NewJobUptimeMetricCollector())
 	memStore.Register(NewJobLabelsMetricCollector())
@@ -845,7 +846,7 @@ func NewClusterInfoMetricCollector() *metric.MetricCollector {
 //		cluster_info{
 //			<some_custom_filter>
 //		}
-//	) by (uid, complete_kubemodel)[%s:%dm]
+//	) by (uid, kubemodel_version)[%s:%dm]
 
 func NewClusterCompleteKubeModelMetricCollector() *metric.MetricCollector {
 	return metric.NewMetricCollector(
@@ -1381,7 +1382,7 @@ func NewCPUUsageMaxMetricCollector() *metric.MetricCollector {
 //	avg(
 //		avg_over_time(
 //			kube_pod_container_resource_requests{
-//				resource="nvidia_com_gpu",
+//				resource="nvidia_com_gpu" OR resource="nvidia.com/gpu",
 //				container!="",
 //				container!="POD",
 //				node!="",
@@ -1402,7 +1403,7 @@ func NewGPUsRequestedMetricCollector() *metric.MetricCollector {
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
-			return labels[source.ResourceLabel] == "nvidia_com_gpu" && labels[source.ContainerLabel] != "POD" && labels[source.ContainerLabel] != "" && labels[source.NodeLabel] != ""
+			return (labels[source.ResourceLabel] == "nvidia_com_gpu" || labels[source.ResourceLabel] == "nvidia.com/gpu") && labels[source.ContainerLabel] != "POD" && labels[source.ContainerLabel] != "" && labels[source.NodeLabel] != ""
 		},
 	)
 }
@@ -2522,6 +2523,19 @@ func NewDaemonSetAnnotationsMetricCollector() *metric.MetricCollector {
 		metric.DaemonSetAnnotations,
 		[]string{
 			source.UIDLabel,
+		},
+		aggregator.Info,
+		nil,
+	)
+}
+
+func NewDaemonSetArgumentsMetricCollector() *metric.MetricCollector {
+	return metric.NewMetricCollector(
+		metric.DaemonSetArgumentsID,
+		metric.DaemonSetArguments,
+		[]string{
+			source.UIDLabel,
+			source.ArgLabel,
 		},
 		aggregator.Info,
 		nil,

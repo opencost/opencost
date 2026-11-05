@@ -16,6 +16,7 @@ func (km *KubeModel) computeDaemonSets(kms *kubemodel.KubeModelSet, start, end t
 	daemonSetUptimeResultFuture := source.WithGroup(grp, metrics.QueryDaemonSetUptime(start, end))
 	daemonSetLabelsResultFuture := source.WithGroup(grp, metrics.QueryDaemonSetLabels(start, end))
 	daemonSetAnnotationsResultFuture := source.WithGroup(grp, metrics.QueryDaemonSetAnnotations(start, end))
+	daemonSetArgumentsResultFuture := source.WithGroup(grp, metrics.QueryDaemonSetArguments(start, end))
 
 	daemonSetMap := make(map[string]*kubemodel.DaemonSet)
 
@@ -58,6 +59,19 @@ func (km *KubeModel) computeDaemonSets(kms *kubemodel.KubeModelSet, start, end t
 			continue
 		}
 		daemonSet.Annotations = res.Annotations
+	}
+
+	daemonSetArgumentsResult, _ := daemonSetArgumentsResultFuture.Await()
+	for _, res := range daemonSetArgumentsResult {
+		daemonSet, ok := daemonSetMap[res.UID]
+		if !ok {
+			log.Warnf("daemonset with UID '%s' has not been initialized to add arguments", res.UID)
+			continue
+		}
+		if daemonSet.Arguments == nil {
+			daemonSet.Arguments = make(map[string]string)
+		}
+		daemonSet.Arguments[res.Arg] = res.Value
 	}
 
 	for _, daemonSet := range daemonSetMap {

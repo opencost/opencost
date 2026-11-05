@@ -113,6 +113,15 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 		startQueryExecutionInput.WorkGroup = aws.String(aq.Workgroup)
 	}
 
+	if aq.ResultReuseMaxAgeMinutes > 0 {
+		startQueryExecutionInput.ResultReuseConfiguration = &types.ResultReuseConfiguration{
+			ResultReuseByAgeConfiguration: &types.ResultReuseByAgeConfiguration{
+				Enabled:         true,
+				MaxAgeInMinutes: aws.Int32(aq.ResultReuseMaxAgeMinutes),
+			},
+		}
+	}
+
 	// Create Athena Client
 	cli, err := aq.GetAthenaClient()
 	if err != nil {

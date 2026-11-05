@@ -69,11 +69,9 @@ func (kpvcb KubePVCollector) Collect(ch chan<- prometheus.Metric) {
 
 		if _, disabled := disabledMetrics["kubecost_pv_info"]; !disabled {
 			storageClass := pv.Spec.StorageClassName
-			providerID := pv.Name
+			providerID := clustercache.GetPVProviderID(pv)
 			var csiVolumeHandle string
-			// if a more accurate provider ID is available, use that
-			if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
-				providerID = pv.Spec.CSI.VolumeHandle
+			if pv.Spec.CSI != nil {
 				csiVolumeHandle = pv.Spec.CSI.VolumeHandle
 			}
 			m := newKubecostPVInfoMetric("kubecost_pv_info", pv.Name, pvUID, storageClass, providerID, csiVolumeHandle, float64(1))

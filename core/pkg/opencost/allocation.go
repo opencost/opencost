@@ -1376,6 +1376,10 @@ func (a *Allocation) add(that *Allocation) {
 		a.End = that.End
 	}
 
+	if a.GPUAllocation == nil && that.GPUAllocation != nil {
+		a.GPUAllocation = that.GPUAllocation.Clone()
+	}
+
 	// Convert cumulative request and usage back into rates
 	// TODO:TEST write a unit test that fails if this is done incorrectly
 	if a.Minutes() > 0 {

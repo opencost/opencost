@@ -24,7 +24,7 @@ type KubeModelSet struct {
 	PersistentVolumeClaims map[string]*PersistentVolumeClaim `json:"pvcs"`              // @bingen:field[version=2]
 	Pods                   map[string]*Pod                   `json:"pods"`              // @bingen:field[version=2]
 	Containers             map[string]*Container             `json:"containers"`        // @bingen:field[version=2]
-	DCGMDevices            map[string]*DCGMDevice            `json:"dcgmDevices"`       // @bingen:field[ignore]
+	Devices                map[string]*Device                `json:"devices"`           // @bingen:field[version=3]
 }
 
 func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
@@ -48,7 +48,7 @@ func NewKubeModelSet(start time.Time, end time.Time) *KubeModelSet {
 		ReplicaSets:            map[string]*ReplicaSet{},
 		Namespaces:             map[string]*Namespace{},
 		Nodes:                  map[string]*Node{},
-		DCGMDevices:            map[string]*DCGMDevice{},
+		Devices:                map[string]*Device{},
 		Pods:                   map[string]*Pod{},
 		PersistentVolumeClaims: map[string]*PersistentVolumeClaim{},
 		ResourceQuotas:         map[string]*ResourceQuota{},
@@ -74,7 +74,7 @@ func (kms *KubeModelSet) IsEmpty() bool {
 		len(kms.ReplicaSets) == 0 &&
 		len(kms.Namespaces) == 0 &&
 		len(kms.Nodes) == 0 &&
-		len(kms.DCGMDevices) == 0 &&
+		len(kms.Devices) == 0 &&
 		len(kms.Pods) == 0 &&
 		len(kms.PersistentVolumeClaims) == 0 &&
 		len(kms.ResourceQuotas) == 0 &&

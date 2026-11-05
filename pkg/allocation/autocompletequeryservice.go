@@ -17,6 +17,12 @@ func QueryAllocationAutocompleteFromSetRange(asr *opencost.AllocationSetRange, r
 		return nil, err
 	}
 
+	if route, _, _ := coreallocation.RouteField(field); route == coreallocation.RouteAlias {
+		if key, ok := coreallocation.ResolveAliasLabelKey(field, req.LabelConfig); ok {
+			field = "label:" + key
+		}
+	}
+
 	var matcher opencost.AllocationMatcher
 	if autocomplete.HasFilter(req.Filter) {
 		compiler := opencost.NewAllocationMatchCompiler(req.LabelConfig)

@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"maps"
 	"math"
 	"strconv"
 	"strings"
@@ -708,7 +709,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			storageClasses := cmme.KubeClusterCache.GetAllStorageClasses()
 			storageClassMap := make(map[string]map[string]string)
 			for _, storageClass := range storageClasses {
-				params := storageClass.Parameters
+				params := maps.Clone(storageClass.Parameters)
 				storageClassMap[storageClass.Name] = params
 				if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.Annotations["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 					storageClassMap["default"] = params

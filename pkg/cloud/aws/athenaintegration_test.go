@@ -400,7 +400,7 @@ func Test_athenaRowToCloudCost(t *testing.T) {
 		},
 		{
 			name: "valid kubernetes with labels CUR 2.0",
-			row:  []string{"1", "2", "3", "4", "true", "2024-09-01 00:00:00.000", "resourceID", "payerAccountID", "usageAccountID", "productCode", "usageType", "regionCode", "availabilityZone", `{"test": "userTagTestValue", "aws_test": "awsTagTestValue"}`},
+			row:  []string{"1", "2", "3", "4", "true", "2024-09-01 00:00:00.000", "resourceID", "payerAccountID", "usageAccountID", "productCode", "usageType", "regionCode", "availabilityZone", `{"user_test": "userTagTestValue", "user_user_id": "u123", "user_empty": "", "user_aws_test": "userShadowsAws", "aws_test": "awsTagTestValue"}`},
 			aqi:  aqiCur20,
 			want: &opencost.CloudCost{
 				Properties: &opencost.CloudCostProperties{
@@ -416,6 +416,7 @@ func Test_athenaRowToCloudCost(t *testing.T) {
 					Category:          opencost.OtherCategory,
 					Labels: opencost.CloudCostLabels{
 						"test":     "userTagTestValue",
+						"user_id":  "u123",
 						"aws_test": "awsTagTestValue",
 					},
 				},

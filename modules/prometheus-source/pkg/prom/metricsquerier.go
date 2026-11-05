@@ -663,7 +663,7 @@ func (pds *PrometheusMetricsQuerier) QueryClusterInfo(start, end time.Time) *sou
 
 func (pds *PrometheusMetricsQuerier) QueryClusterKubeModelVersion(start, end time.Time) *source.Future[source.ClusterKubeModelVersionResult] {
 	const queryName = "QueryClusterKubeModelVersion"
-	const queryFmtClusterCompleteKubeModel = `avg(avg_over_time(cluster_info{%s}[%s])) by (%s, uid, complete_kubemodel)`
+	const queryFmtClusterCompleteKubeModel = `avg(avg_over_time(cluster_info{%s}[%s])) by (%s, uid, kubemodel_version)`
 
 	cfg := pds.promConfig
 
@@ -1163,7 +1163,7 @@ func (pds *PrometheusMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *sou
 
 func (pds *PrometheusMetricsQuerier) QueryGPUsRequested(start, end time.Time) *source.Future[source.GPUsRequestedResult] {
 	const queryName = "QueryGPUsRequested"
-	const queryFmtGPUsRequested = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, uid, %s)`
+	const queryFmtGPUsRequested = `avg(avg_over_time(kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia[.]com/gpu", container!="",container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -2242,6 +2242,24 @@ func (pds *PrometheusMetricsQuerier) QueryDaemonSetAnnotations(start, end time.T
 
 	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
 	return source.NewFuture(source.DecodeAnnotationsResult, ctx.QueryAtTime(queryDaemonSetAnnotations, end))
+}
+
+func (pds *PrometheusMetricsQuerier) QueryDaemonSetArguments(start, end time.Time) *source.Future[source.DaemonSetArgumentResult] {
+	const queryName = "QueryDaemonSetArguments"
+	const queryFmtDaemonSetArguments = `avg(avg_over_time(daemonset_arguments{%s}[%s])) by (%s, uid, arg, value)`
+
+	cfg := pds.promConfig
+
+	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	queryDaemonSetArguments := fmt.Sprintf(queryFmtDaemonSetArguments, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryDaemonSetArguments)
+
+	ctx := pds.promContexts.NewNamedContext(KubeModelContextName)
+	return source.NewFuture(source.DecodeDaemonSetArgumentResult, ctx.QueryAtTime(queryDaemonSetArguments, end))
 }
 
 func (pds *PrometheusMetricsQuerier) QueryJobInfo(start, end time.Time) *source.Future[source.JobInfoResult] {

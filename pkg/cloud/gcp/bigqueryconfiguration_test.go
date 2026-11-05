@@ -322,6 +322,60 @@ func TestBigQueryConfiguration_Equals(t *testing.T) {
 			},
 			expected: false,
 		},
+		"different excludePartitionTime": {
+			left: BigQueryConfiguration{
+				ProjectID:            "projectID",
+				Dataset:              "dataset",
+				Table:                "table",
+				ExcludePartitionTime: true,
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			right: &BigQueryConfiguration{
+				ProjectID:            "projectID",
+				Dataset:              "dataset",
+				Table:                "table",
+				ExcludePartitionTime: false,
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			expected: false,
+		},
+		"matching excludePartitionTime": {
+			left: BigQueryConfiguration{
+				ProjectID:            "projectID",
+				Dataset:              "dataset",
+				Table:                "table",
+				ExcludePartitionTime: true,
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			right: &BigQueryConfiguration{
+				ProjectID:            "projectID",
+				Dataset:              "dataset",
+				Table:                "table",
+				ExcludePartitionTime: true,
+				Authorizer: &ServiceAccountKey{
+					Key: map[string]string{
+						"Key":  "Key",
+						"key1": "key2",
+					},
+				},
+			},
+			expected: true,
+		},
 		"different location": {
 			left: BigQueryConfiguration{
 				ProjectID: "projectID",
@@ -451,6 +505,15 @@ func TestBigQueryConfiguration_JSON(t *testing.T) {
 				Authorizer: &WorkloadIdentity{},
 			},
 		},
+		"ExcludePartitionTime": {
+			config: BigQueryConfiguration{
+				ProjectID:            "projectID",
+				Dataset:              "dataset",
+				Table:                "table",
+				ExcludePartitionTime: true,
+				Authorizer:           &WorkloadIdentity{},
+			},
+		},
 	}
 
 	for name, testCase := range testCases {
@@ -505,9 +568,12 @@ func TestBigQueryConfiguration_GetBillingDataDataset(t *testing.T) {
 
 func TestBigQueryConfiguration_Sanitize(t *testing.T) {
 	bqc := &BigQueryConfiguration{
-		ProjectID: "test-project",
-		Dataset:   "test-dataset",
-		Table:     "test-table",
+		ProjectID:            "test-project",
+		Dataset:              "test-dataset",
+		Table:                "test-table",
+		Location:             "EU",
+		ExcludePartitionTime: true,
+		QueryProjectID:       "query-project",
 		Authorizer: &ServiceAccountKey{
 			Key: map[string]string{
 				"type":        "service_account",
@@ -525,6 +591,9 @@ func TestBigQueryConfiguration_Sanitize(t *testing.T) {
 	assert.Equal(t, "test-project", sanitizedBQC.ProjectID)
 	assert.Equal(t, "test-dataset", sanitizedBQC.Dataset)
 	assert.Equal(t, "test-table", sanitizedBQC.Table)
+	assert.Equal(t, "EU", sanitizedBQC.Location)
+	assert.True(t, sanitizedBQC.ExcludePartitionTime)
+	assert.Equal(t, "query-project", sanitizedBQC.QueryProjectID)
 	assert.NotNil(t, sanitizedBQC.Authorizer)
 
 	// Check that the authorizer is also sanitized
@@ -729,4 +798,59 @@ func TestBigQueryConfiguration_UnmarshalJSON_InvalidAuthorizer(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "InvalidType")
+}
+
+func TestBigQueryConfiguration_UnmarshalJSON_ExcludePartitionTime(t *testing.T) {
+	testCases := map[string]struct {
+		value    string
+		expected bool
+	}{
+		"true":    {value: `"excludePartitionTime": true,`, expected: true},
+		"false":   {value: `"excludePartitionTime": false,`, expected: false},
+		"omitted": {value: "", expected: false},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			jsonData := fmt.Sprintf(`{
+				"projectID": "test-project",
+				"dataset": "test-dataset",
+				"table": "test-table",
+				%s
+				"authorizer": {
+					"authorizerType": "GCPServiceAccountKey",
+					"key": {
+						"type": "service_account"
+					}
+				}
+			}`, testCase.value)
+
+			var bqc BigQueryConfiguration
+			err := json.Unmarshal([]byte(jsonData), &bqc)
+
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.expected, bqc.ExcludePartitionTime)
+		})
+	}
+}
+
+func TestBigQueryConfiguration_UnmarshalJSON_InvalidExcludePartitionTime(t *testing.T) {
+	jsonData := `{
+		"projectID": "test-project",
+		"dataset": "test-dataset",
+		"table": "test-table",
+		"excludePartitionTime": "not-a-bool",
+		"authorizer": {
+			"authorizerType": "GCPServiceAccountKey",
+			"key": {
+				"type": "service_account"
+			}
+		}
+	}`
+
+	var bqc BigQueryConfiguration
+	err := json.Unmarshal([]byte(jsonData), &bqc)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "excludePartitionTime")
 }

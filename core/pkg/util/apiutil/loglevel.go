@@ -24,7 +24,7 @@ func GetLogLevel(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	body, err := json.Marshal(llrr)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("unable to retrive log level"), http.StatusInternalServerError)
+		http.Error(w, "unable to retrive log level", http.StatusInternalServerError)
 		return
 	}
 	_, err = w.Write(body)

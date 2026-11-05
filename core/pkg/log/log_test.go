@@ -346,3 +346,29 @@ func TestLoggerManagement(t *testing.T) {
 		t.Error("SetLogger() did not set the logger correctly")
 	}
 }
+
+func TestExcludePatterns(t *testing.T) {
+	originalLogger := log.Logger
+	t.Cleanup(func() {
+		log.Logger = originalLogger
+		excludePatterns.Store(nil)
+	})
+
+	SetExcludePatterns([]string{"secret-token"})
+
+	var buf bytes.Buffer
+	l := zerolog.New(&buf).Level(zerolog.InfoLevel).Hook(excludeHook{})
+	SetLogger(&l)
+
+	Infof("this message contains secret-token and should be dropped")
+	Infof("this message is fine and should appear")
+
+	out := buf.String()
+
+	if strings.Contains(out, "secret-token") {
+		t.Errorf("excluded pattern appeared in output: %s", out)
+	}
+	if !strings.Contains(out, "this message is fine") {
+		t.Errorf("non-excluded message missing from output: %s", out)
+	}
+}

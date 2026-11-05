@@ -333,11 +333,11 @@ labels:
 
 func TestFilterValidLabels_AllValid_ReturnedUnchanged(t *testing.T) {
 	in := map[string]string{
-		"env":                     "prod",
-		"region":                  "us-east-1",
-		"app.kubernetes.io/name":  "opencost",
-		"my-key":                  "my-value",
-		"a":                       "b",
+		"env":                    "prod",
+		"region":                 "us-east-1",
+		"app.kubernetes.io/name": "opencost",
+		"my-key":                 "my-value",
+		"a":                      "b",
 	}
 	out := filterValidLabels(in)
 	assert.Equal(t, in, out)
@@ -396,8 +396,8 @@ func TestFilterValidLabels_KeyTooLong_EntryDropped(t *testing.T) {
 
 func TestFilterValidLabels_PrefixedKey_Valid(t *testing.T) {
 	in := map[string]string{
-		"app.kubernetes.io/name":      "opencost",
-		"example.com/env":             "staging",
+		"app.kubernetes.io/name": "opencost",
+		"example.com/env":        "staging",
 	}
 	out := filterValidLabels(in)
 	assert.Equal(t, in, out)
@@ -405,7 +405,7 @@ func TestFilterValidLabels_PrefixedKey_Valid(t *testing.T) {
 
 func TestFilterValidLabels_PrefixedKey_InvalidPrefix_EntryDropped(t *testing.T) {
 	in := map[string]string{
-		"valid":          "kept",
+		"valid":         "kept",
 		"-bad.prefix/k": "dropped",
 	}
 	out := filterValidLabels(in)
@@ -414,10 +414,10 @@ func TestFilterValidLabels_PrefixedKey_InvalidPrefix_EntryDropped(t *testing.T) 
 
 func TestFilterValidLabels_MixedValidAndInvalid_OnlyValidReturned(t *testing.T) {
 	in := map[string]string{
-		"cluster":    "prod",
-		"":           "no-key",
-		"bad-value":  "-oops",
-		"region":     "eu-west-1",
+		"cluster":   "prod",
+		"":          "no-key",
+		"bad-value": "-oops",
+		"region":    "eu-west-1",
 	}
 	out := filterValidLabels(in)
 	assert.Equal(t, map[string]string{"cluster": "prod", "region": "eu-west-1"}, out)

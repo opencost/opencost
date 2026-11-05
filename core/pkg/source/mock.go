@@ -626,6 +626,12 @@ func (m *MockMetricsQuerier) QueryDaemonSetAnnotations(start, end time.Time) *Fu
 	})
 }
 
+func (m *MockMetricsQuerier) QueryDaemonSetArguments(start, end time.Time) *Future[DaemonSetArgumentResult] {
+	return getFutureFromOverride(m.overrides, QueryDaemonSetArguments, func() *Future[DaemonSetArgumentResult] {
+		return m.noop.QueryDaemonSetArguments(start, end)
+	})
+}
+
 // Job
 
 func (m *MockMetricsQuerier) QueryJobInfo(start, end time.Time) *Future[JobInfoResult] {
@@ -1026,8 +1032,6 @@ func (m *MockMetricsQuerier) QueryResourceQuotaStatusUsedRAMLimitMax(start, end 
 	})
 }
 
-// Data Coverage Query
-
 // Inference Metrics
 
 func (m *MockMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *Future[InferenceTokensResult] {
@@ -1067,7 +1071,6 @@ func (m *MockMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[Infe
 }
 
 // Data Coverage Query
-
 func (m *MockMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
 	if v, ok := m.overrides[QueryDataCoverage]; ok {
 		if f, ok := v.(func(int) (time.Time, time.Time, error)); ok {

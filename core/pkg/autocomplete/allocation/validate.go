@@ -15,7 +15,8 @@ func ValidateField(field string) (string, error) {
 
 	f := strings.ToLower(field)
 	switch f {
-	case "account", "cluster", "namespace", "node", "controllerkind", "controllername", "pod", "container", "label", "namespacelabel":
+	case "account", "cluster", "namespace", "node", "controllerkind", "controllername", "pod", "container", "label", "namespacelabel",
+		"department", "environment", "owner", "product", "team":
 		return f, nil
 	}
 

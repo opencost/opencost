@@ -61,6 +61,11 @@ func (s *STACKIT) DownloadPricingData() error {
 	return nil
 }
 
+func (s *STACKIT) RefreshCustomPricing() error {
+	log.Infof("RefreshCustomPricing is not implemented for STACKIT; pricing is sourced from the PIM API and cannot be refreshed via custom config")
+	return nil
+}
+
 func (s *STACKIT) AllNodePricing() (interface{}, error) {
 	s.DownloadPricingDataLock.RLock()
 	defer s.DownloadPricingDataLock.RUnlock()

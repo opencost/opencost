@@ -236,6 +236,11 @@ func (k *csvKey) ID() string {
 	return k.ProviderID
 }
 
+// RefreshCustomPricing is a no-op since CSVProvider pricing comes from a CSV file, not config.
+func (c *CSVProvider) RefreshCustomPricing() error {
+	return nil
+}
+
 func (c *CSVProvider) nodePricing(key models.Key) *models.Node {
 	if p, ok := c.Pricing[key.ID()]; ok {
 		return &models.Node{

@@ -7,6 +7,86 @@ import (
 	"github.com/opencost/opencost/pkg/cloud"
 )
 
+func TestAthenaWhereUsage(t *testing.T) {
+	// Regression test for https://github.com/opencost/opencost/issues/4022 -
+	// AWS Marketplace subscription/fee charges (line_item_line_item_type = 'Fee')
+	// must be included, but only when billed through AWS Marketplace, so that
+	// non-Marketplace 'Fee' rows (e.g. Reserved Instance upfront purchases,
+	// already captured via 'DiscountedUsage' amortization) are not swept in and
+	// double counted.
+	expected := "(line_item_line_item_type = 'Usage' OR line_item_line_item_type = 'DiscountedUsage' OR line_item_line_item_type = 'SavingsPlanCoveredUsage' OR line_item_line_item_type = 'EdpDiscount' OR line_item_line_item_type = 'PrivateRateDiscount' OR (line_item_line_item_type = 'Fee' AND bill_billing_entity = 'AWS Marketplace'))"
+	if AthenaWhereUsage != expected {
+		t.Errorf("AthenaWhereUsage = %v, want %v", AthenaWhereUsage, expected)
+	}
+
+	if !strings.Contains(AthenaWhereUsage, "line_item_line_item_type = 'Fee' AND bill_billing_entity = 'AWS Marketplace'") {
+		t.Errorf("AthenaWhereUsage should include AWS Marketplace 'Fee' rows scoped to bill_billing_entity, got: %v", AthenaWhereUsage)
+	}
+
+	// A bare, unscoped 'Fee' disjunct would also match non-Marketplace fees like RI
+	// upfront purchases, so it must never appear on its own.
+	if strings.Contains(AthenaWhereUsage, "line_item_line_item_type = 'Fee')") {
+		t.Errorf("AthenaWhereUsage should not include an unscoped 'Fee' clause, got: %v", AthenaWhereUsage)
+	}
+}
+
+func TestAthenaWhereUsageBase(t *testing.T) {
+	// AthenaWhereUsageBase must reference only mandatory CUR columns (never
+	// bill_billing_entity, which CUR 2.0 exports can disable) so it is always a safe
+	// fallback when that column is absent.
+	expected := "(line_item_line_item_type = 'Usage' OR line_item_line_item_type = 'DiscountedUsage' OR line_item_line_item_type = 'SavingsPlanCoveredUsage' OR line_item_line_item_type = 'EdpDiscount' OR line_item_line_item_type = 'PrivateRateDiscount')"
+	if AthenaWhereUsageBase != expected {
+		t.Errorf("AthenaWhereUsageBase = %v, want %v", AthenaWhereUsageBase, expected)
+	}
+
+	if strings.Contains(AthenaWhereUsageBase, "bill_billing_entity") || strings.Contains(AthenaWhereUsageBase, "Fee") {
+		t.Errorf("AthenaWhereUsageBase must not reference bill_billing_entity or 'Fee', got: %v", AthenaWhereUsageBase)
+	}
+}
+
+func TestAthenaIntegration_GetWhereUsage(t *testing.T) {
+	ai := &AthenaIntegration{}
+
+	// Regression test for https://github.com/opencost/opencost/pull/4028#discussion -
+	// bill_billing_entity is a CUR 2.0-disableable column, like resource_tags,
+	// line_item_usage_account_name, and bill_payer_account_name elsewhere in this file.
+	// GetWhereUsage must check allColumns before referencing it, or CUR exports that
+	// omit the column would fail every query with COLUMN_NOT_FOUND instead of merely
+	// missing Marketplace fees.
+	t.Run("bill_billing_entity present", func(t *testing.T) {
+		allColumns := map[string]bool{
+			AthenaBillingEntityColumn: true,
+		}
+		got := ai.GetWhereUsage(allColumns)
+		if got != AthenaWhereUsage {
+			t.Errorf("GetWhereUsage() = %v, want AthenaWhereUsage (%v)", got, AthenaWhereUsage)
+		}
+		if !strings.Contains(got, "bill_billing_entity = 'AWS Marketplace'") {
+			t.Errorf("GetWhereUsage() should include the Marketplace fee clause when bill_billing_entity is present, got: %v", got)
+		}
+	})
+
+	t.Run("bill_billing_entity absent", func(t *testing.T) {
+		allColumns := map[string]bool{
+			"line_item_line_item_type": true,
+		}
+		got := ai.GetWhereUsage(allColumns)
+		if got != AthenaWhereUsageBase {
+			t.Errorf("GetWhereUsage() = %v, want AthenaWhereUsageBase (%v)", got, AthenaWhereUsageBase)
+		}
+		if strings.Contains(got, "bill_billing_entity") {
+			t.Errorf("GetWhereUsage() must not reference bill_billing_entity when it is absent from allColumns, got: %v", got)
+		}
+	})
+
+	t.Run("empty allColumns", func(t *testing.T) {
+		got := ai.GetWhereUsage(map[string]bool{})
+		if got != AthenaWhereUsageBase {
+			t.Errorf("GetWhereUsage() = %v, want AthenaWhereUsageBase (%v)", got, AthenaWhereUsageBase)
+		}
+	})
+}
+
 func TestAthenaIntegration_GetListCostColumn(t *testing.T) {
 	ai := &AthenaIntegration{}
 	expected := "SUM(CASE line_item_line_item_type WHEN 'EdpDiscount' THEN 0 WHEN 'PrivateRateDiscount' THEN 0 ELSE line_item_unblended_cost END) as list_cost"

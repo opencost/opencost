@@ -432,6 +432,22 @@ func (otc *OTC) GpuPricing(nodeLabels map[string]string) (string, error) {
 	return "", nil
 }
 
+// RefreshCustomPricing reloads base price fields from config.
+// Avoids the full node/PV discovery and external OTC API calls in DownloadPricingData.
+func (otc *OTC) RefreshCustomPricing() error {
+	otc.DownloadPricingDataLock.Lock()
+	defer otc.DownloadPricingDataLock.Unlock()
+	c, err := otc.Config.GetCustomPricingData()
+	if err != nil {
+		return err
+	}
+	otc.BaseCPUPrice = c.CPU
+	otc.BaseRAMPrice = c.RAM
+	otc.BaseGPUPrice = c.GPU
+	otc.projectID = c.ProjectID
+	return nil
+}
+
 // TODO: Implement method
 func (otc *OTC) AllNodePricing() (interface{}, error) {
 	return nil, nil

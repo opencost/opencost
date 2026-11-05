@@ -67,7 +67,7 @@ func TestComputeDaemonSets(t *testing.T) {
 			want: map[string]*kubemodel.DaemonSet{},
 		},
 		{
-			name: "daemonset labels and annotations are attached",
+			name: "daemonset labels, annotations, and arguments are attached",
 			overrides: map[string]any{
 				source.QueryDaemonSetInfo: []*source.DaemonSetInfoResult{
 					{UID: "ds-1", DaemonSet: "fluentd", NamespaceUID: "ns-1"},
@@ -81,6 +81,10 @@ func TestComputeDaemonSets(t *testing.T) {
 				source.QueryDaemonSetAnnotations: []*source.AnnotationsResult{
 					{UID: "ds-1", Annotations: map[string]string{"managed-by": "helm"}},
 				},
+				source.QueryDaemonSetArguments: []*source.DaemonSetArgumentResult{
+					{UID: "ds-1", Arg: "vgpu", Value: "2"},
+					{UID: "ds-1", Arg: "log-level", Value: "debug"},
+				},
 			},
 			want: map[string]*kubemodel.DaemonSet{
 				"ds-1": {
@@ -91,6 +95,32 @@ func TestComputeDaemonSets(t *testing.T) {
 					End:          end,
 					Labels:       map[string]string{"component": "logging"},
 					Annotations:  map[string]string{"managed-by": "helm"},
+					Arguments:    map[string]string{"vgpu": "2", "log-level": "debug"},
+				},
+			},
+		},
+		{
+			name: "arguments for unknown daemonset are ignored",
+			overrides: map[string]any{
+				source.QueryDaemonSetInfo: []*source.DaemonSetInfoResult{
+					{UID: "ds-1", DaemonSet: "fluentd", NamespaceUID: "ns-1"},
+				},
+				source.QueryDaemonSetUptime: []*source.UptimeResult{
+					{UID: "ds-1", First: start, Last: end},
+				},
+				source.QueryDaemonSetArguments: []*source.DaemonSetArgumentResult{
+					{UID: "ds-1", Arg: "vgpu", Value: "2"},
+					{UID: "unknown-ds", Arg: "vgpu", Value: "4"},
+				},
+			},
+			want: map[string]*kubemodel.DaemonSet{
+				"ds-1": {
+					UID:          "ds-1",
+					Name:         "fluentd",
+					NamespaceUID: "ns-1",
+					Start:        start,
+					End:          end,
+					Arguments:    map[string]string{"vgpu": "2"},
 				},
 			},
 		},

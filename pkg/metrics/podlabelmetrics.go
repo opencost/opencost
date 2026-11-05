@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"maps"
+
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/prometheus/client_golang/prometheus"
@@ -85,6 +87,8 @@ func (kpmc KubePodLabelsCollector) Collect(ch chan<- prometheus.Metric) {
 		if _, disabled := disabledMetrics["kube_pod_labels"]; !disabled {
 			podLabels := pod.Labels
 			if kpmc.metricsConfig.UseLabelsWhitelist {
+				// only clone the map if we need to remove labels
+				podLabels = maps.Clone(pod.Labels)
 				kpmc.UpdateWhitelist()
 				for lname := range pod.Labels {
 					if _, ok := kpmc.labelsWhitelist[lname]; !ok {

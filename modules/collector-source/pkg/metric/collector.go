@@ -131,6 +131,7 @@ const (
 	DaemonSetUptimeID                          MetricCollectorID = "DaemonSetUptime"
 	DaemonSetLabelsID                          MetricCollectorID = "DaemonSetLabels"
 	DaemonSetAnnotationsID                     MetricCollectorID = "DaemonSetAnnotations"
+	DaemonSetArgumentsID                       MetricCollectorID = "DaemonSetArguments"
 	JobInfoID                                  MetricCollectorID = "JobInfo"
 	JobUptimeID                                MetricCollectorID = "JobUptime"
 	JobLabelsID                                MetricCollectorID = "JobLabels"
