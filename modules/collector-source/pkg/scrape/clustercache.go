@@ -1387,7 +1387,7 @@ func toResourceUnitValue(resourceName v1.ResourceName, quantity resource.Quantit
 }
 
 func isGpuResourceName(name v1.ResourceName) bool {
-	return name == "nvidia.com/gpu" || name == "k8s.amazonaws.com/vgpu"
+	return name == "nvidia.com/gpu" || name == "k8s.amazonaws.com/vgpu" || coreutil.IsAcceleratorResourceName(string(name))
 }
 
 // isHugePageResourceName checks for a huge page container resource name
@@ -1486,6 +1486,16 @@ func gpuInfoFor(
 			return &NodeGpuInfo{
 				GPU:  resultGPU,
 				VGPU: resultVGPU,
+			}, nil
+		}
+	}
+
+	// Case 4: accelerators from other vendors (AMD, Intel, Google Cloud TPU, AWS Neuron)
+	for _, name := range coreutil.AcceleratorResourceNames {
+		if g, ok := n.Status.Capacity[v1.ResourceName(name)]; ok && g.Value() != 0 {
+			return &NodeGpuInfo{
+				GPU:  float64(g.Value()),
+				VGPU: float64(g.Value()),
 			}, nil
 		}
 	}

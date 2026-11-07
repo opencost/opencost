@@ -6,6 +6,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	prometheus "github.com/prometheus/client_golang/api"
 )
@@ -1163,7 +1164,8 @@ func (pds *PrometheusMetricsQuerier) QueryCPUUsageMax(start, end time.Time) *sou
 
 func (pds *PrometheusMetricsQuerier) QueryGPUsRequested(start, end time.Time) *source.Future[source.GPUsRequestedResult] {
 	const queryName = "QueryGPUsRequested"
-	const queryFmtGPUsRequested = `avg(avg_over_time(kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia[.]com/gpu", container!="",container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, uid, %s)`
+	// NVIDIA GPUs plus other vendors' accelerators (AMD, Intel, Google Cloud TPU, AWS Neuron)
+	const queryFmtGPUsRequested = `avg(avg_over_time(kube_pod_container_resource_requests{resource=~"nvidia_com_gpu|nvidia[.]com/gpu|%s", container!="",container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, uid, %s)`
 
 	cfg := pds.promConfig
 
@@ -1172,7 +1174,7 @@ func (pds *PrometheusMetricsQuerier) QueryGPUsRequested(start, end time.Time) *s
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, util.AcceleratorResourceRegex(), cfg.ClusterFilter, durStr, cfg.ClusterLabel)
 	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryGPUsRequested)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)

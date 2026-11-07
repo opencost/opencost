@@ -394,6 +394,8 @@ func (cm *CostModel) ComputeCostData(start, end time.Time) (map[string]*CostData
 					gpuReqCount = g.AsApproximateFloat64()
 				} else if g, ok := container.Resources.Limits["k8s.amazonaws.com/vgpu"]; ok {
 					gpuReqCount = g.AsApproximateFloat64()
+				} else {
+					gpuReqCount = acceleratorRequest(container.Resources)
 				}
 				GPUReqV := []*util.Vector{
 					{
@@ -1542,6 +1544,20 @@ func getStatefulSetsOfPod(pod clustercache.Pod) []string {
 	return []string{}
 }
 
+// acceleratorRequest returns the number of non-NVIDIA accelerators a container
+// requests, falling back to its limits, or 0 if it requests none.
+func acceleratorRequest(resources v1.ResourceRequirements) float64 {
+	for _, name := range util.AcceleratorResourceNames {
+		if g, ok := resources.Requests[v1.ResourceName(name)]; ok {
+			return g.AsApproximateFloat64()
+		}
+		if g, ok := resources.Limits[v1.ResourceName(name)]; ok {
+			return g.AsApproximateFloat64()
+		}
+	}
+	return 0
+}
+
 // getGPUCount reads the node's Status and Labels (via the k8s API) to identify
 // the number of GPUs and vGPUs are equipped on the node. If unable to identify
 // a GPU count, it will return -1.
@@ -1597,6 +1613,13 @@ func getGPUCount(cache clustercache.ClusterCache, n *clustercache.Node) (float64
 			resultGPU := float64(vgpu.Value()) / vgpuCoeff
 			resultVGPU := float64(vgpu.Value())
 			return resultGPU, resultVGPU, nil
+		}
+	}
+
+	// Case 4: accelerators from other vendors (AMD, Intel, Google Cloud TPU, AWS Neuron)
+	for _, name := range util.AcceleratorResourceNames {
+		if g, ok := n.Status.Capacity[v1.ResourceName(name)]; ok && g.Value() != 0 {
+			return float64(g.Value()), float64(g.Value()), nil
 		}
 	}
 
