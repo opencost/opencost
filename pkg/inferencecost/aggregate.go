@@ -145,6 +145,8 @@ func (s *InferenceCostSet) aggregate(aggregateBy []string) error {
 			clone := *ic
 			if !aggDims["model_name"] {
 				clone.Properties.ModelName = ""
+			}
+			if !aggDims["model_version"] {
 				clone.Properties.ModelVersion = ""
 			}
 			if !aggDims["namespace"] {
@@ -158,7 +160,6 @@ func (s *InferenceCostSet) aggregate(aggregateBy []string) error {
 			}
 			if !aggDims["controller"] {
 				clone.Properties.Controller = ""
-				clone.Properties.ControllerKind = ""
 			}
 			if !aggDims["controller_kind"] {
 				clone.Properties.ControllerKind = ""
