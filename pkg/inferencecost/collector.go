@@ -324,12 +324,15 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 					modelName, namespace, alloc.GPUTotalCost(), scaledGPUCost, util*100)
 			}
 
-			// CPU: scale by core utilisation ratio (usage / request).
+			// CPU: scale by core utilisation ratio (usage / request). clamped to [0,1].
 			// CPUCoreRequestAverage and CPUCoreUsageAverage are plain float64 (not pointers).
-			if alloc.CPUCoreRequestAverage > 0 &&
-				alloc.CPUCoreUsageAverage > 0 &&
-				alloc.CPUCoreUsageAverage < alloc.CPUCoreRequestAverage {
+			if alloc.CPUCoreRequestAverage > 0 {
 				cpuUtil := alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage
+				if cpuUtil < 0 {
+					cpuUtil = 0
+				} else if cpuUtil > 1 {
+					cpuUtil = 1
+				}
 				scaledCPUCost := alloc.CPUTotalCost() * cpuUtil
 				cost = cost - alloc.CPUTotalCost() + scaledCPUCost
 				log.Debugf("InferenceCost usage: CPU scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
@@ -338,10 +341,13 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 
 			// RAM: scale by byte utilisation ratio (usage / request).
 			// RAMBytesRequestAverage and RAMBytesUsageAverage are plain float64 (not pointers).
-			if alloc.RAMBytesRequestAverage > 0 &&
-				alloc.RAMBytesUsageAverage > 0 &&
-				alloc.RAMBytesUsageAverage < alloc.RAMBytesRequestAverage {
+			if alloc.RAMBytesRequestAverage > 0 {
 				ramUtil := alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage
+				if ramUtil < 0 {
+					ramUtil = 0
+				} else if ramUtil > 1 {
+					ramUtil = 1
+				}
 				scaledRAMCost := alloc.RAMTotalCost() * ramUtil
 				cost = cost - alloc.RAMTotalCost() + scaledRAMCost
 				log.Debugf("InferenceCost usage: RAM scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
