@@ -1,0 +1,225 @@
+# Inference Attribution Requirements for Serving Stacks
+
+Author(s): @simanadler
+
+**Status:** Draft
+
+This document defines what an inference serving stack must make available so that OpenCost can attribute inference cost by **tenant**, **workload**, and **user**. It is engine-neutral: [vLLM](https://vllm.ai/), SGLang, TGI, Triton, and [gateway](./inference-attribution-requirements.md/#10-gateway-candidates) neutral. Each requirement names the *fact* that must be available and which layer may supply it.  
+
+The business need (chargeback, showback, capacity planning and quota enforcement for shared self-hosted models) is described in the [Business need](./inference-cost-attribution-plan.md#business-need) section of the Attribution Plan. This document does not repeat it.
+
+Related documents:
+
+- [Inference Cost Attribution Plan](./inference-cost-attribution-plan.md): the business need, and how OpenCost consumes attribution data to produce per-dimension cost.
+- [AI Inference Cost Tracking](./inference-cost-tracking.md): the existing model-level cost solution.
+
+---
+
+## 1. Principle
+
+> **The serving stack owns identity and volume. OpenCost owns cost.**
+
+Attributed cost is a join of two things:
+
+```
+attributed cost = tokens(tenant, workload, user, model) x cost-per-token(model)
+```
+
+- Cost per token comes from OpenCost's allocation of GPU, idle and shared-infrastructure cost. A serving stack cannot know it and is not asked to.
+- Token counts per identity come from the serving stack. That is what this document specifies.
+
+A serving stack never computes, stores or reports a monetary value.
+
+## 2. Scope
+
+**In scope:** the facts, their failure semantics, the transport options, and the identity and privacy rules needed for attribution.
+
+**Out of scope:**
+
+- Cost rates, idle or shared-infrastructure allocation (OpenCost).
+- Authentication and authorization. This document only says where the identity is expected to come from.
+- Real-time budget enforcement or request admission based on spend.
+- Log aggregation or long-term storage infrastructure.
+
+## 3. Roles
+
+A real deployment spreads the required facts across layers. Requirements are therefore written as "this fact must be available to the metering layer", with a "may be supplied by" column, and not as demands on one component.
+
+| Role | Examples | Typically knows |
+|---|---|---|
+| **Gateway** | AI gateway, Envoy-based ingress | Authenticated caller, requested model, full response including `usage`, backend or pool it routed to |
+| **Router / scheduler** | llm-d router, other model routers | Served model after rewrites, per-request routing decisions, tokenization before inference |
+| **Engine** | vLLM, SGLang, TGI | Exact token counts, cached-prefix tokens |
+| **Metering** | A component that records or aggregates the facts | Joins identity and volume |
+| **OpenCost** | | Cost rates; joins them with metered tokens |
+
+A deployment conforms if, taken together, its layers provide the facts in Section 5 with the semantics in Section 6.
+
+## 4. Identity dimensions
+
+| Dimension | Meaning | Cardinality | Required |
+|---|---|---|---|
+| `tenant_id` | Organizational unit responsible for the request (customer, team, department) | Bounded | MUST |
+| `workload_id` | Application, agent or pipeline generating the request | Bounded | MUST |
+| `user_id` | Individual end user within the tenant | Potentially unbounded | MAY |
+
+### 4.1 Trust boundary
+
+Identity MUST be derived or verified at a trusted boundary, normally the gateway that authenticates the caller. Identity supplied by a client header and trusted unchanged lets any client attribute its usage to another tenant.
+
+- The component that sets or verifies the identity is the **only** place such headers may be set. Inner components MUST NOT accept them from untrusted sources.
+- Missing identity MUST be recorded as empty or "unattributed". It MUST NOT be silently assigned to a default tenant.
+
+### 4.2 `user_id` and privacy
+
+`user_id` may be personal data. Implementations MUST allow the operator to choose how it is emitted:
+
+| Channel | Control |
+|---|---|
+| Aggregate metric label | Off by default, because unbounded values cause Prometheus cardinality explosion |
+| Per-request record | Off, keyed hash (for example HMAC-SHA256 with an operator-supplied secret), or plain, as the operator chooses |
+
+A bare or unkeyed hash of a user identifier is easily reversed by enumeration and does not satisfy the "hashed" option. When `user_id` is omitted from aggregate metrics, OpenCost reports `user_id` as empty and keeps `tenant_id` and `workload_id` attribution.
+
+## 5. Required facts
+
+Tiers: **MUST** is the baseline for attribution to be correct. **SHOULD** is needed for complete or auditable attribution. **MAY** is an enhancement.
+
+| ID | Fact | Tier | May be supplied by | Notes |
+|---|---|---|---|---|
+| F1 | `tenant_id` | MUST | Gateway | See Section 4.1 |
+| F2 | `workload_id` | MUST | Gateway | |
+| F3 | `user_id` | MAY | Gateway | See Section 4.2 |
+| F4 | Prompt (input) tokens of the request | MUST | Engine via `usage` in the response; gateway or router when parsing it | Must be the count the engine processed, not a client-side estimate |
+| F5 | Completion (output) tokens of the request | MUST | Engine via `usage`; gateway or router when parsing it | |
+| F6 | Requested model | MUST | Gateway or router | The model name the client asked for |
+| F7 | **Served** model | MUST | Router, engine, or gateway (from its routing config) | The model that actually ran. Differs from F6 on rewrites, aliases and canary routing. Must equal the engine's `model_name` metric label (Section 7.3) |
+| F8 | Deployment identity (Kubernetes namespace) | MUST | Gateway (from its backend-to-namespace mapping) or router | OpenCost joins on `serving_model` + `namespace` |
+| F9 | Prompt tokens for requests that fail after prefill began | SHOULD | Router or engine | See Section 6 |
+| F10 | Outcome (success, error class) | SHOULD | Gateway | |
+| F11 | Request ID | SHOULD | Gateway | Correlates metering records with traces and logs |
+| F12 | Cached prompt tokens | MAY | Engine via `usage` details | Allows reporting cache savings per tenant |
+
+Where F4 and F5 cannot come from the engine's `usage` object (for example a streaming response that never sends one), the metering layer MUST mark the record as `usage_captured=false`. It MUST NOT substitute an estimate without marking it.
+
+## 6. Failure and edge-case semantics
+
+The cases below are where implementations differ most, so each is specified explicitly.
+
+| Case | Prompt tokens (F4/F9) | Completion tokens (F5) | Recorded as consumed? |
+|---|---|---|---|
+| Success | From `usage` | From `usage` | Yes |
+| Rejected before any inference work (auth, malformed body, size limit, tokenization failure) | 0 | 0 | No. No GPU was used. It MAY appear in a request log with outcome `error` |
+| Failure after prefill began, before any output (prefill error, decode error) | Tokens known to the stack (for example tokenizer output), flagged `usage_captured=false` | 0 | Yes, prompt tokens only. Prefill cost was incurred |
+| Stream truncated or interrupted mid-response | As above | 0 if the final `usage` was never delivered. A chunk-count estimate MAY be used if flagged as estimated | Yes, as available |
+| Client disconnect | As above | As above | Yes, as available |
+| Cache-hit short circuit (the stack answers without decode) | From `usage` if present, else 0 | From `usage` if present, else 0 | As reported |
+
+Notes:
+
+- The engine reports completion tokens only in its final `usage` message. After a failed or truncated stream, completion tokens are unknowable. Do not invent them.
+- For streaming OpenAI-style APIs, the metering layer may need to request usage in the stream (`stream_options.include_usage`). If it overrides a client's `false`, it MUST document that the client will receive an extra final chunk with an empty `choices` array.
+- Each request MUST be counted at most once. Retries within the stack are one request; client retries are separate requests.
+
+## 7. Transport
+
+Facts reach the metering layer by three kinds of channel. A conforming stack uses whichever fit; the document does not mandate one.
+
+### 7.1 Response body (`usage`)
+
+The default source for F4, F5 and F12. Formats differ across APIs: OpenAI-style `usage.prompt_tokens` and `usage.completion_tokens`; Responses and Anthropic-style `input_tokens` and `output_tokens`; SGLang `meta_info`. The metering layer is responsible for parsing the formats it serves.
+
+### 7.2 Response headers (facts known before the first byte)
+
+Suitable for F7, F8 and F9 when the router knows them before streaming starts (served model after routing, prompt tokens after tokenization). Headers are sent before the body, so they survive a later stream failure. Anything known only at the end of generation MUST use the body or a trailer.
+
+Proposed header names (illustrative, to be agreed with serving-stack maintainers):
+
+| Fact | Proposed header |
+|---|---|
+| Served model | `x-inference-served-model` |
+| Deployment namespace | `x-inference-namespace` |
+| Prompt tokens known at routing time | `x-inference-prompt-tokens` |
+
+Intermediate proxies MUST pass these headers through to the metering layer. Gateways MAY strip them before responding to the end client.
+
+### 7.3 Aggregate metrics (what OpenCost consumes)
+
+OpenCost queries per-dimension token counters from Prometheus. The contract OpenCost needs is:
+
+| Metric (illustrative names) | Type | Labels |
+|---|---|---|
+| Attributed input tokens | Counter, or histogram `_sum` | `tenant_id`, `workload_id`, `serving_model`, `namespace`, `user_id` (optional) |
+| Attributed output tokens | Counter, or histogram `_sum` | same |
+
+- `serving_model` MUST equal the `model_name` label on the engine's own token metrics (for example `vllm:prompt_tokens_total`). This makes the OpenCost join consistent by construction.
+- Metric names are producer-specific today. OpenCost SHOULD treat metric names and label mapping as configuration so that moving the producer between components does not need an OpenCost code change.
+- `requested_model` SHOULD NOT be a label on these counters. It inflates cardinality and does not change cost, since price follows the model served.
+
+### 7.4 Per-request records
+
+For billing-grade or per-user attribution where Prometheus cardinality is impractical, the metering layer SHOULD emit a durable per-request record carrying F1 to F11. Logs are subject to sampling, rotation and backpressure and are not an authoritative billing record. A metering service that stores events durably is.
+
+## 8. What OpenCost does with the facts
+
+1. Queries attributed token sums per `(tenant_id, workload_id, user_id, serving_model, namespace)`.
+2. Joins them to the per-million-token rates it computed for `(serving_model, namespace)`, under both cost bases (`allocation` and `usage`).
+3. Exposes the results as `llm_dimension_hourly_cost` and through `/inferenceCost/*` with `aggregate` and `filter` on `tenant_id`, `workload_id` and `user_id`.
+4. Runs a **coverage check**: attributed input tokens divided by the engine's `vllm:prompt_tokens_total` per `(serving_model, namespace)`. A low ratio means requests are bypassing metering or identity is missing, and OpenCost logs a warning.
+
+The coverage check is why the engine's own token metrics remain independent of the metering path. They are the reference the attributed totals are compared against.
+
+## 9. Conformance
+
+A deployment can be checked with a fixed set of requests against its stack, comparing metered output with expected values:
+
+| Test | Expected |
+|---|---|
+| Non-streaming success with identity | Tokens equal engine `usage`; identity labels present; one record |
+| Streaming success | Same, with usage captured from the final chunk |
+| Request without identity | Recorded as unattributed; not assigned to any tenant |
+| Model rewritten by the router | `serving_model` is the rewritten model; requested model recorded separately (F6) |
+| Failure after prefill | Prompt tokens recorded, completion 0, `usage_captured=false` |
+| Rejected before inference | No consumption recorded |
+| Client disconnect mid-stream | Prompt tokens recorded; completion tokens flagged as unavailable or estimated |
+| Coverage | Sum of attributed input tokens within a stated tolerance of the engine's prompt token total |
+
+## 10. Gateway candidates
+
+Assessments below are preliminary and not verified against current releases. Before selecting a gateway, confirm its licence, that it has had a release within the last six months, and the checklist that follows.
+
+| Gateway | Base | Strengths for attribution | Concerns |
+|---|---|---|---|
+| **Envoy AI Gateway** | Envoy Gateway, Kubernetes Gateway API (Apache 2.0) | Reads token usage from responses including streaming; routes by model; token-based rate limiting; OpenTelemetry GenAI metrics; same Envoy data plane as llm-d | Relatively young. Unclear whether token metrics accept custom identity labels |
+| **LiteLLM proxy** | Python proxy (MIT core) | Virtual keys, teams and users map to tenant, workload and user; per-key spend tracking; Prometheus metrics | Computes cost from a price list, overlapping with OpenCost (Section 11). Needs a database. Some governance features are enterprise-only |
+| **kgateway** | Envoy, CNCF | AI routing; supported gateway for the Gateway API Inference Extension | AI metering less mature than routing |
+| **Kong Gateway (AI plugins)** | Nginx/OpenResty | Mature; identity plugins; token metrics | Advanced AI features in the enterprise tier |
+| **Apache APISIX** (`ai-proxy` plugins) | Nginx/OpenResty | Apache-licensed core; plugin model | Less Kubernetes-native; smaller AI community |
+| **Portkey Gateway** | Node/TypeScript | Lightweight; good observability | Governance features in the hosted product |
+| **Higress** | Envoy/Istio | AI plugins | Community largely outside the llm-d ecosystem |
+| **agentgateway** | Rust | Aimed at agents and MCP | Early stage |
+
+The Gateway API Inference Extension endpoint picker used by llm-d is a router, not a gateway. It complements a gateway by supplying F7 and F8.
+
+**Suggested choices:**
+
+- **Envoy AI Gateway.** It is Kubernetes-native and built on the Gateway API. Authentication through JWT or OIDC security policies can produce trusted identity headers (Section 4.1). It parses `usage` (F4, F5) and knows the backend it routed to (F7, F8).
+- **LiteLLM in front of a plain vLLM.** It is a different architecture from an Envoy-based gateway, so evaluating both shows the contract is general. It would be configured to export tokens only, not cost, which forces the rate-ownership question in Section 11.
+
+**Selection checklist.** For each candidate, verify:
+
+1. Token counters can carry custom labels (`tenant_id`, `workload_id`, `serving_model`, deployment `namespace`), with `user_id` optional.
+2. Prompt tokens are recorded for requests that fail after prefill (F9).
+3. Streaming responses without `usage` are marked `usage_captured=false`.
+4. Missing identity is recorded as unattributed, not defaulted.
+5. `serving_model` equals the engine's `model_name` after rewrites.
+
+If no gateway passes item 1, a small ext-proc metering service is the fallback. Section 5 allows the facts to come from any layer.
+
+## 11. Open questions
+
+- **Standard names.** Whether the OpenTelemetry GenAI semantic conventions already define attributes for requested model, response model and input and output tokens that should be used instead of new names. This has not been verified against the current specification and should be checked before the header and metric names in Section 7 are finalized.
+- **Header names.** The names in Section 7.2 are placeholders pending agreement with serving-stack maintainers.
+- **Metering ownership.** Whether per-request metering of record lives in the gateway, in a dedicated metering service, or both, and whether that component also computes cost. If it computes cost from list prices it would overlap with OpenCost for self-hosted models, and one source of truth for rates must be chosen.
+- **Namespace discovery.** Whether the gateway's backend-to-namespace mapping is sufficient for F8 or the router should return it.
+- **Completion tokens on truncated streams.** Whether an estimate flagged as such is acceptable for billing, or such requests should be reported as unavailable only.
