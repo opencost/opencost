@@ -817,6 +817,32 @@ func TestCollector_UsageCost_ZeroRAMUsage(t *testing.T) {
 	}
 }
 
+// TestClampRatio verifies the shared clamp helper used by the GPU, CPU, and
+// RAM utilisation scaling paths: in-range ratios pass through unchanged,
+// negative ratios clamp to 0, and ratios above 1 (overcommit) clamp to 1.
+func TestClampRatio(t *testing.T) {
+	tests := []struct {
+		name  string
+		ratio float64
+		want  float64
+	}{
+		{"zero", 0.0, 0.0},
+		{"mid_range", 0.5, 0.5},
+		{"exactly_one", 1.0, 1.0},
+		{"negative", -0.5, 0.0},
+		{"above_one", 1.5, 1.0},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := clampRatio(tc.ratio)
+			if !floatEq(got, tc.want) {
+				t.Errorf("clampRatio(%.2f) want %.2f got %.4f", tc.ratio, tc.want, got)
+			}
+		})
+	}
+}
+
 // TestCollector_UsageCost_TwoModelsIndependent verifies that two different
 // models in the same namespace produce two independent result entries, each
 // scaled only by its own utilisation metrics with no cross-contamination.
