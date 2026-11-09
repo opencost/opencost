@@ -94,7 +94,7 @@ Tiers: **MUST** is the baseline for attribution to be correct. **SHOULD** is nee
 | F5 | Completion (output) tokens of the request | MUST | Engine via `usage`; gateway or router when parsing it | |
 | F6 | Requested model | MUST | Gateway or router | The model name the client asked for |
 | F7 | **Served** model | MUST | Router, engine, or gateway (from its routing config) | The model that actually ran. Differs from F6 on rewrites, aliases and canary routing. Must equal the engine's `model_name` metric label (Section 7.3) |
-| F8 | Deployment identity (Kubernetes namespace) | MUST | Gateway (from its backend-to-namespace mapping) or router | OpenCost joins on `serving_model` + `namespace` |
+| F8 | Deployment identity (Kubernetes namespace) | SHOULD. MUST only when the same `serving_model` runs in more than one namespace and OpenCost has no configured mapping | Gateway (from its backend-to-namespace mapping) or router | OpenCost joins on `serving_model` + `namespace`. When absent, OpenCost resolves it (Section 8, step 1) |
 | F9 | Prompt tokens for requests that fail after prefill began | SHOULD | Router or engine | See Section 6 |
 | F10 | Outcome (success, error class) | SHOULD | Gateway | |
 | F11 | Request ID | SHOULD | Gateway | Correlates metering records with traces and logs |
@@ -135,11 +135,11 @@ Suitable for F7, F8 and F9 when the router knows them before streaming starts (s
 
 Proposed header names (illustrative, to be agreed with serving-stack maintainers):
 
-| Fact | Proposed header |
-|---|---|
-| Served model | `x-inference-served-model` |
-| Deployment namespace | `x-inference-namespace` |
-| Prompt tokens known at routing time | `x-inference-prompt-tokens` |
+| Fact | Proposed header | Required |
+|---|---|---|
+| Served model | `x-inference-served-model` | Yes |
+| Deployment namespace | `x-inference-namespace` | Optional (see F8 and Section 8) |
+| Prompt tokens known at routing time | `x-inference-prompt-tokens` | Optional |
 
 Intermediate proxies MUST pass these headers through to the metering layer. Gateways MAY strip them before responding to the end client.
 
@@ -149,7 +149,7 @@ OpenCost queries per-dimension token counters from Prometheus. The contract Open
 
 | Metric (illustrative names) | Type | Labels |
 |---|---|---|
-| Attributed input tokens | Counter, or histogram `_sum` | `tenant_id`, `workload_id`, `serving_model`, `namespace`, `user_id` (optional) |
+| Attributed input tokens | Counter, or histogram `_sum` | `tenant_id`, `workload_id`, `serving_model`, `namespace` (optional, see F8), `user_id` (optional) |
 | Attributed output tokens | Counter, or histogram `_sum` | same |
 
 - `serving_model` MUST equal the `model_name` label on the engine's own token metrics (for example `vllm:prompt_tokens_total`). This makes the OpenCost join consistent by construction.
@@ -162,10 +162,13 @@ For billing-grade or per-user attribution where Prometheus cardinality is imprac
 
 ## 8. What OpenCost does with the facts
 
-1. Queries attributed token sums per `(tenant_id, workload_id, user_id, serving_model, namespace)`.
+1. Queries attributed token sums per `(tenant_id, workload_id, user_id, serving_model, namespace)`. Where `namespace` is absent, OpenCost resolves it in this order:
+   1. **Engine metrics.** Build a `serving_model` to namespace map from the engine's own token metrics (for example `vllm:prompt_tokens_total`), whose series carry `model_name` and the scrape-time `namespace`. If the model appears in exactly one namespace, use it. Model names are matched with the same canonicalization the existing model-level join uses (for example `google/gemma-4-31B` and `gemma-4-31B`).
+   2. **Configuration.** If the model appears in several namespaces, use an operator-supplied mapping (`serving_model` or gateway backend or pool to namespace).
+   3. **Blended rate.** If neither resolves it, use the token-weighted average rate across the namespaces serving that model, and mark the result as approximate.
 2. Joins them to the per-million-token rates it computed for `(serving_model, namespace)`, under both cost bases (`allocation` and `usage`).
 3. Exposes the results as `llm_dimension_hourly_cost` and through `/inferenceCost/*` with `aggregate` and `filter` on `tenant_id`, `workload_id` and `user_id`.
-4. Runs a **coverage check**: attributed input tokens divided by the engine's `vllm:prompt_tokens_total` per `(serving_model, namespace)`. A low ratio means requests are bypassing metering or identity is missing, and OpenCost logs a warning.
+4. Runs a **coverage check**: attributed input tokens divided by the engine's `vllm:prompt_tokens_total` per `(serving_model, namespace)`, or per `serving_model` where the namespace is unresolved. A low ratio means requests are bypassing metering or identity is missing, and OpenCost logs a warning.
 
 The coverage check is why the engine's own token metrics remain independent of the metering path. They are the reference the attributed totals are compared against.
 
@@ -221,5 +224,5 @@ If no gateway passes item 1, a small ext-proc metering service is the fallback. 
 - **Standard names.** Whether the OpenTelemetry GenAI semantic conventions already define attributes for requested model, response model and input and output tokens that should be used instead of new names. This has not been verified against the current specification and should be checked before the header and metric names in Section 7 are finalized.
 - **Header names.** The names in Section 7.2 are placeholders pending agreement with serving-stack maintainers.
 - **Metering ownership.** Whether per-request metering of record lives in the gateway, in a dedicated metering service, or both, and whether that component also computes cost. If it computes cost from list prices it would overlap with OpenCost for self-hosted models, and one source of truth for rates must be chosen.
-- **Namespace discovery.** Whether the gateway's backend-to-namespace mapping is sufficient for F8 or the router should return it.
+- **Namespace discovery.** Whether OpenCost-side resolution (Section 8, step 1) is sufficient in practice, or whether the gateway's backend-to-namespace mapping or the router should also return the namespace for models that run in several namespaces.
 - **Completion tokens on truncated streams.** Whether an estimate flagged as such is acceptable for billing, or such requests should be reported as unavailable only.
