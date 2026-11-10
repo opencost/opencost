@@ -1387,7 +1387,7 @@ func toResourceUnitValue(resourceName v1.ResourceName, quantity resource.Quantit
 }
 
 func isGpuResourceName(name v1.ResourceName) bool {
-	return name == "nvidia.com/gpu" || name == "k8s.amazonaws.com/vgpu"
+	return name == "nvidia.com/gpu" || name == "nvidia.com/gpu.shared" || name == "k8s.amazonaws.com/vgpu"
 }
 
 // isHugePageResourceName checks for a huge page container resource name
