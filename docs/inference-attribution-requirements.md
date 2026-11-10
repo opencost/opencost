@@ -160,15 +160,42 @@ OpenCost queries per-dimension token counters from Prometheus. The contract Open
 
 For billing-grade or per-user attribution where Prometheus cardinality is impractical, the metering layer SHOULD emit a durable per-request record carrying F1 to F11. Logs are subject to sampling, rotation and backpressure and are not an authoritative billing record. A metering service that stores events durably is.
 
+Where the OpenTelemetry GenAI semantic conventions define an attribute for a fact, the record SHOULD use that attribute name rather than a new one. The attributes below are defined in the [semantic-conventions-genai](https://github.com/open-telemetry/semantic-conventions-genai) registry, where they have `Development` stability. They moved there from the main semantic-conventions repository, which marks them as moved as of v1.45.0. Names may therefore still change.
+
+| Fact | Attribute name |
+|---|---|
+| F4 Prompt (input) tokens | `gen_ai.usage.input_tokens` |
+| F5 Completion (output) tokens | `gen_ai.usage.output_tokens` |
+| F6 Requested model | `gen_ai.request.model` |
+| F7 Served model | `gen_ai.response.model` |
+| F12 Cached prompt tokens | `gen_ai.usage.cache_read.input_tokens` |
+
+Per the conventions, `gen_ai.usage.input_tokens` includes cached tokens, and `gen_ai.usage.cache_read.input_tokens` is a subset of it. F12 is therefore not additive to F4.
+
+The GenAI conventions do not define the identity and attribution facts (F1 to F3, F8), so those keep the names in Section 7.3. F9 to F11 are not mapped here. The conventions define `gen_ai.response.id`, but that identifies the completion, not the gateway's request ID (F11).
+
+The deprecated `gen_ai.usage.prompt_tokens` and `gen_ai.usage.completion_tokens` attribute names MUST NOT be used in new records. They are replaced by `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens`.
+
+Engine support, as of 2026-11-10 (checked against the `main` branch of each project and the open pull requests):
+
+| Engine | Emits today | Open change |
+|---|---|---|
+| SGLang | `gen_ai.usage.prompt_tokens`, `gen_ai.usage.completion_tokens`, non-standard `gen_ai.usage.cached_tokens`, `gen_ai.response.model` (its served model name) | [sgl-project/sglang#49140](https://github.com/sgl-project/sglang/pull/49140) adds `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` and `gen_ai.usage.cache_read.input_tokens`, and keeps setting the deprecated names with the same values |
+| vLLM | `gen_ai.usage.prompt_tokens` and `gen_ai.usage.completion_tokens`. `gen_ai.response.model` is defined as a constant but no code sets it on the request span | [vllm-project/vllm#40799](https://github.com/vllm-project/vllm/pull/40799) adds the same three current usage names plus `gen_ai.response.finish_reasons`, and leaves the deprecated names in place |
+
+Both pull requests are open and unmerged. Neither adds `gen_ai.request.model`, and neither engine emits it. That is expected for F6, since the requested model is known to the gateway or router rather than the engine. Because both PRs keep the deprecated names, a metering layer reading engine spans before and after they land can read the current names first and fall back to the deprecated ones. It MUST emit only the current names in its own records.
+
 ## 8. What OpenCost does with the facts
 
 1. Queries attributed token sums per `(tenant_id, workload_id, user_id, serving_model, namespace)`. Where `namespace` is absent, OpenCost resolves it in this order:
-   1. **Engine metrics.** Build a `serving_model` to namespace map from the engine's own token metrics (for example `vllm:prompt_tokens_total`), whose series carry `model_name` and the scrape-time `namespace`. If the model appears in exactly one namespace, use it. Model names are matched with the same canonicalization the existing model-level join uses (for example `google/gemma-4-31B` and `gemma-4-31B`).
+   1. **Engine metrics.** Build a `serving_model` to namespace map from the engine's own token metrics (`vllm:prompt_tokens_total` or `sglang:prompt_tokens_total`, excluding SGLang decode workers as described in step 4), whose series carry `model_name` and the scrape-time `namespace`. If the model appears in exactly one namespace, use it. Model names are matched with the same canonicalization the existing model-level join uses (for example `google/gemma-4-31B` and `gemma-4-31B`).
    2. **Configuration.** If the model appears in several namespaces, use an operator-supplied mapping (`serving_model` or gateway backend or pool to namespace).
    3. **Blended rate.** If neither resolves it, use the token-weighted average rate across the namespaces serving that model, and mark the result as approximate.
-2. Joins them to the per-million-token rates it computed for `(serving_model, namespace)`, under both cost bases (`allocation` and `usage`).
-3. Exposes the results as `llm_dimension_hourly_cost` and through `/inferenceCost/*` with `aggregate` and `filter` on `tenant_id`, `workload_id` and `user_id`.
-4. Runs a **coverage check**: attributed input tokens divided by the engine's `vllm:prompt_tokens_total` per `(serving_model, namespace)`, or per `serving_model` where the namespace is unresolved. A low ratio means requests are bypassing metering or identity is missing, and OpenCost logs a warning.
+2. Joins them to the per-million-token rates it computed for `(serving_model, namespace)`, under both cost bases (`allocation` and `usage`). This requires OpenCost's model-level cost to be keyed by namespace as well as by model. Where the same model runs in several namespaces, the model-level cost must stay separate per namespace, or the join finds no rate for any of them (see opencost/opencost#4162, fixed by #4163).
+3. Exposes the results as `llm_dimension_hourly_cost` and through `/inferenceCost/*` with `aggregate` and `filter` on `tenant_id`, `workload_id` and `user_id`. It also emits a remainder row (`tenant_id="__unmetered__"`) per model and namespace for cost that no attributed series claims, so that tenant rows plus the remainder equal the model's cost.
+4. Runs a **coverage check**: attributed input tokens divided by the engine's prompt-token counter (`vllm:prompt_tokens_total` or `sglang:prompt_tokens_total`, summed when both engines serve the model) per `(serving_model, namespace)`, or per `serving_model` where the namespace is unresolved. A low ratio means requests are bypassing metering or identity is missing, and OpenCost logs a warning.
+
+   In SGLang prefill/decode disaggregation, both workers report every request's full prompt, labelled `engine_type="prefill"` or `"decode"` (`"unified"` otherwise). The reference total MUST exclude decode workers (`engine_type!="decode"`). Otherwise prompt tokens are counted twice and coverage reads as about 50%. The same exclusion applies when building the namespace map in step 1. For completion tokens, the equivalent exclusion is prefill workers (`engine_type!="prefill"`).
 
 The coverage check is why the engine's own token metrics remain independent of the metering path. They are the reference the attributed totals are compared against.
 
@@ -221,7 +248,7 @@ If no gateway passes item 1, a small ext-proc metering service is the fallback. 
 
 ## 11. Open questions
 
-- **Standard names.** Whether the OpenTelemetry GenAI semantic conventions already define attributes for requested model, response model and input and output tokens that should be used instead of new names. This has not been verified against the current specification and should be checked before the header and metric names in Section 7 are finalized.
+- **Standard names (largely resolved).** The GenAI semantic conventions cover requested model, response model, input and output tokens, and cache-read input tokens (F4 to F7, F12), and Section 7.4 uses those names for per-request records. They are at `Development` stability in the semantic-conventions-genai registry, so the names could still change. Still open: whether the Section 7.2 header names and the Section 7.3 metric names should follow GenAI metric conventions (the registry has `model/gen-ai/token-metrics.yaml`, not yet reviewed), and the names for the identity facts (F1 to F3, F8), which the conventions do not define.
 - **Header names.** The names in Section 7.2 are placeholders pending agreement with serving-stack maintainers.
 - **Metering ownership.** Whether per-request metering of record lives in the gateway, in a dedicated metering service, or both, and whether that component also computes cost. If it computes cost from list prices it would overlap with OpenCost for self-hosted models, and one source of truth for rates must be chosen.
 - **Namespace discovery.** Whether OpenCost-side resolution (Section 8, step 1) is sufficient in practice, or whether the gateway's backend-to-namespace mapping or the router should also return the namespace for models that run in several namespaces.
