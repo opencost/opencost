@@ -741,6 +741,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					instanceType = "a2"
 				}
 
+				// G2 (NVIDIA L4) machines only come as g2-standard-*, so one key covers them.
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "G2 INSTANCE") {
+					instanceType = "g2standard"
+				}
+
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "COMPUTE OPTIMIZED") {
 					instanceType = "c2standard"
 				}

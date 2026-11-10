@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1414,5 +1416,65 @@ func TestGCPRefreshCustomPricing(t *testing.T) {
 	// mockConfig returns an empty CustomPricing; verify fields are updated (to "")
 	if gcp.BaseCPUPrice != "" {
 		t.Errorf("BaseCPUPrice = %q, want empty string", gcp.BaseCPUPrice)
+	}
+}
+
+// TestParsePageG2 checks that G2 machines (the NVIDIA L4 family) get their own
+// vCPU and RAM prices from the "G2 Instance Core/Ram" SKUs, on demand and on
+// Spot. The SKUs in test/skus_g2.json are copied from the Cloud Billing
+// Catalog API (us-central1, November 2026).
+func TestParsePageG2(t *testing.T) {
+	fileBytes, err := os.ReadFile("./test/skus_g2.json")
+	if err != nil {
+		t.Fatalf("failed to open file: %s", err)
+	}
+	inputKeys := map[string]models.Key{
+		"us-central1,g2standard,ondemand,gpu": &gcpKey{
+			Labels: map[string]string{
+				"node.kubernetes.io/instance-type": "g2-standard-8",
+				"cloud.google.com/gke-gpu":         "true",
+				"cloud.google.com/gke-accelerator": "nvidia-l4",
+				"topology.kubernetes.io/region":    "us-central1",
+			},
+		},
+		"us-central1,g2standard,preemptible,gpu": &gcpKey{
+			Labels: map[string]string{
+				"node.kubernetes.io/instance-type": "g2-standard-8",
+				"cloud.google.com/gke-gpu":         "true",
+				"cloud.google.com/gke-accelerator": "nvidia-l4",
+				"cloud.google.com/gke-spot":        "true",
+				"topology.kubernetes.io/region":    "us-central1",
+			},
+		},
+	}
+
+	testGcp := &GCP{}
+	prices, _, err := testGcp.parsePage(bytes.NewReader(fileBytes), inputKeys, map[string]models.PVKey{})
+	if err != nil {
+		t.Fatalf("parsing page: %v", err)
+	}
+
+	for key, want := range map[string]struct{ vcpu, ram, gpu float64 }{
+		"us-central1,g2standard,ondemand,gpu":    {vcpu: 0.024988212, ram: 0.002927448, gpu: 0.560040239},
+		"us-central1,g2standard,preemptible,gpu": {vcpu: 0.01495, ram: 0.001751, gpu: 0.3352},
+	} {
+		p, ok := prices[key]
+		if !ok || p.Node == nil {
+			t.Errorf("%s: no pricing parsed", key)
+			continue
+		}
+		for name, c := range map[string]struct {
+			got  string
+			want float64
+		}{
+			"vCPU": {p.Node.VCPUCost, want.vcpu},
+			"RAM":  {p.Node.RAMCost, want.ram},
+			"GPU":  {p.Node.GPUCost, want.gpu},
+		} {
+			got, err := strconv.ParseFloat(c.got, 64)
+			if err != nil || math.Abs(got-c.want) > 1e-12 {
+				t.Errorf("%s: %s price %q, want %v", key, name, c.got, c.want)
+			}
+		}
 	}
 }
