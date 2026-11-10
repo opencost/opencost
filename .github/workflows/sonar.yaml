@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: Set Quality Gate status (pending)
         if: always()
-        uses: guibranco/github-status-action-v2@v1.1.14
+        uses: guibranco/github-status-action-v2@v1.2.0
         with:
           authToken: ${{ secrets.GITHUB_TOKEN }}
           state: 'pending'
@@ -139,7 +139,7 @@ jobs:
       - name: Set Quality Gate status (failed - PR)
         id: fail-quality-gate-pr
         if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status != 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM != ''
-        uses: guibranco/github-status-action-v2@v1.1.14
+        uses: guibranco/github-status-action-v2@v1.2.0
         with:
           authToken: ${{ secrets.GITHUB_TOKEN }}
           state: 'failure'
@@ -150,7 +150,7 @@ jobs:
       - name: Set Quality Gate status (failed - develop)
         id: fail-quality-gate-develop
         if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status != 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM == ''
-        uses: guibranco/github-status-action-v2@v1.1.14
+        uses: guibranco/github-status-action-v2@v1.2.0
         with:
           authToken: ${{ secrets.GITHUB_TOKEN }}
           state: 'failure'
@@ -161,7 +161,7 @@ jobs:
       - name: Set Quality Gate status (passed - PR)
         id: pass-quality-gate-pr
         if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status == 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM != ''
-        uses: guibranco/github-status-action-v2@v1.1.14
+        uses: guibranco/github-status-action-v2@v1.2.0
         with:
           authToken: ${{ secrets.GITHUB_TOKEN }}
           state: 'success'
@@ -172,7 +172,7 @@ jobs:
       - name: Set Quality Gate status (passed - develop)
         id: pass-quality-gate-develop
         if: steps.sonarqube-quality-gate-check.outputs.quality-gate-status == 'PASSED' && steps.set-vars.outputs.SONAR_PR_NUM == ''
-        uses: guibranco/github-status-action-v2@v1.1.14
+        uses: guibranco/github-status-action-v2@v1.2.0
         with:
           authToken: ${{ secrets.GITHUB_TOKEN }}
           state: 'success'
