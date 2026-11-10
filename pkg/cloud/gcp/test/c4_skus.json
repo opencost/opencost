@@ -1,0 +1,85 @@
+{
+  "skus": [
+    {
+      "name": "services/6F81-5844-456A/skus/C4C4-0000-0001",
+      "skuId": "C4C4-0000-0001",
+      "description": "C4 Instance Core running in Americas",
+      "category": {
+        "serviceDisplayName": "Compute Engine",
+        "resourceFamily": "Compute",
+        "resourceGroup": "CPU",
+        "usageType": "OnDemand"
+      },
+      "serviceRegions": [
+        "us-central1"
+      ],
+      "pricingInfo": [
+        {
+          "summary": "",
+          "pricingExpression": {
+            "usageUnit": "h",
+            "usageUnitDescription": "hour",
+            "baseUnit": "s",
+            "displayQuantity": 1,
+            "tieredRates": [
+              {
+                "startUsageAmount": 0,
+                "unitPrice": {
+                  "currencyCode": "USD",
+                  "units": "0",
+                  "nanos": 32000000
+                }
+              }
+            ]
+          },
+          "currencyConversionRate": 1,
+          "EffectiveTime": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "serviceProviderName": "Google",
+      "node": null,
+      "pv": null
+    },
+    {
+      "name": "services/6F81-5844-456A/skus/C4C4-0000-0002",
+      "skuId": "C4C4-0000-0002",
+      "description": "C4 Instance Ram running in Americas",
+      "category": {
+        "serviceDisplayName": "Compute Engine",
+        "resourceFamily": "Compute",
+        "resourceGroup": "RAM",
+        "usageType": "OnDemand"
+      },
+      "serviceRegions": [
+        "us-central1"
+      ],
+      "pricingInfo": [
+        {
+          "summary": "",
+          "pricingExpression": {
+            "usageUnit": "h",
+            "usageUnitDescription": "hour",
+            "baseUnit": "s",
+            "displayQuantity": 1,
+            "tieredRates": [
+              {
+                "startUsageAmount": 0,
+                "unitPrice": {
+                  "currencyCode": "USD",
+                  "units": "0",
+                  "nanos": 4000000
+                }
+              }
+            ]
+          },
+          "currencyConversionRate": 1,
+          "EffectiveTime": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "serviceProviderName": "Google",
+      "node": null,
+      "pv": null
+    }
+  ],
+  "nextPageToken": ""
+}
