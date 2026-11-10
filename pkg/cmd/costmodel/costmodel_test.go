@@ -2,7 +2,9 @@ package costmodel
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -12,43 +14,52 @@ import (
 )
 
 func TestMCPServerGracefulShutdown(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	accesses := &costmodel.Accesses{}
-	port := env.GetMCPHTTPPort()
-
-	// Start MCP server
-	go func() {
-		_ = StartMCPServer(ctx, accesses, nil)
-	}()
-
-	// Wait for server to be ready
-	serverUp := false
-	for i := 0; i < 10; i++ {
-		time.Sleep(100 * time.Millisecond)
-		client := &http.Client{Timeout: 1 * time.Second}
-		resp, err := client.Get(fmt.Sprintf("http://localhost:%d/", port))
-		if err == nil {
-			resp.Body.Close()
-			serverUp = true
-			break
-		}
+	addr := listener.Addr().String()
+	done := startMCPServer(ctx, &costmodel.Accesses{}, nil, listener)
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get("http://" + addr + "/")
+	if err != nil {
+		t.Fatalf("MCP server did not respond: %v", err)
 	}
+	resp.Body.Close()
 
-	if !serverUp {
-		t.Skip("MCP server did not start")
-	}
-
-	// Trigger shutdown
 	cancel()
-	time.Sleep(500 * time.Millisecond)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("MCP server did not shut down")
+	}
 
-	// Verify server is no longer accepting connections
-	client := &http.Client{Timeout: 500 * time.Millisecond}
-	_, err := client.Get(fmt.Sprintf("http://localhost:%d/", port))
+	conn, err := net.DialTimeout("tcp", addr, time.Second)
 	if err == nil {
+		conn.Close()
 		t.Error("Server still accepting connections after shutdown")
+	}
+}
+
+func TestStartMCPServerReturnsBindError(t *testing.T) {
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	port := listener.Addr().(*net.TCPAddr).Port
+	t.Setenv(env.MCPHTTPPortEnvVar, fmt.Sprint(port))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	err = StartMCPServer(ctx, &costmodel.Accesses{}, nil)
+	var opErr *net.OpError
+	if !errors.As(err, &opErr) || opErr.Op != "listen" {
+		t.Fatalf("expected listen error on occupied port, got %v", err)
 	}
 }
 
