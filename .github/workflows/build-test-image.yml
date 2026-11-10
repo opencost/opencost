@@ -20,7 +20,7 @@ jobs:
             ismaintainer: ${{ steps.determine-maintainer.outputs.ismaintainer }}
         steps:
           - name: Check team membership
-            uses: tspascoal/get-user-teams-membership@v3
+            uses: tspascoal/get-user-teams-membership@v4
             if: ${{ github.actor != 'dependabot[bot]' }}
             id: teamAffiliation
             with:
