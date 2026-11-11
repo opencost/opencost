@@ -146,7 +146,14 @@ func GetNetworkUsageData(
 func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) ([]*util.Vector, error) {
 	var results []*util.Vector
 
-	pricing, err := cloud.NetworkPricing()
+	if usage == nil {
+		return nil, fmt.Errorf("network usage is nil")
+	}
+	
+	netKey := &costAnalyzerCloud.CustomNetworkKey{
+		NetworkID: fmt.Sprintf("%s/%s/%s", usage.ClusterID, usage.Namespace, usage.PodName),
+	}
+	pricing, err := cloud.NetworkPricing(netKey)
 	if err != nil {
 		return nil, err
 	}

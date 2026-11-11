@@ -226,7 +226,7 @@ func (otc *OTC) DownloadPricingData() error {
 	return nil
 }
 
-func (otc *OTC) NetworkPricing() (*models.Network, error) {
+func (otc *OTC) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	cpricing, err := otc.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -342,7 +342,7 @@ func (otc *OTC) GetConfig() (*models.CustomPricing, error) {
 
 // load balancer cost
 // taken straight up from aws
-func (otc *OTC) LoadBalancerPricing() (*models.LoadBalancer, error) {
+func (otc *OTC) LoadBalancerPricing(key models.LBKey) (*models.LoadBalancer, error) {
 	return &models.LoadBalancer{
 		Cost: 0.05,
 	}, nil
