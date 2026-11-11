@@ -39,7 +39,7 @@ require (
 	github.com/hashicorp/go-plugin v1.7.0
 	github.com/jszwec/csvutil v1.10.0
 	github.com/julienschmidt/httprouter v1.3.0
-	github.com/kubecost/events v0.0.8
+	github.com/kubecost/events v0.0.9
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/opencost/opencost/core v0.0.0-20250521155634-81d2b597d1bc
