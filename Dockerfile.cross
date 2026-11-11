@@ -2,6 +2,7 @@ FROM alpine:latest
 
 ARG version=dev
 ARG	commit=HEAD
+ARG revision=HEAD
 
 LABEL org.opencontainers.image.description="Cross-cloud cost allocation models for Kubernetes workloads"
 LABEL org.opencontainers.image.documentation=https://opencost.io/docs/
@@ -9,6 +10,10 @@ LABEL org.opencontainers.image.licenses=Apache-2.0
 LABEL org.opencontainers.image.source=https://github.com/opencost/opencost
 LABEL org.opencontainers.image.title=kubecost-cost-model
 LABEL org.opencontainers.image.url=https://opencost.io
+# Filled from the build args above so `docker inspect` / `crane config` show which
+# release and commit an image was built from (see #4066, #4180).
+LABEL org.opencontainers.image.version=$version
+LABEL org.opencontainers.image.revision=$revision
 
 # The prebuilt binary path. This Dockerfile assumes the binary will be built
 # outside of Docker.
