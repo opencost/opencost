@@ -4,16 +4,30 @@ import (
 	"time"
 )
 
+// Names accepted by Config.ProviderName.
+const (
+	// ProviderExchangeRateAPI selects exchangerate-api.com (the default).
+	ProviderExchangeRateAPI = "exchangerate-api"
+	// ProviderAllRatesToday selects allratestoday.com.
+	ProviderAllRatesToday = "allratestoday"
+)
+
 // Config holds configuration for the currency converter
 type Config struct {
-	// APIKey is the exchangerate-api.com key used by the default provider.
-	// It is ignored when Provider is set.
+	// APIKey is the key for the provider named by ProviderName
+	// (exchangerate-api.com by default). It is ignored when Provider is set.
 	APIKey     string
 	CacheTTL   time.Duration
 	APITimeout time.Duration
 
-	// Provider supplies the exchange rates. If nil, the converter uses
-	// exchangerate-api.com with APIKey.
+	// ProviderName picks a built-in provider by name so a plugin can expose
+	// the choice in its own configuration: ProviderExchangeRateAPI (the
+	// default when empty) or ProviderAllRatesToday. Matching is
+	// case-insensitive. It is ignored when Provider is set.
+	ProviderName string
+
+	// Provider supplies the exchange rates. If nil, the converter uses the
+	// built-in provider named by ProviderName with APIKey.
 	Provider RateProvider
 }
 

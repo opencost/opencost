@@ -25,9 +25,26 @@ amount, err := converter.Convert(100.0, "USD", "EUR")
 
 Get a free API key from [exchangerate-api.com](https://www.exchangerate-api.com/) (1,500 requests/month).
 
-## Using a Different Rate Provider
+## Choosing a Rate Provider
 
-Rates come from exchangerate-api.com by default. To use another source, implement `RateProvider` and set it on the config. `APIKey` is then not required.
+Rates come from exchangerate-api.com by default. Pick another built-in provider by name, so the choice can live in a plugin's configuration instead of Go code:
+
+```go
+converter, err := currency.NewConverter(currency.Config{
+    ProviderName: currency.ProviderAllRatesToday, // "allratestoday"
+    APIKey:       "art_live_...",
+    CacheTTL:     24 * time.Hour,
+})
+```
+
+| `ProviderName` | Provider | Key |
+|---|---|---|
+| `exchangerate-api` (default when empty) | [exchangerate-api.com](https://www.exchangerate-api.com/) | free key, 1,500 requests/month |
+| `allratestoday` | [allratestoday.com](https://allratestoday.com/) | free trial key; a [paid plan](https://allratestoday.com/pricing/) is needed for ongoing use |
+
+An unknown name returns an error from `NewConverter`.
+
+To use any other source, implement `RateProvider` and set it on the config. `APIKey` and `ProviderName` are then ignored.
 
 ```go
 type RateProvider interface {
@@ -43,6 +60,8 @@ converter, err := currency.NewConverter(currency.Config{
 
 Caching works the same with any provider.
 
+The built-in providers are also exported as constructors, `currency.NewExchangeRateAPIProvider(apiKey, timeout)` and `currency.NewAllRatesTodayProvider(apiKey, timeout)`, for use as `Provider`.
+
 ## How it Works
 
 The package fetches exchange rates and caches them for 24 hours. This keeps API usage low - most plugins use under 50 requests per month.
@@ -54,15 +73,17 @@ Supports all ISO 4217 currencies (161 total). Thread-safe with automatic cache c
 ```go
 // Plugin config
 type PluginConfig struct {
-    TargetCurrency  string `json:"target_currency"`
-    ExchangeAPIKey  string `json:"exchange_api_key"`
+    TargetCurrency   string `json:"target_currency"`
+    ExchangeProvider string `json:"exchange_provider"` // "exchangerate-api" (default) or "allratestoday"
+    ExchangeAPIKey   string `json:"exchange_api_key"`
 }
 
 // Initialize converter
 if config.ExchangeAPIKey != "" {
     converter, _ := currency.NewConverter(currency.Config{
-        APIKey:   config.ExchangeAPIKey,
-        CacheTTL: 24 * time.Hour,
+        ProviderName: config.ExchangeProvider,
+        APIKey:       config.ExchangeAPIKey,
+        CacheTTL:     24 * time.Hour,
     })
 }
 

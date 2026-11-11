@@ -63,6 +63,18 @@ jobs:
         with:
           ref: 'refs/tags/v${{ steps.version_number.outputs.RELEASE_VERSION }}'
 
+      - name: Verify the checkout is the tagged commit
+        env:
+          RELEASE_VERSION: ${{ steps.version_number.outputs.RELEASE_VERSION }}
+        run: |
+          want="$(git rev-list -n1 "refs/tags/v${RELEASE_VERSION}")"
+          have="$(git rev-parse HEAD)"
+          if [ "${want}" != "${have}" ]; then
+            echo "::error::HEAD ${have} is not the commit tagged v${RELEASE_VERSION} (${want}); refusing to publish"
+            exit 1
+          fi
+          echo "Building v${RELEASE_VERSION} from ${have}"
+
       - name: Set SHA
         id: sha
         run: |
