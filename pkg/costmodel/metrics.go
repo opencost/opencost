@@ -372,6 +372,10 @@ func NewCostModelMetricsEmitter(clusterCache clustercache.ClusterCache, provider
 
 	metrics.InitOpencostTelemetry(metricsConfig)
 
+	if model != nil {
+		metrics.InitWALMetrics(model.DataSource, metricsConfig)
+	}
+
 	return &CostModelMetricsEmitter{
 		KubeClusterCache:                 clusterCache,
 		CloudProvider:                    provider,
