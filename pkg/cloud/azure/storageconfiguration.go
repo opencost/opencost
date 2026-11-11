@@ -137,17 +137,21 @@ func (sc *StorageConfiguration) UnmarshalJSON(b []byte) error {
 	}
 	sc.Container = container
 
-	path, err := cloud.GetInterfaceValue[string](fmap, "path")
-	if err != nil {
-		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
+	if _, ok := fmap["path"]; ok {
+		path, err := cloud.GetInterfaceValue[string](fmap, "path")
+		if err != nil {
+			return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
+		}
+		sc.Path = path
 	}
-	sc.Path = path
 
-	cloudValue, err := cloud.GetInterfaceValue[string](fmap, "cloud")
-	if err != nil {
-		return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
+	if _, ok := fmap["cloud"]; ok {
+		cloudValue, err := cloud.GetInterfaceValue[string](fmap, "cloud")
+		if err != nil {
+			return fmt.Errorf("StorageConfiguration: UnmarshalJSON: %s", err.Error())
+		}
+		sc.Cloud = cloudValue
 	}
-	sc.Cloud = cloudValue
 
 	authAny, ok := fmap["authorizer"]
 	if !ok {
