@@ -285,8 +285,17 @@ func (ccs *CloudCostSet) Equal(that *CloudCostSet) bool {
 }
 
 // Insert adds a CloudCost to a CloudCostSet using its AggregationProperties and LabelConfig
-// to determine the key where it will be inserted
+// to determine the key where it will be inserted. The given CloudCost is deep-copied before
+// insertion, so the caller retains ownership of it.
 func (ccs *CloudCostSet) Insert(cc *CloudCost) error {
+	return ccs.insert(cc, true)
+}
+
+// insert adds a CloudCost to a CloudCostSet using its AggregationProperties and LabelConfig
+// to determine the key where it will be inserted. When clone is false the set takes
+// ownership of the given CloudCost instead of deep-copying it, so the caller must not
+// mutate the CloudCost after insertion.
+func (ccs *CloudCostSet) insert(cc *CloudCost, clone bool) error {
 	if ccs == nil {
 		return fmt.Errorf("cannot insert into nil CloudCostSet")
 	}
@@ -305,7 +314,10 @@ func (ccs *CloudCostSet) Insert(cc *CloudCost) error {
 	// Add the given CloudCost to the existing entry, if there is one;
 	// otherwise just set directly into allocations
 	if _, ok := ccs.CloudCosts[ccKey]; !ok {
-		ccs.CloudCosts[ccKey] = cc.Clone()
+		if clone {
+			cc = cc.Clone()
+		}
+		ccs.CloudCosts[ccKey] = cc
 	} else {
 		ccs.CloudCosts[ccKey].add(cc)
 	}
@@ -636,7 +648,9 @@ func (ccsr *CloudCostSetRange) Append(that *CloudCostSet) {
 // This function service to aggregate and distribute costs over predefined windows
 // are accumulated here so that the resulting CloudCost with the 1d window has the correct price for the entire day.
 // If all or a portion of the window of the CloudCost is outside of the windows of the existing CloudCostSets,
-// that portion of the CloudCost's cost will not be inserted
+// that portion of the CloudCost's cost will not be inserted.
+// The CloudCostSetRange takes ownership of the given CloudCost: it is inserted without
+// being deep-copied, so the caller must not mutate it after this call.
 func (ccsr *CloudCostSetRange) LoadCloudCost(cloudCost *CloudCost) {
 	window := cloudCost.Window
 	if window.IsOpen() {
@@ -672,7 +686,7 @@ func (ccsr *CloudCostSetRange) LoadCloudCost(cloudCost *CloudCost) {
 			}
 		}
 
-		err := ccs.Insert(cc)
+		err := ccs.insert(cc, false)
 		if err != nil {
 			log.Errorf("CloudCostSetRange: LoadCloudCost: failed to load CloudCost with window %s: %s", setWindow.String(), err.Error())
 		}
