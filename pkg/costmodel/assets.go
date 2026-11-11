@@ -6,6 +6,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/source"
 )
 
 // clampTimeToRange does not permit timestamps to exceed a given start, end
@@ -40,22 +41,27 @@ func clampTimeToRange(t time.Time, start, end time.Time) time.Time {
 func (cm *CostModel) ComputeAssets(start, end time.Time) (*opencost.AssetSet, error) {
 	assetSet := opencost.NewAssetSet(start, end)
 
-	nodeMap, err := cm.ClusterNodes(start, end)
+	// Pin the data source so that nodes, load balancers, disks and cluster management are all computed
+	// from one consistent state of the data source.
+	ds, release := source.PinDataSource(cm.DataSource)
+	defer release()
+
+	nodeMap, err := ClusterNodes(ds, cm.Provider, start, end)
 	if err != nil {
 		return nil, fmt.Errorf("error computing node assets for %s: %w", opencost.NewClosedWindow(start, end), err)
 	}
 
-	lbMap, err := cm.ClusterLoadBalancers(start, end)
+	lbMap, err := ClusterLoadBalancers(ds, start, end)
 	if err != nil {
 		return nil, fmt.Errorf("error computing load balancer assets for %s: %w", opencost.NewClosedWindow(start, end), err)
 	}
 
-	diskMap, err := cm.ClusterDisks(start, end)
+	diskMap, err := ClusterDisks(ds, cm.Provider, start, end)
 	if err != nil {
 		return nil, fmt.Errorf("error computing disk assets for %s: %w", opencost.NewClosedWindow(start, end), err)
 	}
 
-	clusterManagement, err := cm.ClusterManagement(start, end)
+	clusterManagement, err := ClusterManagement(ds, start, end)
 	if err != nil {
 		return nil, fmt.Errorf("error computing cluster management assets for %s: %w", opencost.NewClosedWindow(start, end), err)
 	}

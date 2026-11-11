@@ -42,7 +42,14 @@ type computeFunc func(*kubemodel.KubeModelSet, time.Time, time.Time) error
 func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeModelSet, error) {
 	kms := kubemodel.NewKubeModelSet(start, end)
 
-	computeFuncs := km.computeFuncs(start, end)
+	// Compute every resource from one consistent state of the data source by running the compute
+	// functions against a copy of the KubeModel whose data source is pinned.
+	ds, release := source.PinDataSource(km.ds)
+	defer release()
+	pinned := *km
+	pinned.ds = ds
+
+	computeFuncs := pinned.computeFuncs(start, end)
 
 	for _, f := range computeFuncs {
 		if err := f(kms, start, end); err != nil {
