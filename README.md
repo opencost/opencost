@@ -73,11 +73,12 @@ The OpenCost MCP (Model Context Protocol) server provides AI agents with access 
 
 #### Using Tilt (Development)
 ```bash
-# Clone and start OpenCost with MCP server
-# You may also need to clone opencost-ui and opencost-helm-charts repositories
-# Make sure the cloned repositories are in the same parent tree as opencost
-
+# Clone OpenCost and its sibling repositories into the same parent directory
 git clone https://github.com/opencost/opencost.git
+git clone https://github.com/opencost/opencost-ui.git
+git clone https://github.com/opencost/opencost-helm-chart.git
+
+# Start OpenCost with MCP server
 cd opencost
 tilt up
 ```

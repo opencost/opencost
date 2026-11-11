@@ -2,6 +2,7 @@ commonenv := "CGO_ENABLED=0"
 
 version := `./tools/image-tag`
 commit := `git rev-parse --short HEAD`
+revision := `git rev-parse HEAD`
 
 default:
     just --list
@@ -94,6 +95,7 @@ build IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
         --build-arg binarypath=./cmd/costmodel/costmodel-amd64 \
         --build-arg version={{RELEASE_VERSION}} \
         --build-arg commit={{commit}} \
+        --build-arg revision={{revision}} \
         --provenance=false \
         -t {{IMAGE_TAG}}-amd64 \
         --push \
@@ -106,6 +108,7 @@ build IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
         --build-arg binarypath=./cmd/costmodel/costmodel-arm64 \
         --build-arg version={{RELEASE_VERSION}} \
         --build-arg commit={{commit}} \
+        --build-arg revision={{revision}} \
         --provenance=false \
         -t {{IMAGE_TAG}}-arm64 \
         --push \
@@ -125,6 +128,7 @@ build-podman IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
         --build-arg binarypath=./cmd/costmodel/costmodel-amd64 \
         --build-arg version={{RELEASE_VERSION}} \
         --build-arg commit={{commit}} \
+        --build-arg revision={{revision}} \
         -t {{IMAGE_TAG}}-amd64 \
         .
     podman push {{IMAGE_TAG}}-amd64
@@ -136,6 +140,7 @@ build-podman IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
         --build-arg binarypath=./cmd/costmodel/costmodel-arm64 \
         --build-arg version={{RELEASE_VERSION}} \
         --build-arg commit={{commit}} \
+        --build-arg revision={{revision}} \
         -t {{IMAGE_TAG}}-arm64 \
         .
     podman push {{IMAGE_TAG}}-arm64
