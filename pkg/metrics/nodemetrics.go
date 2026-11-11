@@ -171,10 +171,10 @@ func newKubeNodeStatusCapacityMetric(fqname, node, resource, unit, uid string, v
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubeNodeStatusCapacityMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"node":     kpcrr.node,
-		"resource": kpcrr.resource,
-		"unit":     kpcrr.unit,
-		"uid":      kpcrr.uid,
+		GetNodeLabel(): kpcrr.node,
+		"resource":     kpcrr.resource,
+		"unit":         kpcrr.unit,
+		"uid":          kpcrr.uid,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -187,7 +187,7 @@ func (kpcrr KubeNodeStatusCapacityMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  toStringPtr(GetNodeLabel()),
 			Value: &kpcrr.node,
 		},
 		{
@@ -235,7 +235,7 @@ func newKubeNodeStatusCapacityMemoryBytesMetric(fqname string, node string, uid 
 // Desc returns the descriptor for the Metric. This method idempotently
 // returns the same descriptor throughout the lifetime of the Metric.
 func (nam KubeNodeStatusCapacityMemoryBytesMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{"node": nam.node, "uid": nam.uid}
+	l := prometheus.Labels{GetNodeLabel(): nam.node, "uid": nam.uid}
 	return prometheus.NewDesc(nam.fqName, nam.help, []string{}, l)
 }
 
@@ -247,7 +247,7 @@ func (nam KubeNodeStatusCapacityMemoryBytesMetric) Write(m *dto.Metric) error {
 	}
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  toStringPtr(GetNodeLabel()),
 			Value: &nam.node,
 		},
 		{
@@ -287,7 +287,7 @@ func newKubeNodeStatusCapacityCPUCoresMetric(fqname string, node string, uid str
 // Desc returns the descriptor for the Metric. This method idempotently
 // returns the same descriptor throughout the lifetime of the Metric.
 func (nam KubeNodeStatusCapacityCPUCoresMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{"node": nam.node, "uid": nam.uid}
+	l := prometheus.Labels{GetNodeLabel(): nam.node, "uid": nam.uid}
 	return prometheus.NewDesc(nam.fqName, nam.help, []string{}, l)
 }
 
@@ -299,7 +299,7 @@ func (nam KubeNodeStatusCapacityCPUCoresMetric) Write(m *dto.Metric) error {
 	}
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  toStringPtr(GetNodeLabel()),
 			Value: &nam.node,
 		},
 		{
@@ -342,8 +342,8 @@ func newKubeNodeLabelsMetric(node string, fqname string, labelNames []string, la
 // returns the same descriptor throughout the lifetime of the Metric.
 func (nam KubeNodeLabelsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"node": nam.node,
-		"uid":  nam.uid,
+		GetNodeLabel(): nam.node,
+		"uid":          nam.uid,
 	}
 	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
 }
@@ -364,8 +364,8 @@ func (nam KubeNodeLabelsMetric) Write(m *dto.Metric) error {
 		})
 	}
 
-	nodeString := "node"
-	labels = append(labels, &dto.LabelPair{Name: &nodeString, Value: &nam.node})
+	nodeLabel := GetNodeLabel()
+	labels = append(labels, &dto.LabelPair{Name: &nodeLabel, Value: &nam.node})
 	uidString := "uid"
 	labels = append(labels, &dto.LabelPair{Name: &uidString, Value: &nam.uid})
 	m.Label = labels
@@ -404,10 +404,10 @@ func newKubeNodeStatusConditionMetric(node, fqname, condition, status string, va
 // returns the same descriptor throughout the lifetime of the Metric.
 func (nam KubeNodeStatusConditionMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"node":      nam.node,
-		"condition": nam.condition,
-		"status":    nam.status,
-		"uid":       nam.uid,
+		GetNodeLabel(): nam.node,
+		"condition":    nam.condition,
+		"status":       nam.status,
+		"uid":          nam.uid,
 	}
 	return prometheus.NewDesc(nam.fqName, nam.help, []string{}, l)
 }
@@ -420,7 +420,7 @@ func (nam KubeNodeStatusConditionMetric) Write(m *dto.Metric) error {
 	}
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  toStringPtr(GetNodeLabel()),
 			Value: &nam.node,
 		},
 		{
@@ -491,10 +491,10 @@ func newKubeNodeStatusAllocatableMetric(fqname, node, resource, unit string, val
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubeNodeStatusAllocatableMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"node":     kpcrr.node,
-		"resource": kpcrr.resource,
-		"unit":     kpcrr.unit,
-		"uid":      kpcrr.uid,
+		GetNodeLabel(): kpcrr.node,
+		"resource":     kpcrr.resource,
+		"unit":         kpcrr.unit,
+		"uid":          kpcrr.uid,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -507,7 +507,7 @@ func (kpcrr KubeNodeStatusAllocatableMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  toStringPtr(GetNodeLabel()),
 			Value: &kpcrr.node,
 		},
 		{
@@ -556,8 +556,8 @@ func newKubeNodeStatusAllocatableCPUCoresMetric(fqname, node string, value float
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubeNodeStatusAllocatableCPUCoresMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"node": kpcrr.node,
-		"uid":  kpcrr.uid,
+		GetNodeLabel(): kpcrr.node,
+		"uid":          kpcrr.uid,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -570,7 +570,7 @@ func (kpcrr KubeNodeStatusAllocatableCPUCoresMetric) Write(m *dto.Metric) error 
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  toStringPtr(GetNodeLabel()),
 			Value: &kpcrr.node,
 		},
 		{
@@ -611,8 +611,8 @@ func newKubeNodeStatusAllocatableMemoryBytesMetric(fqname, node string, value fl
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubeNodeStatusAllocatableMemoryBytesMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"node": kpcrr.node,
-		"uid":  kpcrr.uid,
+		GetNodeLabel(): kpcrr.node,
+		"uid":          kpcrr.uid,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -625,7 +625,7 @@ func (kpcrr KubeNodeStatusAllocatableMemoryBytesMetric) Write(m *dto.Metric) err
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("node"),
+			Name:  toStringPtr(GetNodeLabel()),
 			Value: &kpcrr.node,
 		},
 		{

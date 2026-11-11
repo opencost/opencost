@@ -281,9 +281,9 @@ func newPodAnnotationMetric(fqname, namespace, pod string, uid string, labelName
 // returns the same descriptor throughout the lifetime of the Metric.
 func (pam PodAnnotationsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": pam.namespace,
-		"pod":       pam.pod,
-		"uid":       pam.uid,
+		GetNamespaceLabel(): pam.namespace,
+		GetPodLabel():       pam.pod,
+		"uid":               pam.uid,
 	}
 	return prometheus.NewDesc(pam.fqName, pam.help, []string{}, l)
 }
@@ -305,11 +305,11 @@ func (pam PodAnnotationsMetric) Write(m *dto.Metric) error {
 	}
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &pam.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  toStringPtr(GetPodLabel()),
 			Value: &pam.pod,
 		},
 		&dto.LabelPair{
@@ -354,9 +354,9 @@ func newKubePodLabelsMetric(fqname, namespace, pod, uid string, labelNames []str
 // returns the same descriptor throughout the lifetime of the Metric.
 func (nam KubePodLabelsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": nam.namespace,
-		"pod":       nam.pod,
-		"uid":       nam.uid,
+		GetNamespaceLabel(): nam.namespace,
+		GetPodLabel():       nam.pod,
+		"uid":               nam.uid,
 	}
 	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
 }
@@ -379,11 +379,11 @@ func (nam KubePodLabelsMetric) Write(m *dto.Metric) error {
 
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  toStringPtr(GetPodLabel()),
 			Value: &nam.pod,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &nam.namespace,
 		},
 		&dto.LabelPair{
@@ -427,10 +427,10 @@ func newKubePodContainerStatusRestartsTotalMetric(fqname, namespace, pod, uid, c
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcs KubePodContainerStatusRestartsTotalMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": kpcs.namespace,
-		"pod":       kpcs.pod,
-		"uid":       kpcs.uid,
-		"container": kpcs.container,
+		GetNamespaceLabel(): kpcs.namespace,
+		GetPodLabel():       kpcs.pod,
+		"uid":               kpcs.uid,
+		GetContainerLabel(): kpcs.container,
 	}
 	return prometheus.NewDesc(kpcs.fqName, kpcs.help, []string{}, l)
 }
@@ -444,15 +444,15 @@ func (kpcs KubePodContainerStatusRestartsTotalMetric) Write(m *dto.Metric) error
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kpcs.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  toStringPtr(GetPodLabel()),
 			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("container"),
+			Name:  toStringPtr(GetContainerLabel()),
 			Value: &kpcs.container,
 		},
 		&dto.LabelPair{
@@ -496,11 +496,11 @@ func newKubePodContainerStatusTerminatedReasonMetric(fqname, namespace, pod, uid
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcs KubePodContainerStatusTerminatedReasonMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": kpcs.namespace,
-		"pod":       kpcs.pod,
-		"uid":       kpcs.uid,
-		"container": kpcs.container,
-		"reason":    kpcs.reason,
+		GetNamespaceLabel(): kpcs.namespace,
+		GetPodLabel():       kpcs.pod,
+		"uid":               kpcs.uid,
+		GetContainerLabel(): kpcs.container,
+		"reason":            kpcs.reason,
 	}
 	return prometheus.NewDesc(kpcs.fqName, kpcs.help, []string{}, l)
 }
@@ -515,15 +515,15 @@ func (kpcs KubePodContainerStatusTerminatedReasonMetric) Write(m *dto.Metric) er
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kpcs.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  toStringPtr(GetPodLabel()),
 			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("container"),
+			Name:  toStringPtr(GetContainerLabel()),
 			Value: &kpcs.container,
 		},
 		&dto.LabelPair{
@@ -571,10 +571,10 @@ func newKubePodStatusPhaseMetric(fqname, namespace, pod, uid, phase string, valu
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcs KubePodStatusPhaseMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": kpcs.namespace,
-		"pod":       kpcs.pod,
-		"uid":       kpcs.uid,
-		"phase":     kpcs.phase,
+		GetNamespaceLabel(): kpcs.namespace,
+		GetPodLabel():       kpcs.pod,
+		"uid":               kpcs.uid,
+		"phase":             kpcs.phase,
 	}
 	return prometheus.NewDesc(kpcs.fqName, kpcs.help, []string{}, l)
 }
@@ -588,11 +588,11 @@ func (kpcs KubePodStatusPhaseMetric) Write(m *dto.Metric) error {
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kpcs.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  toStringPtr(GetPodLabel()),
 			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
@@ -640,10 +640,10 @@ func newKubePodContainerStatusRunningMetric(fqname, namespace, pod, uid, contain
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcs KubePodContainerStatusRunningMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": kpcs.namespace,
-		"pod":       kpcs.pod,
-		"uid":       kpcs.uid,
-		"container": kpcs.container,
+		GetNamespaceLabel(): kpcs.namespace,
+		GetPodLabel():       kpcs.pod,
+		"uid":               kpcs.uid,
+		GetContainerLabel(): kpcs.container,
 	}
 	return prometheus.NewDesc(kpcs.fqName, kpcs.help, []string{}, l)
 }
@@ -659,15 +659,15 @@ func (kpcs KubePodContainerStatusRunningMetric) Write(m *dto.Metric) error {
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kpcs.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
+			Name:  toStringPtr(GetPodLabel()),
 			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("container"),
+			Name:  toStringPtr(GetContainerLabel()),
 			Value: &kpcs.container,
 		},
 		&dto.LabelPair{
@@ -717,13 +717,13 @@ func newKubePodContainerResourceRequestsMetric(fqname, namespace, pod, uid, cont
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubePodContainerResourceRequestsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": kpcrr.namespace,
-		"pod":       kpcrr.pod,
-		"uid":       kpcrr.uid,
-		"container": kpcrr.container,
-		"node":      kpcrr.node,
-		"resource":  kpcrr.resource,
-		"unit":      kpcrr.unit,
+		GetNamespaceLabel(): kpcrr.namespace,
+		GetPodLabel():       kpcrr.pod,
+		"uid":               kpcrr.uid,
+		GetContainerLabel(): kpcrr.container,
+		GetNodeLabel():      kpcrr.node,
+		"resource":          kpcrr.resource,
+		"unit":              kpcrr.unit,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -737,15 +737,15 @@ func (kpcrr KubePodContainerResourceRequestsMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kpcrr.namespace,
 		},
 		{
-			Name:  toStringPtr("pod"),
+			Name:  toStringPtr(GetPodLabel()),
 			Value: &kpcrr.pod,
 		},
 		{
-			Name:  toStringPtr("container"),
+			Name:  toStringPtr(GetContainerLabel()),
 			Value: &kpcrr.container,
 		},
 		{
@@ -753,7 +753,7 @@ func (kpcrr KubePodContainerResourceRequestsMetric) Write(m *dto.Metric) error {
 			Value: &kpcrr.uid,
 		},
 		{
-			Name:  toStringPtr("node"),
+			Name:  toStringPtr(GetNodeLabel()),
 			Value: &kpcrr.node,
 		},
 		{
@@ -806,13 +806,13 @@ func newKubePodContainerResourceLimitsMetric(fqname, namespace, pod, uid, contai
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubePodContainerResourceLimitsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": kpcrr.namespace,
-		"pod":       kpcrr.pod,
-		"uid":       kpcrr.uid,
-		"container": kpcrr.container,
-		"node":      kpcrr.node,
-		"resource":  kpcrr.resource,
-		"unit":      kpcrr.unit,
+		GetNamespaceLabel(): kpcrr.namespace,
+		GetPodLabel():       kpcrr.pod,
+		"uid":               kpcrr.uid,
+		GetContainerLabel(): kpcrr.container,
+		GetNodeLabel():      kpcrr.node,
+		"resource":          kpcrr.resource,
+		"unit":              kpcrr.unit,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -826,15 +826,15 @@ func (kpcrr KubePodContainerResourceLimitsMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kpcrr.namespace,
 		},
 		{
-			Name:  toStringPtr("pod"),
+			Name:  toStringPtr(GetPodLabel()),
 			Value: &kpcrr.pod,
 		},
 		{
-			Name:  toStringPtr("container"),
+			Name:  toStringPtr(GetContainerLabel()),
 			Value: &kpcrr.container,
 		},
 		{
@@ -842,7 +842,7 @@ func (kpcrr KubePodContainerResourceLimitsMetric) Write(m *dto.Metric) error {
 			Value: &kpcrr.uid,
 		},
 		{
-			Name:  toStringPtr("node"),
+			Name:  toStringPtr(GetNodeLabel()),
 			Value: &kpcrr.node,
 		},
 		{
@@ -891,11 +891,11 @@ func newKubePodContainerResourceLimitsCPUCoresMetric(fqname, namespace, pod, uid
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubePodContainerResourceLimitsCPUCoresMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": kpcrr.namespace,
-		"pod":       kpcrr.pod,
-		"uid":       kpcrr.uid,
-		"container": kpcrr.container,
-		"node":      kpcrr.node,
+		GetNamespaceLabel(): kpcrr.namespace,
+		GetPodLabel():       kpcrr.pod,
+		"uid":               kpcrr.uid,
+		GetContainerLabel(): kpcrr.container,
+		GetNodeLabel():      kpcrr.node,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -909,15 +909,15 @@ func (kpcrr KubePodContainerResourceLimitsCPUCoresMetric) Write(m *dto.Metric) e
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kpcrr.namespace,
 		},
 		{
-			Name:  toStringPtr("pod"),
+			Name:  toStringPtr(GetPodLabel()),
 			Value: &kpcrr.pod,
 		},
 		{
-			Name:  toStringPtr("container"),
+			Name:  toStringPtr(GetContainerLabel()),
 			Value: &kpcrr.container,
 		},
 		{
@@ -925,7 +925,7 @@ func (kpcrr KubePodContainerResourceLimitsCPUCoresMetric) Write(m *dto.Metric) e
 			Value: &kpcrr.uid,
 		},
 		{
-			Name:  toStringPtr("node"),
+			Name:  toStringPtr(GetNodeLabel()),
 			Value: &kpcrr.node,
 		},
 	}
@@ -966,11 +966,11 @@ func newKubePodContainerResourceLimitsMemoryBytesMetric(fqname, namespace, pod, 
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubePodContainerResourceLimitsMemoryBytesMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": kpcrr.namespace,
-		"pod":       kpcrr.pod,
-		"uid":       kpcrr.uid,
-		"container": kpcrr.container,
-		"node":      kpcrr.node,
+		GetNamespaceLabel(): kpcrr.namespace,
+		GetPodLabel():       kpcrr.pod,
+		"uid":               kpcrr.uid,
+		GetContainerLabel(): kpcrr.container,
+		GetNodeLabel():      kpcrr.node,
 	}
 	return prometheus.NewDesc(kpcrr.fqName, kpcrr.help, []string{}, l)
 }
@@ -984,15 +984,15 @@ func (kpcrr KubePodContainerResourceLimitsMemoryBytesMetric) Write(m *dto.Metric
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kpcrr.namespace,
 		},
 		{
-			Name:  toStringPtr("pod"),
+			Name:  toStringPtr(GetPodLabel()),
 			Value: &kpcrr.pod,
 		},
 		{
-			Name:  toStringPtr("container"),
+			Name:  toStringPtr(GetContainerLabel()),
 			Value: &kpcrr.container,
 		},
 		{
@@ -1000,7 +1000,7 @@ func (kpcrr KubePodContainerResourceLimitsMemoryBytesMetric) Write(m *dto.Metric
 			Value: &kpcrr.uid,
 		},
 		{
-			Name:  toStringPtr("node"),
+			Name:  toStringPtr(GetNodeLabel()),
 			Value: &kpcrr.node,
 		},
 	}
@@ -1041,8 +1041,8 @@ func newKubePodOwnerMetric(fqname, namespace, pod, uid, ownerName, ownerKind str
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpo KubePodOwnerMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace":           kpo.namespace,
-		"pod":                 kpo.pod,
+		GetNamespaceLabel():   kpo.namespace,
+		GetPodLabel():         kpo.pod,
 		"uid":                 kpo.uid,
 		"owner_name":          kpo.ownerName,
 		"owner_kind":          kpo.ownerKind,
@@ -1061,11 +1061,11 @@ func (kpo KubePodOwnerMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kpo.namespace,
 		},
 		{
-			Name:  toStringPtr("pod"),
+			Name:  toStringPtr(GetPodLabel()),
 			Value: &kpo.pod,
 		},
 		{

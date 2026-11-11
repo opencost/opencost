@@ -65,6 +65,16 @@ const (
 	KubeModelVersion     = "kubemodel_version"
 	ArgLabel             = "arg"
 	ValueLabel           = "value"
+
+	// OTel-specific labels used by OpenTelemetry Collector receivers
+	OTelNamespaceLabel    = "k8s_namespace_name"
+	OTelNodeLabel         = "k8s_node_name"
+	OTelContainerLabel    = "k8s_container_name"
+	OTelPodLabel          = "k8s_pod_name"
+	OTelPVCLabel          = "k8s_persistentvolumeclaim_name"
+	OTelPVLabel           = "k8s_persistentvolume_name"
+	OTelStorageClassLabel = "k8s_storageclass_name"
+	OTelVolumeNameLabel   = "k8s_volume_name"
 )
 
 const (
@@ -137,7 +147,7 @@ type ContainerUptimeResult struct {
 }
 
 func DecodeContainerUptimeResult(result *QueryResult) *ContainerUptimeResult {
-	container, _ := result.GetString(ContainerLabel)
+	container, _ := result.GetContainer()
 	ur := DecodeUptimeResult(result)
 	return &ContainerUptimeResult{
 		UptimeResult: *ur,
@@ -151,7 +161,7 @@ type ContainerResourceResult struct {
 }
 
 func DecodeContainerResourceResult(result *QueryResult) *ContainerResourceResult {
-	container, _ := result.GetString(ContainerLabel)
+	container, _ := result.GetContainer()
 	rr := DecodeResourceResult(result)
 	return &ContainerResourceResult{
 		ResourceResult: *rr,
@@ -211,7 +221,7 @@ type PVUsedAvgResult struct {
 func DecodePVUsedAvgResult(result *QueryResult) *PVUsedAvgResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	pvc, _ := result.GetString(PVCLabel)
+	pvc, _ := result.GetPVC()
 
 	return &PVUsedAvgResult{
 		Cluster:               cluster,
@@ -232,7 +242,7 @@ type PVActiveMinutesResult struct {
 func DecodePVActiveMinutesResult(result *QueryResult) *PVActiveMinutesResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
-	pv, _ := result.GetString(PVLabel)
+	pv, _ := result.GetPV()
 
 	return &PVActiveMinutesResult{
 		UID:              uid,
@@ -252,7 +262,7 @@ type PVUsedMaxResult struct {
 func DecodePVUsedMaxResult(result *QueryResult) *PVUsedMaxResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	pvc, _ := result.GetString(PVCLabel)
+	pvc, _ := result.GetPVC()
 
 	return &PVUsedMaxResult{
 		Cluster:               cluster,
@@ -553,8 +563,14 @@ type NodeCPUModeTotalResult struct {
 func DecodeNodeCPUModeTotalResult(result *QueryResult) *NodeCPUModeTotalResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
-	node, _ := result.GetString(KubernetesNodeLabel)
+	node, _ := result.GetNode()
+	// OTel system_cpu_time uses "state" label; classic node_exporter uses "mode".
+	// Query renames state→mode via label_replace so ModeLabel works for both.
 	mode, _ := result.GetString(ModeLabel)
+	if mode == "" {
+		// Fallback: OTel emits "state" without label_replace
+		mode, _ = result.GetString("state")
+	}
 
 	return &NodeCPUModeTotalResult{
 		UID:     uid,
@@ -1152,8 +1168,8 @@ func DecodePodPVCAllocationResult(result *QueryResult) *PodPVCAllocationResult {
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
 	pod, _ := result.GetPod()
-	pv, _ := result.GetString(PVLabel)
-	pvc, _ := result.GetString(PVCLabel)
+	pv, _ := result.GetPV()
+	pvc, _ := result.GetPVC()
 
 	return &PodPVCAllocationResult{
 		UID:                   uid,
@@ -1179,7 +1195,7 @@ func DecodePVCBytesRequestedResult(result *QueryResult) *PVCBytesRequestedResult
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
 	namespace, _ := result.GetNamespace()
-	pvc, _ := result.GetString(PVCLabel)
+	pvc, _ := result.GetPVC()
 
 	return &PVCBytesRequestedResult{
 		UID:                   uid,
@@ -1208,9 +1224,9 @@ func DecodePVCInfoResult(result *QueryResult) *PVCInfoResult {
 	namespaceUID, _ := result.GetString(NamespaceUIDLabel)
 	namespace, _ := result.GetNamespace()
 	pvUID, _ := result.GetString(PVUIDLabel)
-	volumeName, _ := result.GetString(VolumeNameLabel)
-	pvc, _ := result.GetString(PVCLabel)
-	storageClass, _ := result.GetString(StorageClassLabel)
+	volumeName, _ := result.GetVolumeName()
+	pvc, _ := result.GetPVC()
+	storageClass, _ := result.GetStorageClass()
 
 	return &PVCInfoResult{
 		UID:                   uid,
@@ -1236,7 +1252,7 @@ type PVBytesResult struct {
 func DecodePVBytesResult(result *QueryResult) *PVBytesResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
-	pv, _ := result.GetString(PVLabel)
+	pv, _ := result.GetPV()
 	var value float64
 	if len(result.Values) > 0 {
 		value = result.Values[0].Value
@@ -1265,8 +1281,8 @@ type PVPricePerGiBHourResult struct {
 func DecodePVPricePerGiBHourResult(result *QueryResult) *PVPricePerGiBHourResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
-	volumeName, _ := result.GetString(VolumeNameLabel)
-	pv, _ := result.GetString(PVLabel)
+	volumeName, _ := result.GetVolumeName()
+	pv, _ := result.GetPV()
 	providerId, _ := result.GetProviderID()
 
 	return &PVPricePerGiBHourResult{
@@ -1293,9 +1309,9 @@ type PVInfoResult struct {
 func DecodePVInfoResult(result *QueryResult) *PVInfoResult {
 	uid, _ := result.GetString(UIDLabel)
 	cluster, _ := result.GetCluster()
-	storageClass, _ := result.GetString(StorageClassLabel)
+	storageClass, _ := result.GetStorageClass()
 	providerId, _ := result.GetProviderID()
-	pv, _ := result.GetString(PVLabel)
+	pv, _ := result.GetPV()
 	csiVolumeHandle, _ := result.GetString(CSIVolumeHandleLabel)
 
 	return &PVInfoResult{

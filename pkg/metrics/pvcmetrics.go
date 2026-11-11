@@ -81,9 +81,9 @@ func newKubePVCResourceRequestsStorageBytesMetric(fqname, pvc, namespace, uid st
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpvcrr KubePVCResourceRequestsStorageBytesMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"persistentvolumeclaim": kpvcrr.pvc,
-		"namespace":             kpvcrr.namespace,
-		"uid":                   kpvcrr.uid,
+		GetPersistentVolumeClaimLabel(): kpvcrr.pvc,
+		GetNamespaceLabel():             kpvcrr.namespace,
+		"uid":                           kpvcrr.uid,
 	}
 	return prometheus.NewDesc(kpvcrr.fqName, kpvcrr.help, []string{}, l)
 }
@@ -97,11 +97,11 @@ func (kpvcrr KubePVCResourceRequestsStorageBytesMetric) Write(m *dto.Metric) err
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("persistentvolumeclaim"),
+			Name:  toStringPtr(GetPersistentVolumeClaimLabel()),
 			Value: &kpvcrr.pvc,
 		},
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kpvcrr.namespace,
 		},
 		{
@@ -144,11 +144,11 @@ func newKubePVCInfoMetric(fqname, pvc, namespace, uid, storageclass, volume stri
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpvcrr KubePVCInfoMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"persistentvolumeclaim": kpvcrr.pvc,
-		"namespace":             kpvcrr.namespace,
-		"storageclass":          kpvcrr.storageclass,
-		"volumename":            kpvcrr.volume,
-		"uid":                   kpvcrr.uid,
+		GetPersistentVolumeClaimLabel(): kpvcrr.pvc,
+		GetNamespaceLabel():             kpvcrr.namespace,
+		"storageclass":                  kpvcrr.storageclass,
+		"volumename":                    kpvcrr.volume,
+		"uid":                           kpvcrr.uid,
 	}
 	return prometheus.NewDesc(kpvcrr.fqName, kpvcrr.help, []string{}, l)
 }
@@ -163,11 +163,11 @@ func (kpvci KubePVCInfoMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kpvci.namespace,
 		},
 		{
-			Name:  toStringPtr("persistentvolumeclaim"),
+			Name:  toStringPtr(GetPersistentVolumeClaimLabel()),
 			Value: &kpvci.pvc,
 		},
 		{
