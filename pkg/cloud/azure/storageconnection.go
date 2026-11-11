@@ -17,6 +17,11 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 )
 
+// blobTransferTimeout bounds the retrieval of a single billing blob, whether it
+// is streamed or downloaded to disk, so a stalled transfer cannot hang an
+// ingestion cycle indefinitely.
+const blobTransferTimeout = 30 * time.Minute
+
 // StorageConnection provides access to Azure Storage
 type StorageConnection struct {
 	StorageConfiguration
@@ -79,9 +84,9 @@ func (sc *StorageConnection) DownloadBlob(blobName string, client *azblob.Client
 }
 
 // StreamBlob returns an io.Reader for the given blob which uses a re-usable double buffer approach to stream directly
-// from blob storage.
-func (sc *StorageConnection) StreamBlob(blobName string, client *azblob.Client) (*StreamReader, error) {
-	return NewStreamReader(client, sc.Container, blobName)
+// from blob storage. Cancelling ctx aborts any in-flight block download.
+func (sc *StorageConnection) StreamBlob(ctx context.Context, blobName string, client *azblob.Client) (*StreamReader, error) {
+	return NewStreamReader(ctx, client, sc.Container, blobName)
 }
 
 // DownloadBlobToFile downloads the Azure Billing CSV to a local file
@@ -116,7 +121,7 @@ func (sc *StorageConnection) DownloadBlobToFile(localFilePath string, blob conta
 	// Download newest Azure Billing CSV to disk
 
 	// Time out to prevent deadlock on download
-	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	timeoutCtx, cancel := context.WithTimeout(ctx, blobTransferTimeout)
 	defer cancel()
 
 	log.Infof("CloudCost: Azure: DownloadBlobToFile: retrieving blob: %v", blobName)
