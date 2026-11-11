@@ -389,6 +389,12 @@
     "GPU": "",
     "Disk": ""
   },
+  "VM.Standard.E6.Flex": {
+    "OCPU": "B111129",
+    "Memory": "B111130",
+    "GPU": "",
+    "Disk": ""
+  },
   "VM.Standard2.1": {
     "OCPU": "B88514",
     "Memory": "B94177",
