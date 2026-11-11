@@ -223,6 +223,51 @@ func TestNewConverter(t *testing.T) {
 	}
 }
 
+func TestNewConverter_ProviderName(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		wantType string
+		wantErr  bool
+	}{
+		{name: "empty selects exchangerate-api", provider: "", wantType: "*currency.exchangeRateClient"},
+		{name: "exchangerate-api", provider: ProviderExchangeRateAPI, wantType: "*currency.exchangeRateClient"},
+		{name: "allratestoday", provider: ProviderAllRatesToday, wantType: "*currency.allRatesTodayClient"},
+		{name: "case and whitespace insensitive", provider: "  AllRatesToday ", wantType: "*currency.allRatesTodayClient"},
+		{name: "unknown name is an error", provider: "fixer", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			converter, err := NewConverter(Config{APIKey: "test-key", ProviderName: tt.provider})
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for provider %q", tt.provider)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			got := fmt.Sprintf("%T", converter.(*currencyConverter).provider)
+			if got != tt.wantType {
+				t.Errorf("provider %q: got %s, want %s", tt.provider, got, tt.wantType)
+			}
+		})
+	}
+}
+
+func TestNewConverter_ProviderOverridesName(t *testing.T) {
+	provider := &mockClient{rates: map[string]map[string]float64{"USD": {"EUR": 0.5}}}
+	converter, err := NewConverter(Config{Provider: provider, ProviderName: "not-a-provider"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := converter.(*currencyConverter).provider.(*mockClient); !ok {
+		t.Errorf("Provider should take precedence over ProviderName")
+	}
+}
+
 func TestNewConverter_CustomProvider(t *testing.T) {
 	provider := &mockClient{
 		rates: map[string]map[string]float64{

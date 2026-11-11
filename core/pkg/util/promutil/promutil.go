@@ -154,6 +154,33 @@ func SanitizeLabelName(s string) string {
 	return invalidLabelCharRE.ReplaceAllString(s, "_")
 }
 
+// LookupWithSanitizedFallback looks up key in m, and if not found retries with
+// the Prometheus-sanitized form of key (e.g. "foo.bar/baz" → "foo_bar_baz").
+func LookupWithSanitizedFallback[T any, K ~string](m map[K]T, key K) (T, bool) {
+	if v, ok := m[key]; ok {
+		return v, true
+	}
+	if v, ok := m[K(SanitizeLabelName(string(key)))]; ok {
+		return v, true
+	}
+	var zero T
+	return zero, false
+}
+
+func SanitizedEqual[T ~string, K ~string](t T, k K) bool {
+	st := string(t)
+	kt := string(k)
+	if st == kt {
+		return true
+	}
+
+	if st == SanitizeLabelName(kt) {
+		return true
+	}
+
+	return false
+}
+
 // SanitizeLabels sanitizes all label names in the given map. This may cause
 // collisions, which is intentional as collisions that are not caught prior to
 // attempted emission will cause fatal errors. In the case of a collision, the

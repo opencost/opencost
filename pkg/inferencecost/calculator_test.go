@@ -120,6 +120,81 @@ func TestCalculator_ComputeTimeSplit_InputOutputSumToTotal(t *testing.T) {
 	}
 }
 
+// TestCalculator_ComputeTimeSplit_DecodeDominatesRealisticWorkload guards the
+// unit compatibility of the two timing inputs.
+//
+// The timings model 100 requests at 0.2s prefill and 5s decode each — a typical
+// chat workload, where decode dominates because it runs once per output token.
+// Generation must therefore carry the large majority of cost.
+//
+// This is a regression test for pairing prefill seconds with
+// vllm:request_time_per_output_token_seconds_sum, whose _sum is a sum of
+// per-request mean seconds-per-token rather than a duration. At 200 output
+// tokens per request that metric would have yielded 2.5s here instead of 500s,
+// inverting the split to ~88.9% input. Round-number fixtures such as
+// 60/40 pass under either metric, so the realistic ratio is the point.
+func TestCalculator_ComputeTimeSplit_DecodeDominatesRealisticWorkload(t *testing.T) {
+	m := &InferenceCost{
+		AllocationTotalCost:  10.0,
+		UsageTotalCost:       10.0,
+		PromptTokens:         100_000,
+		GenerationTokens:     20_000,
+		TotalTokens:          120_000,
+		EffectiveInputTokens: 100_000,
+		InputProcessingTime:  20.0,  // 100 requests x 0.2s prefill
+		OutputProcessingTime: 500.0, // 100 requests x 5s decode
+	}
+	newCalc(defaultConfig()).CalculateCosts([]*InferenceCost{m})
+
+	// Expected split: 20 / 520 = 3.846% input, 96.154% output.
+	wantInputCost := 10.0 * (20.0 / 520.0)
+	wantOutputCost := 10.0 * (500.0 / 520.0)
+
+	if !floatEq(m.InputCost[CostBasisAllocation], wantInputCost) {
+		t.Errorf("input cost want %.6f got %.6f", wantInputCost, m.InputCost[CostBasisAllocation])
+	}
+	if !floatEq(m.OutputCost[CostBasisAllocation], wantOutputCost) {
+		t.Errorf("output cost want %.6f got %.6f", wantOutputCost, m.OutputCost[CostBasisAllocation])
+	}
+
+	// Directional guard: generation must dominate. This is what fails loudly if a
+	// seconds-per-token metric is substituted for decode duration.
+	if m.OutputCost[CostBasisAllocation] <= m.InputCost[CostBasisAllocation] {
+		t.Errorf("decode-dominant workload must allocate more to output: input=%.6f output=%.6f",
+			m.InputCost[CostBasisAllocation], m.OutputCost[CostBasisAllocation])
+	}
+	if m.AllocationMethod != AllocationMethodComputeTime {
+		t.Errorf("expected compute_time, got %s", m.AllocationMethod)
+	}
+}
+
+// TestCalculator_ComputeTimeSplit_PrefillDominantStillApplied documents that a
+// prefill-dominant split is logged as suspicious but still honoured — it is
+// legitimate for long prompts with very short generations.
+func TestCalculator_ComputeTimeSplit_PrefillDominantStillApplied(t *testing.T) {
+	m := &InferenceCost{
+		AllocationTotalCost:  10.0,
+		UsageTotalCost:       10.0,
+		PromptTokens:         100_000,
+		GenerationTokens:     100,
+		TotalTokens:          100_100,
+		EffectiveInputTokens: 100_000,
+		InputProcessingTime:  90.0,
+		OutputProcessingTime: 10.0,
+	}
+	newCalc(defaultConfig()).CalculateCosts([]*InferenceCost{m})
+
+	if !floatEq(m.InputCost[CostBasisAllocation], 9.0) {
+		t.Errorf("input cost want 9.0 got %.6f", m.InputCost[CostBasisAllocation])
+	}
+	if !floatEq(m.OutputCost[CostBasisAllocation], 1.0) {
+		t.Errorf("output cost want 1.0 got %.6f", m.OutputCost[CostBasisAllocation])
+	}
+	if m.AllocationMethod != AllocationMethodComputeTime {
+		t.Errorf("expected compute_time, got %s", m.AllocationMethod)
+	}
+}
+
 // ---- KV cache savings fraction ----
 
 func TestCalculator_CacheSavingsFraction(t *testing.T) {

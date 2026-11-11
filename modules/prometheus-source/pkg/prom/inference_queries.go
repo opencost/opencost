@@ -80,7 +80,9 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceOutputProcessingTime(start, e
 	resultsChan := make(source.QueryResultsChan, 1)
 
 	go func() {
-		values, err := queryCounterDelta(ctx, "vllm:request_time_per_output_token_seconds_sum", start, end)
+		// DECODE-phase seconds. NOT request_time_per_output_token_seconds_sum, which
+		// sums per-request mean seconds-per-token rather than a duration.
+		values, err := queryCounterDelta(ctx, "vllm:request_decode_time_seconds_sum", start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return

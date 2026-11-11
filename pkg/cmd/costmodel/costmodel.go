@@ -3,6 +3,7 @@ package costmodel
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -230,6 +231,16 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) err
 
 // StartMCPServer starts the MCP server as a background service
 func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCostQuerier cloudcost.Querier) error {
+	addr := fmt.Sprintf(":%d", env.GetMCPHTTPPort())
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen for MCP HTTP on %s: %w", addr, err)
+	}
+	startMCPServer(ctx, accesses, cloudCostQuerier, listener)
+	return nil
+}
+
+func startMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCostQuerier cloudcost.Querier, listener net.Listener) <-chan struct{} {
 	log.Info("Initializing MCP server...")
 
 	// Create MCP server using existing OpenCost dependencies
@@ -401,24 +412,21 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 		handler.ServeHTTP(w, req)
 	})
 
-	// Start HTTP server on configured port
-	port := env.GetMCPHTTPPort()
-	log.Infof("Starting MCP HTTP server on port %d...", port)
-
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
 		Handler: loggingHandler,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			log.Errorf("MCP server failed: %v", err)
 		}
 	}()
 
 	// Graceful shutdown goroutine
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		<-ctx.Done()
 		log.Info("Shutting down MCP server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -430,8 +438,8 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 		}
 	}()
 
-	log.Info("MCP server started successfully")
-	return nil
+	log.Infof("MCP server listening on %s", listener.Addr())
+	return done
 }
 
 // Tool argument structures for MCP server
