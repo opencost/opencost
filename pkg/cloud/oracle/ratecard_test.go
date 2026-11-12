@@ -133,6 +133,9 @@ func TestRCSForPVK(t *testing.T) {
 		driverOCI: {
 			"0.000034",
 		},
+		driverOCIFSS: {
+			"0.000403",
+		},
 		"unknown": {
 			"0.25",
 		},

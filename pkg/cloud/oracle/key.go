@@ -42,11 +42,14 @@ func (k *oracleKey) isVirtualNode() bool {
 
 const driverOCI = "oracle.com/oci"
 const driverOCIBV = "blockvolume.csi.oraclecloud.com"
+const driverOCIFSS = "fss.csi.oraclecloud.com"
 
-// ociStorageDrivers are the known storage drivers for OCI.
-var ociStorageDrivers = map[string]bool{
-	driverOCI:   true,
-	driverOCIBV: true,
+// ociStorageDrivers maps every known OCI storage driver to the part number
+// of the product that prices its volumes.
+var ociStorageDrivers = map[string]string{
+	driverOCI:    blockVolumePartNumber,
+	driverOCIBV:  blockVolumePartNumber,
+	driverOCIFSS: fileStoragePartNumber,
 }
 
 type oraclePVKey struct {
@@ -57,10 +60,7 @@ type oraclePVKey struct {
 }
 
 func (p *oraclePVKey) Features() string {
-	if ociStorageDrivers[p.driver] {
-		return blockVolumePartNumber
-	}
-	return ""
+	return ociStorageDrivers[p.driver]
 }
 
 func (p *oraclePVKey) GetStorageClass() string {
