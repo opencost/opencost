@@ -30,6 +30,8 @@ attributed cost = tokens(tenant, workload, user, model) x cost-per-token(model)
 
 A serving stack never computes, stores or reports a monetary value.
 
+**Cached tokens.** Cost per token is one rate per direction. Cached prompt tokens (F12) are priced at the full input rate: cache discounts are out of scope, so a tenant's attributed cost is an upper bound where cache hits are common. F12 is defined anyway, so a separate cache-read rate can be added later without changing the contract (it would also need F12 on the aggregate counters, Section 7.3).
+
 ## 2. Scope
 
 **In scope:** the facts, their failure semantics, the transport options, and the identity and privacy rules needed for attribution.
@@ -37,7 +39,7 @@ A serving stack never computes, stores or reports a monetary value.
 **Out of scope:**
 
 - Cost rates, idle or shared-infrastructure allocation (OpenCost).
-- Authentication and authorization. This document only says where the identity is expected to come from.
+- Authentication and authorization mechanisms. This document states where identity must be verified (Section 4.1) and that the metrics path is inside the trust boundary, but not how to implement either.
 - Real-time budget enforcement or request admission based on spend.
 - Log aggregation or long-term storage infrastructure.
 
@@ -69,6 +71,7 @@ Identity MUST be derived or verified at a trusted boundary, normally the gateway
 
 - The component that sets or verifies the identity is the **only** place such headers may be set. Inner components MUST NOT accept them from untrusted sources.
 - Missing identity MUST be recorded as empty or "unattributed". It MUST NOT be silently assigned to a default tenant.
+- The metrics path is part of the same trust boundary. OpenCost consumes the aggregate series of Section 7.3, so whoever can write or relabel those series controls billing attribution, regardless of how trustworthy the gateway is. The attributed series MUST reach Prometheus only through an authenticated scrape path, or authenticated remote write (for example mTLS between the producer and the Prometheus instance). A conformance case for this is in Section 9.
 
 ### 4.2 `user_id` and privacy
 
@@ -80,6 +83,8 @@ Identity MUST be derived or verified at a trusted boundary, normally the gateway
 | Per-request record | Off, keyed hash (for example HMAC-SHA256 with an operator-supplied secret), or plain, as the operator chooses |
 
 A bare or unkeyed hash of a user identifier is easily reversed by enumeration and does not satisfy the "hashed" option. When `user_id` is omitted from aggregate metrics, OpenCost reports `user_id` as empty and keeps `tenant_id` and `workload_id` attribution.
+
+Per-user cost remains sensitive on the OpenCost side as well: the API restricts `aggregate` and `filter` on `user_id` to explicitly enabled, admin-authenticated callers, and the `user_id` label on the exported metric is subject to Prometheus RBAC (attribution plan, Section 1.7).
 
 ## 5. Required facts
 
@@ -111,6 +116,7 @@ The cases below are where implementations differ most, so each is specified expl
 | Success | From `usage` | From `usage` | Yes |
 | Rejected before any inference work (auth, malformed body, size limit, tokenization failure) | 0 | 0 | No. No GPU was used. It MAY appear in a request log with outcome `error` |
 | Failure after prefill began, before any output (prefill error, decode error) | Tokens known to the stack (for example tokenizer output), flagged `usage_captured=false` | 0 | Yes, prompt tokens only. Prefill cost was incurred |
+| Gateway timeout after prefill (the gateway gives up; the engine has prefilled and may keep generating) | As above. The gateway itself has no `usage`; prompt tokens MUST come from engine-side facts, not be recorded as zero | 0 | Yes, prompt tokens only. The engine's own counters still record the work, so it must land in some attributed row or in the remainder, never vanish |
 | Stream truncated or interrupted mid-response | As above | 0 if the final `usage` was never delivered. A chunk-count estimate MAY be used if flagged as estimated | Yes, as available |
 | Client disconnect | As above | As above | Yes, as available |
 | Cache-hit short circuit (the stack answers without decode) | From `usage` if present, else 0 | From `usage` if present, else 0 | As reported |
@@ -155,6 +161,7 @@ OpenCost queries per-dimension token counters from Prometheus. The contract Open
 - `serving_model` MUST equal the `model_name` label on the engine's own token metrics (for example `vllm:prompt_tokens_total`). This makes the OpenCost join consistent by construction.
 - Metric names are producer-specific today. OpenCost SHOULD treat metric names and label mapping as configuration so that moving the producer between components does not need an OpenCost code change.
 - `requested_model` SHOULD NOT be a label on these counters. It inflates cardinality and does not change cost, since price follows the model served.
+- Estimated token counts MUST NOT be mixed into the same series as exact counts. A producer that estimates tokens for a request (Section 6) MUST emit them separately: either a sibling series (for example `<input_series>_estimated_total`) or a bounded `estimated="true"` label. Without this, OpenCost cannot tell an estimate from an exact count, and the failure semantics of Sections 5 and 6 are only implementable for per-request records. OpenCost counts estimated tokens as attributed for cost, and exposes the estimated share so a consumer can tell "zero tokens" from "unknown".
 
 ### 7.4 Per-request records
 
@@ -193,9 +200,11 @@ Both pull requests are open and unmerged. Neither adds `gen_ai.request.model`, a
    3. **Blended rate.** If neither resolves it, use the token-weighted average rate across the namespaces serving that model, and mark the result as approximate.
 2. Joins them to the per-million-token rates it computed for `(serving_model, namespace)`, under both cost bases (`allocation` and `usage`). This requires OpenCost's model-level cost to be keyed by namespace as well as by model. Where the same model runs in several namespaces, the model-level cost must stay separate per namespace, or the join finds no rate for any of them (see opencost/opencost#4162, fixed by #4163).
 3. Exposes the results as `llm_dimension_hourly_cost` and through `/inferenceCost/*` with `aggregate` and `filter` on `tenant_id`, `workload_id` and `user_id`. It also emits a remainder row (`tenant_id="__unmetered__"`) per model and namespace for cost that no attributed series claims, so that tenant rows plus the remainder equal the model's cost.
-4. Runs a **coverage check**: attributed input tokens divided by the engine's prompt-token counter (`vllm:prompt_tokens_total` or `sglang:prompt_tokens_total`, summed when both engines serve the model) per `(serving_model, namespace)`, or per `serving_model` where the namespace is unresolved. A low ratio means requests are bypassing metering or identity is missing, and OpenCost logs a warning.
+4. Runs **coverage checks**, per `(serving_model, namespace)`, or per `serving_model` where the namespace is unresolved:
+   1. **Token (metering) coverage**, input and output separately: attributed input tokens divided by the engine's prompt-token reference, and attributed output tokens divided by the engine's completion-token reference. Input and output coverage can drift independently (a stream that fails before the final `usage` loses completion tokens only), so one ratio must not stand in for the other. A low ratio means requests are bypassing the metering layer; OpenCost logs a warning. A ratio above one plus a tolerance means over-attribution (producer double counting or window skew) and warns separately.
+   2. **Identity coverage**: attributed tokens carrying non-empty `tenant_id` and `workload_id`, divided by all attributed tokens. Token coverage can read 100% while every request lacks identity (Section 6 keeps such requests in the counters), so the two ratios are computed and reported separately. `user_id` is optional (Section 4.2) and is not part of this ratio.
 
-   In SGLang prefill/decode disaggregation, both workers report every request's full prompt, labelled `engine_type="prefill"` or `"decode"` (`"unified"` otherwise). The reference total MUST exclude decode workers (`engine_type!="decode"`). Otherwise prompt tokens are counted twice and coverage reads as about 50%. The same exclusion applies when building the namespace map in step 1. For completion tokens, the equivalent exclusion is prefill workers (`engine_type!="prefill"`).
+   The engine reference for token coverage is defined **per deployment** (`serving_model`, namespace), not as a global sum over engines. In SGLang prefill/decode disaggregation, both workers report every request's full prompt, labelled `engine_type="prefill"` or `"decode"` (`"unified"` otherwise), so the reference MUST exclude decode workers (`engine_type!="decode"`), and for completion tokens exclude prefill workers (`engine_type!="prefill"`). The same exclusion applies when building the namespace map in step 1. But the `engine_type` filter only removes an engine's *own* decode workers: a deployment that disaggregates across engines (SGLang prefill with vLLM decode is a real llm-d topology) is still counted twice by a sum over engines. Where a deployment mixes engines, the operator configures which engine is authoritative for its reference (attribution plan, Section 1.5).
 
 The coverage check is why the engine's own token metrics remain independent of the metering path. They are the reference the attributed totals are compared against.
 
@@ -210,9 +219,12 @@ A deployment can be checked with a fixed set of requests against its stack, comp
 | Request without identity | Recorded as unattributed; not assigned to any tenant |
 | Model rewritten by the router | `serving_model` is the rewritten model; requested model recorded separately (F6) |
 | Failure after prefill | Prompt tokens recorded, completion 0, `usage_captured=false` |
+| **Gateway timeout after prefill** | The gateway gives up while the engine has already done prefill (and may keep generating). Prompt tokens come from engine-side facts (F9, response headers or engine counters), recorded with `usage_captured=false` — never silently zero, and never dropped from the engine's reference total |
 | Rejected before inference | No consumption recorded |
 | Client disconnect mid-stream | Prompt tokens recorded; completion tokens flagged as unavailable or estimated |
-| Coverage | Sum of attributed input tokens within a stated tolerance of the engine's prompt token total |
+| **Forged identity header** | A client sends an identity header naming another tenant, while authenticating as someone else. Attribution follows the authenticated identity (or none); the forged value appears nowhere in the output. Every engine-counted token is still attributed or visible as remainder |
+| **Unauthorized metrics write** | A writer without scrape-path or remote-write credentials cannot alter the attributed series (checked at the deployment level, not per request) |
+| Coverage | Attributed input and output tokens each within a stated tolerance of the engine's reference totals; identity coverage reported separately |
 
 ## 10. Gateway candidates
 

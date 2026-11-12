@@ -58,7 +58,7 @@ llm_dimension_hourly_cost{
 
 `cost_basis=allocation` reconciles to the bill. `cost_basis=usage` is active compute only. `user_id` is empty when the producer does not emit it.
 
-Cost that no attributed series claims is not dropped. For each model and namespace, an extra row with `tenant_id="__unmetered__"` carries the remainder: the model's cost minus everything attributed to a tenant. Tenant rows plus this row add up to the model's cost under each basis. In practice the remainder is the cost of requests that bypassed the metering layer (§1.5).
+Cost that no attributed series claims is not dropped. For each model and namespace, an extra row with `tenant_id="__unmetered__"` carries the remainder: the model's cost minus everything attributed to a tenant. Tenant rows plus this row add up to the model's cost under each basis. In practice the remainder is mostly the cost of requests that bypassed the metering layer, with defined edge cases (§1.5).
 
 ```promql
 # Top 5 tenants by attributed cost
@@ -78,6 +78,8 @@ GET /inferenceCost/timeseries?window=24h&accumulate=hour
 # Total cost for a single user over 30 days:
 GET /inferenceCost/total?window=30d&filter=user_id:"alice"
 ```
+
+**Authorization for `user_id`.** Per-person spend is sensitive, and `/inferenceCost` has no tenancy model of its own. `aggregate` and `filter` on `user_id` are therefore default-deny: they require both `INFERENCE_ATTRIBUTION_USER_AGGREGATION_ENABLED=true` (§1.9, default false) and admin authentication (the existing `ADMIN_TOKEN` bearer mechanism). Non-admin callers, and any caller when the flag is off, receive a validation error naming the restriction. `tenant_id` and `workload_id` are not restricted. The same applies on the metrics path: the `user_id` label on `llm_dimension_hourly_cost` is readable by anyone with Prometheus query access, so a deployment exposing per-user cost must restrict the metric with Prometheus RBAC or disable the user label (§1.9). Hiding per-user dollars in a UI is moot if the API and the metric still return them.
 
 The response shape is unchanged. `properties` gains three optional fields, `tenant_id`, `workload_id` and `user_id`, omitted when empty (§1.4).
 
@@ -165,6 +167,7 @@ Decoder required in: `core/pkg/source/decoders.go` (`DecodeInferenceDimensionRes
 OpenCost does not know the producer's metric names. They come from configuration (§1.9):
 
 - Input-token series and output-token series. Each may be a counter (`..._total`) or a histogram `_sum` series. Both behave as monotonically increasing counters, so the same delta pattern works for either. The configured value is the full series name.
+- Optional estimated-token series (input and output), for producers that separate estimated counts per the requirements document §7.3 (sibling-series variant). Estimated tokens count as attributed and are exported as a separate share (§1.6).
 - Label names for tenant, workload, user, serving model and deployment namespace. Defaults match the requirements document: `tenant_id`, `workload_id`, `user_id`, `serving_model`, `namespace`.
 
 The generated PromQL substitutes configured names. In the examples below, `<tenant>`, `<workload>`, `<user>`, `<model>` and `<ns>` stand for the configured label names, and `<input_series>` for the configured input series.
@@ -185,9 +188,15 @@ Four queries in total (input and output, each at the end and start of the window
     last_over_time(<input_series>[2m] @ <start_unix>)
   )
   ```
-  Delta = end value - start value per key. A negative delta (counter reset) uses the end value.
 
 `<window>m` = `windowDuration.Minutes()` (minimum 2), matching the `queryCounterDelta` convention. Both queries are issued at `effectiveEnd` (clamped to `time.Now()`) to avoid future-timestamp errors. The same pattern applies to the output series. The helper `queryDimensionCounterDelta` encapsulates the start and end pair and is called twice. Results are merged into one `InferenceDimensionResult`.
+
+**Deltas are computed per producer series, reset-aware, before grouping by identity.** The `by` clauses above show only the identity labels, but the query must first retain the producer's own series identity (at minimum `job` and `instance`), compute the delta per producer series, and only then sum by the identity labels. Two rules govern the per-series delta:
+
+- **Counter reset.** A replica restart mid-window shows as end < start. The delta must use `increase()` semantics — the series' samples inside the window are scanned, and at a reset the pre-reset value is added to the delta — not `end - start` with a floor at zero. Taking the end value on a negative delta (the naive fallback) undercounts the window containing the reset; worse, summing first and differencing afterwards charges a restarted replica's reset to whichever identities happened to share the grouped series. In PromQL this is `increase(<input_series>[<window>m] @ <end_unix>)` (which also self-anchors, removing the need for the separate start query on that path); if the `last_over_time` pair is kept for consistency with `queryCounterDelta`, the reset correction must be applied in the decoder, per producer series.
+- **Missing start anchor (scrape gap).** A series with samples in the window but none in the start lookback has an unknown baseline, not a baseline of zero: treating it as new counts tokens from before the window. Such series are excluded from the window's totals, counted in a debug metric (`llm_dimension_unanchored_series`), and the exclusion is noted in the collection log. A series that stopped being scraped mid-window keeps its last in-window value as the end anchor; its gap is reported the same way.
+
+Engine and attribution series are scraped independently, so the two sides of the coverage check (§1.5) can see slightly different window boundaries. The coverage ratios therefore compare deltas over the *same* `[start, end]` on both sides and are interpreted with a tolerance (§1.9), not as exact equality.
 
 **User label absent.** When the user label is not configured, `<user>` is omitted from the `sum by` and the key's `UserID` is `""`. When it is configured but a series lacks it, Prometheus returns an empty label value and the key is built with `UserID = ""`. Both cases are handled without a separate query.
 
@@ -218,10 +227,10 @@ WorkloadID string `json:"workload_id,omitempty"`
 
 ```
 // in runner.go runOnce():
-1. modelCosts, err := collector.CollectMetrics()          // model-level slice; stores InferenceDimensionResult internally
-2. calculator.CalculateCosts(modelCosts)                  // populates InputCostPerMillionTokens, OutputCostPerMillionTokens
-3. dimCosts := collector.BuildDimensionCosts(modelCosts)  // reads stored InferenceDimensionResult; dimension-level []*InferenceCost
-4. exporter.Export(modelCosts, dimCosts)                  // exports both slices
+1. modelCosts, dimTokens, err := collector.CollectMetrics()  // model-level slice plus this collection's InferenceDimensionResult
+2. calculator.CalculateCosts(modelCosts)                     // populates InputCostPerMillionTokens, OutputCostPerMillionTokens
+3. dimCosts := collector.BuildDimensionCosts(modelCosts, dimTokens) // dimension-level []*InferenceCost
+4. exporter.Export(modelCosts, dimCosts)                     // exports both slices
 ```
 
 Moving step 3 inside `CollectMetrics` would require the calculator to run inside the collector, creating a circular dependency.
@@ -240,9 +249,15 @@ UsageTotalCost      = promptTokens     x (InputCostPerMillionTokens[usage]  / 1_
                     + completionTokens x (OutputCostPerMillionTokens[usage] / 1_000_000)
 ```
 
+The model-entry lookup is **not** a plain `serving_model:namespace` map read. It reuses the canonicalized engine-name-to-allocation mapping the model-level join already builds (`combineMetrics` in `collector.go`), which reconciles `org/model` to an allocation-backed `model` key. A producer satisfying F7 can still emit `org/model`; an exact-key lookup would drop its cost as unmatched. The same mapping is reused by the coverage check, so a key joins once or not at all, consistently.
+
+Cached prompt tokens are priced at the full input rate (requirements document, Section 1): OpenCost's rates come from its own allocation, not from a provider's price list, so tenant rows plus the remainder still reconcile exactly. Where a provider discounts cache reads, a tenant's row is an upper bound; that is scoped in the requirements document, not worked around here.
+
 Token counts are set directly from `InferenceDimensionTokens`. All other `Properties` fields (namespace, cluster, model name and so on) are copied from the matched model entry. `AllocationMethod` is inherited.
 
-**Unmatched keys.** A key whose `serving_model:namespace` has no model entry (a model OpenCost does not track, or a namespace mislabel) is not dropped silently. It is counted, logged once per collection cycle with the key, and exposed through a counter metric (`llm_dimension_unmatched_keys`, §1.6) so a label-mapping error is visible.
+**Split costs and rates.** Each dimension entry also populates the fields the API response and the aggregation layer recompute from: `InputCost` and `OutputCost` (the entry's cost split into its prompt and completion parts), and `InputCostPerMillionTokens` / `OutputCostPerMillionTokens` copied from the matched model entry. `newInferenceCostResponse` reads these fields directly, and aggregation recomputes differentiated rates from the split costs; a dimension entry with only the two totals set would report a positive `totalCost` with zero input and output cost. The model-level split is not re-run per dimension entry — the entry's split follows from its own token counts and the model's rates.
+
+**Unmatched keys.** A key whose `serving_model:namespace` has no model entry (a model OpenCost does not track, or a namespace mislabel) is not dropped silently. It is counted, logged once per collection cycle with the key, and exposed through a counter metric (`llm_dimension_unmatched_keys`, §1.6) so a label-mapping error is visible. A per-cycle log line is a quiet failure mode for a billing path: the recommended deployment alert is `llm_dimension_unmatched_keys > 0`, and the configuration documentation should say so. The same applies to a non-joining namespace label (§1.3.2): the failure is silent in the cost data, so the metric is the alarm.
 
 **Remainder entry.** After the join, emit one more dimension entry per `(serving_model, namespace)` and cost basis, holding the cost that no attributed series claimed:
 
@@ -251,27 +266,39 @@ Token counts are set directly from `InferenceDimensionTokens`. All other `Proper
 // tenant_id = "__unmetered__"; workload_id and user_id empty; tokens = engine tokens - attributed tokens
 ```
 
-Tenant entries plus the remainder then add up to the model's cost under each basis. Three points:
+Tenant entries plus the remainder then add up to the model's cost under each basis. Four points:
 
-- *What it contains.* The per-million rates are the model's cost divided by all of the engine's tokens, and under the allocation basis that cost already includes the idle share. So the remainder is `(1 - coverage) x model cost`: requests that never reached the metering layer. It does not contain idle cost. Idle stays spread across the tenant rows in proportion to their tokens (see Appendix B).
+- *What it contains.* The remainder is defined arithmetically — `max(0, modelTotalCost - attributedCost)` per basis — and described as residual infrastructure cost, not as a formula in coverage. In the common case it approximates the cost of requests that never reached the metering layer, because the per-million rates divide the model's cost across all of the engine's tokens. It is *not* exactly `(1 - coverage) x model cost`: input and completion attribution can differ (full prompt coverage with missing completion usage still leaves a remainder), so the residual is based on the attributed *cost*, which reflects both directions.
+- *Zero-token windows.* A model with no engine tokens in the window retains its allocation cost while attributed cost is zero, so the remainder is the model's entire cost for that window — idle included, even when nothing bypassed metering. This case is defined explicitly rather than left to the formula, and it is why the remainder must not be read as "bypass cost" alone.
 - *Models with no attributed series.* A model that has engine tokens but no attributed series at all is entirely remainder. That makes models sitting outside the gateway visible.
-- *Negative remainders.* If attributed tokens exceed engine tokens (double counting in the producer, or window skew), the remainder is clamped to zero and the coverage check warns.
+- *Negative remainders.* If attributed tokens exceed engine tokens (double counting in the producer, or window skew), the remainder is clamped to zero and the over-attribution check warns (§1.5, coverage).
 
 `__unmetered__` is a reserved value, following the `__idle__` and `__unallocated__` convention in OpenCost allocation. It is distinct from the value a producer records for metered requests with missing identity (requirements document §6 and §9). Those requests are in the attributed totals under whatever `tenant_id` the producer uses, for example `unattributed`.
 
-**`CollectMetrics` return type** stays `([]*InferenceCost, error)`. The `InferenceDimensionResult` is stored as a field on `Collector`, so `BuildDimensionCosts` can read it without changing the signature. `queryservice.go`'s `computeStep` calls `BuildDimensionCosts` directly after `CollectMetrics` and the (local) calculator.
+**`CollectMetrics` return type** becomes `([]*InferenceCost, *InferenceDimensionResult, error)`, and `BuildDimensionCosts(modelCosts, dimTokens)` takes the dimension result as an explicit parameter. The result is deliberately **not** stored on `Collector`: the collector is a shared instance (`pkg/cmd/costmodel/costmodel.go`), used concurrently by the background runner and by API-request `computeStep` calls, so a stored field could pair one collection's token counts with another collection's rates — a data race in the cost path that no per-field locking would fix, since the pairing itself must be preserved. Passing the result explicitly keeps each collection's tokens joined to its own rates. The signature change touches `runner.go`, `queryservice.go` and the test mocks once, which is the cheaper trade. `queryservice.go`'s `computeStep` obtains both return values from its own `CollectMetrics` call and passes them to `BuildDimensionCosts` after the local calculator run.
 
-**Coverage check** (requirements document §8, item 4). After building dimension costs, compare attributed input-token totals with the engine's own prompt-token totals per `serving_model:namespace`. Log a warning when the ratio falls below a configurable threshold (default 0.9):
+**Coverage checks** (requirements document §8, item 4). After building dimension costs, compute three ratios per `serving_model:namespace`, each logged on breach and exported as its own gauge (`llm_dimension_token_coverage`, `llm_dimension_identity_coverage`):
 
 ```go
-// sum(attributed input tokens[model:ns]) / engine prompt tokens delta[model:ns] < 0.9
-// engine prompt tokens = vllm:prompt_tokens_total + sglang:prompt_tokens_total{engine_type!="decode"}
-// -> log.Warnf("InferenceCost: attribution coverage low for model=%s ns=%s (%.0f%% of engine tokens attributed)")
+// 1. Token (metering) coverage, input and output separately:
+//    sum(attributed input tokens[m:ns])   / engine prompt tokens delta[m:ns]
+//    sum(attributed output tokens[m:ns])  / engine completion tokens delta[m:ns]
+//    warn when < threshold (default 0.9, §1.9)
+// 2. Over-attribution, input and output separately:
+//    warn when the same ratio > 1 + tolerance. This is a separate upper-bound check:
+//    the low-coverage warning (< threshold) can never fire for a ratio above one,
+//    yet that is exactly the case where tenant rows exceed the model's cost and the
+//    remainder is clamped.
+// 3. Identity coverage:
+//    attributed tokens with non-empty tenant_id and workload_id / all attributed tokens
+//    warn when < threshold. Token coverage can read 100% while every request lacks
+//    identity (requirements §6 keeps such requests in the counters), so the two are
+//    reported separately. user_id is optional and excluded.
 ```
 
-SGLang prefill/decode disaggregation reports the full prompt on both workers, so the reference total excludes `engine_type="decode"`. Without that filter the ratio reads as about 50%. The engine-side queries added for SGLang support (opencost/opencost#4161) already apply this filter, so the coverage check should reuse them rather than add a second query.
+**Engine reference totals.** The reference for token coverage is defined per deployment (`serving_model`, namespace), not as a global sum over engines. Within one engine, SGLang prefill/decode disaggregation reports the full prompt on both workers, so the reference excludes `engine_type="decode"` (and prefill workers for completion tokens); the engine-side queries added for SGLang support (opencost/opencost#4161) already apply this filter, so the coverage check reuses them rather than adding a second query. But `engine_type` only removes an engine's *own* decode workers: a deployment that disaggregates across engines (SGLang prefill with vLLM decode is a real llm-d topology) is counted twice by a sum over engines. Where a deployment mixes engines, `INFERENCE_ATTRIBUTION_REFERENCE_ENGINE` (§1.9) names the engine whose counters are authoritative for that deployment; unset, OpenCost warns and uses the larger of the per-engine totals rather than the sum.
 
-A low ratio means requests bypass metering or identity is missing. The engine's own metrics stay independent of the attribution series, which is why this comparison is meaningful.
+The engine's own metrics stay independent of the attribution series, which is why these comparisons are meaningful. Both sides use the reset-aware, per-producer deltas of §1.3.2 over the same `[start, end]`, with a tolerance for scrape-boundary skew.
 
 ### 1.6 Exporter (`pkg/inferencecost/exporter.go`)
 
@@ -291,7 +318,32 @@ unmatchedKeys = prometheus.NewGauge(prometheus.GaugeOpts{
     Name: "llm_dimension_unmatched_keys",
     Help: "Attributed token series that could not be joined to a model entry.",
 })
+
+// Coverage ratios from the last collection, per model and namespace
+// (identity coverage per model and namespace only; see §1.5).
+tokenCoverage = prometheus.NewGaugeVec(
+    prometheus.GaugeOpts{
+        Name: "llm_dimension_token_coverage",
+        Help: "Attributed tokens divided by the engine's reference tokens, input and output, per model and namespace.",
+    },
+    []string{"model_name", "namespace", "direction"},
+)
+identityCoverage = prometheus.NewGaugeVec(
+    prometheus.GaugeOpts{
+        Name: "llm_dimension_identity_coverage",
+        Help: "Share of attributed tokens carrying non-empty tenant_id and workload_id, per model and namespace.",
+    },
+    []string{"model_name", "namespace"},
+)
+
+// Debug: series excluded from a window because no start anchor exists (§1.3.2).
+unanchoredSeries = prometheus.NewGauge(prometheus.GaugeOpts{
+    Name: "llm_dimension_unanchored_series",
+    Help: "Attributed token series excluded from the window: no sample at the start anchor (scrape gap).",
+})
 ```
+
+**Estimated tokens** (requirements document §7.3). When the producer separates estimated counts into sibling series (for example `..._estimated_total`), their optionally-configured series names are queried with the same delta strategy, added to the attributed totals, and exported as `llm_dimension_estimated_token_share` (estimated tokens / attributed tokens, per model and namespace), so a consumer can tell an estimate from an exact count. The `estimated` label variant needs no extra configuration: the labelled series are summed into the attributed totals and into the estimated share by the decoder.
 
 When `user_id` is empty, the gauge is still emitted with an empty label value. This is valid Prometheus behaviour and preserves `tenant_id` and `workload_id` attribution.
 
@@ -299,7 +351,9 @@ When `user_id` is empty, the gauge is still emitted with an empty label value. T
 
 **`pkg/inferencecost/aggregate.go`**: add three new dimensions to `supportedAggregateProperties`, three new `case` arms in `aggKey()` and `matchesFilter()`, and three new property-clear guards in `aggregate()`.
 
-**`pkg/inferencecost/queryservice.go`, `computeStep()`**: call `collector.BuildDimensionCosts(modelCosts)` immediately after the local `CalculateCosts` call, then include dimension-level entries in the `InferenceCostSet`. Their properties carry all three new fields plus the full model, namespace and cluster properties, so existing aggregation by `model_name` or `namespace` still sums correctly across tenants, workloads and users.
+**Aggregation keys for dimension entries.** `aggKey()` for a dimension entry must include the dimension fields themselves, not only model and namespace: `computeStep` inserts entries into a map keyed by `aggKey`, so a dimension entry keyed by model and namespace alone overwrites different tenants' entries before aggregation ever runs. The key encoding must also be unambiguous. The existing aggregation joins values with `/`, and dimension values may legitimately contain `/` (tenant ids like `acme-corp/engineering` do), so a `/`-joined key collides `(acme-corp/engineering, rag)` with `(acme-corp, engineering/rag)`. Dimension-aware keys use a separator that cannot appear in the values, or escape (or length-prefix) each component; the same rule applies to the natural key `serving_model:namespace` wherever it is built as a string.
+
+**`pkg/inferencecost/queryservice.go`, `computeStep()`**: take both return values from its own `collector.CollectMetrics()` call and pass them to `collector.BuildDimensionCosts(modelCosts, dimTokens)` immediately after the local `CalculateCosts` call, then include dimension-level entries in the `InferenceCostSet`. Their properties carry all three new fields plus the full model, namespace and cluster properties, so existing aggregation by `model_name` or `namespace` still sums correctly across tenants, workloads and users.
 
 > **Double-counting caution.** Model-level and dimension-level entries both live in the `InferenceCostSet`. An aggregation that includes both would count cost twice. Before implementation, decide whether dimension entries are returned only when an attribution dimension is requested in `aggregate` or `filter`, and test that `aggregate=model_name` with attribution enabled equals the model-level total. The remainder entry (§1.5) helps here: dimension entries, including the remainder, partition the model's cost, so summing only the dimension entries also equals the model-level total.
 
@@ -319,11 +373,11 @@ When `user_id` is empty, the gauge is still emitted with an empty label value. T
 | `pkg/inferencecost/env.go` | Extend | Thin readers for the new variables |
 | `pkg/inferencecost/types.go` | Extend | `UserID/TenantID/WorkloadID` on `InferenceCostProperties`; attribution fields on `Config` |
 | `pkg/inferencecost/apitypes.go` | Extend | `UserID/TenantID/WorkloadID` on `InferenceCostAPIProperties`; update `newInferenceCostResponse` |
-| `pkg/inferencecost/collector.go` | Extend | Dimension-token future; stores result; `BuildDimensionCosts`; unmatched-key handling; coverage warning |
-| `pkg/inferencecost/aggregate.go` | Extend | Three new dimensions |
-| `pkg/inferencecost/exporter.go` | Extend | `llm_dimension_hourly_cost`, `llm_dimension_unmatched_keys`; updated `Export` signature |
-| `pkg/inferencecost/runner.go` | Extend | Call `BuildDimensionCosts()` after `CalculateCosts()`; pass both slices to `Export()` |
-| `pkg/inferencecost/queryservice.go` | Extend | Call `BuildDimensionCosts()`; add dimension entries (see §1.7 caution) |
+| `pkg/inferencecost/collector.go` | Extend | Dimension-token future; `CollectMetrics` returns the dimension result; `BuildDimensionCosts(modelCosts, dimTokens)` with canonicalized model lookup, split costs and remainder; unmatched-key handling; coverage, over-attribution and identity-coverage checks |
+| `pkg/inferencecost/aggregate.go` | Extend | Three new dimensions; dimension-aware, unambiguous `aggKey` encoding |
+| `pkg/inferencecost/exporter.go` | Extend | `llm_dimension_hourly_cost`, `llm_dimension_unmatched_keys`, `llm_dimension_token_coverage`, `llm_dimension_identity_coverage`; updated `Export` signature |
+| `pkg/inferencecost/runner.go` | Extend | Accept the dimension result from `CollectMetrics`; call `BuildDimensionCosts(modelCosts, dimTokens)` after `CalculateCosts()`; pass both slices to `Export()` |
+| `pkg/inferencecost/queryservice.go` | Extend | Same `CollectMetrics`/`BuildDimensionCosts` pairing as `runner.go`; `user_id` aggregate/filter default-deny (§1.7 authorization); add dimension entries (see §1.7 caution) |
 | `pkg/inferencecost/queryservice_helper.go` | Extend | Updated error messages |
 | `docs/inference-cost-tracking.md` | Extend | New env vars; link to the requirements document |
 
@@ -336,12 +390,17 @@ New environment variables, read through `pkg/env/costmodel.go` like the existing
 | `INFERENCE_ATTRIBUTION_ENABLED` | `false` | Opt in to querying attribution series and computing dimension costs. When false, model-level costs are unaffected. |
 | `INFERENCE_ATTRIBUTION_INPUT_TOKENS_SERIES` | none (required when enabled) | Full name of the attributed input-token series (counter or histogram `_sum`). |
 | `INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_SERIES` | none (required when enabled) | Full name of the attributed output-token series. |
+| `INFERENCE_ATTRIBUTION_INPUT_TOKENS_ESTIMATED_SERIES` | none | Sibling series holding estimated input tokens (requirements §7.3). Optional; when set, its deltas are added to attributed totals and exported as the estimated share (§1.6). |
+| `INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_ESTIMATED_SERIES` | none | Sibling series holding estimated output tokens. As above. |
 | `INFERENCE_ATTRIBUTION_TENANT_LABEL` | `tenant_id` | Label carrying the tenant. |
 | `INFERENCE_ATTRIBUTION_WORKLOAD_LABEL` | `workload_id` | Label carrying the workload. |
 | `INFERENCE_ATTRIBUTION_USER_LABEL` | `user_id` | Label carrying the user. Set to empty to disable user-level grouping. |
 | `INFERENCE_ATTRIBUTION_MODEL_LABEL` | `serving_model` | Label carrying the **served** model. Must equal the engine's `model_name`. |
 | `INFERENCE_ATTRIBUTION_NAMESPACE_LABEL` | `namespace` | Label carrying the **deployment** namespace (see §1.3.2). |
-| `INFERENCE_ATTRIBUTION_COVERAGE_THRESHOLD` | `0.9` | Ratio below which the coverage warning is logged. |
+| `INFERENCE_ATTRIBUTION_COVERAGE_THRESHOLD` | `0.9` | Ratio below which the token-coverage and identity-coverage warnings are logged. |
+| `INFERENCE_ATTRIBUTION_OVERATTRIBUTION_TOLERANCE` | `0.1` | Amount above 1.0 at which the over-attribution warning is logged (ratio > 1 + tolerance). |
+| `INFERENCE_ATTRIBUTION_REFERENCE_ENGINE` | none | For deployments that disaggregate prefill/decode **across engines**: the engine whose token counters are authoritative for the coverage reference (`vllm` or `sglang`). Unset, engines are summed per deployment, which double counts cross-engine disaggregation; OpenCost warns and falls back to the larger per-engine total when it detects both engines reporting the same deployment. |
+| `INFERENCE_ATTRIBUTION_USER_AGGREGATION_ENABLED` | `false` | Allows `aggregate`/`filter` on `user_id` in the API, and only together with admin authentication (`ADMIN_TOKEN`). Default-deny otherwise (§1.7 authorization). The `user_id` label on the exported metric is governed by `INFERENCE_ATTRIBUTION_USER_LABEL` and Prometheus RBAC, not by this flag. |
 
 The series names have no default on purpose: any default would tie OpenCost to one producer, which is what this plan avoids. If the series names are unset while attribution is enabled, OpenCost logs an error at startup and disables attribution. It does not fail model-level collection.
 
@@ -366,11 +425,11 @@ Moving the producer later, for example from the coordinator to an AI gateway, is
 | Test file | What to add |
 |---|---|
 | `core/pkg/source/decoders_test.go` | `TestDecodeInferenceDimensionResult`, including `user_id` absent |
-| `pkg/inferencecost/collector_test.go` | Join formula; zero model cost (no panic); empty attribution result; missing user label; **unmatched key counted and logged, not dropped silently**; coverage warning; **remainder entry: tenant rows plus remainder equal the model total under both bases, a model with no attributed series is all remainder, and an over-attributed model clamps to zero** |
-| `pkg/inferencecost/aggregate_test.go` | Aggregation by each new dimension; filter by `tenant_id:"acme-corp"`; empty `user_id`; **model-level aggregation with attribution enabled equals the model-level total (no double counting)** |
-| `pkg/inferencecost/exporter_test.go` | `llm_dimension_hourly_cost` emitted correctly; empty `user_id` as empty label; `__unmetered__` row emitted; `llm_dimension_unmatched_keys` |
+| `pkg/inferencecost/collector_test.go` | Join formula; zero model cost (no panic); empty attribution result; missing user label; **unmatched key counted and logged, not dropped silently**; coverage, over-attribution and identity-coverage warnings; **remainder entry: tenant rows plus remainder equal the model total under both bases, a model with no attributed series is all remainder, an over-attributed model clamps to zero, and a zero-token window puts the model's full cost in the remainder**; **split costs and per-million rates populated on dimension entries (positive input and output cost, not just totals)**; **canonicalized model lookup: a producer emitting `org/model` joins to the `model` allocation entry** |
+| `pkg/inferencecost/aggregate_test.go` | Aggregation by each new dimension; filter by `tenant_id:"acme-corp"`; empty `user_id`; **model-level aggregation with attribution enabled equals the model-level total (no double counting)**; **`aggKey` collision: `(acme-corp/engineering, rag)` and `(acme-corp, engineering/rag)` remain distinct entries**; **`user_id` aggregate/filter rejected without the enablement flag and without admin auth** |
+| `pkg/inferencecost/exporter_test.go` | `llm_dimension_hourly_cost` emitted correctly; empty `user_id` as empty label; `__unmetered__` row emitted; `llm_dimension_unmatched_keys`; `llm_dimension_token_coverage` and `llm_dimension_identity_coverage` |
 | `pkg/inferencecost/env_test.go` or equivalent | Defaults; missing series names disables attribution with an error and leaves model-level collection running |
-| `modules/prometheus-source/pkg/prom/inference_queries_test.go` | PromQL generated from custom label and series names; user label disabled; one token series absent (graceful degradation); counter reset |
+| `modules/prometheus-source/pkg/prom/inference_queries_test.go` | PromQL generated from custom label and series names; user label disabled; one token series absent (graceful degradation); **counter reset mid-window, per producer series (increase semantics, not end-value fallback)**; **multi-replica reset: one replica resets while another keeps counting, deltas stay correct per series**; **scrape gap: series with no start anchor excluded and counted, not treated as starting from zero; series that stopped mid-window keeps its last value**; **boundary skew: engine and attribution series scraped at different offsets stay within tolerance** |
 
 ---
 
@@ -383,8 +442,10 @@ Moving the producer later, for example from the coordinator to an AI gateway, is
 | **Cost join formula** | `promptTokens x (inputCostPerM / 1M) + completionTokens x (outputCostPerM / 1M)` | Token sums drive cost. Request count is not used, since input and output rates differ. |
 | **Calculator call order** | Calculator runs on model entries first; `BuildDimensionCosts` uses the resulting rates | No need to re-run cost-split logic per dimension entry. |
 | **`user_id` handling** | Single global label setting; empty when absent | OpenCost does not impose its own cardinality cap. That decision belongs to the producer (requirements document §4.2). |
-| **`CollectMetrics` signature** | Unchanged. Result stored on `Collector`; `BuildDimensionCosts` is a separate public method | The calculator must run between collect and dimension-cost build. A stable signature avoids breaking `runner.go`, `queryservice.go` and test mocks. |
-| **Served-model join key** | `serving_model` joined with deployment namespace | The served model must equal the engine's `model_name`, so the join is consistent by construction (requirements document F7). |
+| **`CollectMetrics` signature** | Extended to return the dimension result; `BuildDimensionCosts` takes it as a parameter | The collector is shared by the background runner and API requests, so a stored result is a data race that pairs one collection's tokens with another's rates. A one-time signature change is cheaper than preserving the pairing incorrectly. |
+| **Served-model join key** | `serving_model` joined with deployment namespace, through the canonicalized `combineMetrics` mapping | The served model must equal the engine's `model_name`, so the join is consistent by construction (requirements document F7). The canonicalized mapping keeps producers emitting `org/model` joinable instead of unmatched. |
+| **Delta strategy** | Per-producer, reset-aware deltas (`increase()` semantics), then grouped by identity | Summing first and differencing afterwards misattributes replica resets; the end-value fallback undercounts the reset window. |
+| **Coverage reference** | Per-deployment engine totals, with `engine_type` exclusions and a configured authoritative engine for cross-engine disaggregation | A global sum over engines double counts deployments that split prefill and decode across engines (SGLang prefill + vLLM decode). |
 | **Deployment namespace label** | Separately configurable | The scrape-target `namespace` is wrong for gateway-hosted producers. A silent mismatch is the main operational risk (§1.3.2). |
 | **`requested_model` excluded** | Not a group-by label | The cost rate follows the served model. Including the requested model inflates cardinality without adding cost signal. |
 | **Unmatched series** | Counted, logged and exported, never dropped silently | Label-mapping errors would otherwise look like zero cost. |
@@ -422,4 +483,4 @@ The dimension join looks up the model entry by `serving_model:namespace`. Today 
 - **Mixed producers.** Whether to support a list of (series, label mapping) sets, so a cluster with a coordinator-based and a gateway-based deployment can both be queried. This plan supports one set.
 - **Gateway-side cost.** If the metering service computes cost itself, there are two sources of truth for self-hosted model rates. The requirements document §11 leaves ownership open. This plan assumes OpenCost owns the rate.
 - **Dimension entries in the cost set.** The double-counting decision in §1.7.
-- **Idle as its own row.** Today the idle share is inside the per-million rate, so tenants with traffic carry it in proportion to their tokens, and the `__unmetered__` row holds only unmetered requests. Showing idle separately would need tenant rows priced without idle, with idle in the remainder. The two existing cost queries do not give pure idle: the allocation total is `max(request, usage) x price` plus idle share plus shared-infrastructure share, and the usage total is actual consumption only (`inference-cost-tracking.md`). Their difference mixes idle, request headroom and shared infrastructure. A separate idle row would need a dedicated idle query, and it would change what `cost_basis=allocation` means for tenant rows. Not part of this plan.
+- **Idle as its own row.** Today the idle share is inside the per-million rate, so tenants with traffic carry it in proportion to their tokens, and the `__unmetered__` row holds unmetered requests (and, in zero-token windows, the model's retained cost — §1.5). Showing idle separately would need tenant rows priced without idle, with idle in the remainder. The two existing cost queries do not give pure idle: the allocation total is `max(request, usage) x price` plus idle share plus shared-infrastructure share, and the usage total is actual consumption only (`inference-cost-tracking.md`). Their difference mixes idle, request headroom and shared infrastructure. A separate idle row would need a dedicated idle query, and it would change what `cost_basis=allocation` means for tenant rows. Not part of this plan.
