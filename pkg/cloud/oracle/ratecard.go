@@ -224,6 +224,10 @@ func (rcs *RateCardStore) refresh() error {
 	if err != nil {
 		return err
 	}
+	if len(rcr.Items) == 0 {
+		// An empty price list would price every known shape at zero: keep the prices held.
+		return fmt.Errorf("the OCI price list at %s returned no items", rcs.url)
+	}
 	rcs.prices = rcr.toStore()
 	return nil
 }

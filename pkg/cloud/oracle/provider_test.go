@@ -14,6 +14,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/env"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -115,6 +116,7 @@ func TestRegions(t *testing.T) {
 func TestNodePricing_Preemptible(t *testing.T) {
 	oracle := &Oracle{
 		RateCardStore: NewRateCardStore("", "USD"),
+		nextRefresh:   time.Now().Add(time.Hour),
 		DefaultPricing: DefaultPricing{
 			OCPU:    "0.2",
 			Memory:  "0.1",
@@ -291,4 +293,35 @@ func TestEnsurePricingData_RefreshesStalePrices(t *testing.T) {
 	assert.Equal(t, int32(2), hits.Load())
 	assert.NotEmpty(t, o.RateCardStore.Store())
 	assert.True(t, o.nextRefresh.After(time.Now()))
+}
+
+func TestEnsurePricingData_RetriesFailedInitialDownload(t *testing.T) {
+	pricesUSDBytes, err := os.ReadFile("test/prices_usd.json")
+	require.NoError(t, err)
+	var fail atomic.Bool
+	fail.Store(true)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if fail.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(pricesUSDBytes)
+	}))
+	defer server.Close()
+	t.Setenv(env.ProviderPricingURL, server.URL)
+
+	cp := &models.CustomPricing{CPU: "0.03", RAM: "0.004", GPU: "1.5", Storage: "0.00023"}
+	o := &Oracle{Config: &oracleMockConfig{customPricing: cp}}
+
+	// The first download fails: the rate card store exists, but nothing is loaded into it.
+	require.Error(t, o.DownloadPricingData())
+	require.NotNil(t, o.RateCardStore)
+
+	// Once the price list is back, recovery loads the defaults as well as the rate card.
+	fail.Store(false)
+	require.NoError(t, o.ensurePricingData())
+	assert.NotEmpty(t, o.RateCardStore.Store())
+	assert.Equal(t, cp.CPU, o.DefaultPricing.OCPU)
+	assert.Equal(t, cp.Storage, o.DefaultPricing.Storage)
 }

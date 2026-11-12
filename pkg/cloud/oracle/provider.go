@@ -337,7 +337,8 @@ func (o *Oracle) getClusterName(cfg *models.CustomPricing) string {
 
 func (o *Oracle) ensurePricingData() error {
 	o.DownloadPricingDataLock.RLock()
-	loaded, due := o.RateCardStore != nil, !time.Now().Before(o.nextRefresh)
+	// nextRefresh is set by the first successful download only, which also loads the defaults.
+	loaded, due := !o.nextRefresh.IsZero(), !time.Now().Before(o.nextRefresh)
 	o.DownloadPricingDataLock.RUnlock()
 	if !loaded {
 		return o.DownloadPricingData()

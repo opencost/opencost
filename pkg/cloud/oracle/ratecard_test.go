@@ -289,3 +289,27 @@ func mustParseFloat(t *testing.T, s string) float64 {
 	require.NoError(t, err)
 	return f
 }
+
+func TestRCSRefresh_KeepsPricesOnEmptyPriceList(t *testing.T) {
+	for _, body := range []string{`{}`, `{"items":[]}`} {
+		t.Run(body, func(t *testing.T) {
+			rcs, server := testSetupRateCardStore(t)
+			defer server.Close()
+			held := rcs.Store()
+			require.NotEmpty(t, held)
+
+			empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(body))
+			}))
+			defer empty.Close()
+			rcs.url = empty.URL
+
+			// An empty price list is an outage, not a price list: it is refused, and the prices
+			// already held stay in use.
+			_, err := rcs.Refresh()
+			assert.Error(t, err)
+			assert.Equal(t, held, rcs.Store())
+		})
+	}
+}
