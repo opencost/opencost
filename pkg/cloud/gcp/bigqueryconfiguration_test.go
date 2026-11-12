@@ -663,6 +663,21 @@ func TestConvertBigQueryConfigToConfig(t *testing.T) {
 				Authorizer: &WorkloadIdentity{},
 			},
 		},
+		{
+			name: "Config with exclude partition time",
+			bqc: BigQueryConfig{
+				ProjectID:            "test-project",
+				BillingDataDataset:   "test-dataset.test-view",
+				ExcludePartitionTime: true,
+			},
+			expected: &BigQueryConfiguration{
+				ProjectID:            "test-project",
+				Dataset:              "test-dataset",
+				Table:                "test-view",
+				ExcludePartitionTime: true,
+				Authorizer:           &WorkloadIdentity{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -679,6 +694,7 @@ func TestConvertBigQueryConfigToConfig(t *testing.T) {
 				assert.Equal(t, expectedBQC.ProjectID, resultBQC.ProjectID)
 				assert.Equal(t, expectedBQC.Dataset, resultBQC.Dataset)
 				assert.Equal(t, expectedBQC.Table, resultBQC.Table)
+				assert.Equal(t, expectedBQC.ExcludePartitionTime, resultBQC.ExcludePartitionTime)
 				assert.NotNil(t, resultBQC.Authorizer)
 			}
 		})

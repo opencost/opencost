@@ -158,9 +158,10 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 // BigQueryConfig contain the required config and credentials to access OOC resources for GCP
 // Deprecated: v1.104 Use BigQueryConfiguration instead
 type BigQueryConfig struct {
-	ProjectID          string            `json:"projectID"`
-	BillingDataDataset string            `json:"billingDataDataset"`
-	Key                map[string]string `json:"key"`
+	ProjectID            string            `json:"projectID"`
+	BillingDataDataset   string            `json:"billingDataDataset"`
+	Key                  map[string]string `json:"key"`
+	ExcludePartitionTime bool              `json:"excludePartitionTime"`
 }
 
 // IsEmpty returns true if all fields in config are empty, false if not.
