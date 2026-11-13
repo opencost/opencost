@@ -455,7 +455,7 @@ func newMCPSDKServer(mcpServer *opencost_mcp.MCPServer) *mcp_sdk.Server {
 			"Key parameters:\n" +
 			"- window (required): Time window for the query (e.g., 'today', 'yesterday', '7d', '30d', 'lastweek', or RFC 3339 range '2023-01-01T00:00:00Z,2023-01-02T00:00:00Z').\n" +
 			"- aggregate: Comma-separated list of cloud cost dimensions to group by (e.g., 'provider', 'accountID', 'service', 'category', 'regionID', 'invoiceEntityID', 'providerID', 'label:<name>').\n" +
-			"- accumulate: Aggregation interval for accumulation: 'hour', 'day', 'week', 'month', 'quarter', or 'true' (to sum across the entire window).\n" +
+			"- accumulate: Aggregation interval for accumulation: 'day', 'week', 'month', or 'true' (to sum across the entire window).\n" +
 			"- filter: Filter expression for cloud costs (e.g., 'provider:\"AWS\"', 'service:\"AmazonEC2\"', 'category:\"Compute\"', 'regionID:\"us-east-1\"'). When filter is set, direct shortcut parameters (provider, service, category, account) are ignored and all filter constraints must be specified inside this expression.\n" +
 			"- provider, service, category, account: Direct filter shortcuts used only when filter is omitted (note: ignored if filter is set; for region filtering, use filter: 'regionID:\"us-east-1\"').",
 	}, handleCloudCosts)
@@ -502,7 +502,7 @@ type CloudCostArgs struct {
 	Aggregate string `json:"aggregate,omitempty" jsonschema:"Comma-separated list of cloud cost dimensions to group by (e.g., 'provider', 'accountID', 'service', 'category', 'regionID', 'invoiceEntityID', 'providerID', 'label:<name>')"`
 
 	// Cloud cost query parameters
-	Accumulate string `json:"accumulate,omitempty" jsonschema:"Aggregation interval for accumulation: 'hour', 'day', 'week', 'month', 'quarter', or 'true' (to sum across the entire window)"`
+	Accumulate string `json:"accumulate,omitempty" jsonschema:"Aggregation interval for accumulation: 'day', 'week', 'month', or 'true' (to sum across the entire window)"`
 	Filter     string `json:"filter,omitempty" jsonschema:"Filter expression for cloud costs (e.g., 'provider:\"AWS\"', 'service:\"AmazonEC2\"', 'category:\"Compute\"', 'regionID:\"us-east-1\"'). When filter is set, direct shortcut parameters (provider, service, category, account) are ignored and all filter constraints must be specified inside this expression"`
 	Provider   string `json:"provider,omitempty" jsonschema:"Filter shortcut by cloud provider name (e.g., 'AWS', 'GCP', 'Azure'); ignored if filter is set"`
 	Service    string `json:"service,omitempty" jsonschema:"Filter shortcut by cloud service name (e.g., 'AmazonEC2', 'Cloud Storage', 'Virtual Machines'); ignored if filter is set"`

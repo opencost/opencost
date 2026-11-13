@@ -206,8 +206,11 @@ func TestMCPToolsList(t *testing.T) {
 				t.Errorf("get_cloud_costs aggregate description should mention accountID and regionID: %s", aggregateDesc)
 			}
 			accumulateDesc := rawSchema.Properties["accumulate"].(map[string]interface{})["description"].(string)
-			if !strings.Contains(accumulateDesc, "'true'") {
-				t.Errorf("get_cloud_costs accumulate description should mention 'true': %s", accumulateDesc)
+			if !strings.Contains(accumulateDesc, "'day'") || !strings.Contains(accumulateDesc, "'week'") || !strings.Contains(accumulateDesc, "'month'") || !strings.Contains(accumulateDesc, "'true'") {
+				t.Errorf("get_cloud_costs accumulate description should mention 'day', 'week', 'month', 'true': %s", accumulateDesc)
+			}
+			if strings.Contains(accumulateDesc, "'hour'") || strings.Contains(accumulateDesc, "'quarter'") {
+				t.Errorf("get_cloud_costs accumulate description should not mention unsupported 'hour' or 'quarter': %s", accumulateDesc)
 			}
 			filterDesc := rawSchema.Properties["filter"].(map[string]interface{})["description"].(string)
 			if !strings.Contains(filterDesc, "ignored") {
