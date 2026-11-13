@@ -255,7 +255,8 @@ func buildAzureRetailPricesURL(region string, skuName string, currencyCode strin
 	}
 
 	if skuName != "" {
-		skuNameParam := fmt.Sprintf("armSkuName eq '%s'", skuName)
+		// armSkuName eq is case-sensitive.
+		skuNameParam := fmt.Sprintf("tolower(armSkuName) eq '%s'", strings.ToLower(skuName))
 		filterParams = append(filterParams, skuNameParam)
 	}
 
@@ -495,7 +496,9 @@ type azureKey struct {
 func (k *azureKey) Features() string {
 	r, _ := util.GetRegion(k.Labels)
 	region := strings.ToLower(r)
-	instance, _ := util.GetInstanceType(k.Labels)
+	// AKS keeps the vm size casing the node pool was created with.
+	it, _ := util.GetInstanceType(k.Labels)
+	instance := strings.ToLower(it)
 	usageType := "ondemand"
 	if isWindowsNode(k.Labels) {
 		return fmt.Sprintf("%s,%s,%s,%s", region, instance, usageType, azureWindowsOS)
@@ -1165,7 +1168,8 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 	}
 	priceStr := fmt.Sprintf("%f", priceInUsd)
 	results := make(map[string]*AzurePricing)
-	for _, instanceType := range instanceTypes {
+	for _, it := range instanceTypes {
+		instanceType := strings.ToLower(it)
 		key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
 		if isWindowsMeter {
 			key = fmt.Sprintf("%s,%s,%s,%s", region, instanceType, usageType, azureWindowsOS)

@@ -583,7 +583,7 @@ func TestNodeCostAnnotationsDoNotLeakThroughProviderCache(t *testing.T) {
 			provider: func(cached *models.Node) models.Provider {
 				return &azure.Azure{
 					Config:  provider.NewProviderConfig(confMan, "../../configs/default.json"),
-					Pricing: map[string]*azure.AzurePricing{"eastus,Standard_D4s_v3,ondemand": {Node: cached}},
+					Pricing: map[string]*azure.AzurePricing{"eastus,standard_d4s_v3,ondemand": {Node: cached}},
 				}
 			},
 			labelsA: nodeLabels("eastus", "Standard_D4s_v3"),
