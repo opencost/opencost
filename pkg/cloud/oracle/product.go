@@ -9,6 +9,11 @@ import (
 )
 
 const blockVolumePartNumber = "B91961"
+const blockVolumePerformancePartNumber = "B91962"
+
+// defaultVPUsPerGB is the Balanced performance level, which block volumes get when the storage
+// class sets no vpusPerGB.
+const defaultVPUsPerGB = 10
 const loadBalancerPartNumber = "B93030"
 
 // egressT1PartNumber for egress to NA, EU, and UK
