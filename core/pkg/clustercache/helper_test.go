@@ -88,6 +88,43 @@ func TestGetLoadBalancerIngressAddress(t *testing.T) {
 	}
 }
 
+func TestTransformService(t *testing.T) {
+	input := &v1.Service{}
+	input.UID = "uid-123"
+	input.Name = "my-service"
+	input.Namespace = "my-namespace"
+	input.Labels = map[string]string{"app": "test"}
+	input.Annotations = map[string]string{
+		"loadbalancer.ovhcloud.com/flavor": "medium",
+	}
+	input.Spec.Type = v1.ServiceTypeLoadBalancer
+	input.Spec.Selector = map[string]string{"app": "test"}
+	input.Spec.ClusterIP = "10.0.0.1"
+
+	svc := TransformService(input)
+	if svc.UID != "uid-123" {
+		t.Errorf("UID: got %s, want uid-123", svc.UID)
+	}
+	if svc.Name != "my-service" {
+		t.Errorf("Name: got %s, want my-service", svc.Name)
+	}
+	if svc.Namespace != "my-namespace" {
+		t.Errorf("Namespace: got %s, want my-namespace", svc.Namespace)
+	}
+	if svc.Labels["app"] != "test" {
+		t.Errorf("Labels[app]: got %s, want test", svc.Labels["app"])
+	}
+	if svc.Annotations["loadbalancer.ovhcloud.com/flavor"] != "medium" {
+		t.Errorf("Annotations[loadbalancer.ovhcloud.com/flavor]: got %s, want medium", svc.Annotations["loadbalancer.ovhcloud.com/flavor"])
+	}
+	if svc.Type != v1.ServiceTypeLoadBalancer {
+		t.Errorf("Type: got %v, want %v", svc.Type, v1.ServiceTypeLoadBalancer)
+	}
+	if svc.ClusterIP != "10.0.0.1" {
+		t.Errorf("ClusterIP: got %s, want 10.0.0.1", svc.ClusterIP)
+	}
+}
+
 func Test_getPVProviderID(t *testing.T) {
 	tests := []struct {
 		name string

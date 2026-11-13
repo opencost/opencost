@@ -1,9 +1,12 @@
 package models
 
-// TODO: used for dynamic cloud provider price fetching.
-// determine what identifies a load balancer in the json returned from the cloud provider pricing API call
-// type LBKey interface {
-// }
+import "github.com/opencost/opencost/core/pkg/clustercache"
+
+// ServiceLoadBalancerPricingProvider is an optional interface that providers can implement
+// to provide service-specific Load Balancer pricing (e.g. based on flavor/size annotations).
+type ServiceLoadBalancerPricingProvider interface {
+	ServiceLoadBalancerPricing(service *clustercache.Service) (*LoadBalancer, error)
+}
 
 // Network is the interface by which the provider and cost model communicate network egress prices.
 // The provider will best-effort try to fill out this struct.
