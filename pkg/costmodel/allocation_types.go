@@ -110,6 +110,14 @@ func (p *pvc) minutes() float64 {
 	return p.End.Sub(p.Start).Minutes()
 }
 
+// interval returns the observed [Start, End] of the pvc
+func (p *pvc) interval() observedInterval {
+	if p == nil {
+		return observedInterval{}
+	}
+	return observedInterval{Start: p.Start, End: p.End, Valid: true}
+}
+
 // String returns a string representation of the pvc
 func (p *pvc) String() string {
 	if p == nil {
@@ -202,6 +210,14 @@ func (p *pv) minutes() float64 {
 	return p.End.Sub(p.Start).Minutes()
 }
 
+// interval returns the observed [Start, End] of the pv
+func (p *pv) interval() observedInterval {
+	if p == nil {
+		return observedInterval{}
+	}
+	return observedInterval{Start: p.Start, End: p.End, Valid: true}
+}
+
 // lbCost describes the start and end time of a Load Balancer along with cost
 type lbCost struct {
 	TotalCost float64
@@ -209,4 +225,34 @@ type lbCost struct {
 	End       time.Time
 	Private   bool
 	Ip        string
+}
+
+// interval returns the observed [Start, End] of the load balancer, with End
+// capped at the current time. getLoadBalancerCosts extends End by one
+// resolution for interpolation, which can push it past now in an open window.
+// l.End itself is left alone because the cost split between allocations uses it.
+func (l *lbCost) interval() observedInterval {
+	return l.intervalAsOf(time.Now().UTC())
+}
+
+// intervalAsOf is interval with an explicit current time.
+func (l *lbCost) intervalAsOf(now time.Time) observedInterval {
+	if l == nil {
+		return observedInterval{}
+	}
+	end := l.End
+	if end.After(now) {
+		end = now
+	}
+	return observedInterval{Start: l.Start, End: end, Valid: true}
+}
+
+// observedInterval is the time span over which a resource (PV, PVC, load
+// balancer) was observed. It bounds the Start and End of the __unmounted__
+// allocations that carry that resource's cost. Valid is false when no
+// interval is known.
+type observedInterval struct {
+	Start time.Time
+	End   time.Time
+	Valid bool
 }
