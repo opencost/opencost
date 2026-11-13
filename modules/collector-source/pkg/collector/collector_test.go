@@ -38,6 +38,33 @@ func TestNewGPUsRequestedMetricCollectorAcceptsBothResourceLabelForms(t *testing
 			expected: true,
 		},
 		{
+			name: "AMD GPU, sanitized label, is accepted",
+			labels: map[string]string{
+				source.ResourceLabel:  "amd_com_gpu",
+				source.ContainerLabel: "app",
+				source.NodeLabel:      "node-1",
+			},
+			expected: true,
+		},
+		{
+			name: "Google Cloud TPU, raw label, is accepted",
+			labels: map[string]string{
+				source.ResourceLabel:  "google.com/tpu",
+				source.ContainerLabel: "app",
+				source.NodeLabel:      "node-1",
+			},
+			expected: true,
+		},
+		{
+			name: "AWS Neuron cores are not counted as devices",
+			labels: map[string]string{
+				source.ResourceLabel:  "aws_amazon_com_neuroncore",
+				source.ContainerLabel: "app",
+				source.NodeLabel:      "node-1",
+			},
+			expected: false,
+		},
+		{
 			name: "unrelated resource is filtered out",
 			labels: map[string]string{
 				source.ResourceLabel:  "cpu",
