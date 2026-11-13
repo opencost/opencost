@@ -257,6 +257,24 @@ func TestConfigurations_UnmarshalJSON(t *testing.T) {
 			input:    GCPWIMultiCloudConf,
 			expected: &GCPWIConfigurations,
 		},
+		"GCP BigQuery Exclude Partition Time Conversion": {
+			input: map[string]any{
+				"gcp": []map[string]any{{
+					"projectID":            "projectID",
+					"billingDataDataset":   "dataset.table",
+					"excludePartitionTime": true,
+				}},
+			},
+			expected: &Configurations{
+				GCP: &GCPConfigs{BigQuery: []*gcp.BigQueryConfiguration{{
+					ProjectID:            "projectID",
+					Dataset:              "dataset",
+					Table:                "table",
+					ExcludePartitionTime: true,
+					Authorizer:           &gcp.WorkloadIdentity{},
+				}}},
+			},
+		},
 		"AWS Athena Access Key": {
 			input:    AWSAthenaKeyConfigurations,
 			expected: AWSAthenaKeyConfigurations,
