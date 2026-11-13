@@ -197,5 +197,31 @@ func TestMCPToolsList(t *testing.T) {
 		if slices.Contains(rawSchema.Required, "filter") {
 			t.Errorf("tool %q schema should not require 'filter'", name)
 		}
+
+		// Tool-specific schema checks
+		switch name {
+		case "get_cloud_costs":
+			aggregateDesc := rawSchema.Properties["aggregate"].(map[string]interface{})["description"].(string)
+			if !strings.Contains(aggregateDesc, "accountID") || !strings.Contains(aggregateDesc, "regionID") {
+				t.Errorf("get_cloud_costs aggregate description should mention accountID and regionID: %s", aggregateDesc)
+			}
+			regionDesc := rawSchema.Properties["region"].(map[string]interface{})["description"].(string)
+			if !strings.Contains(regionDesc, "Ignored") || !strings.Contains(regionDesc, "regionID") {
+				t.Errorf("get_cloud_costs region description should note it is ignored and suggest regionID filter: %s", regionDesc)
+			}
+		case "get_allocation_costs":
+			shareIdleDesc := rawSchema.Properties["share_idle"].(map[string]interface{})["description"].(string)
+			if !strings.Contains(shareIdleDesc, "include_idle=true") {
+				t.Errorf("get_allocation_costs share_idle description should note dependency on include_idle=true: %s", shareIdleDesc)
+			}
+			parcDesc := rawSchema.Properties["include_proportional_asset_resource_costs"].(map[string]interface{})["description"].(string)
+			if !strings.Contains(parcDesc, "include_idle=true") {
+				t.Errorf("get_allocation_costs parc description should note dependency on include_idle=true: %s", parcDesc)
+			}
+			resDesc := rawSchema.Properties["resolution"].(map[string]interface{})["description"].(string)
+			if !strings.Contains(resDesc, "Ignored") {
+				t.Errorf("get_allocation_costs resolution description should note it is ignored: %s", resDesc)
+			}
+		}
 	}
 }
