@@ -205,6 +205,18 @@ func TestMCPToolsList(t *testing.T) {
 			if !strings.Contains(aggregateDesc, "accountID") || !strings.Contains(aggregateDesc, "regionID") {
 				t.Errorf("get_cloud_costs aggregate description should mention accountID and regionID: %s", aggregateDesc)
 			}
+			accumulateDesc := rawSchema.Properties["accumulate"].(map[string]interface{})["description"].(string)
+			if !strings.Contains(accumulateDesc, "'true'") {
+				t.Errorf("get_cloud_costs accumulate description should mention 'true': %s", accumulateDesc)
+			}
+			filterDesc := rawSchema.Properties["filter"].(map[string]interface{})["description"].(string)
+			if !strings.Contains(filterDesc, "ignored") {
+				t.Errorf("get_cloud_costs filter description should note shortcuts are ignored: %s", filterDesc)
+			}
+			providerDesc := rawSchema.Properties["provider"].(map[string]interface{})["description"].(string)
+			if !strings.Contains(providerDesc, "ignored if filter is set") {
+				t.Errorf("get_cloud_costs provider description should note it is ignored if filter is set: %s", providerDesc)
+			}
 			regionDesc := rawSchema.Properties["region"].(map[string]interface{})["description"].(string)
 			if !strings.Contains(regionDesc, "Ignored") || !strings.Contains(regionDesc, "regionID") {
 				t.Errorf("get_cloud_costs region description should note it is ignored and suggest regionID filter: %s", regionDesc)
@@ -217,6 +229,14 @@ func TestMCPToolsList(t *testing.T) {
 			parcDesc := rawSchema.Properties["include_proportional_asset_resource_costs"].(map[string]interface{})["description"].(string)
 			if !strings.Contains(parcDesc, "include_idle=true") {
 				t.Errorf("get_allocation_costs parc description should note dependency on include_idle=true: %s", parcDesc)
+			}
+			shareLBDesc := rawSchema.Properties["share_lb"].(map[string]interface{})["description"].(string)
+			if !strings.Contains(shareLBDesc, "AKS load balancer") || !strings.Contains(shareLBDesc, "include_proportional_asset_resource_costs=true") {
+				t.Errorf("get_allocation_costs share_lb description should note AKS load balancer and parc dependency: %s", shareLBDesc)
+			}
+			metaDesc := rawSchema.Properties["include_aggregated_metadata"].(map[string]interface{})["description"].(string)
+			if !strings.Contains(metaDesc, "not exposed in MCP results") {
+				t.Errorf("get_allocation_costs include_aggregated_metadata description should note metadata is not exposed: %s", metaDesc)
 			}
 			resDesc := rawSchema.Properties["resolution"].(map[string]interface{})["description"].(string)
 			if !strings.Contains(resDesc, "Ignored") {

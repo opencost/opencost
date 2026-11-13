@@ -436,7 +436,8 @@ func newMCPSDKServer(mcpServer *opencost_mcp.MCPServer) *mcp_sdk.Server {
 			"- filter: Filter expression to limit allocations (e.g., 'namespace:\"kube-system\"', 'cluster:\"prod\"', 'label[app]:\"frontend\"').\n" +
 			"- accumulate: If true, sums all allocation data across the entire window into a single set (default: false).\n" +
 			"- step: Duration of time buckets (e.g., '1h', '1d'). Defaults to the full window.\n" +
-			"- share_idle, include_idle, idle_by_node: Options to allocate or report unallocated cluster idle capacity (note: share_idle requires include_idle=true).",
+			"- share_idle, include_idle, idle_by_node: Options to allocate or report unallocated cluster idle capacity (note: share_idle requires include_idle=true).\n" +
+			"- include_proportional_asset_resource_costs, share_lb, include_aggregated_metadata: Advanced internal calculation options (require include_idle=true; details omitted from MCP results).",
 	}, handleAllocationCosts)
 
 	mcp_sdk.AddTool(sdkServer, &mcp_sdk.Tool{
@@ -454,9 +455,9 @@ func newMCPSDKServer(mcpServer *opencost_mcp.MCPServer) *mcp_sdk.Server {
 			"Key parameters:\n" +
 			"- window (required): Time window for the query (e.g., 'today', 'yesterday', '7d', '30d', 'lastweek', or RFC 3339 range '2023-01-01T00:00:00Z,2023-01-02T00:00:00Z').\n" +
 			"- aggregate: Comma-separated list of cloud cost dimensions to group by (e.g., 'provider', 'accountID', 'service', 'category', 'regionID', 'invoiceEntityID', 'providerID', 'label:<name>').\n" +
-			"- accumulate: Aggregation interval for accumulation: 'day', 'week', 'month', or 'all'.\n" +
-			"- filter: Filter expression for cloud costs (e.g., 'provider:\"AWS\"', 'service:\"AmazonEC2\"', 'category:\"Compute\"').\n" +
-			"- provider, service, category, account: Direct filter shortcuts for provider, service, category, and account ID (note: for region filtering, use filter: 'regionID:\"us-east-1\"').",
+			"- accumulate: Aggregation interval for accumulation: 'hour', 'day', 'week', 'month', 'quarter', or 'true' (to sum across the entire window).\n" +
+			"- filter: Filter expression for cloud costs (e.g., 'provider:\"AWS\"', 'service:\"AmazonEC2\"', 'category:\"Compute\"', 'regionID:\"us-east-1\"'). When filter is set, direct shortcut parameters (provider, service, category, account) are ignored and all filter constraints must be specified inside this expression.\n" +
+			"- provider, service, category, account: Direct filter shortcuts used only when filter is omitted (note: ignored if filter is set; for region filtering, use filter: 'regionID:\"us-east-1\"').",
 	}, handleCloudCosts)
 
 	mcp_sdk.AddTool(sdkServer, &mcp_sdk.Tool{
@@ -487,8 +488,8 @@ type AllocationArgs struct {
 	IncludeIdle                           bool   `json:"include_idle,omitempty" jsonschema:"If true, includes idle costs in results as a separate item (default: false)"`
 	IdleByNode                            bool   `json:"idle_by_node,omitempty" jsonschema:"If true, calculates idle cost separately per node rather than cluster-wide (default: false)"`
 	IncludeProportionalAssetResourceCosts bool   `json:"include_proportional_asset_resource_costs,omitempty" jsonschema:"If true, computes proportional asset resource costs internally (requires include_idle=true; details omitted from MCP results; default: false)"`
-	IncludeAggregatedMetadata             bool   `json:"include_aggregated_metadata,omitempty" jsonschema:"If true, includes labels and annotations metadata in aggregated results (default: false)"`
-	ShareLB                               bool   `json:"share_lb,omitempty" jsonschema:"If true, proportionally distributes load balancer costs across workloads (default: false)"`
+	IncludeAggregatedMetadata             bool   `json:"include_aggregated_metadata,omitempty" jsonschema:"Internal aggregation option; metadata (labels/annotations) is not exposed in MCP results (default: false)"`
+	ShareLB                               bool   `json:"share_lb,omitempty" jsonschema:"If true, includes AKS load balancer totals in internal proportional asset resource cost calculations (requires include_proportional_asset_resource_costs=true and include_idle=true; details omitted from MCP results; default: false)"`
 	Filter                                string `json:"filter,omitempty" jsonschema:"Filter expression to select specific allocations (e.g., 'namespace:\"kube-system\"', 'cluster:\"prod\"', 'label[app]:\"frontend\"')"`
 }
 
@@ -501,13 +502,13 @@ type CloudCostArgs struct {
 	Aggregate string `json:"aggregate,omitempty" jsonschema:"Comma-separated list of cloud cost dimensions to group by (e.g., 'provider', 'accountID', 'service', 'category', 'regionID', 'invoiceEntityID', 'providerID', 'label:<name>')"`
 
 	// Cloud cost query parameters
-	Accumulate string `json:"accumulate,omitempty" jsonschema:"Aggregation interval for accumulation: 'day', 'week', 'month', or 'all'"`
-	Filter     string `json:"filter,omitempty" jsonschema:"Filter expression for cloud costs (e.g., 'provider:\"AWS\"', 'service:\"AmazonEC2\"', 'category:\"Compute\"')"`
-	Provider   string `json:"provider,omitempty" jsonschema:"Filter by cloud provider name (e.g., 'AWS', 'GCP', 'Azure')"`
-	Service    string `json:"service,omitempty" jsonschema:"Filter by cloud service name (e.g., 'AmazonEC2', 'Cloud Storage', 'Virtual Machines')"`
-	Category   string `json:"category,omitempty" jsonschema:"Filter by spending category (e.g., 'Compute', 'Storage', 'Network', 'Management', 'Other')"`
+	Accumulate string `json:"accumulate,omitempty" jsonschema:"Aggregation interval for accumulation: 'hour', 'day', 'week', 'month', 'quarter', or 'true' (to sum across the entire window)"`
+	Filter     string `json:"filter,omitempty" jsonschema:"Filter expression for cloud costs (e.g., 'provider:\"AWS\"', 'service:\"AmazonEC2\"', 'category:\"Compute\"', 'regionID:\"us-east-1\"'). When filter is set, direct shortcut parameters (provider, service, category, account) are ignored and all filter constraints must be specified inside this expression"`
+	Provider   string `json:"provider,omitempty" jsonschema:"Filter shortcut by cloud provider name (e.g., 'AWS', 'GCP', 'Azure'); ignored if filter is set"`
+	Service    string `json:"service,omitempty" jsonschema:"Filter shortcut by cloud service name (e.g., 'AmazonEC2', 'Cloud Storage', 'Virtual Machines'); ignored if filter is set"`
+	Category   string `json:"category,omitempty" jsonschema:"Filter shortcut by spending category (e.g., 'Compute', 'Storage', 'Network', 'Management', 'Other'); ignored if filter is set"`
 	Region     string `json:"region,omitempty" jsonschema:"Ignored by query filter; use filter parameter with regionID (e.g., filter: 'regionID:\"us-east-1\"') instead"`
-	Account    string `json:"account,omitempty" jsonschema:"Filter by cloud account or subscription ID (e.g., AWS account ID, GCP project ID)"`
+	Account    string `json:"account,omitempty" jsonschema:"Filter shortcut by cloud account or subscription ID (e.g., AWS account ID, GCP project ID); ignored if filter is set"`
 }
 
 type EfficiencyArgs struct {
