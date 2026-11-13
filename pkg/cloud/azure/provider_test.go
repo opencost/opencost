@@ -56,8 +56,8 @@ func TestConvertMeterToPricings(t *testing.T) {
 	}
 	baseCPUPrice := "0.30000"
 
-	newMeter := func(category, subcategory, name, region string, rate float64) meterInfo {
-		return meterInfo{
+	newMeter := func(category, subcategory, name, region string, rate float64) MeterInfo {
+		return MeterInfo{
 			MeterCategory:    category,
 			MeterSubCategory: subcategory,
 			MeterName:        name,
@@ -199,8 +199,8 @@ func TestConvertMeterToPricings_PremiumSSDIgnoresDiskMount(t *testing.T) {
 	}
 	baseCPUPrice := "0.30000"
 
-	newMeter := func(category, subcategory, name, region string, rate float64) meterInfo {
-		return meterInfo{
+	newMeter := func(category, subcategory, name, region string, rate float64) MeterInfo {
+		return MeterInfo{
 			MeterCategory:    category,
 			MeterSubCategory: subcategory,
 			MeterName:        name,
@@ -211,7 +211,7 @@ func TestConvertMeterToPricings_PremiumSSDIgnoresDiskMount(t *testing.T) {
 
 	// Order matters: Disk first, Disk Mount second mirrors the Azure Rate Card
 	// sort order and reproduces the overwrite bug.
-	meters := []meterInfo{
+	meters := []MeterInfo{
 		newMeter("Storage", "Premium SSD Managed Disks", "P4 LRS Disk", "US Central", 5.2795),
 		newMeter("Storage", "Premium SSD Managed Disks", "P4 LRS Disk Mount", "US Central", 0.32),
 	}

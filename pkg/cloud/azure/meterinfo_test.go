@@ -28,7 +28,7 @@ func TestMeterInfoFromRateCard(t *testing.T) {
 			"100": nil,
 		},
 	})
-	require.Equal(t, meterInfo{
+	require.Equal(t, MeterInfo{
 		MeterName:        "D2s v3",
 		MeterCategory:    "Virtual Machines",
 		MeterSubCategory: "Dsv3 Series",
@@ -38,5 +38,5 @@ func TestMeterInfoFromRateCard(t *testing.T) {
 	}, info)
 
 	empty := meterInfoFromRateCard(&armcommerce.MeterInfo{})
-	require.Equal(t, meterInfo{MeterRates: map[string]float64{}}, empty)
+	require.Equal(t, MeterInfo{MeterRates: map[string]float64{}}, empty)
 }

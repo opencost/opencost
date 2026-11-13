@@ -52,7 +52,7 @@ func TestDownloader(t *testing.T) {
 		d := PriceSheetDownloader{
 			BillingAccount: "test-billing-account",
 			OfferID:        "my-offer-id",
-			ConvertMeterInfo: func(meterInfo) (map[string]*AzurePricing, error) {
+			ConvertMeterInfo: func(MeterInfo) (map[string]*AzurePricing, error) {
 				return nil, nil
 			},
 		}
@@ -61,7 +61,7 @@ func TestDownloader(t *testing.T) {
 	})
 }
 
-func convertMeter(info meterInfo) (map[string]*AzurePricing, error) {
+func convertMeter(info MeterInfo) (map[string]*AzurePricing, error) {
 	switch info.MeterName {
 	case "skip-this":
 		return nil, nil

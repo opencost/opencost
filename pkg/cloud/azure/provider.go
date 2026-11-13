@@ -982,8 +982,8 @@ func (az *Azure) DownloadPricingData() error {
 			ClientOptions:  clientOptions,
 			BillingAccount: config.AzureBillingAccount,
 			OfferID:        config.AzureOfferDurableID,
-			ConvertMeterInfo: func(meterInfo meterInfo) (map[string]*AzurePricing, error) {
-				return convertMeterToPricings(meterInfo, regions, baseCPUPrice)
+			ConvertMeterInfo: func(info MeterInfo) (map[string]*AzurePricing, error) {
+				return convertMeterToPricings(info, regions, baseCPUPrice)
 			},
 		}
 		// The price sheet can take 5 minutes to generate, so we don't
@@ -1013,7 +1013,7 @@ func (az *Azure) DownloadPricingData() error {
 	return nil
 }
 
-func convertMeterToPricings(info meterInfo, regions map[string]string, baseCPUPrice string) (map[string]*AzurePricing, error) {
+func convertMeterToPricings(info MeterInfo, regions map[string]string, baseCPUPrice string) (map[string]*AzurePricing, error) {
 	meterName := info.MeterName
 	meterRegion := info.MeterRegion
 	meterCategory := info.MeterCategory

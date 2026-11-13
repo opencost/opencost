@@ -6,9 +6,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/commerce/armcommerce"
 )
 
-// meterInfo is the part of a rate card or price sheet meter that pricing
+// MeterInfo is the part of a rate card or price sheet meter that pricing
 // conversion reads.
-type meterInfo struct {
+type MeterInfo struct {
 	MeterName        string
 	MeterCategory    string
 	MeterSubCategory string
@@ -17,14 +17,14 @@ type meterInfo struct {
 	MeterRates       map[string]float64
 }
 
-func meterInfoFromRateCard(m *armcommerce.MeterInfo) meterInfo {
+func meterInfoFromRateCard(m *armcommerce.MeterInfo) MeterInfo {
 	rates := make(map[string]float64, len(m.MeterRates))
 	for quantity, rate := range m.MeterRates {
 		if rate != nil {
 			rates[quantity] = widenRate(*rate)
 		}
 	}
-	return meterInfo{
+	return MeterInfo{
 		MeterName:        deref(m.MeterName),
 		MeterCategory:    deref(m.MeterCategory),
 		MeterSubCategory: deref(m.MeterSubCategory),

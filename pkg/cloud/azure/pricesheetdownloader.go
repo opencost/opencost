@@ -26,7 +26,7 @@ type PriceSheetDownloader struct {
 	ClientOptions    *arm.ClientOptions
 	BillingAccount   string
 	OfferID          string
-	ConvertMeterInfo func(info meterInfo) (map[string]*AzurePricing, error)
+	ConvertMeterInfo func(info MeterInfo) (map[string]*AzurePricing, error)
 }
 
 func (d *PriceSheetDownloader) GetPricing(ctx context.Context) (map[string]*AzurePricing, error) {
@@ -213,13 +213,13 @@ func checkPricesheetHeader(header []string) error {
 	return nil
 }
 
-func makeMeterInfo(row []string) (meterInfo, error) {
+func makeMeterInfo(row []string) (MeterInfo, error) {
 	price, err := strconv.ParseFloat(row[pricesheetUnitPrice], 64)
 	if err != nil {
-		return meterInfo{}, fmt.Errorf("parsing unit price: %w", err)
+		return MeterInfo{}, fmt.Errorf("parsing unit price: %w", err)
 	}
 	newPrice, unit := normalisePrice(price, row[pricesheetUnit])
-	return meterInfo{
+	return MeterInfo{
 		MeterName:        row[pricesheetMeterName],
 		MeterCategory:    row[pricesheetMeterCategory],
 		MeterSubCategory: row[pricesheetMeterSubCategory],
