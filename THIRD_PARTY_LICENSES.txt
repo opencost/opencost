@@ -141,50 +141,6 @@ Copyright 2017 Microsoft Corporation. All rights reserved.
 --------------------------------- (separator) ----------------------------------
 
 == Dependency
-github.com/Azure/azure-sdk-for-go
-
-== License Type
-SPDX:MIT
-
-== Copyright
-Copyright (c) Microsoft Corporation.
-Copyright (c) Microsoft Corporation. All rights reserved.
-
-== Notices
-NOTICES AND INFORMATION
-Do Not Translate or Localize
-
-This software incorporates material from third parties. Microsoft makes certain
-open source code available at https://3rdpartysource.microsoft.com, or you may
-send a check or money order for US $5.00, including the product name, the open
-source component name, and version number, to:
-
-Source Code Compliance Team
-Microsoft Corporation
-One Microsoft Way
-Redmond, WA 98052
-USA
-
-Notwithstanding any other terms, you may reverse engineer this software to the
-extent required to debug changes to any libraries licensed under the GNU Lesser
-General Public License.
-
-------------------------------------------------------------------------------
-
-Azure SDK for Go uses third-party libraries or other resources that may be
-distributed under licenses different than the Azure SDK for Go software.
-
-In the event that we accidentally failed to list a required notice, please
-bring it to our attention. Post an issue or email us:
-
-           azgosdkhelp@microsoft.com
-
-The attached notices are provided for information only.
-
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
 github.com/Azure/azure-sdk-for-go/sdk/azcore
 
 == License Type
@@ -223,6 +179,50 @@ Copyright 2017 Microsoft Corporation. All rights reserved.
 --------------------------------- (separator) ----------------------------------
 
 == Dependency
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/commerce/armcommerce
+
+== License Type
+SPDX:MIT
+
+== Copyright
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+--------------------------------- (separator) ----------------------------------
+
+== Dependency
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v8
+
+== License Type
+SPDX:MIT
+
+== Copyright
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+--------------------------------- (separator) ----------------------------------
+
+== Dependency
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources
+
+== License Type
+SPDX:MIT
+
+== Copyright
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+--------------------------------- (separator) ----------------------------------
+
+== Dependency
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions
+
+== License Type
+SPDX:MIT
+
+== Copyright
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+--------------------------------- (separator) ----------------------------------
+
+== Dependency
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob
 
 == License Type
@@ -242,115 +242,6 @@ SPDX:MIT
 == Copyright
 Copyright (c) Microsoft Corporation. All rights reserved.
 Copyright 2017 Microsoft Corporation. All rights reserved.
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
-github.com/Azure/go-autorest/autorest
-
-== License Type
-SPDX:Apache-2.0
-
-== Copyright
-Copyright 2015 Microsoft Corporation
-Copyright 2017 Microsoft Corporation
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
-github.com/Azure/go-autorest/autorest/adal
-
-== License Type
-SPDX:Apache-2.0
-
-== Copyright
-Copyright 2015 Microsoft Corporation
-Copyright 2017 Microsoft Corporation
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
-github.com/Azure/go-autorest/autorest/azure/auth
-
-== License Type
-SPDX:Apache-2.0
-
-== Copyright
-Copyright 2015 Microsoft Corporation
-Copyright 2017 Microsoft Corporation
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
-github.com/Azure/go-autorest/autorest/azure/cli
-
-== License Type
-SPDX:Apache-2.0
-
-== Copyright
-Copyright 2015 Microsoft Corporation
-Copyright 2017 Microsoft Corporation
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
-github.com/Azure/go-autorest/autorest/date
-
-== License Type
-SPDX:Apache-2.0
-
-== Copyright
-Copyright 2015 Microsoft Corporation
-Copyright 2017 Microsoft Corporation
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
-github.com/Azure/go-autorest/autorest/to
-
-== License Type
-SPDX:Apache-2.0
-
-== Copyright
-Copyright 2015 Microsoft Corporation
-Copyright 2017 Microsoft Corporation
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
-github.com/Azure/go-autorest/autorest/validation
-
-== License Type
-SPDX:Apache-2.0
-
-== Copyright
-Copyright 2015 Microsoft Corporation
-Copyright 2017 Microsoft Corporation
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
-github.com/Azure/go-autorest/logger
-
-== License Type
-SPDX:Apache-2.0
-
-== Copyright
-Copyright 2015 Microsoft Corporation
-Copyright 2017 Microsoft Corporation
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
-github.com/Azure/go-autorest/tracing
-
-== License Type
-SPDX:Apache-2.0
-
-== Copyright
-Copyright 2015 Microsoft Corporation
-Copyright 2017 Microsoft Corporation
-Copyright 2018 Microsoft Corporation
 
 --------------------------------- (separator) ----------------------------------
 
@@ -3023,17 +2914,6 @@ Copyright (c) 2015-2016 Dave Collins <dave@davec.name>
 --------------------------------- (separator) ----------------------------------
 
 == Dependency
-github.com/dimchansky/utfbom
-
-== License Type
-SPDX:Apache-2.0
-
-== Copyright
-Copyright (c) 2018-2020, Dmitrij Koniajev (dimchansky@gmail.com)
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
 github.com/emicklei/go-restful/v3
 
 == License Type
@@ -3158,18 +3038,6 @@ Copyright 2018 The Go Authors. All rights reserved.
 --------------------------------- (separator) ----------------------------------
 
 == Dependency
-github.com/gofrs/uuid
-
-== License Type
-SPDX:MIT
-
-== Copyright
-Copyright (C) 2013-2018 by Maxim Bublis <b@codemonkey.ru>
-Copyright (c) 2018 Andrei Tudor Călin <mail@acln.ro>
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
 github.com/gogo/protobuf
 
 == License Type
@@ -3193,18 +3061,6 @@ Copyright 2015 The Go Authors.  All rights reserved.
 Copyright 2016 The Go Authors.  All rights reserved.
 Copyright 2017 The Go Authors.  All rights reserved.
 Copyright 2018 The Go Authors.  All rights reserved.
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
-github.com/golang-jwt/jwt/v4
-
-== License Type
-SPDX:MIT
-
-== Copyright
-Copyright (c) 2012 Dave Grijalva
-Copyright (c) 2021 golang-jwt maintainers
 
 --------------------------------- (separator) ----------------------------------
 
@@ -4107,17 +3963,6 @@ Copyright (c) 2009 The Go Authors. All rights reserved.
 --------------------------------- (separator) ----------------------------------
 
 == Dependency
-github.com/mitchellh/go-homedir
-
-== License Type
-SPDX:MIT
-
-== Copyright
-Copyright (c) 2013 Mitchell Hashimoto
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
 github.com/mitchellh/mapstructure
 
 == License Type
@@ -4760,19 +4605,6 @@ SPDX:Apache-2.0
 
 == Copyright
 Copyright 2023 STACKIT GmbH & Co. KG
-
---------------------------------- (separator) ----------------------------------
-
-== Dependency
-github.com/shopspring/decimal
-
-== License Type
-SPDX:MIT
-
-== Copyright
-Copyright (c) 2013 Oguz Bilgic
-Copyright (c) 2015 Spring, Inc.
-Copyright 2009 The Go Authors. All rights reserved.
 
 --------------------------------- (separator) ----------------------------------
 
