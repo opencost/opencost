@@ -166,16 +166,25 @@ func (pc *ProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (
 
 	// Load Config, set flag to _not_ write if failure to find file.
 	// We're about to write the updated values, so we don't want to double write.
-	c, _ := pc.loadConfig(false)
+	current, _ := pc.loadConfig(false)
 
-	// Execute Update - On error, return the in-memory config but don't update cache
-	// explicitly
+	// Update a copy, never the cached value: GetCustomPricingData hands that
+	// value to readers without holding the lock, so writing it in place races
+	// with every provider reading its pricing. Every CustomPricing field is a
+	// string, so a shallow copy is a full one.
+	c := new(models.CustomPricing)
+	if current != nil {
+		*c = *current
+	}
+
+	// Execute Update - On error, return the updated copy but leave the cache
+	// as it was
 	err := updateFunc(c)
 	if err != nil {
 		return c, fmt.Errorf("error updating provider config: %w", err)
 	}
 
-	// Cache Update (possible the ptr already references the cached value)
+	// Cache Update: publish the copy in place of the old value
 	pc.customPricing = updateDefaultsOnEmpty(c)
 
 	cj, err := json.Marshal(c)

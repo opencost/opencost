@@ -9,6 +9,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/huawei"
 	"github.com/opencost/opencost/pkg/cloud/ibm"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
 	"github.com/opencost/opencost/pkg/cloud/stackit"
@@ -114,6 +115,10 @@ func GetIntegrationFromConfig(kc cloud.KeyedConfig) CloudCostIntegration {
 	case *ibm.UsageConfiguration:
 		return &ibm.UsageIntegration{
 			UsageConfiguration: *keyedConfig,
+		}
+	case *huawei.CostConfiguration:
+		return &huawei.CostIntegration{
+			CostConfiguration: *keyedConfig,
 		}
 	default:
 		return nil

@@ -5,9 +5,12 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	coreenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/storage"
+	"github.com/opencost/opencost/pkg/cloud/huawei"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/env"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -275,6 +278,99 @@ func TestCustomProviderLoadBalancerPricingInvalidValue(t *testing.T) {
 	_, err := customProvider.LoadBalancerPricing()
 	if err == nil {
 		t.Fatal("LoadBalancerPricing returned nil error, want invalid pricing error")
+	}
+}
+
+// TestGetClusterPropertiesDetectsHuaweiNotOTC verifies that a real Huawei Cloud CCE
+// node -- which also carries the "cce.cloud.com/cce-nodepool" label used to detect
+// OTC, since OTC runs on the same CCE technology -- is classified as Huawei via the
+// "os.name" label instead of being misdetected as OTC.
+func TestGetClusterPropertiesDetectsHuaweiNotOTC(t *testing.T) {
+	node := &clustercache.Node{
+		Labels: map[string]string{
+			"os.name":                       "Huawei_Cloud_EulerOS_2.0_x86_64",
+			"cce.cloud.com/cce-nodepool":    "cce-mlops-np-management",
+			"topology.kubernetes.io/region": "la-south-2",
+		},
+	}
+
+	cp := getClusterProperties(node)
+	if cp.provider != opencost.HuaweiProvider {
+		t.Fatalf("expected provider %q, got %q", opencost.HuaweiProvider, cp.provider)
+	}
+	if cp.configFileName != "huawei.json" {
+		t.Fatalf("expected config file huawei.json, got %q", cp.configFileName)
+	}
+}
+
+// TestGetClusterPropertiesDetectsOTC verifies that a genuine OTC node (no "os.name"
+// label starting with "Huawei_Cloud") is still detected as OTC.
+func TestGetClusterPropertiesDetectsOTC(t *testing.T) {
+	node := &clustercache.Node{
+		Labels: map[string]string{
+			"cce.cloud.com/cce-nodepool": "otc-nodepool",
+		},
+	}
+
+	cp := getClusterProperties(node)
+	if cp.provider != opencost.OTCProvider {
+		t.Fatalf("expected provider %q, got %q", opencost.OTCProvider, cp.provider)
+	}
+	if cp.configFileName != "otc.json" {
+		t.Fatalf("expected config file otc.json, got %q", cp.configFileName)
+	}
+}
+
+// TestGetClusterPropertiesHonorsHuaweiEnvOnCCENode verifies that a CCE node
+// without the "Huawei_Cloud" os.name prefix (e.g. a custom or Ubuntu image) is
+// classified as Huawei when CLOUD_PROVIDER selects it, rather than as OTC:
+// NewProvider only consults CLOUD_PROVIDER when detection returns DEFAULT.
+func TestGetClusterPropertiesHonorsHuaweiEnvOnCCENode(t *testing.T) {
+	node := &clustercache.Node{
+		Labels: map[string]string{
+			"os.name":                    "Ubuntu_22.04_x86_64",
+			"cce.cloud.com/cce-nodepool": "cce-np",
+		},
+	}
+
+	for _, value := range []string{"Huawei", "huawei", "huaweicloud"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv(env.CloudProviderVar, value)
+			cp := getClusterProperties(node)
+			if cp.provider != opencost.HuaweiProvider {
+				t.Fatalf("expected provider %q, got %q", opencost.HuaweiProvider, cp.provider)
+			}
+			if cp.configFileName != "huawei.json" {
+				t.Fatalf("expected config file huawei.json, got %q", cp.configFileName)
+			}
+		})
+	}
+
+	// Another explicit provider leaves the OTC detection as it was.
+	t.Setenv(env.CloudProviderVar, "otc")
+	if cp := getClusterProperties(node); cp.provider != opencost.OTCProvider {
+		t.Fatalf("expected provider %q, got %q", opencost.OTCProvider, cp.provider)
+	}
+}
+
+// TestNewProviderHonorsHuaweiEnvAliases covers a cluster whose nodes carry no
+// provider labels (e.g. self-managed Kubernetes on ECS): detection returns
+// DEFAULT and CLOUD_PROVIDER decides, so every Huawei alias ParseProvider
+// accepts must select the Huawei provider rather than CustomProvider.
+func TestNewProviderHonorsHuaweiEnvAliases(t *testing.T) {
+	cache := &clustercache.MockClusterCache{Nodes: []*clustercache.Node{{Labels: map[string]string{}}}}
+
+	for _, value := range []string{"Huawei", "huawei", "huaweicloud", " HuaweiCloud "} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv(env.CloudProviderVar, value)
+			p, err := NewProvider(cache, "", config.NewConfigFileManager(storage.NewMemoryStorage()))
+			if err != nil {
+				t.Fatalf("NewProvider returned error: %v", err)
+			}
+			if _, ok := p.(*huawei.Huawei); !ok {
+				t.Fatalf("expected *huawei.Huawei, got %T", p)
+			}
+		})
 	}
 }
 

@@ -1,0 +1,218 @@
+package huawei
+
+import (
+	"encoding/json"
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/env"
+)
+
+// CostConfiguration holds the configuration needed to query historical billing
+// costs from the Huawei Cloud BSS "cost-analysed-bills" API (see costintegration.go).
+// Credentials (HUAWEICLOUD_ACCESS_KEY_ID, HUAWEICLOUD_SECRET_ACCESS_KEY,
+// HUAWEICLOUD_DOMAIN_ID) are intentionally not part of this struct -- like the rest
+// of pkg/cloud/huawei, they are read from the environment, so they never need to be
+// written to disk in a config file or serialized by the admin config-export API.
+type CostConfiguration struct {
+	// ProjectID is optional and not used to query the bill, which is
+	// account-wide; it only tells configurations apart (see Equals).
+	ProjectID string `json:"projectID"`
+	Region    string `json:"region"`
+
+	// EnterpriseProjects names the account's Enterprise Projects and the
+	// platform each one holds. Every billed resource is labeled with its
+	// Enterprise Project whether or not it is listed here; listing one only
+	// adds its name and platform to the labels. Optional.
+	EnterpriseProjects []EnterpriseProject `json:"enterpriseProjects,omitempty"`
+
+	// PriceFactors scale the net cost of matching resources, for prices agreed
+	// outside the bill (e.g. a reseller price that is a fixed fraction of the
+	// list price). The list cost is left as billed. Optional.
+	PriceFactors []PriceFactor `json:"priceFactors,omitempty"`
+}
+
+// EnterpriseProject describes one Huawei Cloud Enterprise Project.
+type EnterpriseProject struct {
+	// ID is the Enterprise Project ID as BSS reports it ("0" for default).
+	ID string `json:"id"`
+	// Name is a display name; the ID stands in when it is empty.
+	Name string `json:"name,omitempty"`
+	// Platform is the platform the Enterprise Project holds, e.g.
+	// "web-prod". Several Enterprise Projects may share a platform.
+	Platform string `json:"platform,omitempty"`
+}
+
+// PriceFactor scales the net cost of the resources it matches. Service is a
+// Huawei Cloud Service Type Code, with or without its "hws.service.type."
+// prefix, or the service's English name; aliases of one service match each
+// other (see canonicalServiceCode). ResourceType is a Resource Type Code, with
+// or without its "hws.resource.type." prefix. An empty one matches anything.
+// The first matching factor applies.
+type PriceFactor struct {
+	Service      string  `json:"service,omitempty"`
+	ResourceType string  `json:"resourceType,omitempty"`
+	Factor       float64 `json:"factor"`
+}
+
+// Validate does not require a projectID: the bill is account-wide, so the
+// billing query needs no project (see GetCloudCost).
+func (c *CostConfiguration) Validate() error {
+	if c.Region == "" {
+		return fmt.Errorf("CostConfiguration: missing region")
+	}
+	for i, ep := range c.EnterpriseProjects {
+		if ep.ID == "" {
+			return fmt.Errorf("CostConfiguration: enterpriseProjects[%d]: missing id", i)
+		}
+	}
+	for i, pf := range c.PriceFactors {
+		if pf.Factor <= 0 {
+			return fmt.Errorf("CostConfiguration: priceFactors[%d]: factor must be positive, got %v", i, pf.Factor)
+		}
+	}
+	return nil
+}
+
+func (c *CostConfiguration) Equals(config cloud.Config) bool {
+	if config == nil {
+		return false
+	}
+	thatConfig, ok := config.(*CostConfiguration)
+	if !ok {
+		return false
+	}
+	return c.ProjectID == thatConfig.ProjectID &&
+		c.Region == thatConfig.Region &&
+		slices.Equal(c.EnterpriseProjects, thatConfig.EnterpriseProjects) &&
+		slices.Equal(c.PriceFactors, thatConfig.PriceFactors)
+}
+
+// Sanitize returns a copy of the config safe to serialize/display. There is
+// nothing secret to redact here since credentials are not stored in this struct.
+func (c *CostConfiguration) Sanitize() cloud.Config {
+	return &CostConfiguration{
+		ProjectID:          c.ProjectID,
+		Region:             c.Region,
+		EnterpriseProjects: slices.Clone(c.EnterpriseProjects),
+		PriceFactors:       slices.Clone(c.PriceFactors),
+	}
+}
+
+// Key identifies this integration. It is the same for every Huawei
+// configuration: the BSS bill is account-wide and is queried with the
+// process-wide credentials (see newBssClient), so an OpenCost instance reaches
+// a single account, and two configurations for different projects or regions
+// would each ingest the same bill and CloudCost would sum it twice; sharing
+// one key collapses them into a single integration.
+//
+// It is also invariant. A key derived from the environment (the domain ID)
+// would change when the environment does, while the controller keeps the key
+// a configuration was stored under: it could then no longer update or disable
+// it. The account still shows in the costs it reports (see accountID).
+func (c *CostConfiguration) Key() string {
+	return opencost.HuaweiProvider
+}
+
+// accountID is the account the costs of this integration are reported
+// under when no Enterprise Project applies: the domain ID, the account's ID,
+// when it is set.
+func accountID() string {
+	if domainID := env.GetHuaweiDomainID(); domainID != "" {
+		return domainID
+	}
+	return opencost.HuaweiProvider
+}
+
+func (c *CostConfiguration) Provider() string {
+	return opencost.HuaweiProvider
+}
+
+func (c *CostConfiguration) UnmarshalJSON(b []byte) error {
+	var f interface{}
+	err := json.Unmarshal(b, &f)
+	if err != nil {
+		return err
+	}
+
+	fmap, ok := f.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("CostConfiguration: UnmarshalJSON: expected object")
+	}
+
+	// projectID may be omitted or empty: the account-wide billing query needs
+	// none. When present it must still be a string.
+	c.ProjectID = ""
+	if _, ok := fmap["projectID"]; ok {
+		projectID, err := cloud.GetInterfaceValue[string](fmap, "projectID")
+		if err != nil {
+			return fmt.Errorf("CostConfiguration: UnmarshalJSON: %w", err)
+		}
+		c.ProjectID = projectID
+	}
+
+	region, err := cloud.GetInterfaceValue[string](fmap, "region")
+	if err != nil {
+		return fmt.Errorf("CostConfiguration: UnmarshalJSON: %w", err)
+	}
+	c.Region = region
+
+	// The optional lists are plain data; let encoding/json decode them.
+	var optional struct {
+		EnterpriseProjects []EnterpriseProject `json:"enterpriseProjects"`
+		PriceFactors       []PriceFactor       `json:"priceFactors"`
+	}
+	if err := json.Unmarshal(b, &optional); err != nil {
+		return fmt.Errorf("CostConfiguration: UnmarshalJSON: %w", err)
+	}
+	c.EnterpriseProjects = optional.EnterpriseProjects
+	c.PriceFactors = optional.PriceFactors
+
+	return nil
+}
+
+// enterpriseProject returns the configured description of an Enterprise
+// Project ID, or one carrying just the ID when it is not configured. The
+// default Enterprise Project is named "default" unless configured otherwise.
+func (c *CostConfiguration) enterpriseProject(id string) EnterpriseProject {
+	for _, ep := range c.EnterpriseProjects {
+		if ep.ID == id {
+			if ep.Name == "" {
+				ep.Name = id
+			}
+			return ep
+		}
+	}
+	if id == defaultEnterpriseProjectID {
+		return EnterpriseProject{ID: id, Name: "default"}
+	}
+	return EnterpriseProject{ID: id, Name: id}
+}
+
+// priceFactor returns the factor that applies to a resource of the given
+// service and resource type codes, or 1 when none does.
+func (c *CostConfiguration) priceFactor(service, resourceTypeCode string) float64 {
+	billed := canonicalServiceCode(service)
+	for _, pf := range c.PriceFactors {
+		if (pf.Service == "" || canonicalServiceCode(pf.Service) == billed) &&
+			codeMatches(pf.ResourceType, resourceTypeCode, huaweiResourceTypeCodePrefix) {
+			return pf.Factor
+		}
+	}
+	return 1
+}
+
+// codeMatches compares a configured code with a billed one, ignoring the
+// "hws.<kind>.type." prefix on either side. An empty pattern matches anything.
+func codeMatches(pattern, code, prefix string) bool {
+	if pattern == "" {
+		return true
+	}
+	trim := func(s string) string {
+		return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(s)), prefix)
+	}
+	return trim(pattern) == trim(code)
+}
