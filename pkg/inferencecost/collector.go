@@ -240,6 +240,19 @@ func (c *Collector) queryAllocationCostsWithoutIdle(ctx context.Context, start, 
 	return c.extractAllocationResults(as, false)
 }
 
+// clampRatio clamps a utilisation ratio to [0,1]. Values outside this range
+// (negative, or exceeding 1.0 from overcommit) are clamped rather than
+// propagated, so a single out-of-range sample can't produce a negative or
+// inflated scaled cost.
+func clampRatio(ratio float64) float64 {
+	if ratio < 0 {
+		return 0
+	} else if ratio > 1 {
+		return 1
+	}
+	return ratio
+}
+
 // extractAllocationResults extracts cost data from an AllocationSet.
 func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAllocationCost bool) (map[string]*allocationResult, error) {
 	results := make(map[string]*allocationResult)
@@ -312,24 +325,17 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 			// correctly reduces cost to $0 and out-of-range values are handled
 			// deterministically rather than silently ignored.
 			if alloc.GPUAllocation != nil && alloc.GPUAllocation.GPUUsageAverage != nil {
-				util := *alloc.GPUAllocation.GPUUsageAverage
-				if util < 0 {
-					util = 0
-				} else if util > 1 {
-					util = 1
-				}
+				util := clampRatio(*alloc.GPUAllocation.GPUUsageAverage)
 				scaledGPUCost := alloc.GPUTotalCost() * util
 				cost = cost - alloc.GPUTotalCost() + scaledGPUCost
 				log.Debugf("InferenceCost usage: GPU scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
 					modelName, namespace, alloc.GPUTotalCost(), scaledGPUCost, util*100)
 			}
 
-			// CPU: scale by core utilisation ratio (usage / request).
+			// CPU: scale by core utilisation ratio (usage / request). clamped to [0,1].
 			// CPUCoreRequestAverage and CPUCoreUsageAverage are plain float64 (not pointers).
-			if alloc.CPUCoreRequestAverage > 0 &&
-				alloc.CPUCoreUsageAverage > 0 &&
-				alloc.CPUCoreUsageAverage < alloc.CPUCoreRequestAverage {
-				cpuUtil := alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage
+			if alloc.CPUCoreRequestAverage > 0 {
+				cpuUtil := clampRatio(alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage)
 				scaledCPUCost := alloc.CPUTotalCost() * cpuUtil
 				cost = cost - alloc.CPUTotalCost() + scaledCPUCost
 				log.Debugf("InferenceCost usage: CPU scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
@@ -338,10 +344,8 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 
 			// RAM: scale by byte utilisation ratio (usage / request).
 			// RAMBytesRequestAverage and RAMBytesUsageAverage are plain float64 (not pointers).
-			if alloc.RAMBytesRequestAverage > 0 &&
-				alloc.RAMBytesUsageAverage > 0 &&
-				alloc.RAMBytesUsageAverage < alloc.RAMBytesRequestAverage {
-				ramUtil := alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage
+			if alloc.RAMBytesRequestAverage > 0 {
+				ramUtil := clampRatio(alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage)
 				scaledRAMCost := alloc.RAMTotalCost() * ramUtil
 				cost = cost - alloc.RAMTotalCost() + scaledRAMCost
 				log.Debugf("InferenceCost usage: RAM scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
