@@ -246,6 +246,53 @@ func startMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 	// Create MCP server using existing OpenCost dependencies
 	mcpServer := opencost_mcp.NewMCPServer(accesses.Model, accesses.CloudProvider, cloudCostQuerier)
 
+	// Create MCP SDK server with registered tools
+	sdkServer := newMCPSDKServer(mcpServer)
+
+	// Create HTTP handler
+	handler := mcp_sdk.NewStreamableHTTPHandler(func(r *http.Request) *mcp_sdk.Server {
+		return sdkServer
+	}, &mcp_sdk.StreamableHTTPOptions{
+		JSONResponse: true,
+	})
+
+	// Add logging middleware
+	loggingHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		log.Debugf("MCP HTTP request: %s %s from %s", req.Method, req.URL.Path, req.RemoteAddr)
+		handler.ServeHTTP(w, req)
+	})
+
+	server := &http.Server{
+		Handler: loggingHandler,
+	}
+
+	// Start server in a goroutine
+	go func() {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+			log.Errorf("MCP server failed: %v", err)
+		}
+	}()
+
+	// Graceful shutdown goroutine
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		<-ctx.Done()
+		log.Info("Shutting down MCP server...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Errorf("MCP server shutdown error: %v", err)
+		} else {
+			log.Info("MCP server shut down successfully")
+		}
+	}()
+
+	log.Infof("MCP server listening on %s", listener.Addr())
+	return done
+}
+
+func newMCPSDKServer(mcpServer *opencost_mcp.MCPServer) *mcp_sdk.Server {
 	// Create MCP SDK server
 	sdkServer := mcp_sdk.NewServer(&mcp_sdk.Implementation{
 		Name:    "opencost-mcp-server",
@@ -380,108 +427,93 @@ func startMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 
 	// Register tools
 	mcp_sdk.AddTool(sdkServer, &mcp_sdk.Tool{
-		Name:        "get_allocation_costs",
-		Description: "Retrieves allocation cost data.",
+		Name: "get_allocation_costs",
+		Description: "Retrieves Kubernetes workload cost allocation data broken down by Kubernetes concepts such as namespace, controller, pod, container, or service. Workload costs include CPU, memory (RAM), GPU, persistent volume (PV) storage, and network costs calculated from max(request, usage) and underlying node/cloud pricing.\n\n" +
+			"When to use: Use this tool when analyzing costs attributed to software workloads or applications running inside Kubernetes. Prefer this over get_asset_costs (which returns underlying infrastructure spend like physical nodes and disks) and get_cloud_costs (which returns out-of-cluster cloud provider billing like RDS, S3, or account-level bills). Use get_efficiency when seeking rightsizing or cost savings recommendations.\n\n" +
+			"Key parameters:\n" +
+			"- window (required): Time window for the query (e.g., 'today', 'yesterday', '7d', '30d', 'lastweek', or RFC 3339 range '2023-01-01T00:00:00Z,2023-01-02T00:00:00Z').\n" +
+			"- aggregate: Comma-separated list of dimensions to group by (e.g., 'namespace', 'controller', 'controllerKind', 'pod', 'container', 'cluster', 'node', 'department', 'label:<name>', 'annotation:<name>').\n" +
+			"- filter: Filter expression to limit allocations (e.g., 'namespace:\"kube-system\"', 'cluster:\"prod\"', 'label[app]:\"frontend\"').\n" +
+			"- accumulate: If true, sums all allocation data across the entire window into a single set (default: false).\n" +
+			"- step: Duration of time buckets (e.g., '1h', '1d'). Defaults to the full window.\n" +
+			"- share_idle, include_idle, idle_by_node: Options to allocate or report unallocated cluster idle capacity.",
 	}, handleAllocationCosts)
 
 	mcp_sdk.AddTool(sdkServer, &mcp_sdk.Tool{
-		Name:        "get_asset_costs",
-		Description: "Retrieves asset cost data.",
+		Name: "get_asset_costs",
+		Description: "Retrieves infrastructure-level asset cost data for Kubernetes cluster components: nodes (virtual machines or bare metal), disks (attached storage volumes / EBS / persistent disks), load balancers, and network assets. Asset costs reflect the actual underlying cloud infrastructure spend and hardware resource allocation (e.g., VM instance hours, disk byte-hours).\n\n" +
+			"When to use: Use this tool when inspecting underlying infrastructure spend, comparing node costs across clusters, assessing host-level idle capacity, or analyzing disk and load balancer infrastructure. Prefer get_allocation_costs when attributing costs to Kubernetes workloads (pods, namespaces, controllers) and get_cloud_costs for non-Kubernetes or cloud-account-wide billing.\n\n" +
+			"Key parameters:\n" +
+			"- window (required): Time window for the query (e.g., 'today', 'yesterday', '7d', '30d', 'lastweek', or RFC 3339 range '2023-01-01T00:00:00Z,2023-01-02T00:00:00Z').",
 	}, handleAssetCosts)
 
 	mcp_sdk.AddTool(sdkServer, &mcp_sdk.Tool{
-		Name:        "get_cloud_costs",
-		Description: "Retrieves cloud cost data.",
+		Name: "get_cloud_costs",
+		Description: "Retrieves cloud-provider billing and cost data directly from integrated cloud billing APIs (e.g., AWS Cost and Usage Report / CUR via Athena, GCP BigQuery Cloud Billing Export, Azure Cost Management Export).\n\n" +
+			"When to use: Use this tool when analyzing cloud provider billing spend, non-Kubernetes cloud services (such as Amazon RDS, Google Cloud SQL, S3, Cloud Storage, DynamoDB), or whole-account multi-cloud costs. Prefer get_allocation_costs for Kubernetes workload costs and get_asset_costs for cluster infrastructure assets.\n\n" +
+			"Key parameters:\n" +
+			"- window (required): Time window for the query (e.g., 'today', 'yesterday', '7d', '30d', 'lastweek', or RFC 3339 range '2023-01-01T00:00:00Z,2023-01-02T00:00:00Z').\n" +
+			"- aggregate: Comma-separated list of cloud cost dimensions to group by (e.g., 'provider', 'account', 'service', 'category', 'region', 'invoiceEntityID', 'providerID', 'label:<name>').\n" +
+			"- accumulate: Aggregation interval for accumulation: 'day', 'week', 'month', or 'all'.\n" +
+			"- filter: Filter expression for cloud costs (e.g., 'provider:\"AWS\"', 'service:\"AmazonEC2\"', 'category:\"Compute\"').\n" +
+			"- provider, service, category, region, account: Direct filter shortcuts for provider, service, category, region, and account ID.",
 	}, handleCloudCosts)
 
 	mcp_sdk.AddTool(sdkServer, &mcp_sdk.Tool{
-		Name:        "get_efficiency",
-		Description: "Retrieves resource efficiency metrics with rightsizing recommendations and cost savings analysis. Computes CPU and memory efficiency (usage/request ratio), provides recommended resource requests, and calculates potential cost savings. Optional buffer_multiplier parameter (default: 1.2 for 20% headroom) can be set to values like 1.4 for 40% headroom.",
+		Name: "get_efficiency",
+		Description: "Retrieves resource efficiency metrics with rightsizing recommendations and cost savings analysis. Computes CPU and memory efficiency (usage/request ratio), provides recommended resource requests, and calculates potential cost savings.\n\n" +
+			"When to use: Use this tool when looking for workload rightsizing, overprovisioning, or cost savings opportunities across pods, namespaces, or controllers. Prefer get_allocation_costs for standard cost attribution without rightsizing recommendations.\n\n" +
+			"Key parameters:\n" +
+			"- window (required): Time window for the query (e.g., 'today', 'yesterday', '7d', '30d', 'lastweek').\n" +
+			"- aggregate: Aggregation level (e.g., 'pod', 'namespace', 'controller', 'container').\n" +
+			"- filter: Filter expression to limit allocations (same syntax as get_allocation_costs, e.g., 'namespace:\"default\"').\n" +
+			"- buffer_multiplier: Headroom buffer multiplier for resource recommendations (default: 1.2 for 20% headroom, e.g., 1.4 for 40% headroom).\n" +
+			"- step: Query step size (e.g., '1h', '6h') to control peak memory by batching large windows.",
 	}, handleEfficiency)
 
-	// Create HTTP handler
-	handler := mcp_sdk.NewStreamableHTTPHandler(func(r *http.Request) *mcp_sdk.Server {
-		return sdkServer
-	}, &mcp_sdk.StreamableHTTPOptions{
-		JSONResponse: true,
-	})
-
-	// Add logging middleware
-	loggingHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		log.Debugf("MCP HTTP request: %s %s from %s", req.Method, req.URL.Path, req.RemoteAddr)
-		handler.ServeHTTP(w, req)
-	})
-
-	server := &http.Server{
-		Handler: loggingHandler,
-	}
-
-	// Start server in a goroutine
-	go func() {
-		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Errorf("MCP server failed: %v", err)
-		}
-	}()
-
-	// Graceful shutdown goroutine
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		<-ctx.Done()
-		log.Info("Shutting down MCP server...")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			log.Errorf("MCP server shutdown error: %v", err)
-		} else {
-			log.Info("MCP server shut down successfully")
-		}
-	}()
-
-	log.Infof("MCP server listening on %s", listener.Addr())
-	return done
+	return sdkServer
 }
 
 // Tool argument structures for MCP server
 type AllocationArgs struct {
-	Window    string `json:"window"`
-	Aggregate string `json:"aggregate"`
+	Window    string `json:"window" jsonschema:"Time window for the query (e.g., 'today', 'yesterday', '7d', '30d', 'lastweek', or RFC 3339 range 'YYYY-MM-DDTHH:MM:SSZ,YYYY-MM-DDTHH:MM:SSZ')"`
+	Aggregate string `json:"aggregate,omitempty" jsonschema:"Comma-separated list of dimensions to aggregate by (e.g., 'namespace', 'controller', 'controllerKind', 'pod', 'container', 'cluster', 'node', 'department', 'label:<name>', 'annotation:<name>')"`
 
 	// Allocation query parameters
-	Step                                  string `json:"step,omitempty"`
-	Resolution                            string `json:"resolution,omitempty"`
-	Accumulate                            bool   `json:"accumulate,omitempty"`
-	ShareIdle                             bool   `json:"share_idle,omitempty"`
-	IncludeIdle                           bool   `json:"include_idle,omitempty"`
-	IdleByNode                            bool   `json:"idle_by_node,omitempty"`
-	IncludeProportionalAssetResourceCosts bool   `json:"include_proportional_asset_resource_costs,omitempty"`
-	IncludeAggregatedMetadata             bool   `json:"include_aggregated_metadata,omitempty"`
-	ShareLB                               bool   `json:"share_lb,omitempty"`
-	Filter                                string `json:"filter,omitempty"`
+	Step                                  string `json:"step,omitempty" jsonschema:"Duration of time buckets (e.g., '1h', '1d'). Defaults to the full window."`
+	Resolution                            string `json:"resolution,omitempty" jsonschema:"Duration resolution for Prometheus queries (e.g., '1m', '5m'). Defaults to step/window duration."`
+	Accumulate                            bool   `json:"accumulate,omitempty" jsonschema:"If true, sums all allocation data across the entire window into a single set (default: false)"`
+	ShareIdle                             bool   `json:"share_idle,omitempty" jsonschema:"If true, shares idle resource costs proportionally across all workloads (default: false)"`
+	IncludeIdle                           bool   `json:"include_idle,omitempty" jsonschema:"If true, includes idle costs in results as a separate item (default: false)"`
+	IdleByNode                            bool   `json:"idle_by_node,omitempty" jsonschema:"If true, calculates idle cost separately per node rather than cluster-wide (default: false)"`
+	IncludeProportionalAssetResourceCosts bool   `json:"include_proportional_asset_resource_costs,omitempty" jsonschema:"If true, proportionally distributes asset overhead and resource costs across workloads (default: false)"`
+	IncludeAggregatedMetadata             bool   `json:"include_aggregated_metadata,omitempty" jsonschema:"If true, includes labels and annotations metadata in aggregated results (default: false)"`
+	ShareLB                               bool   `json:"share_lb,omitempty" jsonschema:"If true, proportionally distributes load balancer costs across workloads (default: false)"`
+	Filter                                string `json:"filter,omitempty" jsonschema:"Filter expression to select specific allocations (e.g., 'namespace:\"kube-system\"', 'cluster:\"prod\"', 'label[app]:\"frontend\"')"`
 }
 
 type AssetArgs struct {
-	Window string `json:"window"`
+	Window string `json:"window" jsonschema:"Time window for the query (e.g., 'today', 'yesterday', '7d', '30d', 'lastweek', or RFC 3339 range 'YYYY-MM-DDTHH:MM:SSZ,YYYY-MM-DDTHH:MM:SSZ')"`
 }
 
 type CloudCostArgs struct {
-	Window    string `json:"window"`
-	Aggregate string `json:"aggregate"`
+	Window    string `json:"window" jsonschema:"Time window for the query (e.g., 'today', 'yesterday', '7d', '30d', 'lastweek', or RFC 3339 range 'YYYY-MM-DDTHH:MM:SSZ,YYYY-MM-DDTHH:MM:SSZ')"`
+	Aggregate string `json:"aggregate,omitempty" jsonschema:"Comma-separated list of cloud cost dimensions to group by (e.g., 'provider', 'account', 'service', 'category', 'region', 'invoiceEntityID', 'providerID', 'label:<name>')"`
 
 	// Cloud cost query parameters
-	Accumulate string `json:"accumulate,omitempty"`
-	Filter     string `json:"filter,omitempty"`
-	Provider   string `json:"provider,omitempty"`
-	Service    string `json:"service,omitempty"`
-	Category   string `json:"category,omitempty"`
-	Region     string `json:"region,omitempty"`
-	Account    string `json:"account,omitempty"`
+	Accumulate string `json:"accumulate,omitempty" jsonschema:"Aggregation interval for accumulation: 'day', 'week', 'month', or 'all'"`
+	Filter     string `json:"filter,omitempty" jsonschema:"Filter expression for cloud costs (e.g., 'provider:\"AWS\"', 'service:\"AmazonEC2\"', 'category:\"Compute\"')"`
+	Provider   string `json:"provider,omitempty" jsonschema:"Filter by cloud provider name (e.g., 'AWS', 'GCP', 'Azure')"`
+	Service    string `json:"service,omitempty" jsonschema:"Filter by cloud service name (e.g., 'AmazonEC2', 'Cloud Storage', 'Virtual Machines')"`
+	Category   string `json:"category,omitempty" jsonschema:"Filter by spending category (e.g., 'Compute', 'Storage', 'Network', 'Management', 'Other')"`
+	Region     string `json:"region,omitempty" jsonschema:"Filter by cloud region (e.g., 'us-east-1', 'europe-west1')"`
+	Account    string `json:"account,omitempty" jsonschema:"Filter by cloud account or subscription ID (e.g., AWS account ID, GCP project ID)"`
 }
 
 type EfficiencyArgs struct {
-	Window           string   `json:"window"`                      // Time window (e.g., "today", "yesterday", "7d", "lastweek")
-	Aggregate        string   `json:"aggregate,omitempty"`         // Aggregation level (e.g., "pod", "namespace", "controller")
-	Filter           string   `json:"filter,omitempty"`            // Filter expression (same as allocation filters)
-	BufferMultiplier *float64 `json:"buffer_multiplier,omitempty"` // Buffer multiplier for recommendations (default: 1.2 for 20% headroom, e.g., 1.4 for 40%)
-	Step             string   `json:"step,omitempty"`              // Query step size (e.g., "1h", "6h"); smaller steps reduce peak memory by batching large windows, but may increase query time/requests
+	Window           string   `json:"window" jsonschema:"Time window for the query (e.g., 'today', 'yesterday', '7d', '30d', 'lastweek')"`
+	Aggregate        string   `json:"aggregate,omitempty" jsonschema:"Aggregation level (e.g., 'pod', 'namespace', 'controller', 'container')"`
+	Filter           string   `json:"filter,omitempty" jsonschema:"Filter expression to limit allocations (same syntax as allocation filters, e.g., 'namespace:\"default\"')"`
+	BufferMultiplier *float64 `json:"buffer_multiplier,omitempty" jsonschema:"Headroom buffer multiplier for resource recommendations (default: 1.2 for 20% headroom, e.g., 1.4 for 40%)"`
+	Step             string   `json:"step,omitempty" jsonschema:"Query step size (e.g., '1h', '6h') to control peak memory by batching large windows"`
 }
