@@ -200,9 +200,8 @@ func (c *Collector) queryAllocationCostsWithIdle(ctx context.Context, start, end
 		SharedLabels: map[string][]string{c.config.SharedInfraLabel: {c.config.SharedInfraLabelValue}},
 	}
 
-	aggregateBy := []string{"label:" + c.config.ModelLabel}
-	if err := as.AggregateBy(aggregateBy, opts); err != nil {
-		return nil, fmt.Errorf("AggregateBy label:%s: %w", c.config.ModelLabel, err)
+	if err := as.AggregateBy(c.aggregateBy(), opts); err != nil {
+		return nil, fmt.Errorf("AggregateBy label:%s,namespace: %w", c.config.ModelLabel, err)
 	}
 
 	return c.extractAllocationResults(as, true)
@@ -232,12 +231,19 @@ func (c *Collector) queryAllocationCostsWithoutIdle(ctx context.Context, start, 
 		SharedLabels: map[string][]string{c.config.SharedInfraLabel: {c.config.SharedInfraLabelValue}},
 	}
 
-	aggregateBy := []string{"label:" + c.config.ModelLabel}
-	if err := as.AggregateBy(aggregateBy, opts); err != nil {
-		return nil, fmt.Errorf("AggregateBy label:%s: %w", c.config.ModelLabel, err)
+	if err := as.AggregateBy(c.aggregateBy(), opts); err != nil {
+		return nil, fmt.Errorf("AggregateBy label:%s,namespace: %w", c.config.ModelLabel, err)
 	}
 
 	return c.extractAllocationResults(as, false)
+}
+
+// aggregateBy groups allocations by model label and namespace. Token metrics
+// are keyed by model and namespace, so aggregating by the label alone would
+// merge the same model running in several namespaces into one allocation with
+// no namespace, and no namespace would match its cost.
+func (c *Collector) aggregateBy() []string {
+	return []string{"label:" + c.config.ModelLabel, opencost.AllocationNamespaceProp}
 }
 
 // extractAllocationResults extracts cost data from an AllocationSet.
@@ -371,14 +377,16 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 	return results, nil
 }
 
-// extractModelName extracts the model name from the allocation name or label.
-// After AggregateBy("label:<key>"), the allocation Name is the label value.
+// extractModelName extracts the model name from the allocation name.
+// After AggregateBy("label:<key>", "namespace"), the allocation Name is
+// "<label value>/<namespace>". Label values cannot contain "/", so the model
+// name is everything before the first "/".
 func extractModelName(alloc *opencost.Allocation, _ string) string {
 	if alloc == nil {
 		return ""
 	}
-	// AggregateBy sets the Name to the label value.
-	return alloc.Name
+	modelName, _, _ := strings.Cut(alloc.Name, "/")
+	return modelName
 }
 
 // canonicalModelName normalizes a model name by stripping any org/vendor prefix
