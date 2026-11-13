@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -138,7 +139,7 @@ func (rcs *RateCardStore) ForPVK(pvk models.PVKey, defaultPricing DefaultPricing
 func vpusPerGB(pvk models.PVKey) float64 {
 	if k, ok := pvk.(*oraclePVKey); ok {
 		if v, ok := k.parameters["vpusPerGB"]; ok {
-			if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 {
+			if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 && !math.IsInf(f, 1) {
 				return f
 			}
 		}

@@ -195,6 +195,9 @@ func TestRCSForPVK_PerformanceUnits(t *testing.T) {
 		"lower cost":            {map[string]string{"vpusPerGB": "0"}, 0.0255 / 744},
 		"higher performance":    {map[string]string{"vpusPerGB": "20"}, (0.0255 + 20*0.0017) / 744},
 		"unparsable is default": {map[string]string{"vpusPerGB": "fast"}, (0.0255 + 10*0.0017) / 744},
+		"infinity is default":   {map[string]string{"vpusPerGB": "Inf"}, (0.0255 + 10*0.0017) / 744},
+		"+infinity is default":  {map[string]string{"vpusPerGB": "+Infinity"}, (0.0255 + 10*0.0017) / 744},
+		"NaN is default":        {map[string]string{"vpusPerGB": "NaN"}, (0.0255 + 10*0.0017) / 744},
 	}
 
 	for name, testCase := range testCases {
