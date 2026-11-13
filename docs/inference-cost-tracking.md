@@ -286,7 +286,8 @@ OpenCost attempts to reconcile fully-qualified model names (e.g. `org/model`) ag
 
 ```bash
 # Check what label value OpenCost sees in the allocation layer
-curl "localhost:9003/allocation?window=1h&aggregate=label:llm-d.ai/model&namespace=<ns>" \
+curl --get "localhost:9003/allocation?window=1h&aggregate=label:llm-d.ai/model" \
+  --data-urlencode 'filter=namespace:"<ns>"' \
   | jq '.data[0] | keys'
 
 # Check what model_name vLLM is reporting in Prometheus
@@ -406,7 +407,8 @@ This means the allocation join failed — token data was found in Prometheus but
 Quick diagnosis:
 ```bash
 # What label values does the allocation layer see?
-curl "localhost:9003/allocation?window=1h&aggregate=label:llm-d.ai/model&namespace=<ns>" \
+curl --get "localhost:9003/allocation?window=1h&aggregate=label:llm-d.ai/model" \
+  --data-urlencode 'filter=namespace:"<ns>"' \
   | jq '.data[0] | keys'
 
 # What model_name does vLLM report?

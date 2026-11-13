@@ -19,7 +19,7 @@
     "/allocation": {
       "get": {
         "summary": "query for costs and resources allocated to Kubernetes workloads",
-        "description": "The standard OpenCost API query for costs and resources allocated to Kubernetes workloads.  Note that 'data' is an array of sets (one per 'step').\n",
+        "description": "The standard OpenCost API query for costs and resources allocated to Kubernetes workloads.  Note that 'data' is an array of sets (one per 'step', except steps that `filter` leaves empty).\n",
         "parameters": [
           {
             "name": "window",
@@ -66,6 +66,44 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "description": "Filter expression applied to individual allocations before `aggregate`, so it can match fields you are not aggregating by. Each clause has the form `field:\"value\"`. Values must be in double quotes and are case-sensitive.\n\nFields: `cluster`, `node`, `namespace`, `controllerKind`, `controllerName`, `pod`, `container`, `provider` (the node's provider ID), `services`, `label[<key>]`, `annotation[<key>]`.\n\nOperators: `:` equals, `~:` contains, `<~:` starts with, `~>:` ends with. Prefix `!` to negate (`!:`, `!~:`, `!<~:`, `!~>:`). On `services`, and on `label` or `annotation` without a key, the operators test each service name or key: `:` and `~:` both mean that one of them equals the value, and `<~:` and `~>:` that one of them starts or ends with it. A comma-separated list of values matches any of them (`namespace:\"dev\",\"staging\"`); with a negated operator it matches none of them. Join clauses with `+` (AND) or `|` (OR) and group them with parentheses; `+` and `|` cannot be mixed in the same group.\n\nLabels: `label[app]:\"cost-analyzer\"` matches allocations whose `app` label is `cost-analyzer`. `label:\"app\"` matches allocations that have an `app` label and `label!:\"app\"` those that do not. `label[app]:\"__unallocated__\"` matches allocations without an `app` label, and `label[app]!:\"cost-analyzer\"` also matches allocations without the label. An allocation's labels are its pod's labels merged over its namespace's labels and, unless `ALLOCATION_NODE_LABELS_ENABLED=false`, over its node's labels; the pod's value wins, then the namespace's. So a pod with no `team` label in a namespace labelled `team=payments` matches `label[team]:\"payments\"` and does not match `label[team]:\"__unallocated__\"`. Annotations are merged the same way, pod over namespace. Label and annotation keys are compared in their Prometheus-sanitized form (every character other than `A-Z`, `a-z`, `0-9` and `_` becomes `_`), so `label[app.kubernetes.io/name]` and `label[app_kubernetes_io_name]` are equivalent. Use brackets: the `aggregate` form `label:app` is not valid in a filter.\n\nResults: steps in which nothing matches are left out of `data`, so it can hold fewer sets than steps. If nothing matches at all, `data` is empty, and with `accumulate=true` the request fails with an error instead. With `includeIdle=true`, idle allocations are added before the filter runs and have only `cluster`, `node` and `provider` set. A clause that requires a workload field, such as `namespace` or `label[...]`, removes them, which also leaves nothing for `shareIdle` to share; negated clauses on those fields and `__unallocated__` keep them.\n\nURL-encode the value. In a query string an unencoded `+` is decoded as a space, which changes the filter or makes it invalid. With curl: `curl -G http://localhost:9003/allocation --data-urlencode 'window=1d' --data-urlencode 'aggregate=namespace' --data-urlencode 'filter=namespace:\"production\"+label[team]:\"data\"'`.",
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "label": {
+                "summary": "Allocations whose app label is cost-analyzer",
+                "value": "label[app]:\"cost-analyzer\""
+              },
+              "labelAnyOf": {
+                "summary": "Allocations whose app label is frontend or backend",
+                "value": "label[app]:\"frontend\",\"backend\""
+              },
+              "namespaceAndLabel": {
+                "summary": "Allocations in namespace production with label team=data",
+                "value": "namespace:\"production\"+label[team]:\"data\""
+              },
+              "dottedLabelKey": {
+                "summary": "Label key with dots and a slash",
+                "value": "label[app.kubernetes.io/name]:\"opencost\""
+              },
+              "hasLabel": {
+                "summary": "Allocations that have a team label",
+                "value": "label:\"team\""
+              },
+              "missingLabel": {
+                "summary": "Allocations without a team label",
+                "value": "label[team]:\"__unallocated__\""
+              },
+              "grouped": {
+                "summary": "Namespace dev or staging, and label team=data",
+                "value": "(namespace:\"dev\"|namespace:\"staging\")+label[team]:\"data\""
+              }
+            }
           }
         ],
         "responses": {
@@ -83,7 +121,7 @@
             "description": "Bad request — missing or invalid parameters (e.g. `window`, `step`, `accumulateBy`)"
           },
           "500": {
-            "description": "Internal server error — the allocation query failed"
+            "description": "Internal server error — the allocation query failed, including when `filter` cannot be parsed"
           }
         }
       }
