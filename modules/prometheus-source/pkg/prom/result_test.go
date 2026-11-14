@@ -87,3 +87,57 @@ func TestErrorFunctions(t *testing.T) {
 		})
 	}
 }
+
+func TestNewQueryResultsResultField(t *testing.T) {
+	query := "avg(kube_pod_container_status_running{} != 0) by (pod, namespace, uid, cluster_id)[1d:5m]"
+
+	testCases := []struct {
+		name      string
+		result    any
+		expectErr bool
+	}{
+		{
+			// Google Managed Prometheus returns "result": null instead of an empty
+			// array for empty matrix results.
+			name:      "null result is treated as empty",
+			result:    nil,
+			expectErr: false,
+		},
+		{
+			name:      "empty result array",
+			result:    []any{},
+			expectErr: false,
+		},
+		{
+			name:      "invalid result type",
+			result:    "invalid",
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			queryResult := map[string]any{
+				"data": map[string]any{
+					"resultType": "matrix",
+					"result":     tc.result,
+				},
+			}
+
+			qrs := NewQueryResults(query, queryResult, nil)
+			if tc.expectErr {
+				if qrs.Error == nil {
+					t.Errorf("Expected error, got nil")
+				}
+				return
+			}
+
+			if qrs.Error != nil {
+				t.Errorf("Expected no error, got: %s", qrs.Error)
+			}
+			if len(qrs.Results) != 0 {
+				t.Errorf("Expected empty results, got %d", len(qrs.Results))
+			}
+		})
+	}
+}
