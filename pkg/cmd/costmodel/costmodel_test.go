@@ -225,6 +225,12 @@ func TestMCPToolsList(t *testing.T) {
 				t.Errorf("get_cloud_costs region description should note it is ignored and suggest regionID filter: %s", regionDesc)
 			}
 		case "get_allocation_costs":
+			if strings.Contains(tool.Description, "include_aggregated_metadata: Advanced internal calculation options (require include_idle=true") {
+				t.Errorf("get_allocation_costs description should not couple include_aggregated_metadata with include_idle=true")
+			}
+			if !strings.Contains(tool.Description, "- include_aggregated_metadata:") {
+				t.Errorf("get_allocation_costs description should document include_aggregated_metadata separately")
+			}
 			shareIdleDesc := rawSchema.Properties["share_idle"].(map[string]interface{})["description"].(string)
 			if !strings.Contains(shareIdleDesc, "include_idle=true") {
 				t.Errorf("get_allocation_costs share_idle description should note dependency on include_idle=true: %s", shareIdleDesc)

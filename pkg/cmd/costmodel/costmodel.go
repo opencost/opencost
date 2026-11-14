@@ -437,7 +437,8 @@ func newMCPSDKServer(mcpServer *opencost_mcp.MCPServer) *mcp_sdk.Server {
 			"- accumulate: If true, sums all allocation data across the entire window into a single set (default: false).\n" +
 			"- step: Duration of time buckets (e.g., '1h', '1d'). Defaults to the full window.\n" +
 			"- share_idle, include_idle, idle_by_node: Options to allocate or report unallocated cluster idle capacity (note: share_idle requires include_idle=true).\n" +
-			"- include_proportional_asset_resource_costs, share_lb, include_aggregated_metadata: Advanced internal calculation options (require include_idle=true; details omitted from MCP results).",
+			"- include_proportional_asset_resource_costs, share_lb: Advanced internal asset cost options (require include_idle=true; details omitted from MCP results).\n" +
+			"- include_aggregated_metadata: Internal aggregation option to preserve labels and annotations (details omitted from MCP results).",
 	}, handleAllocationCosts)
 
 	mcp_sdk.AddTool(sdkServer, &mcp_sdk.Tool{
