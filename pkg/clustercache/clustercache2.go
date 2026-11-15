@@ -93,7 +93,12 @@ func (kcc *KubernetesClusterCacheV2) GetAllNamespaces() []*cc.Namespace {
 }
 
 func (kcc *KubernetesClusterCacheV2) GetAllNodes() []*cc.Node {
-	return kcc.nodeStore.GetAll()
+	nodes := kcc.nodeStore.GetAll()
+	isolated := make([]*cc.Node, len(nodes))
+	for i, node := range nodes {
+		isolated[i] = node.Clone()
+	}
+	return isolated
 }
 
 func (kcc *KubernetesClusterCacheV2) GetAllPods() []*cc.Pod {

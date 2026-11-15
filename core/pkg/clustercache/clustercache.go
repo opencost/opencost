@@ -1,6 +1,7 @@
 package clustercache
 
 import (
+	"maps"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,6 +59,17 @@ type Node struct {
 	Annotations    map[string]string
 	Status         v1.NodeStatus
 	SpecProviderID string
+}
+
+// Clone returns a shallow copy of the Node with independently cloned Labels and Annotations maps.
+func (n *Node) Clone() *Node {
+	if n == nil {
+		return nil
+	}
+	c := *n
+	c.Labels = maps.Clone(n.Labels)
+	c.Annotations = maps.Clone(n.Annotations)
+	return &c
 }
 
 type Service struct {
@@ -294,8 +306,8 @@ func TransformNode(input *v1.Node) *Node {
 	return &Node{
 		UID:            input.UID,
 		Name:           input.Name,
-		Labels:         input.Labels,
-		Annotations:    input.Annotations,
+		Labels:         maps.Clone(input.Labels),
+		Annotations:    maps.Clone(input.Annotations),
 		Status:         input.Status,
 		SpecProviderID: input.Spec.ProviderID,
 	}
