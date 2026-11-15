@@ -176,3 +176,84 @@ func TestDecodeInferenceCacheConfigResult(t *testing.T) {
 		})
 	}
 }
+
+func TestDecodeInferenceDimensionResult(t *testing.T) {
+	cases := []struct {
+		name             string
+		metric           map[string]any
+		values           []*util.Vector
+		expectedKey      InferenceDimensionKey
+		expectedPrompt   float64
+		expectedComp     float64
+		expectedEstP     float64
+		expectedEstC     float64
+	}{
+		{
+			name: "full attribution metrics with all labels and explicit tokens",
+			metric: map[string]any{
+				"producer":                  "litellm-gateway",
+				"user_id":                   "alice",
+				"tenant_id":                 "acme-corp",
+				"workload_id":               "rag-v1",
+				"serving_model":             "llama-3-70b",
+				"namespace":                 "llm-d-prod",
+				"prompt_tokens":             150.0,
+				"completion_tokens":         50.0,
+				"estimated_prompt_tokens":   30.0,
+				"estimated_completion_tokens": 10.0,
+			},
+			values: vecs(200),
+			expectedKey: InferenceDimensionKey{
+				Producer:     "litellm-gateway",
+				UserID:       "alice",
+				TenantID:     "acme-corp",
+				WorkloadID:   "rag-v1",
+				ServingModel: "llama-3-70b",
+				Namespace:    "llm-d-prod",
+			},
+			expectedPrompt: 150.0,
+			expectedComp:   50.0,
+			expectedEstP:   30.0,
+			expectedEstC:   10.0,
+		},
+		{
+			name: "user_id absent and fallback vector value",
+			metric: map[string]any{
+				"tenant_id":     "acme-corp",
+				"workload_id":   "rag-v1",
+				"serving_model": "llama-3-70b",
+				"namespace":     "llm-d-prod",
+			},
+			values: vecs(120),
+			expectedKey: InferenceDimensionKey{
+				Producer:     "default",
+				UserID:       "",
+				TenantID:     "acme-corp",
+				WorkloadID:   "rag-v1",
+				ServingModel: "llama-3-70b",
+				Namespace:    "llm-d-prod",
+			},
+			expectedPrompt: 120.0,
+			expectedComp:   0.0,
+			expectedEstP:   0.0,
+			expectedEstC:   0.0,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := NewQueryResult(tc.metric, tc.values, nil)
+			decoded := DecodeInferenceDimensionResult(result)
+
+			require.NotNil(t, decoded)
+			require.Len(t, decoded.Values, 1)
+			tokens, ok := decoded.Values[tc.expectedKey]
+			require.True(t, ok, "expected key %+v to be present", tc.expectedKey)
+			require.NotNil(t, tokens)
+			require.Equal(t, tc.expectedPrompt, tokens.PromptTokens)
+			require.Equal(t, tc.expectedComp, tokens.CompletionTokens)
+			require.Equal(t, tc.expectedEstP, tokens.EstimatedPromptTokens)
+			require.Equal(t, tc.expectedEstC, tokens.EstimatedCompletionTokens)
+		})
+	}
+}

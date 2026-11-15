@@ -10,6 +10,11 @@ type Exporter struct {
 	totalCost            *prometheus.GaugeVec
 	costPerMillionTokens *prometheus.GaugeVec
 	cacheSavingsFraction *prometheus.GaugeVec
+	dimensionCost        *prometheus.GaugeVec
+	unmatchedKeys        *prometheus.GaugeVec
+	tokenCoverage        *prometheus.GaugeVec
+	identityCoverage     *prometheus.GaugeVec
+	estimatedTokenShare  *prometheus.GaugeVec
 }
 
 // NewExporter creates an Exporter with all gauge vectors initialised.
@@ -48,6 +53,41 @@ func NewExporter() *Exporter {
 			},
 			[]string{"model_name", "model_version", "namespace", "workload_type"},
 		),
+		dimensionCost: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "llm_dimension_hourly_cost",
+				Help: "Hourly infrastructure cost attributed to an inference request dimension (tenant, workload, user).",
+			},
+			[]string{"model_name", "namespace", "cost_basis", "tenant_id", "workload_id", "user_id"},
+		),
+		unmatchedKeys: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "llm_dimension_unmatched_keys",
+				Help: "Attributed token series that could not be joined to a model entry, per producer mapping.",
+			},
+			[]string{"producer"},
+		),
+		tokenCoverage: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "llm_dimension_token_coverage",
+				Help: "Attributed tokens divided by the engine's reference tokens, input and output, per model and namespace.",
+			},
+			[]string{"model_name", "namespace", "direction"},
+		),
+		identityCoverage: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "llm_dimension_identity_coverage",
+				Help: "Share of attributed tokens carrying a real tenant_id and workload_id (non-empty, not a missing-identity sentinel), per model and namespace.",
+			},
+			[]string{"model_name", "namespace"},
+		),
+		estimatedTokenShare: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "llm_dimension_estimated_token_share",
+				Help: "Estimated tokens divided by attributed tokens, per model and namespace.",
+			},
+			[]string{"model_name", "namespace"},
+		),
 	}
 }
 
@@ -58,6 +98,11 @@ func (e *Exporter) Register() error {
 		e.totalCost,
 		e.costPerMillionTokens,
 		e.cacheSavingsFraction,
+		e.dimensionCost,
+		e.unmatchedKeys,
+		e.tokenCoverage,
+		e.identityCoverage,
+		e.estimatedTokenShare,
 	} {
 		if err := prometheus.Register(c); err != nil {
 			return err
@@ -66,12 +111,24 @@ func (e *Exporter) Register() error {
 	return nil
 }
 
-// Export sets gauge values for all metrics derived from the given InferenceCost slice.
+// ExportUnmatchedKeys sets gauge values for unmatched keys per producer.
+func (e *Exporter) ExportUnmatchedKeys(unmatched map[string]float64) {
+	e.unmatchedKeys.Reset()
+	for prod, val := range unmatched {
+		e.unmatchedKeys.WithLabelValues(prod).Set(val)
+	}
+}
+
+// Export sets gauge values for all metrics derived from model and dimension costs.
 // Gauges are reset before each export so decommissioned models do not persist.
-func (e *Exporter) Export(metrics []*InferenceCost) {
+func (e *Exporter) Export(metrics []*InferenceCost, dimMetrics ...[]*InferenceCost) {
 	e.totalCost.Reset()
 	e.costPerMillionTokens.Reset()
 	e.cacheSavingsFraction.Reset()
+	e.dimensionCost.Reset()
+	e.tokenCoverage.Reset()
+	e.identityCoverage.Reset()
+	e.estimatedTokenShare.Reset()
 
 	for _, m := range metrics {
 		version := m.Properties.ModelVersion
@@ -126,6 +183,63 @@ func (e *Exporter) Export(metrics []*InferenceCost) {
 		log.Debugf("InferenceCost: exported model=%s ns=%s alloc_total=$%.4f usage_total=$%.4f method=%s workload_type=%s",
 			m.Properties.ModelName, m.Properties.Namespace,
 			m.AllocationTotalCost, m.UsageTotalCost, method, workloadType)
+	}
+
+	if len(dimMetrics) == 0 || len(dimMetrics[0]) == 0 {
+		return
+	}
+
+	dims := dimMetrics[0]
+	for _, dm := range dims {
+		windowDuration := dm.Window.End.Sub(dm.Window.Start)
+		windowHours := windowDuration.Hours()
+		if windowHours <= 0 {
+			continue
+		}
+
+		for _, basis := range []CostBasis{CostBasisUsage, CostBasisAllocation} {
+			basisStr := string(basis)
+			hourlyCost := totalCostForBasis(dm, basis) / windowHours
+			e.dimensionCost.WithLabelValues(
+				dm.Properties.ModelName,
+				dm.Properties.Namespace,
+				basisStr,
+				dm.Properties.TenantID,
+				dm.Properties.WorkloadID,
+				dm.Properties.UserID,
+			).Set(hourlyCost)
+		}
+	}
+
+	// Calculate and set coverage and estimated share gauges per model and namespace
+	for _, m := range metrics {
+		var sumPrompt, sumComp, sumEstPrompt, sumEstComp, realTokens, allAttributed float64
+		for _, dm := range dims {
+			if dm.Properties.ModelName == m.Properties.ModelName && dm.Properties.Namespace == m.Properties.Namespace {
+				if dm.Properties.TenantID != "__unmetered__" {
+					sumPrompt += dm.PromptTokens
+					sumComp += dm.GenerationTokens
+					sumEstPrompt += dm.EstimatedPromptTokens
+					sumEstComp += dm.EstimatedCompletionTokens
+					tot := dm.PromptTokens + dm.GenerationTokens
+					allAttributed += tot
+					if dm.Properties.TenantID != "__unidentified__" && dm.Properties.WorkloadID != "__unidentified__" {
+						realTokens += tot
+					}
+				}
+			}
+		}
+
+		if m.PromptTokens > 0 {
+			e.tokenCoverage.WithLabelValues(m.Properties.ModelName, m.Properties.Namespace, "input").Set(sumPrompt / m.PromptTokens)
+		}
+		if m.GenerationTokens > 0 {
+			e.tokenCoverage.WithLabelValues(m.Properties.ModelName, m.Properties.Namespace, "output").Set(sumComp / m.GenerationTokens)
+		}
+		if allAttributed > 0 {
+			e.identityCoverage.WithLabelValues(m.Properties.ModelName, m.Properties.Namespace).Set(realTokens / allAttributed)
+			e.estimatedTokenShare.WithLabelValues(m.Properties.ModelName, m.Properties.Namespace).Set((sumEstPrompt + sumEstComp) / allAttributed)
+		}
 	}
 }
 

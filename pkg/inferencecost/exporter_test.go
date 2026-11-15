@@ -19,6 +19,11 @@ func newTestExporter(t *testing.T) (*Exporter, *prometheus.Registry) {
 		e.totalCost,
 		e.costPerMillionTokens,
 		e.cacheSavingsFraction,
+		e.dimensionCost,
+		e.unmatchedKeys,
+		e.tokenCoverage,
+		e.identityCoverage,
+		e.estimatedTokenShare,
 	} {
 		if err := reg.Register(c); err != nil {
 			t.Fatalf("failed to register collector: %v", err)
@@ -267,5 +272,183 @@ func TestExporter_Values(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestExporter_DimensionCost(t *testing.T) {
+	e, reg := newTestExporter(t)
+	now := time.Now()
+	mc := sampleMetric(AllocationMethodComputeTime)
+
+	dimA := &InferenceCost{
+		Properties: InferenceCostProperties{
+			ModelName:  "meta-llama/Llama-3.1-8B",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-a",
+			WorkloadID: "w1",
+			UserID:     "", // Empty user_id
+		},
+		AllocationTotalCost: 2.5,
+		UsageTotalCost:      0.6,
+		PromptTokens:        500000,
+		GenerationTokens:    100000,
+		TotalTokens:         600000,
+	}
+	dimA.Window.Start = now.Add(-1 * time.Hour)
+	dimA.Window.End = now
+
+	dimRem := &InferenceCost{
+		Properties: InferenceCostProperties{
+			ModelName:  "meta-llama/Llama-3.1-8B",
+			Namespace:  "llm-prod",
+			TenantID:   "__unmetered__",
+			WorkloadID: "",
+			UserID:     "",
+		},
+		AllocationTotalCost: 1.5,
+		UsageTotalCost:      0.4,
+		PromptTokens:        300000,
+		GenerationTokens:    100000,
+		TotalTokens:         400000,
+	}
+	dimRem.Window.Start = now.Add(-1 * time.Hour)
+	dimRem.Window.End = now
+
+	e.Export([]*InferenceCost{mc}, []*InferenceCost{dimA, dimRem})
+
+	mfs, _ := reg.Gather()
+	foundTenantA := false
+	foundRem := false
+	for _, mf := range mfs {
+		if mf.GetName() != "llm_dimension_hourly_cost" {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			labels := make(map[string]string)
+			for _, lp := range m.GetLabel() {
+				labels[lp.GetName()] = lp.GetValue()
+			}
+			if labels["tenant_id"] == "tenant-a" && labels["cost_basis"] == "allocation" {
+				foundTenantA = true
+				if labels["user_id"] != "" {
+					t.Errorf("expected empty user_id label, got %q", labels["user_id"])
+				}
+				if !floatEq(m.GetGauge().GetValue(), 2.5) {
+					t.Errorf("tenant-a hourly cost want 2.5 got %f", m.GetGauge().GetValue())
+				}
+			}
+			if labels["tenant_id"] == "__unmetered__" && labels["cost_basis"] == "allocation" {
+				foundRem = true
+				if !floatEq(m.GetGauge().GetValue(), 1.5) {
+					t.Errorf("remainder hourly cost want 1.5 got %f", m.GetGauge().GetValue())
+				}
+			}
+		}
+	}
+
+	if !foundTenantA {
+		t.Errorf("llm_dimension_hourly_cost for tenant-a not found")
+	}
+	if !foundRem {
+		t.Errorf("llm_dimension_hourly_cost for __unmetered__ not found")
+	}
+}
+
+func TestExporter_UnmatchedKeys(t *testing.T) {
+	e, reg := newTestExporter(t)
+	e.ExportUnmatchedKeys(map[string]float64{
+		"litellm-gateway": 5.0,
+	})
+
+	mfs, _ := reg.Gather()
+	found := false
+	for _, mf := range mfs {
+		if mf.GetName() == "llm_dimension_unmatched_keys" {
+			for _, m := range mf.GetMetric() {
+				for _, lp := range m.GetLabel() {
+					if lp.GetName() == "producer" && lp.GetValue() == "litellm-gateway" {
+						found = true
+						if !floatEq(m.GetGauge().GetValue(), 5.0) {
+							t.Errorf("unmatched keys count want 5.0 got %f", m.GetGauge().GetValue())
+						}
+					}
+				}
+			}
+		}
+	}
+	if !found {
+		t.Errorf("llm_dimension_unmatched_keys for litellm-gateway not found")
+	}
+}
+
+func TestExporter_CoverageAndEstimatedShare(t *testing.T) {
+	e, reg := newTestExporter(t)
+	now := time.Now()
+	mc := sampleMetric(AllocationMethodComputeTime)
+	mc.PromptTokens = 1000000
+	mc.GenerationTokens = 200000
+
+	dimA := &InferenceCost{
+		Properties: InferenceCostProperties{
+			ModelName:  "meta-llama/Llama-3.1-8B",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-a",
+			WorkloadID: "w1",
+		},
+		PromptTokens:              800000,
+		GenerationTokens:          160000,
+		TotalTokens:               960000,
+		EstimatedPromptTokens:     80000,
+		EstimatedCompletionTokens: 16000,
+	}
+	dimA.Window.Start = now.Add(-1 * time.Hour)
+	dimA.Window.End = now
+
+	e.Export([]*InferenceCost{mc}, []*InferenceCost{dimA})
+
+	mfs, _ := reg.Gather()
+	var foundInputCov, foundOutputCov, foundIdentCov, foundEstShare bool
+	for _, mf := range mfs {
+		switch mf.GetName() {
+		case "llm_dimension_token_coverage":
+			for _, m := range mf.GetMetric() {
+				for _, lp := range m.GetLabel() {
+					if lp.GetName() == "direction" && lp.GetValue() == "input" {
+						foundInputCov = true
+						if !floatEq(m.GetGauge().GetValue(), 0.8) {
+							t.Errorf("input coverage want 0.8 got %f", m.GetGauge().GetValue())
+						}
+					} else if lp.GetName() == "direction" && lp.GetValue() == "output" {
+						foundOutputCov = true
+						if !floatEq(m.GetGauge().GetValue(), 0.8) {
+							t.Errorf("output coverage want 0.8 got %f", m.GetGauge().GetValue())
+						}
+					}
+				}
+			}
+		case "llm_dimension_identity_coverage":
+			foundIdentCov = true
+			val := mf.GetMetric()[0].GetGauge().GetValue()
+			if !floatEq(val, 1.0) {
+				t.Errorf("identity coverage want 1.0 got %f", val)
+			}
+		case "llm_dimension_estimated_token_share":
+			foundEstShare = true
+			val := mf.GetMetric()[0].GetGauge().GetValue()
+			// (80k + 16k) / 960k = 96k / 960k = 0.1
+			if !floatEq(val, 0.1) {
+				t.Errorf("estimated token share want 0.1 got %f", val)
+			}
+		}
+	}
+
+	if !foundInputCov || !foundOutputCov {
+		t.Errorf("missing token coverage metrics: input=%v output=%v", foundInputCov, foundOutputCov)
+	}
+	if !foundIdentCov {
+		t.Errorf("missing identity coverage metric")
+	}
+	if !foundEstShare {
+		t.Errorf("missing estimated token share metric")
 	}
 }

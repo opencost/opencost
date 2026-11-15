@@ -1070,6 +1070,12 @@ func (m *MockMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[Infe
 	})
 }
 
+func (m *MockMetricsQuerier) QueryInferenceDimensionTokens(start, end time.Time) *Future[InferenceDimensionResult] {
+	return getFutureFromOverride(m.overrides, QueryInferenceDimensionTokens, func() *Future[InferenceDimensionResult] {
+		return m.noop.QueryInferenceDimensionTokens(start, end)
+	})
+}
+
 // Data Coverage Query
 func (m *MockMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {
 	if v, ok := m.overrides[QueryDataCoverage]; ok {

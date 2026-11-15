@@ -146,3 +146,98 @@ func TestQueryInferenceProcessingTime_GroupsByModelAndNamespace(t *testing.T) {
 		}
 	}
 }
+
+func TestQueryInferenceDimensionTokens_Disabled(t *testing.T) {
+	t.Setenv("INFERENCE_ATTRIBUTION_ENABLED", "false")
+	querier, client := newRecordingQuerier()
+
+	start := time.Now().Add(-time.Hour)
+	end := time.Now()
+
+	res, err := querier.QueryInferenceDimensionTokens(start, end).Await()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(res) == 0 || len(res[0].Values) != 0 {
+		t.Fatalf("expected empty values when disabled, got %+v", res)
+	}
+	if len(client.recorded()) != 0 {
+		t.Errorf("expected no queries when attribution is disabled, got %v", client.recorded())
+	}
+}
+
+func TestQueryInferenceDimensionTokens_PromQLGeneration(t *testing.T) {
+	t.Setenv("INFERENCE_ATTRIBUTION_ENABLED", "true")
+	t.Setenv("INFERENCE_ATTRIBUTION_CONFIG_PATH", "")
+	t.Setenv("INFERENCE_ATTRIBUTION_INPUT_TOKENS_SERIES", "custom_input_tokens_total")
+	t.Setenv("INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_SERIES", "custom_output_tokens_total")
+	t.Setenv("INFERENCE_ATTRIBUTION_INPUT_TOKENS_ESTIMATED_SERIES", "custom_est_input_tokens_total")
+	t.Setenv("INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_ESTIMATED_SERIES", "custom_est_output_tokens_total")
+	t.Setenv("INFERENCE_ATTRIBUTION_TENANT_LABEL", "team")
+	t.Setenv("INFERENCE_ATTRIBUTION_WORKLOAD_LABEL", "app")
+	t.Setenv("INFERENCE_ATTRIBUTION_USER_LABEL", "caller")
+	t.Setenv("INFERENCE_ATTRIBUTION_MODEL_LABEL", "model_id")
+	t.Setenv("INFERENCE_ATTRIBUTION_NAMESPACE_LABEL", "k8s_namespace")
+
+	querier, client := newRecordingQuerier()
+
+	start := time.Now().Add(-60 * time.Second)
+	end := time.Now()
+
+	_, err := querier.QueryInferenceDimensionTokens(start, end).Await()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	queries := client.recorded()
+	if len(queries) != 4 {
+		t.Fatalf("expected 4 queries (input, output, est input, est output), got %d: %v", len(queries), queries)
+	}
+
+	for _, q := range queries {
+		if !strings.Contains(q, "sum by (caller, team, app, model_id, k8s_namespace)") {
+			t.Errorf("query does not group by custom labels: %s", q)
+		}
+		if !strings.Contains(q, "increase(") {
+			t.Errorf("query does not use increase: %s", q)
+		}
+	}
+}
+
+func TestQueryInferenceDimensionTokens_UserAndWorkloadDisabled(t *testing.T) {
+	t.Setenv("INFERENCE_ATTRIBUTION_ENABLED", "true")
+	t.Setenv("INFERENCE_ATTRIBUTION_CONFIG_PATH", "")
+	t.Setenv("INFERENCE_ATTRIBUTION_INPUT_TOKENS_SERIES", "litellm_input_tokens")
+	t.Setenv("INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_SERIES", "litellm_output_tokens")
+	t.Setenv("INFERENCE_ATTRIBUTION_INPUT_TOKENS_ESTIMATED_SERIES", "")
+	t.Setenv("INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_ESTIMATED_SERIES", "")
+	t.Setenv("INFERENCE_ATTRIBUTION_TENANT_LABEL", "team_alias")
+	t.Setenv("INFERENCE_ATTRIBUTION_WORKLOAD_LABEL", "")
+	t.Setenv("INFERENCE_ATTRIBUTION_USER_LABEL", "")
+	t.Setenv("INFERENCE_ATTRIBUTION_MODEL_LABEL", "model")
+	t.Setenv("INFERENCE_ATTRIBUTION_NAMESPACE_LABEL", "deployment_namespace")
+
+	querier, client := newRecordingQuerier()
+
+	start := time.Now().Add(-120 * time.Second)
+	end := time.Now()
+
+	_, err := querier.QueryInferenceDimensionTokens(start, end).Await()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	queries := client.recorded()
+	if len(queries) != 2 {
+		t.Fatalf("expected 2 queries, got %d: %v", len(queries), queries)
+	}
+
+	for _, q := range queries {
+		if !strings.Contains(q, "sum by (team_alias, model, deployment_namespace)") {
+			t.Errorf("query does not omit empty user/workload labels: %s", q)
+		}
+		if strings.Contains(q, "user") || strings.Contains(q, "workload") {
+			t.Errorf("query incorrectly contains user or workload: %s", q)
+		}
+	}
+}

@@ -589,3 +589,147 @@ func TestParseFilter_NewDimensions(t *testing.T) {
 		}
 	}
 }
+
+func TestAggKey_SlashInDimensionValuesCollisionFree(t *testing.T) {
+	// (acme-corp/engineering, rag) vs (acme-corp, engineering/rag)
+	props1 := InferenceCostAPIProperties{TenantID: "acme-corp/engineering", WorkloadID: "rag"}
+	props2 := InferenceCostAPIProperties{TenantID: "acme-corp", WorkloadID: "engineering/rag"}
+
+	key1, err := aggKey(props1, []string{"tenant_id", "workload_id"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	key2, err := aggKey(props2, []string{"tenant_id", "workload_id"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if key1 == key2 {
+		t.Errorf("expected distinct keys for slash-containing dimension values, got collision: %q", key1)
+	}
+}
+
+func TestAggregate_ByAttributionDimensions(t *testing.T) {
+	win := makeWindow(time.Now().Add(-time.Hour), time.Now())
+	set := newInferenceCostSet(win)
+
+	set.InferenceCosts["k1"] = &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			ModelName:  "llama-3-70b",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-a",
+			WorkloadID: "w1",
+			UserID:     "alice",
+		},
+		TotalCost:        10.0,
+		PromptTokens:     100000,
+		GenerationTokens: 100000,
+		TotalTokens:      200000,
+		InputCost:        5.0,
+		OutputCost:       5.0,
+	}
+	set.InferenceCosts["k2"] = &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			ModelName:  "llama-3-70b",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-a",
+			WorkloadID: "w2",
+			UserID:     "bob",
+		},
+		TotalCost:        20.0,
+		PromptTokens:     200000,
+		GenerationTokens: 200000,
+		TotalTokens:      400000,
+		InputCost:        10.0,
+		OutputCost:       10.0,
+	}
+	set.InferenceCosts["k3"] = &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			ModelName:  "llama-3-70b",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-b",
+			WorkloadID: "w1",
+			UserID:     "charlie",
+		},
+		TotalCost:        30.0,
+		PromptTokens:     300000,
+		GenerationTokens: 300000,
+		TotalTokens:      600000,
+		InputCost:        15.0,
+		OutputCost:       15.0,
+	}
+
+	if err := set.aggregate([]string{"tenant_id"}); err != nil {
+		t.Fatalf("aggregate error: %v", err)
+	}
+
+	if len(set.InferenceCosts) != 2 {
+		t.Fatalf("expected 2 aggregated entries (tenant-a and tenant-b), got %d", len(set.InferenceCosts))
+	}
+
+	tenantA := set.InferenceCosts["tenant-a"]
+	if tenantA == nil {
+		t.Fatalf("missing tenant-a entry")
+	}
+	if tenantA.TotalCost != 30.0 || tenantA.TotalTokens != 600000 {
+		t.Errorf("tenantA totalCost want 30.0 got %f, totalTokens want 600k got %f", tenantA.TotalCost, tenantA.TotalTokens)
+	}
+	// Non-grouped properties should be cleared
+	if tenantA.Properties.ModelName != "" || tenantA.Properties.WorkloadID != "" || tenantA.Properties.UserID != "" {
+		t.Errorf("expected non-grouped properties to be cleared: %+v", tenantA.Properties)
+	}
+}
+
+func TestMergeAcrossUsers(t *testing.T) {
+	win := makeWindow(time.Now().Add(-time.Hour), time.Now())
+	set := newInferenceCostSet(win)
+
+	set.InferenceCosts["k1"] = &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			ModelName:  "llama-3-70b",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-a",
+			WorkloadID: "w1",
+			UserID:     "alice",
+		},
+		TotalCost:        10.0,
+		PromptTokens:     100000,
+		GenerationTokens: 100000,
+		TotalTokens:      200000,
+		InputCost:        5.0,
+		OutputCost:       5.0,
+	}
+	set.InferenceCosts["k2"] = &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			ModelName:  "llama-3-70b",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-a",
+			WorkloadID: "w1",
+			UserID:     "bob",
+		},
+		TotalCost:        15.0,
+		PromptTokens:     150000,
+		GenerationTokens: 150000,
+		TotalTokens:      300000,
+		InputCost:        7.5,
+		OutputCost:       7.5,
+	}
+
+	set.mergeAcrossUsers()
+
+	if len(set.InferenceCosts) != 1 {
+		t.Fatalf("expected 1 merged entry across users, got %d", len(set.InferenceCosts))
+	}
+
+	for _, resp := range set.InferenceCosts {
+		if resp.Properties.UserID != "" {
+			t.Errorf("expected UserID to be stripped, got %q", resp.Properties.UserID)
+		}
+		if resp.TotalCost != 25.0 {
+			t.Errorf("expected merged TotalCost 25.0, got %f", resp.TotalCost)
+		}
+		if resp.TotalTokens != 500000 {
+			t.Errorf("expected merged TotalTokens 500k, got %f", resp.TotalTokens)
+		}
+	}
+}

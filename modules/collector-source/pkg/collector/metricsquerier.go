@@ -825,3 +825,15 @@ func (c *collectorMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *source
 	}
 	return source.NewFuture(decoder, ch)
 }
+
+func (c *collectorMetricsQuerier) QueryInferenceDimensionTokens(start, end time.Time) *source.Future[source.InferenceDimensionResult] {
+	ch := make(source.QueryResultsChan, 1)
+	ch <- &source.QueryResults{
+		Query: "QueryInferenceDimensionTokens",
+		Error: fmt.Errorf("inference metrics not supported by collector source"),
+	}
+	decoder := func(result *source.QueryResult) *source.InferenceDimensionResult {
+		return &source.InferenceDimensionResult{Values: make(map[source.InferenceDimensionKey]*source.InferenceDimensionTokens)}
+	}
+	return source.NewFuture(decoder, ch)
+}

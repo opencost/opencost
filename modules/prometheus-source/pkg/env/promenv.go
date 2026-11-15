@@ -2,6 +2,7 @@ package env
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"time"
 
@@ -41,6 +42,25 @@ const (
 	CurrentClusterIdFilterEnabledVar = "CURRENT_CLUSTER_ID_FILTER_ENABLED"
 
 	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
+
+	InferenceAttributionEnabledEnvVar                 = "INFERENCE_ATTRIBUTION_ENABLED"
+	InferenceAttributionConfigPathEnvVar              = "INFERENCE_ATTRIBUTION_CONFIG_PATH"
+	InferenceAttributionInputTokensSeriesEnvVar       = "INFERENCE_ATTRIBUTION_INPUT_TOKENS_SERIES"
+	InferenceAttributionOutputTokensSeriesEnvVar      = "INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_SERIES"
+	InferenceAttributionInputTokensEstimatedSeriesEnv = "INFERENCE_ATTRIBUTION_INPUT_TOKENS_ESTIMATED_SERIES"
+	InferenceAttributionOutputTokensEstimatedSeriesEn = "INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_ESTIMATED_SERIES"
+	InferenceAttributionTenantLabelEnvVar             = "INFERENCE_ATTRIBUTION_TENANT_LABEL"
+	InferenceAttributionWorkloadLabelEnvVar           = "INFERENCE_ATTRIBUTION_WORKLOAD_LABEL"
+	InferenceAttributionUserLabelEnvVar               = "INFERENCE_ATTRIBUTION_USER_LABEL"
+	InferenceAttributionModelLabelEnvVar              = "INFERENCE_ATTRIBUTION_MODEL_LABEL"
+	InferenceAttributionNamespaceLabelEnvVar          = "INFERENCE_ATTRIBUTION_NAMESPACE_LABEL"
+	InferenceAttributionNamespaceMapEnvVar            = "INFERENCE_ATTRIBUTION_NAMESPACE_MAP"
+	InferenceAttributionUserSentinelEnvVar            = "INFERENCE_ATTRIBUTION_USER_SENTINEL"
+	InferenceAttributionIdentitySentinelEnvVar        = "INFERENCE_ATTRIBUTION_IDENTITY_SENTINEL"
+	InferenceAttributionCoverageThresholdEnvVar       = "INFERENCE_ATTRIBUTION_COVERAGE_THRESHOLD"
+	InferenceAttributionOverattributionToleranceEnv   = "INFERENCE_ATTRIBUTION_OVERATTRIBUTION_TOLERANCE"
+	InferenceAttributionReferenceEngineEnvVar         = "INFERENCE_ATTRIBUTION_REFERENCE_ENGINE"
+	InferenceAttributionUserAggregationEnabledEnvVar  = "INFERENCE_ATTRIBUTION_USER_AGGREGATION_ENABLED"
 )
 
 // In sharded Prometheus setups, PROMETHEUS_SERVER_ENDPOINT should point to a global query endpoint (e.g., Thanos Query, Cortex, or Mimir)
@@ -183,4 +203,94 @@ func GetPromClusterFilter() string {
 		return fmt.Sprintf("%s=\"%s\"", GetPromClusterLabel(), env.GetClusterID())
 	}
 	return ""
+}
+
+func IsInferenceAttributionEnabled() bool {
+	return env.GetBool(InferenceAttributionEnabledEnvVar, false)
+}
+
+func GetInferenceAttributionConfigPath() string {
+	return env.Get(InferenceAttributionConfigPathEnvVar, "")
+}
+
+func GetInferenceAttributionInputTokensSeries() string {
+	return env.Get(InferenceAttributionInputTokensSeriesEnvVar, "")
+}
+
+func GetInferenceAttributionOutputTokensSeries() string {
+	return env.Get(InferenceAttributionOutputTokensSeriesEnvVar, "")
+}
+
+func GetInferenceAttributionInputTokensEstimatedSeries() string {
+	return env.Get(InferenceAttributionInputTokensEstimatedSeriesEnv, "")
+}
+
+func GetInferenceAttributionOutputTokensEstimatedSeries() string {
+	return env.Get(InferenceAttributionOutputTokensEstimatedSeriesEn, "")
+}
+
+func GetInferenceAttributionTenantLabel() string {
+	if val := env.Get(InferenceAttributionTenantLabelEnvVar, "tenant_id"); val != "" {
+		return val
+	}
+	return "tenant_id"
+}
+
+func GetInferenceAttributionWorkloadLabel() string {
+	if val, ok := os.LookupEnv(InferenceAttributionWorkloadLabelEnvVar); ok {
+		return val
+	}
+	return "workload_id"
+}
+
+func GetInferenceAttributionUserLabel() string {
+	if val, ok := os.LookupEnv(InferenceAttributionUserLabelEnvVar); ok {
+		return val
+	}
+	return "user_id"
+}
+
+func GetInferenceAttributionModelLabel() string {
+	if val := env.Get(InferenceAttributionModelLabelEnvVar, "serving_model"); val != "" {
+		return val
+	}
+	return "serving_model"
+}
+
+func GetInferenceAttributionNamespaceLabel() string {
+	if val := env.Get(InferenceAttributionNamespaceLabelEnvVar, "deployment_namespace"); val != "" {
+		return val
+	}
+	return "deployment_namespace"
+}
+
+func GetInferenceAttributionNamespaceMap() string {
+	return env.Get(InferenceAttributionNamespaceMapEnvVar, "")
+}
+
+func GetInferenceAttributionUserSentinel() string {
+	return env.Get(InferenceAttributionUserSentinelEnvVar, "")
+}
+
+func GetInferenceAttributionIdentitySentinel() string {
+	if val := env.Get(InferenceAttributionIdentitySentinelEnvVar, "unattributed"); val != "" {
+		return val
+	}
+	return "unattributed"
+}
+
+func GetInferenceAttributionCoverageThreshold() float64 {
+	return env.GetFloat64(InferenceAttributionCoverageThresholdEnvVar, 0.9)
+}
+
+func GetInferenceAttributionOverattributionTolerance() float64 {
+	return env.GetFloat64(InferenceAttributionOverattributionToleranceEnv, 0.1)
+}
+
+func GetInferenceAttributionReferenceEngine() string {
+	return env.Get(InferenceAttributionReferenceEngineEnvVar, "")
+}
+
+func IsInferenceAttributionUserAggregationEnabled() bool {
+	return env.GetBool(InferenceAttributionUserAggregationEnabledEnvVar, false)
 }

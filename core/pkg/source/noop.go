@@ -715,6 +715,10 @@ func (m *NoOpMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[Infe
 	return newEmptyResult(DecodeInferenceCacheConfigResult)
 }
 
+func (m *NoOpMetricsQuerier) QueryInferenceDimensionTokens(start, end time.Time) *Future[InferenceDimensionResult] {
+	return newEmptyResult(DecodeInferenceDimensionResult)
+}
+
 // Data Coverage Query
 
 func (m *NoOpMetricsQuerier) QueryDataCoverage(_ int) (time.Time, time.Time, error) {

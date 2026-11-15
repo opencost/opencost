@@ -2,13 +2,45 @@ package prom
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/modules/prometheus-source/pkg/env"
+	"gopkg.in/yaml.v2"
 )
+
+// ProducerScope defines scope filtering for an attribution producer.
+type ProducerScope struct {
+	ServingModels        []string `yaml:"servingModels" json:"servingModels"`
+	ExcludeServingModels []string `yaml:"excludeServingModels" json:"excludeServingModels"`
+	Namespaces           []string `yaml:"namespaces" json:"namespaces"`
+}
+
+// ProducerMapping defines the configuration for a single attribution producer.
+type ProducerMapping struct {
+	Name                        string        `yaml:"name" json:"name"`
+	InputTokensSeries           string        `yaml:"inputTokensSeries" json:"inputTokensSeries"`
+	OutputTokensSeries          string        `yaml:"outputTokensSeries" json:"outputTokensSeries"`
+	InputTokensEstimatedSeries  string        `yaml:"inputTokensEstimatedSeries" json:"inputTokensEstimatedSeries"`
+	OutputTokensEstimatedSeries string        `yaml:"outputTokensEstimatedSeries" json:"outputTokensEstimatedSeries"`
+	TenantLabel                 string        `yaml:"tenantLabel" json:"tenantLabel"`
+	WorkloadLabel               string        `yaml:"workloadLabel" json:"workloadLabel"`
+	UserLabel                   string        `yaml:"userLabel" json:"userLabel"`
+	ModelLabel                  string        `yaml:"modelLabel" json:"modelLabel"`
+	NamespaceLabel              string        `yaml:"namespaceLabel" json:"namespaceLabel"`
+	IdentitySentinel            string        `yaml:"identitySentinel" json:"identitySentinel"`
+	UserSentinel                string        `yaml:"userSentinel" json:"userSentinel"`
+	Scope                       ProducerScope `yaml:"scope" json:"scope"`
+}
+
+// AttributionConfigFile represents the YAML configuration file for multiple producers.
+type AttributionConfigFile struct {
+	Producers []ProducerMapping `yaml:"producers" json:"producers"`
+}
 
 // QueryInferencePromptTokens implements MetricsQuerier.QueryInferencePromptTokens
 func (pds *PrometheusMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
@@ -133,6 +165,252 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *sou
 	}()
 
 	return source.NewFuture(decodeInferenceCacheConfigResult, resultsChan)
+}
+
+// QueryInferenceDimensionTokens implements MetricsQuerier.QueryInferenceDimensionTokens
+func (pds *PrometheusMetricsQuerier) QueryInferenceDimensionTokens(start, end time.Time) *source.Future[source.InferenceDimensionResult] {
+	if !env.IsInferenceAttributionEnabled() {
+		return source.NewFutureFrom([]*source.InferenceDimensionResult{{
+			Values: make(map[source.InferenceDimensionKey]*source.InferenceDimensionTokens),
+		}})
+	}
+
+	mappings, err := loadProducerMappings()
+	if err != nil || len(mappings) == 0 {
+		if err != nil {
+			log.Errorf("InferenceCost: failed to load attribution configuration: %v", err)
+		}
+		return source.NewFutureFrom([]*source.InferenceDimensionResult{{
+			Values: make(map[source.InferenceDimensionKey]*source.InferenceDimensionTokens),
+		}})
+	}
+
+	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
+	resultsChan := make(source.QueryResultsChan, 1)
+
+	go func() {
+		values := make(map[source.InferenceDimensionKey]*source.InferenceDimensionTokens)
+
+		for _, mapping := range mappings {
+			if mapping.InputTokensSeries != "" {
+				if err := queryDimensionSeries(ctx, mapping, mapping.InputTokensSeries, start, end, true, false, values); err != nil {
+					log.Warnf("InferenceCost: query input tokens series %s failed for producer %s: %v", mapping.InputTokensSeries, mapping.Name, err)
+				}
+			}
+			if mapping.OutputTokensSeries != "" {
+				if err := queryDimensionSeries(ctx, mapping, mapping.OutputTokensSeries, start, end, false, false, values); err != nil {
+					log.Warnf("InferenceCost: query output tokens series %s failed for producer %s: %v", mapping.OutputTokensSeries, mapping.Name, err)
+				}
+			}
+			if mapping.InputTokensEstimatedSeries != "" {
+				if err := queryDimensionSeries(ctx, mapping, mapping.InputTokensEstimatedSeries, start, end, true, true, values); err != nil {
+					log.Warnf("InferenceCost: query estimated input tokens series %s failed for producer %s: %v", mapping.InputTokensEstimatedSeries, mapping.Name, err)
+				}
+			}
+			if mapping.OutputTokensEstimatedSeries != "" {
+				if err := queryDimensionSeries(ctx, mapping, mapping.OutputTokensEstimatedSeries, start, end, false, true, values); err != nil {
+					log.Warnf("InferenceCost: query estimated output tokens series %s failed for producer %s: %v", mapping.OutputTokensEstimatedSeries, mapping.Name, err)
+				}
+			}
+		}
+
+		results := dimensionMapToQueryResults(values)
+		resultsChan <- &source.QueryResults{Results: results}
+	}()
+
+	return source.NewFuture(source.DecodeInferenceDimensionResult, resultsChan)
+}
+
+func loadProducerMappings() ([]*ProducerMapping, error) {
+	configPath := env.GetInferenceAttributionConfigPath()
+	if configPath != "" {
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading attribution config file at %s: %w", configPath, err)
+		}
+		var cfg AttributionConfigFile
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			return nil, fmt.Errorf("parsing attribution config YAML: %w", err)
+		}
+		var mappings []*ProducerMapping
+		for i := range cfg.Producers {
+			p := cfg.Producers[i]
+			applyProducerDefaults(&p)
+			mappings = append(mappings, &p)
+		}
+		return mappings, nil
+	}
+
+	inputSeries := env.GetInferenceAttributionInputTokensSeries()
+	outputSeries := env.GetInferenceAttributionOutputTokensSeries()
+	if inputSeries == "" && outputSeries == "" {
+		return nil, nil
+	}
+
+	mapping := &ProducerMapping{
+		Name:                        "default",
+		InputTokensSeries:           inputSeries,
+		OutputTokensSeries:          outputSeries,
+		InputTokensEstimatedSeries:  env.GetInferenceAttributionInputTokensEstimatedSeries(),
+		OutputTokensEstimatedSeries: env.GetInferenceAttributionOutputTokensEstimatedSeries(),
+		TenantLabel:                 env.GetInferenceAttributionTenantLabel(),
+		WorkloadLabel:               env.GetInferenceAttributionWorkloadLabel(),
+		UserLabel:                   env.GetInferenceAttributionUserLabel(),
+		ModelLabel:                  env.GetInferenceAttributionModelLabel(),
+		NamespaceLabel:              env.GetInferenceAttributionNamespaceLabel(),
+		IdentitySentinel:            env.GetInferenceAttributionIdentitySentinel(),
+		UserSentinel:                env.GetInferenceAttributionUserSentinel(),
+	}
+	applyProducerDefaults(mapping)
+	return []*ProducerMapping{mapping}, nil
+}
+
+func applyProducerDefaults(p *ProducerMapping) {
+	if p.Name == "" {
+		p.Name = "default"
+	}
+	if p.TenantLabel == "" {
+		p.TenantLabel = "tenant_id"
+	}
+	if p.ModelLabel == "" {
+		p.ModelLabel = "serving_model"
+	}
+	if p.NamespaceLabel == "" {
+		p.NamespaceLabel = "deployment_namespace"
+	}
+	if p.IdentitySentinel == "" {
+		p.IdentitySentinel = "unattributed"
+	}
+}
+
+func buildDimensionQuery(mapping *ProducerMapping, metric string, windowSeconds, endUnix int64) string {
+	var labels []string
+	addLabel := func(l string) {
+		if l != "" {
+			for _, existing := range labels {
+				if existing == l {
+					return
+				}
+			}
+			labels = append(labels, l)
+		}
+	}
+	addLabel(mapping.UserLabel)
+	addLabel(mapping.TenantLabel)
+	addLabel(mapping.WorkloadLabel)
+	addLabel(mapping.ModelLabel)
+	addLabel(mapping.NamespaceLabel)
+
+	return fmt.Sprintf("sum by (%s) (increase(%s[%ds] @ %d))", strings.Join(labels, ", "), metric, windowSeconds, endUnix)
+}
+
+func queryDimensionSeries(
+	ctx *Context,
+	mapping *ProducerMapping,
+	metric string,
+	start, end time.Time,
+	isInput bool,
+	isEstimated bool,
+	values map[source.InferenceDimensionKey]*source.InferenceDimensionTokens,
+) error {
+	if metric == "" {
+		return nil
+	}
+	effectiveEnd := end
+	if now := time.Now(); end.After(now) {
+		effectiveEnd = now
+	}
+	endUnix := effectiveEnd.Unix()
+	windowDuration := effectiveEnd.Sub(start)
+	windowSeconds := int64(windowDuration.Seconds())
+	if windowSeconds < 1 {
+		windowSeconds = 1
+	}
+
+	query := buildDimensionQuery(mapping, metric, windowSeconds, endUnix)
+	raw, _, err := ctx.query(query, effectiveEnd)
+	if err != nil {
+		return fmt.Errorf("dimension query for %s: %w", metric, err)
+	}
+
+	results := NewQueryResults(query, raw, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+	if results.Error != nil {
+		return results.Error
+	}
+
+	for _, result := range results.Results {
+		tenantID, _ := result.GetString(mapping.TenantLabel)
+		var workloadID string
+		if mapping.WorkloadLabel != "" {
+			workloadID, _ = result.GetString(mapping.WorkloadLabel)
+		}
+		var userID string
+		if mapping.UserLabel != "" {
+			userID, _ = result.GetString(mapping.UserLabel)
+		}
+		servingModel, _ := result.GetString(mapping.ModelLabel)
+		namespace, _ := result.GetString(mapping.NamespaceLabel)
+
+		var delta float64
+		if len(result.Values) > 0 {
+			delta = result.Values[len(result.Values)-1].Value
+		}
+
+		key := source.InferenceDimensionKey{
+			Producer:     mapping.Name,
+			UserID:       userID,
+			TenantID:     tenantID,
+			WorkloadID:   workloadID,
+			ServingModel: servingModel,
+			Namespace:    namespace,
+		}
+
+		entry, ok := values[key]
+		if !ok {
+			entry = &source.InferenceDimensionTokens{}
+			values[key] = entry
+		}
+
+		if isEstimated {
+			if isInput {
+				entry.EstimatedPromptTokens += delta
+			} else {
+				entry.EstimatedCompletionTokens += delta
+			}
+		} else {
+			if isInput {
+				entry.PromptTokens += delta
+			} else {
+				entry.CompletionTokens += delta
+			}
+		}
+	}
+	return nil
+}
+
+func dimensionMapToQueryResults(values map[source.InferenceDimensionKey]*source.InferenceDimensionTokens) []*source.QueryResult {
+	results := make([]*source.QueryResult, 0, len(values))
+	for key, tokens := range values {
+		metric := map[string]any{
+			"producer":                    key.Producer,
+			"user_id":                     key.UserID,
+			"tenant_id":                   key.TenantID,
+			"workload_id":                 key.WorkloadID,
+			"serving_model":               key.ServingModel,
+			"namespace":                   key.Namespace,
+			"prompt_tokens":               tokens.PromptTokens,
+			"completion_tokens":           tokens.CompletionTokens,
+			"estimated_prompt_tokens":     tokens.EstimatedPromptTokens,
+			"estimated_completion_tokens": tokens.EstimatedCompletionTokens,
+		}
+		result := source.NewQueryResult(
+			metric,
+			[]*util.Vector{{Value: tokens.PromptTokens + tokens.CompletionTokens}},
+			nil,
+		)
+		results = append(results, result)
+	}
+	return results
 }
 
 // Decoder functions

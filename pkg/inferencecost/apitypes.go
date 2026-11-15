@@ -72,6 +72,10 @@ type InferenceCostAPIProperties struct {
 	ControllerKind string `json:"controllerKind,omitempty"`
 	Container      string `json:"container,omitempty"`
 	WorkloadType   string `json:"workloadType"` // currently always "inference"
+	UserID         string `json:"user_id,omitempty"`
+	TenantID       string `json:"tenant_id,omitempty"`
+	WorkloadID     string `json:"workload_id,omitempty"`
+	Approximate    bool   `json:"approximate,omitempty"`
 }
 
 // InferenceCostSet holds a collection of InferenceCostResponses for a single
@@ -115,6 +119,10 @@ func newInferenceCostResponse(ic *InferenceCost, basis CostBasis, win opencost.W
 			ControllerKind: ic.Properties.ControllerKind,
 			Container:      ic.Properties.Container,
 			WorkloadType:   ic.Properties.WorkloadType,
+			UserID:         ic.Properties.UserID,
+			TenantID:       ic.Properties.TenantID,
+			WorkloadID:     ic.Properties.WorkloadID,
+			Approximate:    ic.Approximate,
 		},
 		Window:                     win,
 		CostBasis:                  basis,

@@ -3,7 +3,10 @@ package inferencecost
 import (
 	"context"
 	"fmt"
+	"math"
+	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/filter/allocation"
@@ -11,6 +14,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
+	"gopkg.in/yaml.v2"
 )
 
 // AllocationQuerier is the subset of the cost model needed to fetch per-model
@@ -26,6 +30,8 @@ type Collector struct {
 	allocationQuerier AllocationQuerier
 	metricsQuerier    source.MetricsQuerier
 	config            *Config
+	unmatchedKeys     map[string]float64
+	mu                sync.RWMutex
 }
 
 // NewCollector creates a Collector that uses the provided MetricsQuerier for
@@ -35,40 +41,50 @@ func NewCollector(config *Config, querier AllocationQuerier, metricsQuerier sour
 		allocationQuerier: querier,
 		metricsQuerier:    metricsQuerier,
 		config:            config,
+		unmatchedKeys:     make(map[string]float64),
 	}, nil
 }
 
+// GetUnmatchedKeys returns the count of unmatched attribution keys per producer.
+func (c *Collector) GetUnmatchedKeys() map[string]float64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	res := make(map[string]float64, len(c.unmatchedKeys))
+	for k, v := range c.unmatchedKeys {
+		res[k] = v
+	}
+	return res
+}
+
 // CollectMetrics queries all data sources and returns one InferenceCost per
-// model/namespace combination. start and end define the time window to query;
-// the caller is responsible for choosing appropriate boundaries (e.g. the
-// runner uses now-interval..now; the API uses the request window).
-func (c *Collector) CollectMetrics(ctx context.Context, start, end time.Time) ([]*InferenceCost, error) {
+// model/namespace combination and the dimension tokens result.
+func (c *Collector) CollectMetrics(ctx context.Context, start, end time.Time) ([]*InferenceCost, *source.InferenceDimensionResult, error) {
 	// --- Infrastructure costs from OpenCost allocation layer ---
 	allocationCosts, err := c.queryAllocationCosts(ctx, start, end)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query allocation costs: %w", err)
+		return nil, nil, fmt.Errorf("failed to query allocation costs: %w", err)
 	}
 	log.Infof("InferenceCost: collected allocation costs for %d model/namespace combinations", len(allocationCosts))
 
 	// --- Token metrics from data source ---
-	// Query all metrics concurrently using Futures
 	promptTokensFuture := c.metricsQuerier.QueryInferencePromptTokens(start, end)
 	generationTokensFuture := c.metricsQuerier.QueryInferenceGenerationTokens(start, end)
 	inputTimeFuture := c.metricsQuerier.QueryInferenceInputProcessingTime(start, end)
 	outputTimeFuture := c.metricsQuerier.QueryInferenceOutputProcessingTime(start, end)
 	cachedTokensFuture := c.metricsQuerier.QueryInferenceCachedTokens(start, end)
 	cacheConfigFuture := c.metricsQuerier.QueryInferenceCacheConfig(end)
+	dimTokensFuture := c.metricsQuerier.QueryInferenceDimensionTokens(start, end)
 
 	// Await required metrics (prompt and generation tokens)
 	promptTokensResults, err := promptTokensFuture.Await()
 	if err != nil {
-		return nil, fmt.Errorf("failed to query prompt tokens: %w", err)
+		return nil, nil, fmt.Errorf("failed to query prompt tokens: %w", err)
 	}
 	promptTokens := mergeTokenResults(promptTokensResults)
 
 	generationTokensResults, err := generationTokensFuture.Await()
 	if err != nil {
-		return nil, fmt.Errorf("failed to query generation tokens: %w", err)
+		return nil, nil, fmt.Errorf("failed to query generation tokens: %w", err)
 	}
 	generationTokens := mergeTokenResults(generationTokensResults)
 
@@ -103,8 +119,19 @@ func (c *Collector) CollectMetrics(ctx context.Context, start, end time.Time) ([
 		cacheConfigs = mergeCacheConfigResults(cacheConfigResults)
 	}
 
-	return c.combineMetrics(allocationCosts, promptTokens, generationTokens,
-		inputProcessingTime, outputProcessingTime, cachedTokens, cacheConfigs, start, end), nil
+	// --- Attribution dimension tokens ---
+	var dimResult *source.InferenceDimensionResult
+	if dimTokensResults, err := dimTokensFuture.Await(); err != nil {
+		log.Warnf("InferenceCost: failed to query dimension tokens: %v", err)
+		dimResult = &source.InferenceDimensionResult{Values: make(map[source.InferenceDimensionKey]*source.InferenceDimensionTokens)}
+	} else {
+		dimResult = mergeDimensionResults(dimTokensResults)
+	}
+
+	modelCosts := c.combineMetrics(allocationCosts, promptTokens, generationTokens,
+		inputProcessingTime, outputProcessingTime, cachedTokens, cacheConfigs, start, end)
+
+	return modelCosts, dimResult, nil
 }
 
 // cacheConfig holds per-model KV cache configuration from vllm:cache_config_info.
@@ -656,4 +683,614 @@ func mergeCacheConfigResults(results []*source.InferenceCacheConfigResult) map[s
 		}
 	}
 	return merged
+}
+
+// mergeDimensionResults merges multiple InferenceDimensionResult into a single result
+func mergeDimensionResults(results []*source.InferenceDimensionResult) *source.InferenceDimensionResult {
+	out := &source.InferenceDimensionResult{
+		Values: make(map[source.InferenceDimensionKey]*source.InferenceDimensionTokens),
+	}
+	for _, res := range results {
+		if res == nil {
+			continue
+		}
+		for k, v := range res.Values {
+			if v == nil {
+				continue
+			}
+			entry, ok := out.Values[k]
+			if !ok {
+				entry = &source.InferenceDimensionTokens{}
+				out.Values[k] = entry
+			}
+			entry.PromptTokens += v.PromptTokens
+			entry.CompletionTokens += v.CompletionTokens
+			entry.EstimatedPromptTokens += v.EstimatedPromptTokens
+			entry.EstimatedCompletionTokens += v.EstimatedCompletionTokens
+		}
+	}
+	return out
+}
+
+func (c *Collector) loadProducerMappings() []*ProducerMapping {
+	if c.config.AttributionConfigPath != "" {
+		data, err := os.ReadFile(c.config.AttributionConfigPath)
+		if err != nil {
+			log.Errorf("InferenceCost: failed to read attribution config at %s: %v", c.config.AttributionConfigPath, err)
+			return nil
+		}
+		var cfg struct {
+			Producers []ProducerMapping `yaml:"producers"`
+		}
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			log.Errorf("InferenceCost: failed to parse attribution config YAML: %v", err)
+			return nil
+		}
+		var mappings []*ProducerMapping
+		for i := range cfg.Producers {
+			p := cfg.Producers[i]
+			if p.Name == "" {
+				p.Name = "default"
+			}
+			if p.TenantLabel == "" {
+				p.TenantLabel = "tenant_id"
+			}
+			if p.ModelLabel == "" {
+				p.ModelLabel = "serving_model"
+			}
+			if p.NamespaceLabel == "" {
+				p.NamespaceLabel = "deployment_namespace"
+			}
+			if p.IdentitySentinel == "" {
+				p.IdentitySentinel = "unattributed"
+			}
+			mappings = append(mappings, &p)
+		}
+		return mappings
+	}
+
+	p := &ProducerMapping{
+		Name:                        "default",
+		InputTokensSeries:           c.config.AttributionInputTokensSeries,
+		OutputTokensSeries:          c.config.AttributionOutputTokensSeries,
+		InputTokensEstimatedSeries:  c.config.AttributionInputTokensEstSeries,
+		OutputTokensEstimatedSeries: c.config.AttributionOutputTokensEstSeries,
+		TenantLabel:                 c.config.AttributionTenantLabel,
+		WorkloadLabel:               c.config.AttributionWorkloadLabel,
+		UserLabel:                   c.config.AttributionUserLabel,
+		ModelLabel:                  c.config.AttributionModelLabel,
+		NamespaceLabel:              c.config.AttributionNamespaceLabel,
+		IdentitySentinel:            c.config.AttributionIdentitySentinel,
+		UserSentinel:                c.config.AttributionUserSentinel,
+	}
+	if p.TenantLabel == "" {
+		p.TenantLabel = "tenant_id"
+	}
+	if p.ModelLabel == "" {
+		p.ModelLabel = "serving_model"
+	}
+	if p.NamespaceLabel == "" {
+		p.NamespaceLabel = "deployment_namespace"
+	}
+	if p.IdentitySentinel == "" {
+		p.IdentitySentinel = "unattributed"
+	}
+	return []*ProducerMapping{p}
+}
+
+func parseNamespaceMap(s string) map[string]string {
+	res := make(map[string]string)
+	if s == "" {
+		return res
+	}
+	pairs := strings.Split(s, ";")
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		parts := strings.SplitN(pair, "=", 2)
+		if len(parts) == 2 {
+			res[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		}
+	}
+	return res
+}
+
+func isModelInScope(model, namespace string, scope ProducerScope) bool {
+	if len(scope.ExcludeServingModels) > 0 {
+		for _, m := range scope.ExcludeServingModels {
+			if m == model {
+				return false
+			}
+		}
+	}
+	if len(scope.ServingModels) > 0 {
+		matched := false
+		for _, m := range scope.ServingModels {
+			if m == model {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	if len(scope.Namespaces) > 0 && namespace != "" {
+		matched := false
+		for _, ns := range scope.Namespaces {
+			if ns == namespace {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return true
+}
+
+func shortModelName(model string) string {
+	idx := strings.LastIndexByte(model, '/')
+	if idx >= 0 {
+		return model[idx+1:]
+	}
+	return model
+}
+
+// BuildDimensionCosts attributes model infrastructure costs to tenant/workload/user dimensions.
+func (c *Collector) BuildDimensionCosts(modelCosts []*InferenceCost, dimTokens *source.InferenceDimensionResult) []*InferenceCost {
+	if len(modelCosts) == 0 {
+		return nil
+	}
+	if dimTokens == nil {
+		dimTokens = &source.InferenceDimensionResult{
+			Values: make(map[source.InferenceDimensionKey]*source.InferenceDimensionTokens),
+		}
+	}
+
+	mappings := c.loadProducerMappings()
+	mappingByName := make(map[string]*ProducerMapping, len(mappings))
+	for _, m := range mappings {
+		mappingByName[m.Name] = m
+	}
+
+	modelCostMap := make(map[string]*InferenceCost, len(modelCosts))
+	modelToCostSlice := make(map[string][]*InferenceCost)
+	for _, mc := range modelCosts {
+		key := modelNamespaceKey(mc.Properties.ModelName, mc.Properties.Namespace)
+		modelCostMap[key] = mc
+		modelToCostSlice[mc.Properties.ModelName] = append(modelToCostSlice[mc.Properties.ModelName], mc)
+		short := canonicalModelName(mc.Properties.ModelName)
+		if short != mc.Properties.ModelName {
+			modelToCostSlice[short] = append(modelToCostSlice[short], mc)
+		}
+	}
+
+	findMatchingModelCost := func(servingModel, namespace string) *InferenceCost {
+		key := modelNamespaceKey(servingModel, namespace)
+		if mc, ok := modelCostMap[key]; ok {
+			return mc
+		}
+		short := canonicalModelName(servingModel)
+		if mc, ok := modelCostMap[modelNamespaceKey(short, namespace)]; ok {
+			return mc
+		}
+		for _, mc := range modelCosts {
+			if (mc.Properties.ModelName == servingModel || canonicalModelName(mc.Properties.ModelName) == short) && mc.Properties.Namespace == namespace {
+				return mc
+			}
+		}
+		return nil
+	}
+
+	nsMap := parseNamespaceMap(c.config.AttributionNamespaceMap)
+
+	inScopeCountByProducer := make(map[string]int)
+	matchedByProducer := make(map[string]int)
+	unmatchedByProducer := make(map[string]float64)
+	producersByDeployment := make(map[string]map[string]bool)
+
+	type resolvedEntry struct {
+		key         source.InferenceDimensionKey
+		tokens      source.InferenceDimensionTokens
+		approximate bool
+	}
+	var entries []resolvedEntry
+
+	for dimKey, tokens := range dimTokens.Values {
+		mapping := mappingByName[dimKey.Producer]
+		var scope ProducerScope
+		identitySentinel := "unattributed"
+		userSentinel := ""
+		workloadLabelConfigured := true
+		if mapping != nil {
+			scope = mapping.Scope
+			identitySentinel = mapping.IdentitySentinel
+			userSentinel = mapping.UserSentinel
+			if mapping.WorkloadLabel == "" {
+				workloadLabelConfigured = false
+			}
+		}
+
+		// Scope filtering
+		if !isModelInScope(dimKey.ServingModel, dimKey.Namespace, scope) {
+			continue
+		}
+
+		inScopeCountByProducer[dimKey.Producer]++
+		if dimKey.Namespace != "" {
+			depKey := modelNamespaceKey(dimKey.ServingModel, dimKey.Namespace)
+			if producersByDeployment[depKey] == nil {
+				producersByDeployment[depKey] = make(map[string]bool)
+			}
+			producersByDeployment[depKey][dimKey.Producer] = true
+		}
+
+		// Missing identity normalization
+		tenantID := dimKey.TenantID
+		if tenantID == "" || (identitySentinel != "" && tenantID == identitySentinel) {
+			tenantID = "__unidentified__"
+		}
+		workloadID := dimKey.WorkloadID
+		if workloadLabelConfigured {
+			if workloadID == "" || (identitySentinel != "" && workloadID == identitySentinel) {
+				workloadID = "__unidentified__"
+			}
+		} else {
+			workloadID = ""
+		}
+		userID := dimKey.UserID
+		if userSentinel != "" && userID == userSentinel {
+			userID = ""
+		}
+
+		// Missing namespace resolution
+		ns := dimKey.Namespace
+		if ns == "" {
+			candidates := modelToCostSlice[dimKey.ServingModel]
+			if len(candidates) == 0 {
+				candidates = modelToCostSlice[canonicalModelName(dimKey.ServingModel)]
+			}
+			uniqueNamespaces := make(map[string]bool)
+			for _, mc := range candidates {
+				uniqueNamespaces[mc.Properties.Namespace] = true
+			}
+			if len(uniqueNamespaces) == 1 {
+				for uNs := range uniqueNamespaces {
+					ns = uNs
+				}
+			} else if len(uniqueNamespaces) > 1 {
+				if mappedNs, ok := nsMap[dimKey.ServingModel]; ok && mappedNs != "" {
+					ns = mappedNs
+				} else if mappedNs, ok := nsMap[canonicalModelName(dimKey.ServingModel)]; ok && mappedNs != "" {
+					ns = mappedNs
+				} else {
+					totalEngineTokens := 0.0
+					for _, mc := range candidates {
+						totalEngineTokens += (mc.PromptTokens + mc.GenerationTokens)
+					}
+					if totalEngineTokens > 0 {
+						for _, mc := range candidates {
+							engTokens := mc.PromptTokens + mc.GenerationTokens
+							if engTokens > 0 {
+								share := engTokens / totalEngineTokens
+								splitTokens := source.InferenceDimensionTokens{
+									PromptTokens:              tokens.PromptTokens * share,
+									CompletionTokens:          tokens.CompletionTokens * share,
+									EstimatedPromptTokens:     tokens.EstimatedPromptTokens * share,
+									EstimatedCompletionTokens: tokens.EstimatedCompletionTokens * share,
+								}
+								splitKey := source.InferenceDimensionKey{
+									Producer:     dimKey.Producer,
+									UserID:       userID,
+									TenantID:     tenantID,
+									WorkloadID:   workloadID,
+									ServingModel: dimKey.ServingModel,
+									Namespace:    mc.Properties.Namespace,
+								}
+								entries = append(entries, resolvedEntry{key: splitKey, tokens: splitTokens, approximate: true})
+							}
+						}
+						continue
+					}
+				}
+			}
+		}
+
+		splitKey := source.InferenceDimensionKey{
+			Producer:     dimKey.Producer,
+			UserID:       userID,
+			TenantID:     tenantID,
+			WorkloadID:   workloadID,
+			ServingModel: dimKey.ServingModel,
+			Namespace:    ns,
+		}
+		entries = append(entries, resolvedEntry{key: splitKey, tokens: *tokens, approximate: false})
+	}
+
+	for _, entry := range entries {
+		matched := findMatchingModelCost(entry.key.ServingModel, entry.key.Namespace)
+		if matched == nil {
+			unmatchedByProducer[entry.key.Producer]++
+			log.Warnf("InferenceCost: unmatched attribution key (producer=%s, model=%s, ns=%s)", entry.key.Producer, entry.key.ServingModel, entry.key.Namespace)
+		} else {
+			matchedByProducer[entry.key.Producer]++
+		}
+	}
+
+	c.mu.Lock()
+	c.unmatchedKeys = unmatchedByProducer
+	c.mu.Unlock()
+
+	for _, mapping := range mappings {
+		prod := mapping.Name
+		if inScopeCountByProducer[prod] > 0 && matchedByProducer[prod] == 0 {
+			log.Errorf("InferenceCost: attribution health check failed for producer %q with namespace label %q: none of its %d keys joined a model entry", prod, mapping.NamespaceLabel, inScopeCountByProducer[prod])
+		}
+	}
+
+	for dep, prods := range producersByDeployment {
+		if len(prods) > 1 {
+			var prodList []string
+			for p := range prods {
+				prodList = append(prodList, p)
+			}
+			log.Warnf("InferenceCost: overlapping producers %v detected for deployment %s without scope separation; potential double-counting", prodList, dep)
+		}
+	}
+
+	type identityKey struct {
+		UserID       string
+		TenantID     string
+		WorkloadID   string
+		ServingModel string
+		Namespace    string
+	}
+	type identityAcc struct {
+		PromptTokens              float64
+		GenerationTokens          float64
+		EstimatedPromptTokens     float64
+		EstimatedCompletionTokens float64
+		Approximate               bool
+	}
+
+	merged := make(map[identityKey]*identityAcc)
+	for _, entry := range entries {
+		matched := findMatchingModelCost(entry.key.ServingModel, entry.key.Namespace)
+		if matched == nil {
+			continue
+		}
+		idk := identityKey{
+			UserID:       entry.key.UserID,
+			TenantID:     entry.key.TenantID,
+			WorkloadID:   entry.key.WorkloadID,
+			ServingModel: matched.Properties.ModelName,
+			Namespace:    matched.Properties.Namespace,
+		}
+		acc, ok := merged[idk]
+		if !ok {
+			acc = &identityAcc{}
+			merged[idk] = acc
+		}
+		acc.PromptTokens += entry.tokens.PromptTokens
+		acc.GenerationTokens += entry.tokens.CompletionTokens
+		acc.EstimatedPromptTokens += entry.tokens.EstimatedPromptTokens
+		acc.EstimatedCompletionTokens += entry.tokens.EstimatedCompletionTokens
+		if entry.approximate {
+			acc.Approximate = true
+		}
+	}
+
+	dimCostsByModelNs := make(map[string][]*InferenceCost)
+	for idk, acc := range merged {
+		mc := findMatchingModelCost(idk.ServingModel, idk.Namespace)
+		if mc == nil {
+			continue
+		}
+
+		allocInRate := mc.InputCostPerMillionTokens[CostBasisAllocation]
+		allocOutRate := mc.OutputCostPerMillionTokens[CostBasisAllocation]
+		usageInRate := mc.InputCostPerMillionTokens[CostBasisUsage]
+		usageOutRate := mc.OutputCostPerMillionTokens[CostBasisUsage]
+
+		allocInputCost := acc.PromptTokens * (allocInRate / 1_000_000.0)
+		allocOutputCost := acc.GenerationTokens * (allocOutRate / 1_000_000.0)
+		allocTotalCost := allocInputCost + allocOutputCost
+
+		usageInputCost := acc.PromptTokens * (usageInRate / 1_000_000.0)
+		usageOutputCost := acc.GenerationTokens * (usageOutRate / 1_000_000.0)
+		usageTotalCost := usageInputCost + usageOutputCost
+
+		ic := &InferenceCost{
+			Properties: InferenceCostProperties{
+				ModelName:      mc.Properties.ModelName,
+				ModelVersion:   mc.Properties.ModelVersion,
+				Namespace:      mc.Properties.Namespace,
+				Cluster:        mc.Properties.Cluster,
+				Pod:            mc.Properties.Pod,
+				Controller:     mc.Properties.Controller,
+				ControllerKind: mc.Properties.ControllerKind,
+				Container:      mc.Properties.Container,
+				WorkloadType:   mc.Properties.WorkloadType,
+				UserID:         idk.UserID,
+				TenantID:       idk.TenantID,
+				WorkloadID:     idk.WorkloadID,
+			},
+			Window:                     mc.Window,
+			AllocationTotalCost:        allocTotalCost,
+			UsageTotalCost:             usageTotalCost,
+			PromptTokens:               acc.PromptTokens,
+			GenerationTokens:           acc.GenerationTokens,
+			TotalTokens:                acc.PromptTokens + acc.GenerationTokens,
+			EstimatedPromptTokens:     acc.EstimatedPromptTokens,
+			EstimatedCompletionTokens: acc.EstimatedCompletionTokens,
+			InputCost:                  map[CostBasis]float64{CostBasisAllocation: allocInputCost, CostBasisUsage: usageInputCost},
+			OutputCost:                 map[CostBasis]float64{CostBasisAllocation: allocOutputCost, CostBasisUsage: usageOutputCost},
+			CostPerMillionTokens:       make(map[CostBasis]float64),
+			InputCostPerMillionTokens:  make(map[CostBasis]float64),
+			OutputCostPerMillionTokens: make(map[CostBasis]float64),
+			AllocationMethod:           mc.AllocationMethod,
+			Approximate:                acc.Approximate,
+			Timestamp:                  mc.Timestamp,
+		}
+
+		key := modelNamespaceKey(mc.Properties.ModelName, mc.Properties.Namespace)
+		dimCostsByModelNs[key] = append(dimCostsByModelNs[key], ic)
+	}
+
+	var finalDimCosts []*InferenceCost
+
+	covThreshold := c.config.AttributionCoverageThreshold
+	if covThreshold <= 0 {
+		covThreshold = 0.9
+	}
+	overTolerance := c.config.AttributionOverattributionTolerance
+	if overTolerance <= 0 {
+		overTolerance = 0.1
+	}
+
+	for _, mc := range modelCosts {
+		key := modelNamespaceKey(mc.Properties.ModelName, mc.Properties.Namespace)
+		rows := dimCostsByModelNs[key]
+
+		sumAllocCost := 0.0
+		sumUsageCost := 0.0
+		sumPromptTokens := 0.0
+		sumCompTokens := 0.0
+		realTokens := 0.0
+		allAttributedTokens := 0.0
+
+		for _, row := range rows {
+			sumAllocCost += row.AllocationTotalCost
+			sumUsageCost += row.UsageTotalCost
+			sumPromptTokens += row.PromptTokens
+			sumCompTokens += row.GenerationTokens
+			rowTokens := row.PromptTokens + row.GenerationTokens
+			allAttributedTokens += rowTokens
+			if row.Properties.TenantID != "__unidentified__" && row.Properties.TenantID != "__unmetered__" && row.Properties.WorkloadID != "__unidentified__" {
+				realTokens += rowTokens
+			}
+		}
+
+		var remainderAlloc, remainderUsage float64
+		if sumAllocCost > mc.AllocationTotalCost && sumAllocCost > 0 {
+			scaleAlloc := mc.AllocationTotalCost / sumAllocCost
+			for _, row := range rows {
+				row.InputCost[CostBasisAllocation] *= scaleAlloc
+				row.OutputCost[CostBasisAllocation] *= scaleAlloc
+				row.AllocationTotalCost = row.InputCost[CostBasisAllocation] + row.OutputCost[CostBasisAllocation]
+				row.Approximate = true
+			}
+			remainderAlloc = 0.0
+		} else {
+			remainderAlloc = math.Max(0, mc.AllocationTotalCost-sumAllocCost)
+		}
+
+		if sumUsageCost > mc.UsageTotalCost && sumUsageCost > 0 {
+			scaleUsage := mc.UsageTotalCost / sumUsageCost
+			for _, row := range rows {
+				row.InputCost[CostBasisUsage] *= scaleUsage
+				row.OutputCost[CostBasisUsage] *= scaleUsage
+				row.UsageTotalCost = row.InputCost[CostBasisUsage] + row.OutputCost[CostBasisUsage]
+				row.Approximate = true
+			}
+			remainderUsage = 0.0
+		} else {
+			remainderUsage = math.Max(0, mc.UsageTotalCost-sumUsageCost)
+		}
+
+		remPromptTokens := math.Max(0, mc.PromptTokens-sumPromptTokens)
+		remCompTokens := math.Max(0, mc.GenerationTokens-sumCompTokens)
+		remTotalTokens := remPromptTokens + remCompTokens
+
+		var remAllocIn, remAllocOut, remUsageIn, remUsageOut float64
+		if remTotalTokens > 0 {
+			remAllocIn = remainderAlloc * (remPromptTokens / remTotalTokens)
+			remAllocOut = remainderAlloc - remAllocIn
+			remUsageIn = remainderUsage * (remPromptTokens / remTotalTokens)
+			remUsageOut = remainderUsage - remUsageIn
+		} else {
+			remAllocIn = remainderAlloc / 2.0
+			remAllocOut = remainderAlloc - remAllocIn
+			remUsageIn = remainderUsage / 2.0
+			remUsageOut = remainderUsage - remUsageIn
+		}
+
+		remRow := &InferenceCost{
+			Properties: InferenceCostProperties{
+				ModelName:      mc.Properties.ModelName,
+				ModelVersion:   mc.Properties.ModelVersion,
+				Namespace:      mc.Properties.Namespace,
+				Cluster:        mc.Properties.Cluster,
+				Pod:            mc.Properties.Pod,
+				Controller:     mc.Properties.Controller,
+				ControllerKind: mc.Properties.ControllerKind,
+				Container:      mc.Properties.Container,
+				WorkloadType:   mc.Properties.WorkloadType,
+				TenantID:       "__unmetered__",
+				WorkloadID:     "",
+				UserID:         "",
+			},
+			Window:                     mc.Window,
+			AllocationTotalCost:        remainderAlloc,
+			UsageTotalCost:             remainderUsage,
+			PromptTokens:               remPromptTokens,
+			GenerationTokens:           remCompTokens,
+			TotalTokens:                remTotalTokens,
+			InputCost:                  map[CostBasis]float64{CostBasisAllocation: remAllocIn, CostBasisUsage: remUsageIn},
+			OutputCost:                 map[CostBasis]float64{CostBasisAllocation: remAllocOut, CostBasisUsage: remUsageOut},
+			CostPerMillionTokens:       make(map[CostBasis]float64),
+			InputCostPerMillionTokens:  make(map[CostBasis]float64),
+			OutputCostPerMillionTokens: make(map[CostBasis]float64),
+			AllocationMethod:           mc.AllocationMethod,
+			Timestamp:                  mc.Timestamp,
+		}
+
+		allRows := append(rows, remRow)
+		for _, row := range allRows {
+			if row.TotalTokens > 0 {
+				row.CostPerMillionTokens[CostBasisAllocation] = row.AllocationTotalCost / row.TotalTokens * 1_000_000.0
+				row.CostPerMillionTokens[CostBasisUsage] = row.UsageTotalCost / row.TotalTokens * 1_000_000.0
+			}
+			if row.PromptTokens > 0 {
+				row.InputCostPerMillionTokens[CostBasisAllocation] = row.InputCost[CostBasisAllocation] / row.PromptTokens * 1_000_000.0
+				row.InputCostPerMillionTokens[CostBasisUsage] = row.InputCost[CostBasisUsage] / row.PromptTokens * 1_000_000.0
+			}
+			if row.GenerationTokens > 0 {
+				row.OutputCostPerMillionTokens[CostBasisAllocation] = row.OutputCost[CostBasisAllocation] / row.GenerationTokens * 1_000_000.0
+				row.OutputCostPerMillionTokens[CostBasisUsage] = row.OutputCost[CostBasisUsage] / row.GenerationTokens * 1_000_000.0
+			}
+			finalDimCosts = append(finalDimCosts, row)
+		}
+
+		if mc.PromptTokens > 0 {
+			cov := sumPromptTokens / mc.PromptTokens
+			if cov < covThreshold {
+				log.Warnf("InferenceCost: low prompt token coverage %.2f for model %s ns %s (attributed=%.0f, engine=%.0f)", cov, mc.Properties.ModelName, mc.Properties.Namespace, sumPromptTokens, mc.PromptTokens)
+			}
+			if cov > 1.0+overTolerance {
+				log.Warnf("InferenceCost: prompt token over-attribution %.2f for model %s ns %s (attributed=%.0f, engine=%.0f)", cov, mc.Properties.ModelName, mc.Properties.Namespace, sumPromptTokens, mc.PromptTokens)
+			}
+		}
+		if mc.GenerationTokens > 0 {
+			cov := sumCompTokens / mc.GenerationTokens
+			if cov < covThreshold {
+				log.Warnf("InferenceCost: low completion token coverage %.2f for model %s ns %s (attributed=%.0f, engine=%.0f)", cov, mc.Properties.ModelName, mc.Properties.Namespace, sumCompTokens, mc.GenerationTokens)
+			}
+			if cov > 1.0+overTolerance {
+				log.Warnf("InferenceCost: completion token over-attribution %.2f for model %s ns %s (attributed=%.0f, engine=%.0f)", cov, mc.Properties.ModelName, mc.Properties.Namespace, sumCompTokens, mc.GenerationTokens)
+			}
+		}
+		if allAttributedTokens > 0 {
+			identCov := realTokens / allAttributedTokens
+			if identCov < covThreshold {
+				log.Warnf("InferenceCost: low identity coverage %.2f for model %s ns %s (real=%.0f, total=%.0f)", identCov, mc.Properties.ModelName, mc.Properties.Namespace, realTokens, allAttributedTokens)
+			}
+		}
+	}
+
+	return finalDimCosts
 }

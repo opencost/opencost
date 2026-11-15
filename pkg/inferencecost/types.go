@@ -51,6 +51,11 @@ type InferenceCostProperties struct {
 	ControllerKind string
 	Container      string
 	WorkloadType   string
+
+	// Attribution dimensions (empty when not broken down by dimension)
+	UserID     string
+	TenantID   string
+	WorkloadID string
 }
 
 // InferenceCost holds all cost data for a single model/namespace over a
@@ -118,7 +123,38 @@ type InferenceCost struct {
 	// Per-million output tokens, using GenerationTokens as denominator.
 	OutputCostPerMillionTokens map[CostBasis]float64
 
+	// Estimated subtotals from attribution series
+	EstimatedPromptTokens     float64
+	EstimatedCompletionTokens float64
+
+	// Approximate indicates whether this cost entry was resolved by proportional split or over-attribution scaling.
+	Approximate bool
+
 	Timestamp time.Time
+}
+
+// ProducerScope defines scope filtering for an attribution producer.
+type ProducerScope struct {
+	ServingModels        []string `yaml:"servingModels" json:"servingModels"`
+	ExcludeServingModels []string `yaml:"excludeServingModels" json:"excludeServingModels"`
+	Namespaces           []string `yaml:"namespaces" json:"namespaces"`
+}
+
+// ProducerMapping defines the configuration for a single attribution producer.
+type ProducerMapping struct {
+	Name                        string        `yaml:"name" json:"name"`
+	InputTokensSeries           string        `yaml:"inputTokensSeries" json:"inputTokensSeries"`
+	OutputTokensSeries          string        `yaml:"outputTokensSeries" json:"outputTokensSeries"`
+	InputTokensEstimatedSeries  string        `yaml:"inputTokensEstimatedSeries" json:"inputTokensEstimatedSeries"`
+	OutputTokensEstimatedSeries string        `yaml:"outputTokensEstimatedSeries" json:"outputTokensEstimatedSeries"`
+	TenantLabel                 string        `yaml:"tenantLabel" json:"tenantLabel"`
+	WorkloadLabel               string        `yaml:"workloadLabel" json:"workloadLabel"`
+	UserLabel                   string        `yaml:"userLabel" json:"userLabel"`
+	ModelLabel                  string        `yaml:"modelLabel" json:"modelLabel"`
+	NamespaceLabel              string        `yaml:"namespaceLabel" json:"namespaceLabel"`
+	IdentitySentinel            string        `yaml:"identitySentinel" json:"identitySentinel"`
+	UserSentinel                string        `yaml:"userSentinel" json:"userSentinel"`
+	Scope                       ProducerScope `yaml:"scope" json:"scope"`
 }
 
 // Config holds configuration for the inference cost collector.
@@ -151,6 +187,26 @@ type Config struct {
 	// OutputTokenCostMultiplier is the output/input cost ratio used when
 	// AllocationMode is "multiplier".
 	OutputTokenCostMultiplier float64
+
+	// Attribution settings
+	AttributionEnabled                  bool
+	AttributionConfigPath               string
+	AttributionInputTokensSeries        string
+	AttributionOutputTokensSeries       string
+	AttributionInputTokensEstSeries     string
+	AttributionOutputTokensEstSeries    string
+	AttributionTenantLabel              string
+	AttributionWorkloadLabel            string
+	AttributionUserLabel                string
+	AttributionModelLabel               string
+	AttributionNamespaceLabel           string
+	AttributionNamespaceMap             string
+	AttributionUserSentinel             string
+	AttributionIdentitySentinel         string
+	AttributionCoverageThreshold        float64
+	AttributionOverattributionTolerance float64
+	AttributionReferenceEngine          string
+	AttributionUserAggregationEnabled   bool
 }
 
 const (
@@ -167,13 +223,31 @@ const (
 // env package. Callers should check Enabled before starting the collector.
 func DefaultConfig() *Config {
 	return &Config{
-		PrometheusURL:             getPrometheusURL(),
-		CollectionInterval:        getCollectionInterval(),
-		Enabled:                   isInferenceCostEnabled(),
-		ModelLabel:                getModelLabel(),
-		SharedInfraLabel:          getSharedInfraLabel(),
-		SharedInfraLabelValue:     getSharedInfraLabelValue(),
-		AllocationMode:            AllocationModeComputeTime,
-		OutputTokenCostMultiplier: defaultOutputTokenCostMultiplier,
+		PrometheusURL:                       getPrometheusURL(),
+		CollectionInterval:                  getCollectionInterval(),
+		Enabled:                             isInferenceCostEnabled(),
+		ModelLabel:                          getModelLabel(),
+		SharedInfraLabel:                    getSharedInfraLabel(),
+		SharedInfraLabelValue:               getSharedInfraLabelValue(),
+		AllocationMode:                      AllocationModeComputeTime,
+		OutputTokenCostMultiplier:           defaultOutputTokenCostMultiplier,
+		AttributionEnabled:                  isInferenceAttributionEnabled(),
+		AttributionConfigPath:               getAttributionConfigPath(),
+		AttributionInputTokensSeries:        getAttributionInputTokensSeries(),
+		AttributionOutputTokensSeries:       getAttributionOutputTokensSeries(),
+		AttributionInputTokensEstSeries:     getAttributionInputTokensEstimatedSeries(),
+		AttributionOutputTokensEstSeries:    getAttributionOutputTokensEstimatedSeries(),
+		AttributionTenantLabel:              getAttributionTenantLabel(),
+		AttributionWorkloadLabel:            getAttributionWorkloadLabel(),
+		AttributionUserLabel:                getAttributionUserLabel(),
+		AttributionModelLabel:               getAttributionModelLabel(),
+		AttributionNamespaceLabel:           getAttributionNamespaceLabel(),
+		AttributionNamespaceMap:             getAttributionNamespaceMap(),
+		AttributionUserSentinel:             getAttributionUserSentinel(),
+		AttributionIdentitySentinel:         getAttributionIdentitySentinel(),
+		AttributionCoverageThreshold:        getAttributionCoverageThreshold(),
+		AttributionOverattributionTolerance: getAttributionOverattributionTolerance(),
+		AttributionReferenceEngine:          getAttributionReferenceEngine(),
+		AttributionUserAggregationEnabled:   isInferenceAttributionUserAggregationEnabled(),
 	}
 }

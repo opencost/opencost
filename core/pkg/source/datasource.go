@@ -225,6 +225,7 @@ const (
 	QueryInferenceOutputProcessingTime = "QueryInferenceOutputProcessingTime"
 	QueryInferenceCachedTokens         = "QueryInferenceCachedTokens"
 	QueryInferenceCacheConfig          = "QueryInferenceCacheConfig"
+	QueryInferenceDimensionTokens      = "QueryInferenceDimensionTokens"
 )
 
 type MetricsQuerier interface {
@@ -462,6 +463,10 @@ type MetricsQuerier interface {
 
 	// QueryInferenceCacheConfig returns cache configuration (prefix caching enabled) by model_name and namespace
 	QueryInferenceCacheConfig(t time.Time) *Future[InferenceCacheConfigResult]
+
+	// QueryInferenceDimensionTokens returns prompt and completion token deltas over [start, end]
+	// from the configured attribution series, broken down by the configured identity labels.
+	QueryInferenceDimensionTokens(start, end time.Time) *Future[InferenceDimensionResult]
 }
 
 type OpenCostDataSource interface {

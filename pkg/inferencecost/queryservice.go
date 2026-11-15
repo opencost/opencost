@@ -2,14 +2,17 @@ package inferencecost
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	proto "github.com/opencost/opencost/core/pkg/protocol"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 // protocol is the package-level HTTP response helper, mirroring the pattern
@@ -62,14 +65,29 @@ func (qs *QueryService) GetInferenceCostTotalHandler() func(http.ResponseWriter,
 			return
 		}
 
+		isAdmin := checkAdminAuthorized(r)
+		if requestReferencesUser(req) {
+			if !isInferenceAttributionUserAggregationEnabled() || !isAdmin {
+				protocol.WriteError(w, protocol.BadRequest("user_id aggregation and filtering requires INFERENCE_ATTRIBUTION_USER_AGGREGATION_ENABLED to be enabled and admin authentication"))
+				return
+			}
+		}
+
 		setRange, err := qs.query(r.Context(), req)
 		if err != nil {
 			protocol.WriteError(w, protocol.InternalServerError(fmt.Sprintf("InferenceCost query failed: %s", err)))
 			return
 		}
 
+		if !isAdmin {
+			setRange.mergeAcrossUsers()
+		}
+
 		// Accumulate all step-windows into a single total set.
 		total := accumulate(setRange.InferenceCostSets)
+		if !isAdmin {
+			total.mergeAcrossUsers()
+		}
 
 		protocol.WriteData(w, total)
 	}
@@ -94,10 +112,22 @@ func (qs *QueryService) GetInferenceCostTimeseriesHandler() func(http.ResponseWr
 			return
 		}
 
+		isAdmin := checkAdminAuthorized(r)
+		if requestReferencesUser(req) {
+			if !isInferenceAttributionUserAggregationEnabled() || !isAdmin {
+				protocol.WriteError(w, protocol.BadRequest("user_id aggregation and filtering requires INFERENCE_ATTRIBUTION_USER_AGGREGATION_ENABLED to be enabled and admin authentication"))
+				return
+			}
+		}
+
 		setRange, err := qs.query(r.Context(), req)
 		if err != nil {
 			protocol.WriteError(w, protocol.InternalServerError(fmt.Sprintf("InferenceCost query failed: %s", err)))
 			return
+		}
+
+		if !isAdmin {
+			setRange.mergeAcrossUsers()
 		}
 
 		protocol.WriteData(w, setRange)
@@ -143,16 +173,23 @@ func (qs *QueryService) query(ctx context.Context, req *QueryRequest) (*Inferenc
 // the requested cost basis, applies filters, and aggregates.
 func (qs *QueryService) computeStep(ctx context.Context, req *QueryRequest, win opencost.Window) (*InferenceCostSet, error) {
 	// Collect raw metrics for this sub-window.
-	metrics, err := qs.collector.CollectMetrics(ctx, *win.Start(), *win.End())
+	modelCosts, dimTokens, err := qs.collector.CollectMetrics(ctx, *win.Start(), *win.End())
 	if err != nil {
 		return nil, fmt.Errorf("collecting metrics: %w", err)
 	}
 
 	// Compute derived costs (per-million rates, input/output split).
-	qs.calculator.CalculateCosts(metrics)
+	qs.calculator.CalculateCosts(modelCosts)
+
+	var entriesToProcess []*InferenceCost
+	if namesAttributionDimension(req) && qs.collector.config.AttributionEnabled {
+		entriesToProcess = qs.collector.BuildDimensionCosts(modelCosts, dimTokens)
+	} else {
+		entriesToProcess = modelCosts
+	}
 
 	set := newInferenceCostSet(win)
-	for _, ic := range metrics {
+	for _, ic := range entriesToProcess {
 		resp := newInferenceCostResponse(ic, req.CostBasis, win)
 
 		// Apply Phase-1 filter (AND semantics over supported properties).
@@ -166,7 +203,11 @@ func (qs *QueryService) computeStep(ctx context.Context, req *QueryRequest, win 
 		if err != nil {
 			return nil, err
 		}
-		set.InferenceCosts[key] = resp
+		if existing, ok := set.InferenceCosts[key]; ok {
+			addResponse(existing, resp)
+		} else {
+			set.InferenceCosts[key] = resp
+		}
 	}
 
 	// Aggregate into the requested dimensions.
@@ -175,4 +216,84 @@ func (qs *QueryService) computeStep(ctx context.Context, req *QueryRequest, win 
 	}
 
 	return set, nil
+}
+
+func namesAttributionDimension(req *QueryRequest) bool {
+	for _, dim := range req.AggregateBy {
+		if dim == "tenant_id" || dim == "workload_id" || dim == "user_id" {
+			return true
+		}
+	}
+	for _, spec := range req.Filter {
+		if spec.property == "tenant_id" || spec.property == "workload_id" || spec.property == "user_id" {
+			return true
+		}
+	}
+	return false
+}
+
+func requestReferencesUser(req *QueryRequest) bool {
+	for _, dim := range req.AggregateBy {
+		if dim == "user_id" {
+			return true
+		}
+	}
+	for _, f := range req.Filter {
+		if f.property == "user_id" {
+			return true
+		}
+	}
+	return false
+}
+
+func checkAdminAuthorized(r *http.Request) bool {
+	adminToken := env.GetAdminToken()
+	if adminToken == "" {
+		return false
+	}
+	authHeader := r.Header.Get("Authorization")
+	const prefix = "Bearer "
+	if !strings.HasPrefix(authHeader, prefix) {
+		return false
+	}
+	bearerToken := strings.TrimPrefix(authHeader, prefix)
+	return subtle.ConstantTimeCompare([]byte(bearerToken), []byte(adminToken)) == 1
+}
+
+func (s *InferenceCostSet) mergeAcrossUsers() {
+	if s == nil || len(s.InferenceCosts) == 0 {
+		return
+	}
+	hasUsers := false
+	for _, resp := range s.InferenceCosts {
+		if resp.Properties.UserID != "" {
+			hasUsers = true
+			break
+		}
+	}
+	if !hasUsers {
+		return
+	}
+
+	merged := make(map[string]*InferenceCostResponse)
+	for _, resp := range s.InferenceCosts {
+		clone := *resp
+		clone.Properties.UserID = ""
+		key, _ := aggKey(clone.Properties, nil)
+		if existing, ok := merged[key]; ok {
+			addResponse(existing, &clone)
+		} else {
+			merged[key] = &clone
+		}
+	}
+	s.InferenceCosts = merged
+}
+
+func (sr *InferenceCostSetRange) mergeAcrossUsers() {
+	if sr == nil {
+		return
+	}
+	for _, set := range sr.InferenceCostSets {
+		set.mergeAcrossUsers()
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -328,4 +329,160 @@ func newQueryServiceWithDirectMetrics(t *testing.T, modelName, namespace string,
 	}
 	calculator := NewCalculator(cfg)
 	return NewQueryService(collector, calculator), srv
+}
+
+func TestQueryService_ReleaseGates_ModelAndTenantAggregationEquality(t *testing.T) {
+	modelName := "llama-3-70b"
+	namespace := "llm-prod"
+	allocCost := 30.0
+
+	samples := []promSample{
+		{modelName: modelName, namespace: namespace, value: 2000000},
+	}
+	srv := newFakePromServer(t, samples)
+	defer srv.Close()
+
+	cfg := baseConfig()
+	cfg.PrometheusURL = srv.URL
+	cfg.AllocationMode = AllocationModeMultiplier
+	cfg.OutputTokenCostMultiplier = 2.0
+	cfg.AttributionEnabled = true
+
+	sanitizedLabelKey := "llm_d_ai_model"
+	now := time.Now().UTC()
+	start := now.Add(-time.Hour)
+	end := now
+
+	querier := &mockQuerier{
+		set: func() *opencost.AllocationSet {
+			as := opencost.NewAllocationSet(start, end)
+			a := &opencost.Allocation{
+				Name:    modelName,
+				GPUCost: allocCost,
+				Properties: &opencost.AllocationProperties{
+					Namespace: namespace,
+					Labels: opencost.AllocationLabels{
+						sanitizedLabelKey: modelName,
+					},
+				},
+			}
+			as.Set(a)
+			return as
+		}(),
+	}
+
+	metricsQuerier := source.NewMockMetricsQuerier()
+	metricsQuerier.SetOverride(source.QueryInferencePromptTokens, []*source.InferenceTokensResult{
+		{Values: map[string]float64{modelName + ":" + namespace: 1000000}},
+	})
+	metricsQuerier.SetOverride(source.QueryInferenceGenerationTokens, []*source.InferenceTokensResult{
+		{Values: map[string]float64{modelName + ":" + namespace: 1000000}},
+	})
+	metricsQuerier.SetOverride(source.QueryInferenceDimensionTokens, []*source.InferenceDimensionResult{
+		{
+			Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+				{
+					Producer:     "default",
+					TenantID:     "tenant-a",
+					WorkloadID:   "w1",
+					ServingModel: modelName,
+					Namespace:    namespace,
+				}: {
+					PromptTokens:     400000,
+					CompletionTokens: 200000,
+				},
+				{
+					Producer:     "default",
+					TenantID:     "tenant-b",
+					WorkloadID:   "w2",
+					ServingModel: modelName,
+					Namespace:    namespace,
+				}: {
+					PromptTokens:     300000,
+					CompletionTokens: 300000,
+				},
+			},
+		},
+	})
+
+	collector, err := NewCollector(cfg, querier, metricsQuerier)
+	if err != nil {
+		t.Fatalf("NewCollector: %v", err)
+	}
+	calculator := NewCalculator(cfg)
+	qs := NewQueryService(collector, calculator)
+
+	for _, basis := range []CostBasis{CostBasisAllocation, CostBasisUsage} {
+		// 1. Query aggregate=model_name (model-level total)
+		reqModel := &QueryRequest{
+			Start:       start,
+			End:         end,
+			CostBasis:   basis,
+			AggregateBy: []string{"model_name"},
+			Step:        time.Hour,
+		}
+		setRangeModel, err := qs.query(context.Background(), reqModel)
+		if err != nil {
+			t.Fatalf("model query error: %v", err)
+		}
+		totalModelSet := accumulate(setRangeModel.InferenceCostSets)
+		var totalModelCost float64
+		for _, resp := range totalModelSet.InferenceCosts {
+			totalModelCost += resp.TotalCost
+			if resp.Properties.TenantID != "" || resp.Properties.WorkloadID != "" || resp.Properties.UserID != "" {
+				t.Errorf("model-level response should have no attribution properties: %+v", resp.Properties)
+			}
+		}
+
+		// 2. Query aggregate=tenant_id (attribution dimension, includes tenant rows + remainder)
+		reqTenant := &QueryRequest{
+			Start:       start,
+			End:         end,
+			CostBasis:   basis,
+			AggregateBy: []string{"tenant_id"},
+			Step:        time.Hour,
+		}
+		setRangeTenant, err := qs.query(context.Background(), reqTenant)
+		if err != nil {
+			t.Fatalf("tenant query error: %v", err)
+		}
+		totalTenantSet := accumulate(setRangeTenant.InferenceCostSets)
+		var totalTenantCost float64
+		for _, resp := range totalTenantSet.InferenceCosts {
+			totalTenantCost += resp.TotalCost
+		}
+
+		// Release Gate: totalModelCost must equal totalTenantCost
+		if math.Abs(totalModelCost-totalTenantCost) > 1e-6 {
+			t.Errorf("Release Gate Failed for %s basis: model total ($%.4f) != sum over tenant_id ($%.4f)",
+				basis, totalModelCost, totalTenantCost)
+		}
+	}
+}
+
+func TestQueryService_UserAuthorization(t *testing.T) {
+	t.Setenv("ADMIN_TOKEN", "secret-admin-token")
+	t.Setenv("INFERENCE_ATTRIBUTION_USER_AGGREGATION_ENABLED", "true")
+
+	qs, srv := newQueryServiceWithDirectMetrics(t, "llama-3", "llm-prod", 10.0, 1_000_000)
+	defer srv.Close()
+
+	handler := qs.GetInferenceCostTotalHandler()
+
+	// 1. Unauthorized request with aggregate=user_id -> 400
+	req, _ := http.NewRequest(http.MethodGet, "/inferenceCost/total?window=2024-01-01T00:00:00Z,2024-01-02T00:00:00Z&aggregate=user_id", nil)
+	rr := httptest.NewRecorder()
+	handler(rr, req, nil)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for unauthorized user_id aggregation, got %d", rr.Code)
+	}
+
+	// 2. Authorized request with aggregate=user_id -> 200
+	reqAuth, _ := http.NewRequest(http.MethodGet, "/inferenceCost/total?window=2024-01-01T00:00:00Z,2024-01-02T00:00:00Z&aggregate=user_id", nil)
+	reqAuth.Header.Set("Authorization", "Bearer secret-admin-token")
+	rrAuth := httptest.NewRecorder()
+	handler(rrAuth, reqAuth, nil)
+	if rrAuth.Code != http.StatusOK {
+		t.Errorf("expected 200 for authorized user_id aggregation, got %d", rrAuth.Code)
+	}
 }
