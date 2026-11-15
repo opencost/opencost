@@ -81,8 +81,8 @@ func newNamespaceAnnotationsMetric(fqname, namespace string, uid string, labelNa
 // returns the same descriptor throughout the lifetime of the Metric.
 func (nam NamespaceAnnotationsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": nam.namespace,
-		"uid":       nam.uid,
+		GetNamespaceLabel(): nam.namespace,
+		"uid":               nam.uid,
 	}
 	return prometheus.NewDesc(nam.fqName, nam.help, []string{}, l)
 }
@@ -104,7 +104,7 @@ func (nam NamespaceAnnotationsMetric) Write(m *dto.Metric) error {
 	}
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &nam.namespace,
 		},
 		&dto.LabelPair{
@@ -188,7 +188,7 @@ func newKubeNamespaceLabelsMetric(fqname, namespace string, uid string, labelNam
 // returns the same descriptor throughout the lifetime of the Metric.
 func (nam KubeNamespaceLabelsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"namespace": nam.namespace,
+		GetNamespaceLabel(): nam.namespace,
 	}
 	return prometheus.NewDesc(nam.fqName, nam.help, []string{}, l)
 }
@@ -209,7 +209,7 @@ func (nam KubeNamespaceLabelsMetric) Write(m *dto.Metric) error {
 	}
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &nam.namespace,
 		},
 		&dto.LabelPair{

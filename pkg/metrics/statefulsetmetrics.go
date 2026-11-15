@@ -85,9 +85,9 @@ func newStatefulsetMatchLabelsMetric(name, namespace, fqname string, labelNames,
 // returns the same descriptor throughout the lifetime of the Metric.
 func (s StatefulsetMatchLabelsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"statefulSet": s.statefulsetName,
-		"namespace":   s.namespace,
-		"uid":         s.uid,
+		"statefulSet":       s.statefulsetName,
+		GetNamespaceLabel(): s.namespace,
+		"uid":               s.uid,
 	}
 	return prometheus.NewDesc(s.fqName, s.help, s.labelNames, l)
 }
@@ -107,7 +107,7 @@ func (s StatefulsetMatchLabelsMetric) Write(m *dto.Metric) error {
 		})
 	}
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("namespace"),
+		Name:  toStringPtr(GetNamespaceLabel()),
 		Value: &s.namespace,
 	})
 	labels = append(labels, &dto.LabelPair{
