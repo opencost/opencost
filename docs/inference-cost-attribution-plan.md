@@ -32,6 +32,10 @@ attributed cost = tokens(tenant, workload, user, model) x cost-per-token(model)
 
 The serving stack owns identity and volume. OpenCost owns cost. The serving-stack side of this split is specified in the [Inference Attribution Requirements](./inference-attribution-requirements.md).
 
+**One rate source.** OpenCost owns the rate for self-hosted models, so a metering layer's own price list or credit figures are never combined with it, and the serving stack supplies identity and tokens only (requirements §1, Rate ownership).
+
+**Self-hosted models only.** Attribution allocates cluster cost (GPU, idle and shared infrastructure), so it covers self-hosted models by construction. A SaaS model (OpenAI, Anthropic, Vertex and similar) has no cluster cost to allocate, and its price is already per-token billing data. OpenCost does reach some SaaS spend through the custom-cost plugins, for example the OpenAI plugin in `opencost-plugins`, which reports organization, project and model. That is a separate pipeline: it is not part of `/inferenceCost` or `llm_dimension_hourly_cost`, and it is not broken down by `tenant_id`, `workload_id` or `user_id`. As a result, `tenant_id` totals from attribution will **not** equal total AI spend, and a chargeback consumer must not read them that way. Mapping provider projects or keys to tenants, so that SaaS spend could be attributed too, is a possible bridge but out of scope here.
+
 ### Two kinds of cost
 
 | Cost type | What it covers | Needs attribution metrics? |
@@ -127,9 +131,10 @@ Anything in the requirements document about identity derivation, failure semanti
 ### 1.1 New types (`core/pkg/source/inference_results.go`)
 
 ```go
-// InferenceDimensionKey identifies a (user_id, tenant_id, workload_id, serving_model, namespace)
-// combination. UserID is empty when the user label is not configured or absent from the series.
+// InferenceDimensionKey identifies a (producer, user_id, tenant_id, workload_id, serving_model, namespace)
+// combination. Producer is part of the key so that per-producer checks survive until they have run (§1.3.1). UserID is empty when the user label is not configured or absent from the series.
 type InferenceDimensionKey struct {
+    Producer     string // name of the producer mapping that emitted the series (§1.9); "default" for a single env-var mapping
     UserID       string
     TenantID     string
     WorkloadID   string
@@ -182,9 +187,11 @@ OpenCost does not know the producer's metric names. They come from configuration
 
 - Input-token series and output-token series. Each may be a counter (`..._total`) or a histogram `_sum` series. Both behave as monotonically increasing counters, so the same delta pattern works for either. The configured value is the full series name.
 - Optional estimated-token series (input and output), for producers that separate estimated counts per the requirements document §7.3 (sibling-series variant). Estimated tokens count as attributed and are exported as a separate share (§1.6).
-- Label names for tenant, workload, user, serving model and deployment namespace, and the producer's missing-identity sentinel. Defaults match the requirements document: `tenant_id`, `workload_id`, `user_id`, `serving_model`, `namespace`, `unattributed`.
+- Label names for tenant, workload, user, serving model and deployment namespace, and the producer's missing-identity sentinel (`identitySentinel`, and `userSentinel` for the user label). The workload and user labels may be set to empty when the producer has no such label; that disables grouping by it for the mapping, and drops it from the identity-coverage check (§1.5). Defaults match the requirements document: `tenant_id`, `workload_id`, `user_id`, `serving_model`, `deployment_namespace`, `unattributed`. The namespace default is deliberately not `namespace` (§1.3.2).
 
-With several mappings configured, the delta queries of §1.3.2 run once per mapping and the per-mapping results are merged into one `InferenceDimensionResult`: keys with identical identity values merge (one tenant served through two producers is one row), and the coverage checks, remainder and unmatched-key accounting run over the union. A producer whose mapping is missing or misconfigured shows up as that producer's traffic in the remainder — never as another producer's traffic — which is why each mapping also labels the unmatched-keys metric (§1.6).
+With several mappings configured, the delta queries of §1.3.2 run once per mapping and all results go into one `InferenceDimensionResult`. **Each entry keeps its `Producer` in the key** until the per-producer checks have run: unmatched-key counts, identity coverage (each mapping with its own missing-identity sentinel) and the namespace-resolution step all need to know which producer contributed a value. `none` can be a real tenant for one producer and the sentinel for another, and merged totals cannot tell the two apart. Only afterwards, in `BuildDimensionCosts`, are entries with identical identity values (`user_id`, `tenant_id`, `workload_id`, `serving_model`, namespace) summed into one row, so one tenant served through two producers is one row. Token-coverage, remainder and over-attribution accounting then run over the merged union. A producer whose mapping is missing or misconfigured shows up as that producer's traffic in the remainder — never as another producer's traffic — which is why each mapping also labels the unmatched-keys metric (§1.6).
+
+**Producers must meter disjoint traffic.** Summing producers is only correct when no request is metered twice. A gateway in front of the llm-d coordinator can see the same requests as the coordinator, and merging identical keys does not deduplicate observations; clamping the remainder afterwards cannot undo the excess charges. Where two producers sit on the same request path, exactly one is the authoritative producer for that path, and the other is restricted away from it with the mapping's `scope` (§1.9: `servingModels` and/or `namespaces`; empty means all). Rows a mapping emits outside its scope are dropped before the join. OpenCost cannot prove disjointness from the series alone, since two producers legitimately meter different ingress paths of the same deployment, so it detects the failure instead: when two or more producers emit rows for the same `(serving_model, namespace)`, the over-attribution check (§1.5) reports the producers involved, and it fires on the summed ratio.
 
 The generated PromQL substitutes configured names. In the examples below, `<tenant>`, `<workload>`, `<user>`, `<model>` and `<ns>` stand for the configured label names, and `<input_series>` for the configured input series.
 
@@ -197,16 +204,21 @@ Two queries in total (input and output), each a per-producer, reset-aware range 
 # (job, instance are retained inside the function); the outer sum groups by
 # identity only after the per-series delta has been computed.
 sum by (<user>, <tenant>, <workload>, <model>, <ns>) (
-  increase(<input_series>[<window>m] @ <end_unix>)
+  increase(<input_series>[<window>s] @ <end_unix>)
 )
 ```
 
-`<window>m` = `windowDuration.Minutes()` (minimum 2). Queries are issued at `effectiveEnd` (clamped to `time.Now()`) to avoid future-timestamp errors. The same pattern applies to the output series. The helper `queryDimensionCounterDelta` encapsulates the query and is called twice (input, output). Results are merged into one `InferenceDimensionResult`.
+`<window>s` = `windowDuration.Seconds()`: the **exact** requested interval, ending at `effectiveEnd`. The range is never widened to obtain more samples. A longer range would pull in the preceding interval's traffic and charge a tenant that made no requests in the window asked for. The cost of that choice is that a window shorter than about two scrape intervals can hold fewer than two samples per series, in which case `increase()` returns nothing for them (see Scrape gaps below). Queries are issued at `effectiveEnd` (clamped to `time.Now()`) to avoid future-timestamp errors. The same pattern applies to the output series. The helper `queryDimensionCounterDelta` encapsulates the query and is called twice (input, output). Results are merged into one `InferenceDimensionResult`.
 
 This deliberately departs from the `last_over_time` end/start pair that `queryCounterDelta` uses. Two endpoint samples cannot account for counter resets, in either direction:
 
 - **Counter reset.** A replica restart mid-window can show as end < start, but it can also hide behind a growing counter: start 100, reset to 0, end 300 reads as +200 from the endpoints when the true increase is 300. `increase()` scans the samples inside the range per series and adds the pre-reset value at a reset, which is why the delta MUST be computed by a range function that sees the intervening samples. The naive fallbacks — substituting the end value on a negative delta, or applying a reset correction in the decoder to two `last_over_time` results — cannot see those samples and MUST NOT be used. `increase()` also self-anchors, so no separate start-of-window query is needed on this path.
-- **Scrape gaps.** A series that first appears mid-window is counted from its first sample (correct: nothing before it existed in this window). A series that stops being scraped mid-window is counted to its last sample. Neither is treated as starting from zero, and neither is silently dropped. A gap *inside* the window undercounts that series for the window; small skew is absorbed by the coverage tolerance (§1.5), and persistent gaps surface as low token coverage rather than as misattributed cost.
+- **Scrape gaps and new series.** An interior gap in a series' samples loses nothing, because counters are cumulative and `increase()` spans the gap. The limits are at the edges of a series' life:
+  - A series with a **single sample** in the window is omitted by `increase()`.
+  - A series whose **first scrape already reads a non-zero value** (for example 100, then 100 again) yields an increase of zero: the increments before the first scrape are invisible. A tenant that makes one short burst of requests, shorter than the window and created between two scrapes, can therefore be missing from the tenant rows entirely.
+  - A series that stops being scraped mid-window is counted up to its last sample.
+
+  None of these is treated as starting from zero, and none can charge another identity. Their tokens still appear in the engine reference, so they land in the remainder (`__unmetered__`) and persistent loss shows as low token coverage (§1.5) rather than as misattributed cost. Producers mitigate the new-series case by exporting the series at zero when the identity is first known (requirements §7.3). This is a documented limitation of the approach, not a guarantee of complete accounting for newly appearing series.
 
 Grouping by identity happens only after the per-series deltas are computed. Summing first and differencing afterwards is forbidden: it charges a restarted replica's reset to whichever identities happened to share the grouped series.
 
@@ -216,7 +228,13 @@ Engine and attribution series are scraped independently, so the two sides of the
 
 **User label absent.** When the user label is not configured, `<user>` is omitted from the `sum by` and the key's `UserID` is `""`. When it is configured but a series lacks it, Prometheus returns an empty label value and the key is built with `UserID = ""`. Both cases are handled without a separate query.
 
-**Deployment namespace label.** In Prometheus, the `namespace` label on a scraped series is commonly the namespace of the *scrape target*. For a gateway-hosted metering service this would be the gateway's namespace, not the namespace of the model deployment. The requirements document makes the deployment namespace a MUST (F8) for this reason. If the producer emits it under a different label such as `deployment_namespace`, set `INFERENCE_ATTRIBUTION_NAMESPACE_LABEL`. This must be documented prominently because the failure is silent: costs join to the wrong namespace or to nothing.
+**Deployment namespace label.** In Prometheus, the `namespace` label on a scraped series is usually the namespace of the *scrape target* (the relabeling that Prometheus Operator and most scrape configs apply). For a gateway-hosted metering service that is the gateway's namespace, not the namespace of the model deployment, so defaulting to `namespace` would join every key to the wrong namespace without any error. The default is therefore a **producer-owned** label, `deployment_namespace` (requirements document F8 and §7.3), which a producer sets only when it knows the deployment it routed to.
+
+Three rules follow:
+
+1. **Default `deployment_namespace`.** A series that does not carry it has an empty namespace and goes through the missing-namespace resolution path (§1.5), where only the last step is approximate and it is marked as such. It is never silently joined to the scrape target's namespace.
+2. **Using the scrape-time `namespace` is an explicit choice.** `INFERENCE_ATTRIBUTION_NAMESPACE_LABEL=namespace` (or `namespaceLabel: namespace` in a mapping) is correct only when the producer runs in the same namespace as the models it meters, for example a coordinator deployed per model deployment. The operator must set it, so the assumption is written down in the configuration rather than inherited from a default.
+3. **A label that does not join is a loud condition, not a log line.** OpenCost validates the mapping on the first collection cycle after startup and re-evaluates it each cycle (the *attribution health check*, §1.5, Unmatched keys). If a producer has attributed series but **none** of its keys joins a model entry, or the namespaces it reports are not namespaces of any tracked model, OpenCost logs at ERROR with the producer name, the configured namespace label and the likely cause, and the condition stays visible in `llm_dimension_unmatched_keys{producer}` until fixed. The recommended deployment alert is `llm_dimension_unmatched_keys > 0` (§1.5).
 
 If `INFERENCE_ATTRIBUTION_ENABLED` is false, `QueryInferenceDimensionTokens` returns an empty result immediately without querying Prometheus.
 
@@ -235,7 +253,7 @@ WorkloadID string
 UserID     string `json:"user_id,omitempty"`
 TenantID   string `json:"tenant_id,omitempty"`
 WorkloadID string `json:"workload_id,omitempty"`
-Approximate bool  `json:"approximate,omitempty"` // namespace resolved via blended rate (§1.5)
+Approximate bool  `json:"approximate,omitempty"` // namespace resolved by proportional split (§1.5), or row cost scaled to reconcile (§1.5, Over-attribution)
 ```
 
 ### 1.5 Collector changes (`pkg/inferencecost/collector.go`)
@@ -272,9 +290,9 @@ The model-entry lookup is **not** a plain `serving_model:namespace` map read. It
 
 1. **Engine metrics.** The engine's own token series carry the scrape-time namespace, keyed by the canonicalized model name. A model serving in exactly one namespace resolves there.
 2. **Configuration.** A model in several namespaces resolves through the operator-supplied mapping (`INFERENCE_ATTRIBUTION_NAMESPACE_MAP`, §1.9).
-3. **Blended rate.** Still unresolved, the key is priced at the token-weighted average rate across the namespaces serving that model, and the resulting entries are marked approximate — an `approximate` property on the API response (§1.4) and a log line — so blended cost is not mistaken for reconciled cost.
+3. **Proportional split.** Still unresolved, the key's tokens are split across the namespaces serving that model in proportion to each namespace's engine token share over the window (the per-deployment reference of §1.5). Each part is priced at **its own namespace's** rates and becomes a row in that namespace, marked approximate — an `approximate` property on the API response (§1.4) and a log line — so estimated cost is not mistaken for reconciled cost. The split parts count as attributed in each namespace, so they are deducted from that namespace's remainder like any other row. This replaces pricing the key at one blended average rate, which produced a charge outside every namespace's remainder and broke reconciliation. If the namespaces have no engine tokens in the window, the key stays unresolved and counts as unmatched.
 
-Only a key still unresolved after step 3 counts as unmatched. Steps 1 and 2 are exact; only step 3 is an approximation, and it is visible as one.
+Only a key still unresolved after step 3 counts as unmatched. Steps 1 and 2 are exact; only step 3 is an approximation, and it is visible as one. Namespace resolution runs per producer entry, before entries of different producers are merged (§1.3.1).
 
 Cached prompt tokens are priced at the full input rate (requirements document, Section 1): OpenCost's rates come from its own allocation, not from a provider's price list, so tenant rows plus the remainder still reconcile exactly. Where a provider discounts cache reads, a tenant's row is an upper bound; that is scoped in the requirements document, not worked around here.
 
@@ -284,6 +302,15 @@ Token counts are set directly from `InferenceDimensionTokens`. All other `Proper
 
 **Unmatched keys.** A key whose `serving_model:namespace` has no model entry (a model OpenCost does not track, or a namespace mislabel) is not dropped silently. It is counted, logged once per collection cycle with the key, and exposed through a counter metric (`llm_dimension_unmatched_keys`, §1.6) so a label-mapping error is visible. A per-cycle log line is a quiet failure mode for a billing path: the recommended deployment alert is `llm_dimension_unmatched_keys > 0`, and the configuration documentation should say so. The same applies to a non-joining namespace label (§1.3.2): the failure is silent in the cost data, so the metric is the alarm.
 
+**SaaS and other non-cluster models.** A gateway producer can meter traffic to models that OpenCost has no allocation for, for example a SaaS model routed through the same LiteLLM instance. Their series carry a `serving_model` with no model entry, so left alone they count as unmatched, hold `llm_dimension_unmatched_keys > 0` permanently, and teach operators to ignore the alert that is meant to catch label-mapping errors. They are expected and excluded instead, in one of two ways:
+
+1. **Producer side.** The producer does not emit attributed series for models it does not serve on the cluster.
+2. **OpenCost side.** The mapping's `scope` (§1.9) names the self-hosted models with `servingModels`, or names the excluded ones with `excludeServingModels`. Rows outside the scope are dropped before the join, are **not** counted as unmatched, and do not enter the token-coverage or health-check calculations, which compare against self-hosted engine counters only.
+
+Without either, SaaS series are indistinguishable from a model mislabel, and are reported as unmatched. Dropped rows are logged once at startup per producer, with the excluded model names, so the exclusion is visible rather than silent.
+
+**Attribution health check.** The metric alone is passive, so a mapping that joins nothing is also reported actively. On the first collection after startup, and on every cycle thereafter, OpenCost evaluates each producer: if it has attributed series but no key joins a model entry (or every namespace it reports is a namespace of no tracked model), it logs at ERROR naming the producer, the configured `namespaceLabel` and the likely cause (a scrape-target namespace, or a label the producer does not emit). The ERROR repeats while the condition holds, rather than being a single INFO line per cycle with the key. It does not stop model-level collection. Partial failure, where some keys join and some do not, is reported by the metric and the WARN log.
+
 **Remainder entry.** After the join, emit one more dimension entry per `(serving_model, namespace)` and cost basis, holding the cost that no attributed series claimed:
 
 ```go
@@ -291,12 +318,13 @@ Token counts are set directly from `InferenceDimensionTokens`. All other `Proper
 // tenant_id = "__unmetered__"; workload_id and user_id empty; tokens = engine tokens - attributed tokens
 ```
 
-Tenant entries plus the remainder then add up to the model's cost under each basis. Four points:
+Tenant entries plus the remainder then add up to the model's cost under each basis. Five points:
 
 - *What it contains.* The remainder is defined arithmetically — `max(0, modelTotalCost - attributedCost)` per basis — and described as residual infrastructure cost, not as a formula in coverage. In the common case it approximates the cost of requests that never reached the metering layer, because the per-million rates divide the model's cost across all of the engine's tokens. It is *not* exactly `(1 - coverage) x model cost`: input and completion attribution can differ (full prompt coverage with missing completion usage still leaves a remainder), so the residual is based on the attributed *cost*, which reflects both directions. Idle cost is never in the remainder; it stays spread across the tenant rows in proportion to their tokens — a stated chargeback policy (see New outputs, "Idle-cost policy"), not an arithmetic necessity.
 - *Zero-token windows.* A model with no engine tokens in the window retains its allocation cost while attributed cost is zero, so the remainder is the model's entire cost for that window — idle included, even when nothing bypassed metering. This case is defined explicitly rather than left to the formula, and it is why the remainder must not be read as "bypass cost" alone.
 - *Models with no attributed series.* A model that has engine tokens but no attributed series at all is entirely remainder. That makes models sitting outside the gateway visible.
-- *Negative remainders.* If attributed tokens exceed engine tokens (double counting in the producer, or window skew), the remainder is clamped to zero and the over-attribution check warns (§1.5, coverage).
+- *Reading it as a control.* A persistent non-zero remainder, or low token coverage, usually means a request path reaches the engine without passing the metering layer: a key minted before onboarding completes, a service account that skips the gateway, or a model deployed outside it. The same cost is also the first sign of a gap in key issuance. The recommended operations response is an alert on the `__unmetered__` share and on `llm_dimension_token_coverage` and `llm_dimension_identity_coverage` (§1.6), and closing the path that caused it, not dashboard tuning. A metered request with no tenant mapping is a different case: it appears under the missing-identity sentinel, lowers identity coverage, and leaves token coverage unchanged (requirements §8.1). Where a remainder is expected, exclude it by configuration (§1.5, SaaS and other non-cluster models) so a non-zero row keeps its meaning.
+- *Over-attribution.* If attributed cost exceeds the model's cost under a basis (double counting in a producer, or window skew), clamping the remainder to zero is not enough: a $10 model with 100 engine tokens and 105 attributed tokens would show $10.50 in tenant rows and a zero remainder. So the tenant rows themselves are **scaled down pro rata** by `modelTotalCost / attributedCost`, under that basis and for that `(serving_model, namespace)`, and the remainder is then exactly zero. This applies at any excess, including skew inside the tolerance, so the sum of tenant rows plus remainder equals the model's cost unconditionally and the equality release gate (§1.7) holds. Scaled rows are marked `approximate`, and their token counts stay as reported (only cost is scaled). The over-attribution warning (§1.5) is separate: it fires only beyond the tolerance, because skew inside it is expected, but the reconciliation applies either way.
 
 `__unmetered__` is a reserved value, following the `__idle__` and `__unallocated__` convention in OpenCost allocation. It is distinct from the value a producer records for metered requests with missing identity (requirements document §6 and §9). Those requests are in the attributed totals under whatever `tenant_id` the producer uses, for example `unattributed`.
 
@@ -312,10 +340,13 @@ Tenant entries plus the remainder then add up to the model's cost under each bas
 // 2. Over-attribution, input and output separately:
 //    warn when the same ratio > 1 + tolerance. This is a separate upper-bound check:
 //    the low-coverage warning (< threshold) can never fire for a ratio above one,
-//    yet that is exactly the case where tenant rows exceed the model's cost and the
-//    remainder is clamped.
+//    yet that is exactly the case where tenant rows exceed the model's cost. The warning
+//    is for operators; reconciliation does not depend on it: rows are scaled pro rata so
+//    they never exceed the model total (Remainder entry, Over-attribution).
 // 3. Identity coverage:
 //    attributed tokens with a real tenant_id and workload_id / all attributed tokens,
+//    where a mapping with no workload label (workloadLabel empty) is judged on tenant_id
+//    alone, since a label the producer cannot emit would otherwise score that producer 0%,
 //    where "real" means non-empty AND not a missing-identity sentinel. Requirements §4.1
 //    lets a producer record missing identity as a sentinel such as "unattributed";
 //    a sentinel is a non-empty label value, so checking non-emptiness alone would read
@@ -426,11 +457,12 @@ New environment variables, read through `pkg/env/costmodel.go` like the existing
 | `INFERENCE_ATTRIBUTION_INPUT_TOKENS_ESTIMATED_SERIES` | none | Sibling series holding estimated input tokens (requirements §7.3). Optional; when set, its deltas are added to attributed totals and exported as the estimated share (§1.6). |
 | `INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_ESTIMATED_SERIES` | none | Sibling series holding estimated output tokens. As above. |
 | `INFERENCE_ATTRIBUTION_TENANT_LABEL` | `tenant_id` | Label carrying the tenant. |
-| `INFERENCE_ATTRIBUTION_WORKLOAD_LABEL` | `workload_id` | Label carrying the workload. |
+| `INFERENCE_ATTRIBUTION_WORKLOAD_LABEL` | `workload_id` | Label carrying the workload. Set to empty when the producer has no workload label; identity coverage is then judged on `tenant_id` alone (§1.5). |
 | `INFERENCE_ATTRIBUTION_USER_LABEL` | `user_id` | Label carrying the user. Set to empty to disable user-level grouping. |
 | `INFERENCE_ATTRIBUTION_MODEL_LABEL` | `serving_model` | Label carrying the **served** model. Must equal the engine's `model_name`. |
-| `INFERENCE_ATTRIBUTION_NAMESPACE_LABEL` | `namespace` | Label carrying the **deployment** namespace (see §1.3.2). |
+| `INFERENCE_ATTRIBUTION_NAMESPACE_LABEL` | `deployment_namespace` | Label carrying the **deployment** namespace, owned by the producer (see §1.3.2). Set it to `namespace` only when the producer runs in the same namespace as the models it meters; the scrape-time `namespace` is otherwise the producer's own. Absent from a series, the namespace is resolved by §1.5. |
 | `INFERENCE_ATTRIBUTION_NAMESPACE_MAP` | none | Operator-supplied `serving_model`→namespace mapping for models serving in more than one namespace, as `model=namespace` pairs separated by `;`. Step 2 of the missing-namespace resolution (§1.5). |
+| `INFERENCE_ATTRIBUTION_USER_SENTINEL` | none | Value the user label holds when no user is set (for example `"None"` for LiteLLM). Rows carrying it get an empty `user_id`. |
 | `INFERENCE_ATTRIBUTION_IDENTITY_SENTINEL` | `unattributed` | The producer's missing-identity sentinel value, excluded from the identity-coverage numerator (§1.5; requirements §7.3). |
 | `INFERENCE_ATTRIBUTION_COVERAGE_THRESHOLD` | `0.9` | Ratio below which the token-coverage and identity-coverage warnings are logged. |
 | `INFERENCE_ATTRIBUTION_OVERATTRIBUTION_TOLERANCE` | `0.1` | Amount above 1.0 at which the over-attribution warning is logged (ratio > 1 + tolerance). |
@@ -451,48 +483,70 @@ env:
     value: "llm_d_coordinator_request_output_tokens_attributed_total"
   - name: INFERENCE_ATTRIBUTION_MODEL_LABEL
     value: "model_name"
+  # Explicit opt-in to the scrape-time namespace (§1.3.2): valid only because the
+  # coordinator is deployed in the same namespace as the models it meters.
+  - name: INFERENCE_ATTRIBUTION_NAMESPACE_LABEL
+    value: "namespace"
 ```
 
 Moving the producer later, for example from the coordinator to an AI gateway, is a configuration change.
 
-The config-file form, for a cluster with two producers (a LiteLLM gateway in front of the llm-d coordinator). Each entry is a full mapping; names and labels are per producer:
+The config-file form, for a cluster with two producers (a LiteLLM gateway and the llm-d coordinator). Each entry is a full mapping; names and labels are per producer. **The two must meter disjoint traffic** (§1.3.1): here the gateway is authoritative for the models it fronts, and the coordinator is restricted to the models that reach it directly. If the gateway also routes through the coordinator, the coordinator entry would count the same requests again, so its scope must exclude those models:
 
 ```yaml
 # /etc/opencost/attribution.yaml, via INFERENCE_ATTRIBUTION_CONFIG_PATH
 producers:
   - name: litellm-gateway            # labels llm_dimension_unmatched_keys
-    inputTokensSeries: litellm_request_input_tokens_total
-    outputTokensSeries: litellm_request_output_tokens_total
-    inputTokensEstimatedSeries: litellm_request_input_tokens_estimated_total
-    outputTokensEstimatedSeries: litellm_request_output_tokens_estimated_total
+    # Official LiteLLM's own Prometheus counters, no new producer code. Measured on
+    # LiteLLM v1.108.4 (callbacks: ["otel", "prometheus"]); see the notes below.
+    inputTokensSeries: litellm_input_tokens_metric_total
+    outputTokensSeries: litellm_output_tokens_metric_total
+    # No estimated series: LiteLLM marks estimates on its OTel spans only, not on these counters.
     tenantLabel: team_alias
-    workloadLabel: workload_id
-    userLabel: ""                     # disable per-user grouping for this producer
-    modelLabel: model_name
-    namespaceLabel: deployment_namespace
-    identitySentinel: unattributed
+    workloadLabel: ""                 # LiteLLM has no workload label: workload grouping and its identity-coverage check are off for this producer
+    userLabel: ""                     # off. To enable: userLabel: user (or end_user) and userSentinel: "None"
+    modelLabel: model                 # holds the served model; not requested_model
+    namespaceLabel: deployment_namespace   # LiteLLM does not emit it: the namespace is resolved by §1.5
+    identitySentinel: "None"          # observed for end_user and user; confirm what team_alias holds without a team
+    scope:                            # authoritative for the models fronted by the gateway
+      servingModels: [gemma-4-31B]
   - name: llm-d-coordinator
     inputTokensSeries: llm_d_coordinator_request_input_tokens_attributed_total
     outputTokensSeries: llm_d_coordinator_request_output_tokens_attributed_total
     tenantLabel: tenant_id
     workloadLabel: workload_id
     modelLabel: model_name
-    namespaceLabel: namespace
+    namespaceLabel: namespace         # explicit opt-in: coordinator runs in the models' namespace (§1.3.2)
     identitySentinel: none
+    scope:                            # only models that reach llm-d without passing the gateway
+      servingModels: [llama-3-70b]
 ```
 
-Each mapping's series are queried with the delta strategy of §1.3.2 and merged into one result (§1.3.1): a tenant served through both producers is one row; the remainder, coverage checks and unmatched-key accounting run over the union, per producer for the latter. A producer missing from the file contributes its traffic to the remainder — the failure mode the list exists to avoid is one producer's traffic being silently labeled another's, or nobody's.
+**The `litellm-gateway` entry** maps the counters official LiteLLM already exports (`litellm_input_tokens_metric_total`, `litellm_output_tokens_metric_total`), with the metric names and labels measured against LiteLLM v1.108.4 in front of vLLM and SGLang, rather than assumed. What that mapping means in practice:
+
+- **Scrape path.** LiteLLM serves its metrics from a mounted app, so the path is `/metrics/` with a trailing slash. Drop `user_email` at the source with LiteLLM's `prometheus_exclude_labels` (requirements §4.2).
+- **No workload.** The counters carry team, user, end user, served `model` and `requested_model`, but no workload. Leaving `workloadLabel` empty groups rows by tenant and model only. The identity-coverage check for this producer then uses `tenant_id` alone (§1.5), instead of scoring 0% for a label that cannot exist.
+- **No deployment namespace.** The scrape target's `namespace` is the gateway's (§1.3.2), so it is not used. Rows have an empty namespace and go through resolution: exact where the model runs in one namespace, `INFERENCE_ATTRIBUTION_NAMESPACE_MAP` where it runs in several, and the approximate proportional split otherwise. The producer-side fix is an extra label from a deployment mapping, not an OpenCost change.
+- **Do not group by `requested_model`.** It is the client's alias, and cardinality grows with it (requirements §7.3). Only the served `model` is the join key. Verify that it equals the engine's `model_name` after any router rewrite; the tested router rewrite case did.
+- **Sentinel for absent identity.** `end_user` and `user` carry the literal string `"None"` when unset. Enabling `userLabel` needs `userSentinel: "None"`, so those rows get an empty `user_id` instead of one user called `None`, and are not mistaken for per-user data (§1.7, authorization). The value `team_alias` holds for a request without a team was not reported in the measurement, so `identitySentinel: "None"` is the same assumption and must be confirmed.
+- **Estimates and truncated streams.** The counters have no estimated series, so estimated and exact tokens cannot be told apart on this path, and the estimated share (§1.6) reads zero. On a client disconnect mid-stream LiteLLM records the tokens it had streamed as ordinary usage; the engine generated more, and the difference lands in `__unmetered__` rather than with the tenant (requirements §9). This is a producer gap, not an OpenCost one.
+- **Cached tokens.** LiteLLM also defines `litellm_input_cached_tokens_metric`. It is not mapped: cache discounts are out of scope (requirements §1), and the series would be the input for a later cache-read rate.
+- **SaaS models.** A LiteLLM that also routes to SaaS models emits series for them. Exclude them with `scope.excludeServingModels` (§1.5) or the gateway counts them as unmatched.
+
+`scope` is optional (`servingModels`, `excludeServingModels` and `namespaces`, each a list; empty or absent means all). `excludeServingModels` is how a gateway that also routes to SaaS models keeps them out of the join (§1.5, SaaS and other non-cluster models). Rows outside a mapping's scope are dropped before the join. Omitting it is correct only when the producers already meter different traffic. A single producer needs no scope.
+
+Each mapping's series are queried with the delta strategy of §1.3.2. Entries keep their producer until the per-producer checks (unmatched keys, identity coverage with that producer's sentinel, namespace resolution) have run, and are then summed by identity (§1.3.1): a tenant served through two producers on *different* models or paths is one row; the remainder and token-coverage accounting run over the union. The same tenant on the *same* model through both producers is the double-counting case that `scope` exists to prevent. A producer missing from the file contributes its traffic to the remainder — the failure mode the list exists to avoid is one producer's traffic being silently labeled another's, or nobody's.
 
 ### 1.10 Tests
 
 | Test file | What to add |
 |---|---|
 | `core/pkg/source/decoders_test.go` | `TestDecodeInferenceDimensionResult`, including `user_id` absent |
-| `pkg/inferencecost/collector_test.go` | Join formula; zero model cost (no panic); empty attribution result; missing user label; **unmatched key counted and logged, not dropped silently**; coverage, over-attribution and identity-coverage warnings; **identity coverage excludes the missing-identity sentinel from the numerator (a sentinel-only producer scores 0, not 100)**; **remainder entry: tenant rows plus remainder equal the model total under both bases, a model with no attributed series is all remainder, an over-attributed model clamps to zero, and a zero-token window puts the model's full cost in the remainder**; **split costs and per-million rates populated on dimension entries (positive input and output cost, not just totals)**; **canonicalized model lookup: a producer emitting `org/model` joins to the `model` allocation entry**; **missing-namespace resolution: engine-metrics map, then configured mapping, then blended rate marked `approximate`** |
+| `pkg/inferencecost/collector_test.go` | Join formula; zero model cost (no panic); empty attribution result; missing user label; **unmatched key counted and logged, not dropped silently**; **workload label disabled (LiteLLM mapping): rows group by tenant and model, identity coverage uses `tenant_id` alone and does not read 0%; user label with `userSentinel: "None"` yields an empty `user_id`, not a user named `None`; `requested_model` never enters the grouping key**; **SaaS exclusion: a series for a model with no allocation, covered by `excludeServingModels` or outside `servingModels`, is dropped before the join, is not counted unmatched, and does not trip the health check; the same series without a scope is counted unmatched**; **attribution health check: a producer whose keys all carry the scrape-target namespace joins nothing, logs at ERROR with producer and label, and keeps `llm_dimension_unmatched_keys` non-zero; a series without `deployment_namespace` goes through resolution and is never joined to a scrape-target namespace**; coverage, over-attribution and identity-coverage warnings; **identity coverage excludes the missing-identity sentinel from the numerator (a sentinel-only producer scores 0, not 100)**; **remainder entry: tenant rows plus remainder equal the model total under both bases, a model with no attributed series is all remainder, an over-attributed model clamps to zero, and a zero-token window puts the model's full cost in the remainder**; **split costs and per-million rates populated on dimension entries (positive input and output cost, not just totals)**; **canonicalized model lookup: a producer emitting `org/model` joins to the `model` allocation entry**; **missing-namespace resolution: engine-metrics map, then configured mapping, then proportional split across namespaces priced at each namespace's own rate, marked `approximate`, with the split parts deducted from each namespace's remainder (tenant rows plus remainder still equal each namespace total)**; **over-attribution reconciliation: $10 model, 100 engine tokens, 105 attributed tokens gives tenant rows summing to $10 and a zero remainder, with and without the warning firing (within 0.1 tolerance)**; **producer provenance: `none` is a real tenant under producer A and the sentinel under producer B, and identity coverage counts them differently; unmatched keys attributed to the right producer after the merge** |
 | `pkg/inferencecost/aggregate_test.go` | Aggregation by each new dimension; filter by `tenant_id:"acme-corp"`; empty `user_id`; **release gates: `aggregate=model_name` with attribution enabled equals the model-level total on both cost bases, and the sum over `aggregate=tenant_id` (remainder included) equals the same total**; **non-attribution queries return no dimension entries**; **`aggKey` collision: `(acme-corp/engineering, rag)` and `(acme-corp, engineering/rag)` remain distinct entries**; **`user_id` aggregate/filter rejected without the enablement flag and without admin auth**; **filter-only request without `user_id` in the query returns no per-user entries for unauthorized callers: entries merged across users, `user_id` stripped** |
 | `pkg/inferencecost/exporter_test.go` | `llm_dimension_hourly_cost` emitted correctly; empty `user_id` as empty label; `__unmetered__` row emitted; `llm_dimension_unmatched_keys`; `llm_dimension_token_coverage` and `llm_dimension_identity_coverage` |
-| `pkg/inferencecost/env_test.go` or equivalent | Defaults; missing series names disables attribution with an error and leaves model-level collection running; **two mappings from the config file: results merged (one tenant across two producers is one row), unmatched keys attributed to the right producer, remainder computed over the union** |
-| `modules/prometheus-source/pkg/prom/inference_queries_test.go` | PromQL generated from custom label and series names; user label disabled; one token series absent (graceful degradation); **counter reset mid-window, per producer series (increase semantics, not end-value fallback)**; **multi-replica reset: one replica resets while another keeps counting, deltas stay correct per series**; **scrape gap: series with no start anchor excluded and counted, not treated as starting from zero; series that stopped mid-window keeps its last value**; **boundary skew: engine and attribution series scraped at different offsets stay within tolerance** |
+| `pkg/inferencecost/env_test.go` or equivalent | Defaults (**namespace label defaults to `deployment_namespace`, not `namespace`**); missing series names disables attribution with an error and leaves model-level collection running; **two mappings from the config file: results merged after per-producer checks (one tenant across two producers is one row), unmatched keys attributed to the right producer, remainder computed over the union; `scope` drops out-of-scope rows before the join; overlapping producers on one `(serving_model, namespace)` without a scope trip the over-attribution check, which names the producers** |
+| `modules/prometheus-source/pkg/prom/inference_queries_test.go` | PromQL generated from custom label and series names; user label disabled; one token series absent (graceful degradation); **counter reset mid-window, per producer series (increase semantics, not end-value fallback)**; **multi-replica reset: one replica resets while another keeps counting, deltas stay correct per series**; **exact window: a 1-minute collection window queries `[60s]`, not a widened range, and does not include the preceding minute's traffic**; **new series: a series whose first scrape already reads 100 and then 100 again yields zero increase and a single-sample series is omitted, so their tokens appear in the remainder, not with another tenant; a series created at zero before its first increment is counted in full**; **interior scrape gap: no loss, because the counter is cumulative; a series that stops being scraped mid-window keeps its last value**; **boundary skew: engine and attribution series scraped at different offsets stay within tolerance** |
 
 ---
 
@@ -510,9 +564,10 @@ Each mapping's series are queried with the delta strategy of §1.3.2 and merged 
 | **Served-model join key** | `serving_model` joined with deployment namespace, through the canonicalized `combineMetrics` mapping | The served model must equal the engine's `model_name`, so the join is consistent by construction (requirements document F7). The canonicalized mapping keeps producers emitting `org/model` joinable instead of unmatched. |
 | **Delta strategy** | Per-producer, reset-aware deltas (`increase()` semantics), then grouped by identity | Summing first and differencing afterwards misattributes replica resets; the end-value fallback undercounts the reset window. |
 | **Coverage reference** | Per-deployment engine totals, with `engine_type` exclusions and a configured authoritative engine for cross-engine disaggregation | A global sum over engines double counts deployments that split prefill and decode across engines (SGLang prefill + vLLM decode). |
-| **Deployment namespace label** | Separately configurable | The scrape-target `namespace` is wrong for gateway-hosted producers. A silent mismatch is the main operational risk (§1.3.2). |
+| **Deployment namespace label** | Separately configurable, default `deployment_namespace` (producer-owned); the scrape-time `namespace` is an explicit opt-in | The scrape-target `namespace` is wrong for gateway-hosted producers, so it cannot be the silent default. A silent mismatch is the main operational risk; the default, the empty-label resolution path and the health check (§1.3.2, §1.5) close it. |
 | **`requested_model` excluded** | Not a group-by label | The cost rate follows the served model. Including the requested model inflates cardinality without adding cost signal. |
 | **Unmatched series** | Counted, logged and exported, never dropped silently | Label-mapping errors would otherwise look like zero cost. |
+| **Rate ownership** | OpenCost is the sole owner of the cost rate for self-hosted models; the attributed series carry tokens only | A metering layer that also prices self-hosted tokens would give two chargeback figures and break the reconciliation of tenant rows plus remainder with the model's cost. The serving stack's records hold identity and tokens only; any money a metering layer handles for its own purposes is outside the contract and is neither read nor reconciled by OpenCost (requirements §1, Rate ownership). |
 | **Backward compatibility** | New fields empty by default; feature opt-in | Deployments without attribution are unaffected. |
 
 ---
@@ -548,5 +603,4 @@ The engine-side token queries (`queryCounterDelta` and the SGLang queries from o
 
 ## Appendix B: Open questions
 
-- **Gateway-side cost.** If the metering service computes cost itself, there are two sources of truth for self-hosted model rates. The requirements document §11 leaves ownership open. This plan assumes OpenCost owns the rate.
 - **Idle as its own row (`idle_share`).** The proportional spread of idle under `cost_basis=allocation` is now documented as policy (New outputs, "Idle-cost policy"); what remains open is *exposing* the idle share so a consumer can separate "cost of my requests" from "my share of idle" without reverse-engineering the rate. Today the idle share is inside the per-million rate, so tenants with traffic carry it in proportion to their tokens, and the `__unmetered__` row holds unmetered requests (and, in zero-token windows, the model's retained cost — §1.5). Showing idle separately would need tenant rows priced without idle, with idle in the remainder. The two existing cost queries do not give pure idle: the allocation total is `max(request, usage) x price` plus idle share plus shared-infrastructure share, and the usage total is actual consumption only (`inference-cost-tracking.md`). Their difference mixes idle, request headroom and shared infrastructure. A separate idle row would need a dedicated idle query, and it would change what `cost_basis=allocation` means for tenant rows. Not part of this plan.
