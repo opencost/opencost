@@ -158,9 +158,10 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 // BigQueryConfig contain the required config and credentials to access OOC resources for GCP
 // Deprecated: v1.104 Use BigQueryConfiguration instead
 type BigQueryConfig struct {
-	ProjectID          string            `json:"projectID"`
-	BillingDataDataset string            `json:"billingDataDataset"`
-	Key                map[string]string `json:"key"`
+	ProjectID            string            `json:"projectID"`
+	BillingDataDataset   string            `json:"billingDataDataset"`
+	Key                  map[string]string `json:"key"`
+	ExcludePartitionTime bool              `json:"excludePartitionTime"`
 }
 
 // IsEmpty returns true if all fields in config are empty, false if not.
@@ -735,6 +736,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N4 INSTANCE") {
 					instanceType = "n4standard"
+				}
+
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C4 INSTANCE") {
+					instanceType = "c4standard"
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "A2 INSTANCE") {
@@ -1576,6 +1581,8 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n2standard"
 		} else if instanceType == "n4highmem" || instanceType == "n4highcpu" {
 			instanceType = "n4standard" // N4 variants are priced the same per vCPU and RAM
+		} else if instanceType == "c4highmem" || instanceType == "c4highcpu" {
+			instanceType = "c4standard" // C4 variants are priced the same per vCPU and RAM
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
 		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
@@ -1732,7 +1739,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	discount := defaultDiscount
 	switch class {
-	case "e2", "f1", "g1", "n4":
+	case "e2", "f1", "g1", "n4", "c4":
 		discount = 0.0
 	case "n2", "n2d":
 		discount = 0.2

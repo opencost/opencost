@@ -1611,3 +1611,35 @@ func TestWindowGetWeeklyWindows(t *testing.T) {
 		})
 	}
 }
+
+func TestWindow_getWeeklyWindows_partialWeekAfterSundayMidnight(t *testing.T) {
+	w := NewClosedWindow(
+		time.Date(2026, 4, 5, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 4, 19, 0, 30, 0, 0, time.UTC),
+	)
+
+	expected := []Window{
+		NewClosedWindow(
+			time.Date(2026, 4, 5, 0, 0, 0, 0, time.UTC),
+			time.Date(2026, 4, 12, 0, 0, 0, 0, time.UTC),
+		),
+		NewClosedWindow(
+			time.Date(2026, 4, 12, 0, 0, 0, 0, time.UTC),
+			time.Date(2026, 4, 19, 0, 0, 0, 0, time.UTC),
+		),
+		NewClosedWindow(
+			time.Date(2026, 4, 19, 0, 0, 0, 0, time.UTC),
+			time.Date(2026, 4, 26, 0, 0, 0, 0, time.UTC),
+		),
+	}
+
+	actual := w.getWeeklyWindows()
+	if len(actual) != len(expected) {
+		t.Fatalf("expected %d windows, got %d", len(expected), len(actual))
+	}
+	for i, expectedWindow := range expected {
+		if !actual[i].Equal(expectedWindow) {
+			t.Errorf("expected window %s, got %s", expectedWindow, actual[i])
+		}
+	}
+}

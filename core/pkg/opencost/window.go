@@ -937,7 +937,7 @@ func (w Window) getWeeklyWindow() Window {
 	roundedEnd := origEnd.Add(time.Duration(6-origEnd.Weekday()) * time.Hour * 24)
 	roundedEnd = time.Date(roundedEnd.Year(), roundedEnd.Month(), roundedEnd.Day()+1, 0, 0, 0, 0, origEnd.Location())
 	// edge case - if user has exactly specified first instant of new day, does not need rounding
-	if origEnd.Weekday() == 0 && origEnd.Second() == 0 && origEnd.Hour() == 0 {
+	if origEnd.Weekday() == 0 && origEnd.Hour() == 0 && origEnd.Minute() == 0 && origEnd.Second() == 0 {
 		roundedEnd = *origEnd
 	}
 	return NewClosedWindow(roundedStart, roundedEnd)

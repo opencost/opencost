@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	pimBaseURL    = "https://pim-service.pim.stackit.cloud"
+	pimBaseURL    = "https://pim.api.stackit.cloud"
 	pimMaxPage    = 100
 	pimMaxPages   = 200 // safety limit to prevent infinite pagination
 	pimTimeoutSec = 30
