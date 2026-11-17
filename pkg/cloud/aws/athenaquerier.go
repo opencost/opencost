@@ -20,6 +20,14 @@ import (
 type AthenaQuerier struct {
 	AthenaConfiguration
 	ConnectionStatus cloud.ConnectionStatus
+	// client is only set by tests; when nil, queries build one from AthenaConfiguration.
+	client athenaClient
+}
+
+type athenaClient interface {
+	StartQueryExecution(context.Context, *athena.StartQueryExecutionInput, ...func(*athena.Options)) (*athena.StartQueryExecutionOutput, error)
+	GetQueryExecution(context.Context, *athena.GetQueryExecutionInput, ...func(*athena.Options)) (*athena.GetQueryExecutionOutput, error)
+	athena.GetQueryResultsAPIClient
 }
 
 func (aq *AthenaQuerier) GetStatus() cloud.ConnectionStatus {
@@ -122,10 +130,13 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 		}
 	}
 
-	// Create Athena Client
-	cli, err := aq.GetAthenaClient()
-	if err != nil {
-		return fmt.Errorf("QueryAthenaPaginated: GetAthenaClient error: %s", err.Error())
+	cli := aq.client
+	if cli == nil {
+		c, err := aq.GetAthenaClient()
+		if err != nil {
+			return fmt.Errorf("QueryAthenaPaginated: GetAthenaClient error: %s", err.Error())
+		}
+		cli = c
 	}
 
 	// Query Athena
@@ -163,7 +174,10 @@ func readQueryResults(ctx context.Context, client athena.GetQueryResultsAPIClien
 	return nil
 }
 
-func waitForQueryToComplete(ctx context.Context, client *athena.Client, queryExecutionID *string) error {
+func waitForQueryToComplete(ctx context.Context, client athenaClient, queryExecutionID *string) error {
+	if queryExecutionID == nil {
+		return fmt.Errorf("waitForQueryToComplete: nil query execution ID")
+	}
 	inp := &athena.GetQueryExecutionInput{
 		QueryExecutionId: queryExecutionID,
 	}

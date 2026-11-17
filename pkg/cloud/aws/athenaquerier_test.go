@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -16,18 +17,16 @@ func TestAthenaQuerier_GetColumns(t *testing.T) {
 	mockClient := &MockAthenaClient{}
 
 	// Create mock querier with valid configuration
-	querier := &MockAthenaQuerier{
-		AthenaQuerier: AthenaQuerier{
-			AthenaConfiguration: AthenaConfiguration{
-				Bucket:     "test-bucket",
-				Region:     "us-east-1",
-				Database:   "test-db",
-				Table:      "test-table",
-				Account:    "123456789012",
-				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-			},
+	querier := &AthenaQuerier{
+		AthenaConfiguration: AthenaConfiguration{
+			Bucket:     "test-bucket",
+			Region:     "us-east-1",
+			Database:   "test-db",
+			Table:      "test-table",
+			Account:    "123456789012",
+			Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
 		},
-		mockClient: mockClient,
+		client: mockClient,
 	}
 
 	// Test successful column retrieval
@@ -113,18 +112,16 @@ func TestAthenaQuerier_Query(t *testing.T) {
 	mockClient := &MockAthenaClient{}
 
 	// Create mock querier with valid configuration
-	querier := &MockAthenaQuerier{
-		AthenaQuerier: AthenaQuerier{
-			AthenaConfiguration: AthenaConfiguration{
-				Bucket:     "test-bucket",
-				Region:     "us-east-1",
-				Database:   "test-db",
-				Table:      "test-table",
-				Account:    "123456789012",
-				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-			},
+	querier := &AthenaQuerier{
+		AthenaConfiguration: AthenaConfiguration{
+			Bucket:     "test-bucket",
+			Region:     "us-east-1",
+			Database:   "test-db",
+			Table:      "test-table",
+			Account:    "123456789012",
+			Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
 		},
-		mockClient: mockClient,
+		client: mockClient,
 	}
 
 	// Test successful query
@@ -171,22 +168,20 @@ func TestAthenaQuerier_Query(t *testing.T) {
 			t.Errorf("Expected 1 row to be processed, got %d", rowsProcessed)
 		}
 
-		// Check connection status is successful
-		if querier.ConnectionStatus != cloud.SuccessfulConnection {
-			t.Errorf("Expected connection status to be SuccessfulConnection, got %s", querier.ConnectionStatus)
+		// Query only records failures; the integration sets SuccessfulConnection from its results.
+		if querier.ConnectionStatus == cloud.FailedConnection {
+			t.Errorf("Expected connection status not to be FailedConnection")
 		}
 	})
 
 	// Test invalid configuration
 	t.Run("invalid_configuration", func(t *testing.T) {
-		invalidQuerier := &MockAthenaQuerier{
-			AthenaQuerier: AthenaQuerier{
-				AthenaConfiguration: AthenaConfiguration{
-					// Missing required fields
-					Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-				},
+		invalidQuerier := &AthenaQuerier{
+			AthenaConfiguration: AthenaConfiguration{
+				// Missing required fields
+				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
 			},
-			mockClient: mockClient,
+			client: mockClient,
 		}
 
 		err := invalidQuerier.Query(context.Background(), "SELECT * FROM test", GetAthenaQueryFunc(func(row types.Row) {}))
@@ -373,18 +368,16 @@ func TestAthenaQuerier_queryAthenaPaginated(t *testing.T) {
 	mockClient := &MockAthenaClient{}
 
 	// Create mock querier with valid configuration
-	querier := &MockAthenaQuerier{
-		AthenaQuerier: AthenaQuerier{
-			AthenaConfiguration: AthenaConfiguration{
-				Bucket:     "test-bucket",
-				Region:     "us-east-1",
-				Database:   "test-db",
-				Table:      "test-table",
-				Account:    "123456789012",
-				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-			},
+	querier := &AthenaQuerier{
+		AthenaConfiguration: AthenaConfiguration{
+			Bucket:     "test-bucket",
+			Region:     "us-east-1",
+			Database:   "test-db",
+			Table:      "test-table",
+			Account:    "123456789012",
+			Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
 		},
-		mockClient: mockClient,
+		client: mockClient,
 	}
 
 	// Test successful paginated query
@@ -443,19 +436,17 @@ func TestAthenaQuerier_queryAthenaPaginated(t *testing.T) {
 
 	// Test query with catalog
 	t.Run("query_with_catalog", func(t *testing.T) {
-		querierWithCatalog := &MockAthenaQuerier{
-			AthenaQuerier: AthenaQuerier{
-				AthenaConfiguration: AthenaConfiguration{
-					Bucket:     "test-bucket",
-					Region:     "us-east-1",
-					Database:   "test-db",
-					Catalog:    "test-catalog",
-					Table:      "test-table",
-					Account:    "123456789012",
-					Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-				},
+		querierWithCatalog := &AthenaQuerier{
+			AthenaConfiguration: AthenaConfiguration{
+				Bucket:     "test-bucket",
+				Region:     "us-east-1",
+				Database:   "test-db",
+				Catalog:    "test-catalog",
+				Table:      "test-table",
+				Account:    "123456789012",
+				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
 			},
-			mockClient: mockClient,
+			client: mockClient,
 		}
 
 		catalogSet := false
@@ -480,19 +471,17 @@ func TestAthenaQuerier_queryAthenaPaginated(t *testing.T) {
 
 	// Test query with workgroup
 	t.Run("query_with_workgroup", func(t *testing.T) {
-		querierWithWorkgroup := &MockAthenaQuerier{
-			AthenaQuerier: AthenaQuerier{
-				AthenaConfiguration: AthenaConfiguration{
-					Bucket:     "test-bucket",
-					Region:     "us-east-1",
-					Database:   "test-db",
-					Table:      "test-table",
-					Workgroup:  "test-workgroup",
-					Account:    "123456789012",
-					Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-				},
+		querierWithWorkgroup := &AthenaQuerier{
+			AthenaConfiguration: AthenaConfiguration{
+				Bucket:     "test-bucket",
+				Region:     "us-east-1",
+				Database:   "test-db",
+				Table:      "test-table",
+				Workgroup:  "test-workgroup",
+				Account:    "123456789012",
+				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
 			},
-			mockClient: mockClient,
+			client: mockClient,
 		}
 
 		workgroupSet := false
@@ -563,52 +552,39 @@ func TestAthenaQuerier_queryAthenaPaginated(t *testing.T) {
 
 	// Test get client failure
 	t.Run("get_client_failure", func(t *testing.T) {
-		invalidQuerier := &FailingQueryAthenaQuerier{
-			MockAthenaQuerier: MockAthenaQuerier{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: AthenaConfiguration{
-						Bucket:     "test-bucket",
-						Region:     "us-east-1",
-						Database:   "test-db",
-						Table:      "test-table",
-						Account:    "123456789012",
-						Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-					},
-				},
-				mockClient: mockClient,
-			},
-		}
-
-		err := invalidQuerier.queryAthenaPaginated(context.Background(), "SELECT * FROM test", func(page *athena.GetQueryResultsOutput) bool { return true })
-		if err == nil {
-			t.Error("queryAthenaPaginated() should return error when client creation fails")
-		}
-
-		expectedError := "QueryAthenaPaginated: GetAthenaClient error: failed to create client"
-		if err.Error() != expectedError {
-			t.Errorf("Expected error '%s', got '%s'", expectedError, err.Error())
-		}
-	})
-}
-
-func TestAthenaQuerier_waitForQueryToComplete(t *testing.T) {
-	// Create mock client
-	mockClient := &MockAthenaClient{}
-
-	// Create mock querier
-	querier := &MockAthenaQuerier{
-		AthenaQuerier: AthenaQuerier{
+		invalidQuerier := &AthenaQuerier{
 			AthenaConfiguration: AthenaConfiguration{
 				Bucket:     "test-bucket",
 				Region:     "us-east-1",
 				Database:   "test-db",
 				Table:      "test-table",
 				Account:    "123456789012",
-				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
+				Authorizer: &AccessKey{ID: "", Secret: ""}, // rejected by CreateAWSConfig
 			},
-		},
-		mockClient: mockClient,
-	}
+		}
+
+		err := invalidQuerier.queryAthenaPaginated(context.Background(), "SELECT * FROM test", func(page *athena.GetQueryResultsOutput) bool { return true })
+		if err == nil || !strings.HasPrefix(err.Error(), "QueryAthenaPaginated: GetAthenaClient error: ") {
+			t.Errorf("queryAthenaPaginated() should return a GetAthenaClient error, got %v", err)
+		}
+	})
+
+	t.Run("results_page_failure", func(t *testing.T) {
+		mockClient.StartQueryExecutionFunc = nil
+		mockClient.GetQueryExecutionFunc = nil
+		mockClient.GetQueryResultsFunc = func(ctx context.Context, params *athena.GetQueryResultsInput, optFns ...func(*athena.Options)) (*athena.GetQueryResultsOutput, error) {
+			return nil, errors.New("AccessDenied")
+		}
+
+		err := querier.queryAthenaPaginated(context.Background(), "SELECT * FROM test", func(page *athena.GetQueryResultsOutput) bool { return true })
+		if err == nil || !strings.Contains(err.Error(), "AccessDenied") {
+			t.Errorf("queryAthenaPaginated() should return the page error, got %v", err)
+		}
+	})
+}
+
+func TestAthenaQuerier_waitForQueryToComplete(t *testing.T) {
+	mockClient := &MockAthenaClient{}
 
 	// Test successful query completion
 	t.Run("successful_query_completion", func(t *testing.T) {
@@ -631,7 +607,7 @@ func TestAthenaQuerier_waitForQueryToComplete(t *testing.T) {
 			}, nil
 		}
 
-		err := querier.waitForQueryToComplete(context.Background(), mockClient, &queryID)
+		err := waitForQueryToComplete(context.Background(), mockClient, &queryID)
 		if err != nil {
 			t.Errorf("waitForQueryToComplete() returned error: %v", err)
 		}
@@ -655,7 +631,7 @@ func TestAthenaQuerier_waitForQueryToComplete(t *testing.T) {
 			}, nil
 		}
 
-		err := querier.waitForQueryToComplete(context.Background(), mockClient, &queryID)
+		err := waitForQueryToComplete(context.Background(), mockClient, &queryID)
 		if err == nil {
 			t.Error("waitForQueryToComplete() should return error when query fails")
 		}
@@ -680,7 +656,7 @@ func TestAthenaQuerier_waitForQueryToComplete(t *testing.T) {
 			}, nil
 		}
 
-		err := querier.waitForQueryToComplete(context.Background(), mockClient, &queryID)
+		err := waitForQueryToComplete(context.Background(), mockClient, &queryID)
 		if err == nil {
 			t.Error("waitForQueryToComplete() should return error when query is cancelled")
 		}
@@ -705,7 +681,7 @@ func TestAthenaQuerier_waitForQueryToComplete(t *testing.T) {
 			}, nil
 		}
 
-		err := querier.waitForQueryToComplete(context.Background(), mockClient, &queryID)
+		err := waitForQueryToComplete(context.Background(), mockClient, &queryID)
 		if err == nil {
 			t.Error("waitForQueryToComplete() should return error when query times out")
 		}
@@ -724,7 +700,7 @@ func TestAthenaQuerier_waitForQueryToComplete(t *testing.T) {
 			return nil, errors.New("failed to get query execution")
 		}
 
-		err := querier.waitForQueryToComplete(context.Background(), mockClient, &queryID)
+		err := waitForQueryToComplete(context.Background(), mockClient, &queryID)
 		if err == nil {
 			t.Error("waitForQueryToComplete() should return error when GetQueryExecution fails")
 		}
@@ -757,7 +733,7 @@ func TestAthenaQuerier_waitForQueryToComplete(t *testing.T) {
 			}
 		}
 
-		err := querier.waitForQueryToComplete(ctx, mockClient, &queryID)
+		err := waitForQueryToComplete(ctx, mockClient, &queryID)
 		if err == nil {
 			t.Error("waitForQueryToComplete() should return error when context is cancelled")
 		}
@@ -769,7 +745,7 @@ func TestAthenaQuerier_waitForQueryToComplete(t *testing.T) {
 
 	// Test with nil query execution ID
 	t.Run("nil_query_execution_id", func(t *testing.T) {
-		err := querier.waitForQueryToComplete(context.Background(), mockClient, nil)
+		err := waitForQueryToComplete(context.Background(), mockClient, nil)
 		if err == nil {
 			t.Error("waitForQueryToComplete() should return error when query execution ID is nil")
 		}
