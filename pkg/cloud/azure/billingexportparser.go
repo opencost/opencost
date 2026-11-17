@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/bingen/pkg/util/stringutil"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/json"
@@ -264,7 +265,7 @@ func (bep *BillingExportParser) ParseRow(start, end time.Time, record []string) 
 
 		for name, value := range tagsAny {
 			if valueStr, ok := value.(string); ok && valueStr != "" {
-				tags[name] = valueStr
+				tags[stringutil.Bank(name)] = stringutil.Bank(valueStr)
 			}
 		}
 	}

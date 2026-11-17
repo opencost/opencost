@@ -305,7 +305,12 @@ func (ccs *CloudCostSet) Insert(cc *CloudCost) error {
 	// Add the given CloudCost to the existing entry, if there is one;
 	// otherwise just set directly into allocations
 	if _, ok := ccs.CloudCosts[ccKey]; !ok {
-		ccs.CloudCosts[ccKey] = cc.Clone()
+		stored := cc.Clone()
+		// Windows are never mutated in place, so entries spanning the whole set can share its times.
+		if stored.Window.Equal(ccs.Window) {
+			stored.Window = ccs.Window
+		}
+		ccs.CloudCosts[ccKey] = stored
 	} else {
 		ccs.CloudCosts[ccKey].add(cc)
 	}

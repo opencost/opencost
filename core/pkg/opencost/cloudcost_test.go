@@ -280,3 +280,38 @@ func TestCloudCost_LoadCloudCost(t *testing.T) {
 	}
 
 }
+
+func TestCloudCostSet_Insert_SharesSetWindow(t *testing.T) {
+	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(timeutil.Day)
+	ccs := NewCloudCostSet(start, end)
+
+	newCC := func(id string, s, e time.Time) *CloudCost {
+		return NewCloudCost(s, e, &CloudCostProperties{ProviderID: id}, 0, 1, 1, 1, 1, 1)
+	}
+	stored := func(id string) *CloudCost {
+		for _, cc := range ccs.CloudCosts {
+			if cc.Properties.ProviderID == id {
+				return cc
+			}
+		}
+		t.Fatalf("no stored CloudCost for %s", id)
+		return nil
+	}
+
+	ccs.Insert(newCC("full", start, end))
+	ccs.Insert(newCC("partial", start, start.Add(time.Hour)))
+
+	if stored("full").Window.Start() != ccs.Window.Start() || stored("full").Window.End() != ccs.Window.End() {
+		t.Errorf("entry spanning the set does not share its window")
+	}
+	if want := NewClosedWindow(start, start.Add(time.Hour)); !stored("partial").Window.Equal(want) {
+		t.Errorf("partial entry window = %s, want %s", stored("partial").Window, want)
+	}
+
+	// Expanding a shared entry window must leave the set's window untouched.
+	ccs.Insert(newCC("full", start.Add(-timeutil.Day), end))
+	if want := NewClosedWindow(start, end); !ccs.Window.Equal(want) {
+		t.Errorf("set window = %s after expanding an entry, want %s", ccs.Window, want)
+	}
+}

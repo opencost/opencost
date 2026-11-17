@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/athena/types"
+	"github.com/opencost/bingen/pkg/util/stringutil"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/json"
@@ -479,7 +480,7 @@ func athenaRowToCloudCost(row types.Row, aqi AthenaQueryIndexes) (*opencost.Clou
 		// aws tags keep their prefix
 		for tagKey, value := range rawTags {
 			if !strings.HasPrefix(tagKey, AthenaResourceTagsUserPrefix) && value != "" {
-				labels[tagKey] = value
+				labels[stringutil.Bank(tagKey)] = stringutil.Bank(value)
 			}
 		}
 		// remove "user_" prefix, aws tags take precedence
@@ -489,7 +490,7 @@ func athenaRowToCloudCost(row types.Row, aqi AthenaQueryIndexes) (*opencost.Clou
 			}
 			labelName := strings.TrimPrefix(tagKey, AthenaResourceTagsUserPrefix)
 			if _, exists := labels[labelName]; !exists {
-				labels[labelName] = value
+				labels[stringutil.Bank(labelName)] = stringutil.Bank(value)
 			}
 		}
 	}
@@ -546,9 +547,9 @@ func athenaRowToCloudCost(row types.Row, aqi AthenaQueryIndexes) (*opencost.Clou
 
 	if productCode == "AmazonEKS" && category == opencost.ComputeCategory {
 		if strings.Contains(usageType, "CPU") {
-			providerID = fmt.Sprintf("%s/CPU", providerID)
+			providerID = stringutil.Bank(providerID + "/CPU")
 		} else if strings.Contains(usageType, "GB") {
-			providerID = fmt.Sprintf("%s/RAM", providerID)
+			providerID = stringutil.Bank(providerID + "/RAM")
 		}
 	}
 

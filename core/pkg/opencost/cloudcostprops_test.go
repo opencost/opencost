@@ -330,3 +330,16 @@ func TestCloudCostProperties_hashKey(t *testing.T) {
 		})
 	}
 }
+
+func TestCloudCostLabels_Clone(t *testing.T) {
+	if got := (CloudCostLabels{}).Clone(); got != nil {
+		t.Errorf("empty labels cloned to %#v, want nil", got)
+	}
+
+	src := CloudCostLabels{"team": "payments"}
+	clone := src.Clone()
+	clone["team"] = "changed"
+	if src["team"] != "payments" {
+		t.Errorf("clone shares the source map")
+	}
+}
