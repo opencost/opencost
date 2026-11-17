@@ -2350,14 +2350,8 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 	queryResultsInput := &athena.GetQueryResultsInput{
 		QueryExecutionId: startQueryExecutionOutput.QueryExecutionId,
 	}
-	getQueryResultsPaginator := athena.NewGetQueryResultsPaginator(cli, queryResultsInput)
-	for getQueryResultsPaginator.HasMorePages() {
-		pg, err := getQueryResultsPaginator.NextPage(ctx)
-		if err != nil {
-			log.Errorf("QueryAthenaPaginated: NextPage error: %s", err.Error())
-			continue
-		}
-		fn(pg)
+	if err := readQueryResults(ctx, cli, queryResultsInput, fn); err != nil {
+		return fmt.Errorf("QueryAthenaPaginated: %w", err)
 	}
 	return nil
 }

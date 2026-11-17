@@ -954,3 +954,53 @@ func TestParseARN(t *testing.T) {
 		t.Errorf("ParseARN() for empty string = %v, want %v", result, id)
 	}
 }
+
+func TestReadQueryResults(t *testing.T) {
+	page := func(next *string) *athena.GetQueryResultsOutput {
+		return &athena.GetQueryResultsOutput{ResultSet: &types.ResultSet{}, NextToken: next}
+	}
+	// pagesWithFirstCall serves two pages, failing the first call with firstErr. It gives up after a few calls
+	// so a regression to retrying the failed page fails the test instead of hanging it.
+	pagesWithFirstCall := func(firstErr error, calls *int) *MockAthenaClient {
+		return &MockAthenaClient{
+			GetQueryResultsFunc: func(_ context.Context, in *athena.GetQueryResultsInput, _ ...func(*athena.Options)) (*athena.GetQueryResultsOutput, error) {
+				*calls++
+				switch {
+				case *calls > 5:
+					return page(nil), nil
+				case firstErr != nil:
+					return nil, firstErr
+				case in.NextToken == nil:
+					return page(aws.String("p2")), nil
+				default:
+					return page(nil), nil
+				}
+			},
+		}
+	}
+
+	tests := map[string]struct {
+		firstErr  error
+		fnResult  bool
+		wantErr   bool
+		wantCalls int
+		wantPages int
+	}{
+		"reads every page":                    {fnResult: true, wantCalls: 2, wantPages: 2},
+		"page error is returned, not retried": {firstErr: errors.New("AccessDenied"), fnResult: true, wantErr: true, wantCalls: 1},
+		"unprocessable page stops the read":   {fnResult: false, wantErr: true, wantCalls: 1, wantPages: 1},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			calls, pages := 0, 0
+			err := readQueryResults(context.Background(), pagesWithFirstCall(tt.firstErr, &calls), &athena.GetQueryResultsInput{},
+				func(*athena.GetQueryResultsOutput) bool { pages++; return tt.fnResult })
+			if (err != nil) != tt.wantErr {
+				t.Errorf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if calls != tt.wantCalls || pages != tt.wantPages {
+				t.Errorf("calls = %d, pages = %d, want %d and %d", calls, pages, tt.wantCalls, tt.wantPages)
+			}
+		})
+	}
+}
