@@ -357,7 +357,7 @@ func TestParsePage(t *testing.T) {
 								UsageUnit:                "h",
 								UsageUnitDescription:     "hour",
 								BaseUnit:                 "s",
-								BaseUnitConversionFactor: 0,
+								BaseUnitConversionFactor: 3600,
 								DisplayQuantity:          1,
 								TieredRates: []*TieredRates{
 									{
@@ -1533,6 +1533,9 @@ func TestCombinedDiscountForC4Node(t *testing.T) {
 	assert.InDelta(t, 1-(1-0.30)*(1-0.1), gcp.CombinedDiscountForNode("n1-standard-8", false, 0.30, 0.1), 1e-9)
 }
 
+// gibPerGB is how many decimal GB make one GiB.
+const gibPerGB = 1024 * 1024 * 1024 / 1e9
+
 // TestParsePage_MachineFamilies prices one node of each family in test/skus_families.json,
 // whose SKUs are copied from the Cloud Billing Catalog API (us-central1).
 func TestParsePage_MachineFamilies(t *testing.T) {
@@ -1549,8 +1552,8 @@ func TestParsePage_MachineFamilies(t *testing.T) {
 		{"c3-highmem-8", false, 0.03465, 0.003938},
 		{"c3d-highcpu-16", false, 0.029563, 0.003959},
 		{"c4a-highmem-8", false, 0.03086, 0.00351},
-		{"c4d-highcpu-16", false, 0.0327035, 0.003495578},
-		{"c4d-highcpu-16", true, 0.01376, 0.001472},
+		{"c4d-highcpu-16", false, 0.0327035, 0.003495578 * gibPerGB}, // C4D RAM is priced per GB
+		{"c4d-highcpu-16", true, 0.01376, 0.001472 * gibPerGB},
 		{"n4a-highcpu-8", false, 0.02646, 0.00301},
 		{"n4d-highmem-8", false, 0.02911, 0.00331},
 		{"custom-4-8192", false, 0.03319155, 0.004446},
@@ -1638,4 +1641,17 @@ func TestWithExtendedMemory(t *testing.T) {
 	// shapes without extended memory
 	assert.Nil(t, keyFor("n2-custom-8-16384", "", nil).ext)
 	assert.Nil(t, keyFor("e2-custom-4-32768-ext", "", nil).ext)
+}
+
+func TestRamRatePerGiB(t *testing.T) {
+	pricing := func(unit, baseUnit string, factor float64) *GCPPricing {
+		return &GCPPricing{PricingInfo: []*PricingInfo{{PricingExpression: &PricingExpression{
+			UsageUnit: unit, BaseUnit: baseUnit, BaseUnitConversionFactor: factor,
+		}}}}
+	}
+	assert.Equal(t, 0.004, ramRatePerGiB(pricing("GiBy.h", "By.s", 3865470566400), 0.004))
+	assert.InDelta(t, 0.004*gibPerGB, ramRatePerGiB(pricing("GBy.h", "By.s", 3600000000000), 0.004), 1e-15)
+	assert.InDelta(t, 0.000004*1000*gibPerGB, ramRatePerGiB(pricing("MBy.h", "By.s", 3600000000), 0.000004), 1e-15)
+	assert.Equal(t, 0.03, ramRatePerGiB(pricing("h", "s", 3600), 0.03), "not a byte unit")
+	assert.Equal(t, 0.03, ramRatePerGiB(&GCPPricing{}, 0.03), "no pricing info")
 }

@@ -571,7 +571,7 @@ type PricingExpression struct {
 	UsageUnit                string         `json:"usageUnit"`
 	UsageUnitDescription     string         `json:"usageUnitDescription"`
 	BaseUnit                 string         `json:"baseUnit"`
-	BaseUnitConversionFactor int64          `json:"-"`
+	BaseUnitConversionFactor float64        `json:"baseUnitConversionFactor"`
 	DisplayQuantity          int            `json:"displayQuantity"`
 	TieredRates              []*TieredRates `json:"tieredRates"`
 }
@@ -595,6 +595,22 @@ type GCPResourceInfo struct {
 	ResourceFamily     string `json:"resourceFamily"`
 	ResourceGroup      string `json:"resourceGroup"`
 	UsageType          string `json:"usageType"`
+}
+
+// gibHourByteSeconds is one GiB-hour in byte-seconds, the catalog's base unit for RAM.
+const gibHourByteSeconds = 1024 * 1024 * 1024 * 3600
+
+// ramRatePerGiB converts a RAM SKU's rate to one per GiB-hour, the unit node pricing uses. Most RAM
+// SKUs are priced per GiBy.h; others (C4D: GBy.h) are converted with the SKU's byte-second factor.
+func ramRatePerGiB(product *GCPPricing, rate float64) float64 {
+	if len(product.PricingInfo) == 0 || product.PricingInfo[0].PricingExpression == nil {
+		return rate
+	}
+	pe := product.PricingInfo[0].PricingExpression
+	if pe.UsageUnit == "GiBy.h" || pe.BaseUnit != "By.s" || pe.BaseUnitConversionFactor <= 0 {
+		return rate
+	}
+	return rate * gibHourByteSeconds / pe.BaseUnitConversionFactor
 }
 
 // machineFamilyKeys maps the family part of a base CPU or RAM SKU description to its pricing key.
@@ -893,12 +909,14 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 							if hourlyPrice == 0 {
 								continue
 							} else if isExtended {
+								hourlyPrice = ramRatePerGiB(product, hourlyPrice)
 								// Extended RAM bills only the memory above the family cap; withExtendedMemory blends it in.
 								gcpPricingList[candidateKey+",extended"] = &GCPPricing{SKUID: product.SKUID, Node: &models.Node{
 									RAMCost:   strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									UsageType: usageType,
 								}}
 							} else if strings.Contains(strings.ToUpper(product.Description), "RAM") {
+								hourlyPrice = ramRatePerGiB(product, hourlyPrice)
 								if strings.HasSuffix(instanceType, "custom") {
 									log.Debugf("GCP Billing API: RAM custom sku '%s'", product.Name)
 								}
