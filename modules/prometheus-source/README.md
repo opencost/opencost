@@ -7,7 +7,7 @@ The OpenCost Prometheus data source is an implementation which provides OpenCost
 **If you are running Prometheus in a sharded (HA) setup:**
 
 - Each Prometheus pod only scrapes a subset of targets. If OpenCost is configured to query a single Prometheus pod, it will only see partial data, and export jobs may fail or return incomplete results.
-- To ensure complete and reliable cost data, set `PROMETHEUS_SERVER_ENDPOINT` to a global query endpoint that aggregates all shards, such as [Thanos Query](https://thanos.io/tip/components/query.md/), [Cortex Query Frontend](https://cortexmetrics.io/docs/architecture/), or [Mimir Query Frontend](https://grafana.com/docs/mimir/latest/operations/query-frontend/).
+- To ensure complete and reliable cost data, set `PROMETHEUS_SERVER_ENDPOINT` to a global query endpoint that aggregates all shards, such as [Thanos Query](https://thanos.io/tip/components/query.md/), [Cortex Query Frontend](https://cortexmetrics.io/docs/architecture/), or [Mimir Query Frontend](https://grafana.com/docs/mimir/latest/references/architecture/components/query-frontend/).
 - If you do not use a global endpoint, you may experience intermittent failures or missing data in OpenCost exports.
 
 **Example:**

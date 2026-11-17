@@ -224,10 +224,11 @@ func ConvertBigQueryConfigToConfig(bqc BigQueryConfig) cloud.KeyedConfig {
 	}
 
 	bigQueryConfiguration := &BigQueryConfiguration{
-		ProjectID:  bqc.ProjectID,
-		Dataset:    dataset,
-		Table:      table,
-		Authorizer: &WorkloadIdentity{}, // Default to WorkloadIdentity
+		ProjectID:            bqc.ProjectID,
+		Dataset:              dataset,
+		Table:                table,
+		ExcludePartitionTime: bqc.ExcludePartitionTime,
+		Authorizer:           &WorkloadIdentity{}, // Default to WorkloadIdentity
 	}
 
 	if len(bqc.Key) != 0 {

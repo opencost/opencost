@@ -11,10 +11,12 @@ var (
 	GB = 1024 * MB
 )
 
-func Hash(s []string) uint64 {
+func HashLabelValues(labels map[string]string, keys []string) uint64 {
 	h := fnv.New64a()
-	for _, v := range s {
-		h.Write([]byte(v))
+	for _, k := range keys {
+		h.Write([]byte(labels[k]))
+		// make sure that ("ab","c") and ("a","bc") hash differently.
+		h.Write([]byte{0xff})
 	}
 	return h.Sum64()
 }
