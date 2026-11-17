@@ -597,6 +597,40 @@ type GCPResourceInfo struct {
 	UsageType          string `json:"usageType"`
 }
 
+// machineFamilyKeys maps the family part of a base CPU or RAM SKU description to its pricing key.
+// Adding a family is one entry; variants such as "Sole Tenancy" or "Reserved" never match.
+var machineFamilyKeys = map[string]string{
+	"N2 INSTANCE":                "n2standard",
+	"N2D AMD INSTANCE":           "n2dstandard",
+	"N4 INSTANCE":                "n4standard",
+	"N4A INSTANCE":               "n4astandard",
+	"N4D INSTANCE":               "n4dstandard",
+	"E2 INSTANCE":                "e2",
+	"COMPUTE OPTIMIZED":          "c2standard",
+	"COMPUTE OPTIMIZED INSTANCE": "c2standard",
+	"C2D AMD INSTANCE":           "c2dstandard",
+	"C3 INSTANCE":                "c3standard",
+	"C3D INSTANCE":               "c3dstandard",
+	"C4 INSTANCE":                "c4standard",
+	"C4A ARM INSTANCE":           "c4astandard",
+	"C4D INSTANCE":               "c4dstandard",
+	"T2D AMD INSTANCE":           "t2dstandard",
+	"T2A ARM INSTANCE":           "t2astandard",
+	"A2 INSTANCE":                "a2",
+}
+
+// machineFamilyKey returns the pricing key for an upper-cased SKU description such as
+// "SPOT PREEMPTIBLE C4D INSTANCE CORE RUNNING IN IOWA", or "" if its family is not listed.
+func machineFamilyKey(descUpper string) string {
+	family := strings.TrimPrefix(descUpper, "SPOT PREEMPTIBLE ")
+	for _, sep := range []string{" CORE RUNNING IN ", " RAM RUNNING IN "} {
+		if i := strings.Index(family, sep); i >= 0 {
+			return machineFamilyKeys[family[:i]]
+		}
+	}
+	return ""
+}
+
 func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, string, error) {
 	gcpPricingList := make(map[string]*GCPPricing)
 	var nextPageToken string
@@ -726,44 +760,16 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					instanceType = "custom"
 				}
 
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N2") && !strings.Contains(strings.ToUpper(product.Description), "PREMIUM") {
-					if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N2D AMD") {
-						instanceType = "n2dstandard"
-					} else {
-						instanceType = "n2standard"
+				if instanceType == "ram" || instanceType == "cpu" {
+					if key := machineFamilyKey(strings.ToUpper(product.Description)); key != "" {
+						instanceType = key
 					}
 				}
 
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N4 INSTANCE") {
-					instanceType = "n4standard"
-				}
-
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C4 INSTANCE") {
-					instanceType = "c4standard"
-				}
-
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "A2 INSTANCE") {
-					instanceType = "a2"
-				}
-
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "COMPUTE OPTIMIZED") {
-					instanceType = "c2standard"
-				}
-
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "E2 INSTANCE") {
-					instanceType = "e2"
-				}
 				partialCPUMap := make(map[string]float64)
 				partialCPUMap["e2micro"] = 0.25
 				partialCPUMap["e2small"] = 0.5
 				partialCPUMap["e2medium"] = 1
-
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "T2D AMD") {
-					instanceType = "t2dstandard"
-				}
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "T2A ARM") {
-					instanceType = "t2astandard"
-				}
 
 				gpuType := NormalizeGPULabel(product.Description)
 				if gpuType != "" {
@@ -1583,6 +1589,20 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n4standard" // N4 variants are priced the same per vCPU and RAM
 		} else if instanceType == "c4highmem" || instanceType == "c4highcpu" {
 			instanceType = "c4standard" // C4 variants are priced the same per vCPU and RAM
+		} else if instanceType == "c4ahighmem" || instanceType == "c4ahighcpu" {
+			instanceType = "c4astandard"
+		} else if instanceType == "c4dhighmem" || instanceType == "c4dhighcpu" {
+			instanceType = "c4dstandard"
+		} else if instanceType == "c3highmem" || instanceType == "c3highcpu" {
+			instanceType = "c3standard"
+		} else if instanceType == "c3dhighmem" || instanceType == "c3dhighcpu" {
+			instanceType = "c3dstandard"
+		} else if instanceType == "c2dhighmem" || instanceType == "c2dhighcpu" {
+			instanceType = "c2dstandard"
+		} else if instanceType == "n4ahighmem" || instanceType == "n4ahighcpu" {
+			instanceType = "n4astandard"
+		} else if instanceType == "n4dhighmem" || instanceType == "n4dhighcpu" {
+			instanceType = "n4dstandard"
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
 		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
@@ -1739,9 +1759,10 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	discount := defaultDiscount
 	switch class {
-	case "e2", "f1", "g1", "n4", "c4":
+	case "e2", "f1", "g1", "n4", "c4",
+		"n4a", "n4d", "c2d", "c3", "c3d", "c4a", "c4d", "t2d", "t2a", "a2":
 		discount = 0.0
-	case "n2", "n2d":
+	case "n2", "n2d", "c2":
 		discount = 0.2
 	}
 	return discount

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -71,6 +72,34 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		{
 			input:    "c4-highmem-32-lssd",
 			expected: "c4standard",
+		},
+		{
+			input:    "c2d-highcpu-8",
+			expected: "c2dstandard",
+		},
+		{
+			input:    "c3-highmem-8",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3d-highcpu-16",
+			expected: "c3dstandard",
+		},
+		{
+			input:    "c4a-highmem-8",
+			expected: "c4astandard",
+		},
+		{
+			input:    "c4d-highcpu-16",
+			expected: "c4dstandard",
+		},
+		{
+			input:    "n4a-highcpu-8",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4d-highmem-8",
+			expected: "n4dstandard",
 		},
 	}
 
@@ -1089,6 +1118,27 @@ func TestSustainedUseDiscount(t *testing.T) {
 			isPreemptible:   false,
 			expected:        0.30,
 		},
+		{
+			name:            "C2 instance",
+			class:           "c2",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.2,
+		},
+		{
+			name:            "C4D instance",
+			class:           "c4d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "N4A instance",
+			class:           "n4a",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1476,4 +1526,63 @@ func TestCombinedDiscountForC4Node(t *testing.T) {
 	assert.InDelta(t, 0.1, gcp.CombinedDiscountForNode("c4-standard-8", false, 0.30, 0.1), 1e-9)
 	// N1 still gets the default sustained use discount on top of the negotiated one.
 	assert.InDelta(t, 1-(1-0.30)*(1-0.1), gcp.CombinedDiscountForNode("n1-standard-8", false, 0.30, 0.1), 1e-9)
+}
+
+// TestParsePage_MachineFamilies prices one node of each family in test/skus_families.json,
+// whose SKUs are copied from the Cloud Billing Catalog API (us-central1).
+func TestParsePage_MachineFamilies(t *testing.T) {
+	fileBytes, err := os.ReadFile("./test/skus_families.json")
+	if err != nil {
+		t.Fatalf("failed to open file: %s", err)
+	}
+	cases := []struct {
+		instanceType string
+		spot         bool
+		vcpu, ram    float64
+	}{
+		{"c2d-highcpu-8", false, 0.029563, 0.003959},
+		{"c3-highmem-8", false, 0.03465, 0.003938},
+		{"c3d-highcpu-16", false, 0.029563, 0.003959},
+		{"c4a-highmem-8", false, 0.03086, 0.00351},
+		{"c4d-highcpu-16", false, 0.0327035, 0.003495578},
+		{"c4d-highcpu-16", true, 0.01376, 0.001472},
+		{"n4a-highcpu-8", false, 0.02646, 0.00301},
+		{"n4d-highmem-8", false, 0.02911, 0.00331},
+	}
+	keyOf := func(instanceType string, spot bool) *gcpKey {
+		labels := map[string]string{"node.kubernetes.io/instance-type": instanceType, "topology.kubernetes.io/region": "us-central1"}
+		if spot {
+			labels["cloud.google.com/gke-spot"] = "true"
+		}
+		return &gcpKey{Labels: labels}
+	}
+	inputKeys := map[string]models.Key{}
+	for _, c := range cases {
+		k := keyOf(c.instanceType, c.spot)
+		inputKeys[k.Features()] = k
+	}
+
+	prices, _, err := (&GCP{}).parsePage(bytes.NewReader(fileBytes), inputKeys, nil)
+	if err != nil {
+		t.Fatalf("parsing page: %v", err)
+	}
+	rate := func(key string, ram bool) float64 {
+		p, ok := prices[key]
+		if !ok || p.Node == nil {
+			t.Fatalf("%s: no pricing parsed", key)
+		}
+		v := p.Node.VCPUCost
+		if ram {
+			v = p.Node.RAMCost
+		}
+		f, _ := strconv.ParseFloat(v, 64)
+		return f
+	}
+	for _, c := range cases {
+		key := keyOf(c.instanceType, c.spot).Features()
+		assert.InDelta(t, c.vcpu, rate(key, false), 1e-12, "%s vCPU", key)
+		assert.InDelta(t, c.ram, rate(key, true), 1e-12, "%s RAM", key)
+	}
+	// C3 and C3D share a prefix but not a price
+	assert.NotEqual(t, rate("us-central1,c3standard,ondemand", false), rate("us-central1,c3dstandard,ondemand", false))
 }
