@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/api/compute/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestParseGCPInstanceTypeLabel(t *testing.T) {
@@ -1593,4 +1594,48 @@ func TestParsePage_MachineFamilies(t *testing.T) {
 	}
 	// C3 and C3D share a prefix but not a price
 	assert.NotEqual(t, rate("us-central1,c3standard,ondemand", false), rate("us-central1,c3dstandard,ondemand", false))
+	// the Extended RAM SKU, listed after the base one, is kept on its own key
+	assert.InDelta(t, 0.008309, rate("us-central1,n2dcustom,ondemand,extended", true), 1e-12)
+}
+
+func TestWithExtendedMemory(t *testing.T) {
+	const base, ext = 0.004, 0.008
+	g := &GCP{Pricing: map[string]*GCPPricing{
+		"us-central1,n2custom,ondemand,extended": {Node: &models.Node{RAMCost: "0.008"}},
+		"us-central1,n1custom,ondemand,extended": {Node: &models.Node{RAMCost: "0.008"}},
+	}}
+	keyFor := func(instanceType, capacity string, extra map[string]string) *gcpKey {
+		labels := map[string]string{"node.kubernetes.io/instance-type": instanceType, "topology.kubernetes.io/region": "us-central1"}
+		for k, v := range extra {
+			labels[k] = v
+		}
+		var n *clustercache.Node
+		if capacity != "" {
+			n = &clustercache.Node{Status: v1.NodeStatus{Capacity: v1.ResourceList{v1.ResourceMemory: resource.MustParse(capacity)}}}
+		}
+		return g.GetKey(labels, n).(*gcpKey)
+	}
+	rate := func(n *models.Node) float64 {
+		f, _ := strconv.ParseFloat(n.RAMCost, 64)
+		return f
+	}
+	baseNode := &models.Node{VCPUCost: "0.03", RAMCost: "0.004"}
+
+	// 96 GiB on 8 vCPUs: 64 GiB at the base rate, 32 GiB extended, spread over the reported 94 GiB
+	got := g.withExtendedMemory(keyFor("n2-custom-8-98304-ext", "94Gi", nil), baseNode)
+	assert.InDelta(t, 64*base+32*ext, rate(got)*94, 1e-12)
+	assert.Equal(t, "0.03", got.VCPUCost)
+	assert.Equal(t, "0.004", baseNode.RAMCost, "cached pricing must not change")
+
+	// N1 has no family prefix and a 6.5 GiB cap; a GPU node's key ends in ",gpu"
+	gpuNode := keyFor("custom-4-32768-ext", "", map[string]string{GKE_GPU_TAG: "nvidia-tesla-t4"})
+	assert.InDelta(t, (26*base+6*ext)/32, rate(g.withExtendedMemory(gpuNode, baseNode)), 1e-12)
+
+	// within the cap, or no Extended price: unchanged
+	assert.Same(t, baseNode, g.withExtendedMemory(keyFor("n2-custom-8-49152-ext", "", nil), baseNode))
+	assert.Same(t, baseNode, g.withExtendedMemory(keyFor("n4d-custom-8-98304-ext", "", nil), baseNode))
+
+	// shapes without extended memory
+	assert.Nil(t, keyFor("n2-custom-8-16384", "", nil).ext)
+	assert.Nil(t, keyFor("e2-custom-4-32768-ext", "", nil).ext)
 }
