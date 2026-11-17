@@ -1537,7 +1537,7 @@ func TestCombinedDiscountForC4Node(t *testing.T) {
 const gibPerGB = 1024 * 1024 * 1024 / 1e9
 
 // TestParsePage_MachineFamilies prices one node of each family in test/skus_families.json,
-// whose SKUs are copied from the Cloud Billing Catalog API (us-central1).
+// whose SKUs are copied from the Cloud Billing Catalog API.
 func TestParsePage_MachineFamilies(t *testing.T) {
 	fileBytes, err := os.ReadFile("./test/skus_families.json")
 	if err != nil {
@@ -1573,6 +1573,10 @@ func TestParsePage_MachineFamilies(t *testing.T) {
 		k := keyOf(c.instanceType, c.spot)
 		inputKeys[k.Features()] = k
 	}
+	for _, it := range []string{"n2-standard-4", "n2d-standard-4"} {
+		k := &gcpKey{Labels: map[string]string{"node.kubernetes.io/instance-type": it, "topology.kubernetes.io/region": "us-west3"}}
+		inputKeys[k.Features()] = k
+	}
 
 	prices, _, err := (&GCP{}).parsePage(bytes.NewReader(fileBytes), inputKeys, nil)
 	if err != nil {
@@ -1599,6 +1603,10 @@ func TestParsePage_MachineFamilies(t *testing.T) {
 	assert.NotEqual(t, rate("us-central1,c3standard,ondemand", false), rate("us-central1,c3dstandard,ondemand", false))
 	// the Extended RAM SKU, listed after the base one, is kept on its own key
 	assert.InDelta(t, 0.008309, rate("us-central1,n2dcustom,ondemand,extended", true), 1e-12)
+	// Sole Tenancy SKUs neither replace the base N2 price nor price N2D on their own
+	assert.InDelta(t, 0.03797, rate("us-west3,n2standard,ondemand", false), 1e-12)
+	assert.InDelta(t, 0.005089, rate("us-west3,n2standard,ondemand", true), 1e-12)
+	assert.NotContains(t, prices, "us-west3,n2dstandard,ondemand")
 }
 
 func TestWithExtendedMemory(t *testing.T) {
