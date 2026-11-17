@@ -22,6 +22,18 @@ log, and every signed image is additionally accompanied by a
 [SLSA v1](https://slsa.dev/spec/v1.0/) build provenance attestation produced
 with `cosign attest`.
 
+Images are multi-platform. The index and each platform image (`linux/amd64`,
+`linux/arm64`) are signed and carry the provenance attestation, so a registry
+mirror or pull-through cache that only keeps one platform still has a
+verifiable signature. Each platform image also carries a
+[CycloneDX](https://cyclonedx.org/) SBOM attestation.
+
+Signatures and attestations are published twice: as Sigstore bundles attached
+through the OCI referrers API (the cosign v3 default), and in the legacy
+`sha256-<digest>.sig`/`.att` tag format read by cosign v2 and existing
+admission policies. Images published before cosign v3 was adopted only have
+the legacy format; with cosign v3, verify those with `--new-bundle-format=false`.
+
 > **Note:** `workflow_dispatch` runs of `build-and-publish-release.yml`
 > intentionally skip signing. A manual dispatch runs from a branch ref rather
 > than a tag, so the Fulcio certificate identity would not match the
@@ -53,7 +65,7 @@ to a signed manifest is verifiable regardless of tag mutation.
 
 ### Verifying an image signature
 
-Install cosign (`go install github.com/sigstore/cosign/v2/cmd/cosign@latest`
+Install cosign v3 (`go install github.com/sigstore/cosign/v3/cmd/cosign@latest`
 or see the [install guide](https://docs.sigstore.dev/cosign/system_config/installation/)),
 then verify a specific release:
 
@@ -82,6 +94,24 @@ cosign verify-attestation \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
   "ghcr.io/opencost/opencost:${VERSION}"
 ```
+
+### Verifying the SBOM
+
+SBOMs are attested on each platform image, so resolve the platform digest first:
+
+```bash
+VERSION=1.115.0 # replace with the release you are verifying
+DIGEST="$(crane digest --platform linux/amd64 "ghcr.io/opencost/opencost:${VERSION}")"
+
+cosign verify-attestation \
+  --type cyclonedx \
+  --certificate-identity-regexp "^https://github\.com/opencost/opencost/\.github/workflows/build-and-publish-release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  "ghcr.io/opencost/opencost@${DIGEST}"
+```
+
+SPDX and CycloneDX SBOMs for releases are also attached to each
+[GitHub release](https://github.com/opencost/opencost/releases).
 
 ### Verifying the Helm chart signature
 
