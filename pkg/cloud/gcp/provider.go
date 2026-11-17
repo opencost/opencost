@@ -617,6 +617,15 @@ var machineFamilyKeys = map[string]string{
 	"T2D AMD INSTANCE":           "t2dstandard",
 	"T2A ARM INSTANCE":           "t2astandard",
 	"A2 INSTANCE":                "a2",
+	// Custom shapes are priced per family; N1's SKUs carry no family name.
+	"CUSTOM INSTANCE":         "n1custom",
+	"N2 CUSTOM INSTANCE":      "n2custom",
+	"N2D AMD CUSTOM INSTANCE": "n2dcustom",
+	"N4 CUSTOM INSTANCE":      "n4custom",
+	"N4A CUSTOM INSTANCE":     "n4acustom",
+	"N4D CUSTOM INSTANCE":     "n4dcustom",
+	"E2 CUSTOM INSTANCE":      "e2custom",
+	"G2 CUSTOM INSTANCE":      "g2custom",
 }
 
 // machineFamilyKey returns the pricing key for an upper-cased SKU description such as
@@ -756,10 +765,6 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					continue
 				}
 
-				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "CUSTOM") {
-					instanceType = "custom"
-				}
-
 				if instanceType == "ram" || instanceType == "cpu" {
 					if key := machineFamilyKey(strings.ToUpper(product.Description)); key != "" {
 						instanceType = key
@@ -788,7 +793,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 						candidateKeys = append(candidateKeys, region+","+"e2small"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2medium"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2standard"+","+usageType)
-						candidateKeys = append(candidateKeys, region+","+"e2custom"+","+usageType)
+						// e2custom is priced by its own "E2 Custom Instance" SKUs
 					case "a2":
 						candidateKeys = append(candidateKeys, region+","+"a2highgpu"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"a2megagpu"+","+usageType)
@@ -879,7 +884,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 							if hourlyPrice == 0 {
 								continue
 							} else if strings.Contains(strings.ToUpper(product.Description), "RAM") {
-								if instanceType == "custom" {
+								if strings.HasSuffix(instanceType, "custom") {
 									log.Debugf("GCP Billing API: RAM custom sku '%s'", product.Name)
 								}
 								if _, ok := gcpPricingList[candidateKey]; ok {
@@ -1608,7 +1613,7 @@ func parseGCPInstanceTypeLabel(it string) string {
 		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
 			instanceType = "n2dstandard"
 		} else if strings.HasPrefix(instanceType, "custom") {
-			instanceType = "custom" // The suffix of custom does not matter
+			instanceType = "n1custom" // N1 custom shapes have no family prefix; others keep theirs (n2dcustom, ...)
 		}
 	}
 

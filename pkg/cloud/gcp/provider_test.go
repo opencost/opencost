@@ -43,7 +43,7 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		},
 		{
 			input:    "custom-n1-standard-2",
-			expected: "custom",
+			expected: "n1custom",
 		},
 		{
 			input:    "n2d-highmem-8",
@@ -100,6 +100,10 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		{
 			input:    "n4d-highmem-8",
 			expected: "n4dstandard",
+		},
+		{
+			input:    "n2d-custom-8-16384",
+			expected: "n2dcustom",
 		},
 	}
 
@@ -1548,6 +1552,10 @@ func TestParsePage_MachineFamilies(t *testing.T) {
 		{"c4d-highcpu-16", true, 0.01376, 0.001472},
 		{"n4a-highcpu-8", false, 0.02646, 0.00301},
 		{"n4d-highmem-8", false, 0.02911, 0.00331},
+		{"custom-4-8192", false, 0.03319155, 0.004446},
+		{"n2d-custom-8-16384", false, 0.0288771, 0.0038703},
+		{"e2-custom-4-8192", false, 0.02290217, 0.003069707},
+		{"e2-standard-4", false, 0.02181159, 0.00292353},
 	}
 	keyOf := func(instanceType string, spot bool) *gcpKey {
 		labels := map[string]string{"node.kubernetes.io/instance-type": instanceType, "topology.kubernetes.io/region": "us-central1"}
