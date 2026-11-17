@@ -1,6 +1,7 @@
 package cloudcost
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -82,6 +83,43 @@ func TestIngestor_runStart(t *testing.T) {
 			limit := opencost.RoundBack(tt.lastRun, timeutil.Day).Add(-ing.config.Duration)
 			if got := ing.runStart(limit, tt.monthToDate); !got.Equal(tt.want) {
 				t.Errorf("runStart() = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+type keysErrRepository struct{ *MemoryRepository }
+
+func (keysErrRepository) Keys() ([]string, error) { return nil, errors.New("unavailable") }
+
+func TestIngestor_firstRunSkipsMonthToDate(t *testing.T) {
+	cachedFor := func(key string) *MemoryRepository {
+		repo := NewMemoryRepository()
+		start := time.Date(2026, 9, 29, 0, 0, 0, 0, time.UTC)
+		ccs := opencost.NewCloudCostSet(start, start.Add(timeutil.Day))
+		ccs.Integration = key
+		if err := repo.Put(ccs); err != nil {
+			t.Fatalf("Put: %s", err)
+		}
+		return repo
+	}
+
+	tests := map[string]struct {
+		repo    Repository
+		rebuild bool
+		want    bool
+	}{
+		"empty repository, build fetches everything":       {repo: NewMemoryRepository(), want: true},
+		"cached data, build skips it (recreated ingestor)": {repo: cachedFor("ing"), want: false},
+		"cached data on rebuild, build fetches everything": {repo: cachedFor("ing"), rebuild: true, want: true},
+		"only another integration cached":                  {repo: cachedFor("other"), want: true},
+		"repository keys unavailable keeps the refresh":    {repo: keysErrRepository{NewMemoryRepository()}, want: false},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ing := &ingestor{key: "ing", repo: tt.repo}
+			if got := ing.firstRunSkipsMonthToDate(tt.rebuild); got != tt.want {
+				t.Errorf("firstRunSkipsMonthToDate(%v) = %v, want %v", tt.rebuild, got, tt.want)
 			}
 		})
 	}

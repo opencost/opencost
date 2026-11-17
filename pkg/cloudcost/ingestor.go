@@ -2,6 +2,7 @@ package cloudcost
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -142,11 +143,27 @@ func (ing *ingestor) Start(rebuild bool) {
 	ing.exitBuildCh = make(chan string)
 	ing.exitRunCh = make(chan string)
 
+	skipFirstMonthToDate := ing.firstRunSkipsMonthToDate(rebuild)
+
 	// Build the store once, advancing backward in time from the earliest
 	// point of coverage.
 	go ing.build(rebuild)
 
-	go ing.run()
+	go ing.run(skipFirstMonthToDate)
+}
+
+// firstRunSkipsMonthToDate is true when build() refetches everything: on a rebuild, or when nothing is cached
+// (ingestors recreated on a config change reuse the repository, and build() skips cached windows).
+func (ing *ingestor) firstRunSkipsMonthToDate(rebuild bool) bool {
+	if rebuild {
+		return true
+	}
+	keys, err := ing.repo.Keys()
+	if err != nil {
+		log.Warnf("CloudCost[%s]: ingestor: failed to list repository keys, keeping the month-to-date refresh: %s", ing.key, err)
+		return false
+	}
+	return !slices.Contains(keys, ing.key)
 }
 
 func (ing *ingestor) Stop() {
@@ -263,7 +280,7 @@ func (ing *ingestor) build(rebuild bool) {
 
 }
 
-func (ing *ingestor) run() {
+func (ing *ingestor) run(skipFirstMonthToDate bool) {
 	defer errors.HandlePanic()
 
 	ticker := timeutil.NewJobTicker()
@@ -280,8 +297,7 @@ func (ing *ingestor) run() {
 			// Wait for next tick
 		}
 
-		// The first run overlaps build(), which already covers everything a month-to-date run would.
-		monthToDate := !first && ing.runs%ing.config.MonthToDateRunInterval == 0
+		monthToDate := ing.runs%ing.config.MonthToDateRunInterval == 0 && !(first && skipFirstMonthToDate)
 		s := ing.runStart(ing.retentionLimit(), monthToDate)
 		if monthToDate {
 			log.Infof("CloudCost[%s]: ingestor: Run[%s]: running month-to-date update starting at %s", ing.key, ing.runID, s.String())
