@@ -359,3 +359,49 @@ func TestMemoryRepository_Expire(t *testing.T) {
 		})
 	}
 }
+
+func TestMemoryRepository_Put_CompactsStoredEntries(t *testing.T) {
+	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(timeutil.Day)
+	ccs := opencost.NewCloudCostSet(start, end)
+	ccs.Integration = "key-1"
+	ccs.Insert(opencost.NewCloudCost(start, end, &opencost.CloudCostProperties{ProviderID: "full"}, 0, 1, 1, 1, 1, 1))
+	ccs.Insert(opencost.NewCloudCost(start, start.Add(time.Hour), &opencost.CloudCostProperties{ProviderID: "partial"}, 0, 1, 1, 1, 1, 1))
+
+	repo := NewMemoryRepository()
+	if err := repo.Put(ccs); err != nil {
+		t.Fatalf("Put: %s", err)
+	}
+	find := func(set *opencost.CloudCostSet, id string) *opencost.CloudCost {
+		for _, cc := range set.CloudCosts {
+			if cc.Properties.ProviderID == id {
+				return cc
+			}
+		}
+		t.Fatalf("no CloudCost for %s", id)
+		return nil
+	}
+
+	stored := repo.data["key-1"][start]
+	if find(stored, "full").Properties.Labels != nil {
+		t.Errorf("stored empty labels were not dropped")
+	}
+	if find(stored, "full").Window.Start() != stored.Window.Start() {
+		t.Errorf("stored full-day entry does not share the set's window")
+	}
+	if want := opencost.NewClosedWindow(start, start.Add(time.Hour)); !find(stored, "partial").Window.Equal(want) {
+		t.Errorf("partial entry window = %s, want %s", find(stored, "partial").Window, want)
+	}
+
+	got, err := repo.Get(start, "key-1")
+	if err != nil {
+		t.Fatalf("Get: %s", err)
+	}
+	full := find(got, "full")
+	if full.Properties.Labels == nil {
+		t.Errorf("Get returned nil labels; callers expect a writable map")
+	}
+	if full.Window.Start() == stored.Window.Start() {
+		t.Errorf("Get leaked the stored window times")
+	}
+}

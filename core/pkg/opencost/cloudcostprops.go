@@ -116,10 +116,6 @@ const (
 type CloudCostLabels map[string]string
 
 func (ccl CloudCostLabels) Clone() CloudCostLabels {
-	// Most stored entries have no labels; nil keeps them from each holding an empty map.
-	if len(ccl) == 0 {
-		return nil
-	}
 	result := make(map[string]string, len(ccl))
 	for k, v := range ccl {
 		result[k] = v

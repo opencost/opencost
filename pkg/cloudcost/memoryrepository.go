@@ -75,6 +75,17 @@ func (m *MemoryRepository) Put(ccs *opencost.CloudCostSet) error {
 		return fmt.Errorf("MemoryRepository: Put: cloud cost set does not have an integration value")
 	}
 
+	// Get only hands out clones, so stored entries can drop empty label maps and share the set's
+	// window times without callers ever seeing the shared values.
+	for _, cc := range ccs.CloudCosts {
+		if cc.Properties != nil && len(cc.Properties.Labels) == 0 {
+			cc.Properties.Labels = nil
+		}
+		if cc.Window.Equal(ccs.Window) {
+			cc.Window = ccs.Window
+		}
+	}
+
 	if _, ok := m.data[ccs.Integration]; !ok {
 		m.data[ccs.Integration] = make(map[time.Time]*opencost.CloudCostSet)
 	}

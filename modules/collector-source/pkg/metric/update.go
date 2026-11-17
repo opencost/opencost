@@ -10,9 +10,9 @@ type UpdateSet struct {
 }
 
 type Update struct {
-	Name           string            `json:"name"`
-	Labels         map[string]string `json:"labels"`
-	Value          float64           `json:"value"`
+	Name   string            `json:"name"`
+	Labels map[string]string `json:"labels"`
+	Value  float64           `json:"value"`
 	// AdditionalInfo is stored by reference across every resolution; don't mutate it after Update.
 	AdditionalInfo map[string]string `json:"additionalInfo"`
 }
