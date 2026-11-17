@@ -12,6 +12,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -807,7 +808,7 @@ func applyGPUUsageShared(podMap map[podKey]*pod, resIsGPUShared []*source.IsGPUS
 			// if a container is using a GPU and it is shared, isGPUShared will be true
 			// if a container is using GPU and it is NOT shared, isGPUShared will be false
 			// if a container is NOT using a GPU, isGPUShared will be null
-			if res.Resource == "nvidia_com_gpu_shared" {
+			if promutil.SanitizedEqual(res.Resource, "nvidia.com/gpu.shared") {
 				trueVal := true
 				if res.Data[0].Value == 1 {
 					if thisPod.Allocations[container].GPUAllocation == nil {
@@ -816,7 +817,7 @@ func applyGPUUsageShared(podMap map[podKey]*pod, resIsGPUShared []*source.IsGPUS
 						thisPod.Allocations[container].GPUAllocation.IsGPUShared = &trueVal
 					}
 				}
-			} else if res.Resource == "nvidia_com_gpu" {
+			} else if promutil.SanitizedEqual(res.Resource, "nvidia.com/gpu") {
 				falseVal := false
 				if res.Data[0].Value == 1 {
 					if thisPod.Allocations[container].GPUAllocation == nil {

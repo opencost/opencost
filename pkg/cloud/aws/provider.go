@@ -515,7 +515,7 @@ func (aws *AWS) GetAWSAccessKey() (*AWSAccessKey, error) {
 	}
 
 	if config.AwsServiceKeyName == "" && config.AwsServiceKeySecret == "" {
-		log.DedupedInfof(1, "missing service key values for AWS cloud integration attempting to use service account integration")
+		log.DedupedDebugf(1, "missing service key values for AWS cloud integration attempting to use service account integration")
 	}
 
 	return &AWSAccessKey{AccessKeyID: config.AwsServiceKeyName, SecretAccessKey: config.AwsServiceKeySecret}, nil
@@ -1482,6 +1482,26 @@ func (aws *AWS) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	}, nil
 }
 
+// RefreshCustomPricing reloads base price and spot label fields from config.
+// Avoids the full node/PV discovery and external AWS API calls in DownloadPricingData.
+func (aws *AWS) RefreshCustomPricing() error {
+	aws.DownloadPricingDataLock.Lock()
+	defer aws.DownloadPricingDataLock.Unlock()
+	c, err := aws.Config.GetCustomPricingData()
+	if err != nil {
+		return err
+	}
+	aws.BaseCPUPrice = c.CPU
+	aws.BaseRAMPrice = c.RAM
+	aws.BaseGPUPrice = c.GPU
+	aws.BaseSpotCPUPrice = c.SpotCPU
+	aws.BaseSpotRAMPrice = c.SpotRAM
+	aws.BaseSpotGPUPrice = c.SpotGPU
+	aws.SpotLabelName = c.SpotLabel
+	aws.SpotLabelValue = c.SpotLabelValue
+	return nil
+}
+
 // AllNodePricing returns all the billing data fetched.
 func (aws *AWS) AllNodePricing() (interface{}, error) {
 	aws.DownloadPricingDataLock.RLock()
@@ -1518,17 +1538,17 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 
 	meta := models.PricingMetadata{}
 	var cost string
-	publicPricingFound := true
-	c, ok := terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCode}, ".")]
-	if ok {
-		cost = c.PricePerUnit.USD
-	} else {
-		// Check for Chinese pricing
-		c, ok = terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCodeCn}, ".")]
-		if ok {
+	publicPricingFound := false
+	// A product can be present in the public price list without an OnDemand term (observed for newly launched
+	// instance types). Treat it as "public price not found" instead of dereferencing a nil term.
+	if terms.OnDemand != nil {
+		if c, ok := terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCode}, ".")]; ok {
+			cost = c.PricePerUnit.USD
+			publicPricingFound = true
+		} else if c, ok := terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCodeCn}, ".")]; ok {
+			// Check for Chinese pricing
 			cost = c.PricePerUnit.CNY
-		} else {
-			publicPricingFound = false
+			publicPricingFound = true
 		}
 	}
 

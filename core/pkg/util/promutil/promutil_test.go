@@ -348,3 +348,55 @@ func TestMerge_DoesNotMutateBase(t *testing.T) {
 
 	assert.Equal(t, map[string]string{"node": "worker-1"}, base, "Merge must not mutate the base map")
 }
+
+func TestSanitizedEqual(t *testing.T) {
+	cases := []struct {
+		name     string
+		t        string
+		k        string
+		expected bool
+	}{
+		{"exact match", "nvidia.com/gpu", "nvidia.com/gpu", true},
+		{"sanitized form matches raw key", "nvidia_com_gpu", "nvidia.com/gpu", true},
+		{"raw form does not match when t is unsanitized", "nvidia.com/gpu", "nvidia_com_gpu", false},
+		{"different resource", "nvidia_com_gpu_shared", "nvidia.com/gpu", false},
+		{"empty strings", "", "", true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, SanitizedEqual(c.t, c.k))
+		})
+	}
+}
+
+func TestLookupWithSanitizedFallback(t *testing.T) {
+	m := map[string]int{
+		"nvidia_com_gpu": 1,
+		"exact":          2,
+	}
+
+	t.Run("exact key hit", func(t *testing.T) {
+		v, ok := LookupWithSanitizedFallback(m, "exact")
+		assert.True(t, ok)
+		assert.Equal(t, 2, v)
+	})
+
+	t.Run("falls back to sanitized key", func(t *testing.T) {
+		v, ok := LookupWithSanitizedFallback(m, "nvidia.com/gpu")
+		assert.True(t, ok)
+		assert.Equal(t, 1, v)
+	})
+
+	t.Run("sanitized key already matches directly", func(t *testing.T) {
+		v, ok := LookupWithSanitizedFallback(m, "nvidia_com_gpu")
+		assert.True(t, ok)
+		assert.Equal(t, 1, v)
+	})
+
+	t.Run("missing key", func(t *testing.T) {
+		v, ok := LookupWithSanitizedFallback(m, "amd.com/gpu")
+		assert.False(t, ok)
+		assert.Equal(t, 0, v)
+	})
+}

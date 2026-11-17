@@ -465,6 +465,75 @@ func TestGetUnmountedPodForCluster(t *testing.T) {
 	}
 }
 
+// TestApplyGPUUsageSharedResourceLabelForms guards against a regression
+// where GPU-shared detection only recognized the Prometheus-sanitized
+// resource label ("nvidia_com_gpu[_shared]") and silently ignored results
+// reporting the raw Kubernetes resource name ("nvidia.com/gpu[.shared]").
+func TestApplyGPUUsageSharedResourceLabelForms(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
+
+	newPodMap := func() (map[podKey]*pod, podKey) {
+		key := newPodKey("cluster1", "ns1", "pod1")
+		podMap := map[podKey]*pod{
+			key: {
+				Window:      window.Clone(),
+				Start:       *window.Start(),
+				End:         *window.End(),
+				Key:         key,
+				Allocations: map[string]*opencost.Allocation{},
+			},
+		}
+		return podMap, key
+	}
+
+	cases := []struct {
+		name         string
+		resource     string
+		expectShared *bool // nil means no GPUAllocation should be set at all
+	}{
+		{"sanitized shared resource", "nvidia_com_gpu_shared", boolPtr(true)},
+		{"raw shared resource", "nvidia.com/gpu.shared", boolPtr(true)},
+		{"sanitized non-shared resource", "nvidia_com_gpu", boolPtr(false)},
+		{"raw non-shared resource", "nvidia.com/gpu", boolPtr(false)},
+		{"unrelated resource is ignored", "cpu", nil},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			podMap, key := newPodMap()
+
+			resIsGPUShared := []*source.IsGPUSharedResult{
+				{
+					Cluster:   "cluster1",
+					Namespace: "ns1",
+					Pod:       "pod1",
+					Container: "app",
+					Resource:  c.resource,
+					Data:      []*util.Vector{{Value: 1}},
+				},
+			}
+
+			applyGPUUsageShared(podMap, resIsGPUShared, map[podKey][]podKey{})
+
+			alloc, ok := podMap[key].Allocations["app"]
+
+			if c.expectShared == nil {
+				if ok && alloc.GPUAllocation != nil {
+					t.Errorf("resource %q: expected no GPUAllocation to be set, got %+v", c.resource, alloc.GPUAllocation)
+				}
+				return
+			}
+
+			if !ok || alloc.GPUAllocation == nil || alloc.GPUAllocation.IsGPUShared == nil {
+				t.Fatalf("resource %q: expected GPUAllocation.IsGPUShared to be set", c.resource)
+			}
+			if *alloc.GPUAllocation.IsGPUShared != *c.expectShared {
+				t.Errorf("resource %q: expected IsGPUShared=%v, got %v", c.resource, *c.expectShared, *alloc.GPUAllocation.IsGPUShared)
+			}
+		})
+	}
+}
+
 func TestCalculateStartAndEnd(t *testing.T) {
 	testCases := map[string]struct {
 		resolution    time.Duration // User defined config when querying Prometheus

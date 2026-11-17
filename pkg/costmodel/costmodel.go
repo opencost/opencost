@@ -39,6 +39,7 @@ const (
 	annotationStorageCost = annotationDomain + "/storage-hourly-cost"
 	annotationNodeCPUCost = annotationDomain + "/node-cpu-hourly-cost"
 	annotationNodeRAMCost = annotationDomain + "/node-ram-hourly-cost"
+	annotationNodeGPUCost = annotationDomain + "/node-gpu-hourly-cost"
 )
 
 // isCron matches a CronJob name and captures the non-timestamp name
@@ -963,6 +964,14 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		pmd.TotalNodes++
 
 		cnode, _, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
+		if cnode != nil {
+			// Some providers (e.g. GCP, Azure, Alibaba) return the *Node held in
+			// their pricing cache, which is shared by every node with the same
+			// pricing key. Work on a copy so the per-node annotation overrides
+			// below don't leak into that cache.
+			c := *cnode
+			cnode = &c
+		}
 		if err != nil {
 			log.DedupedInfof(10, "Could not get node pricing for node %s: %s. Falling back to default pricing.", name, err.Error())
 			if cnode != nil {
@@ -984,6 +993,11 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 		if cost, found := n.Annotations[annotationNodeRAMCost]; found && cm.costIsValid(cost) {
 			log.Infof("Found custom RAM cost from annotation for Node %s: %s", n.Name, cost)
 			cnode.RAMCost = cost
+		}
+
+		if cost, found := n.Annotations[annotationNodeGPUCost]; found && cm.costIsValid(cost) {
+			log.Infof("Found custom GPU cost from annotation for Node %s: %s", n.Name, cost)
+			cnode.GPUCost = cost
 		}
 
 		pmd.PricingTypeCounts[cnode.PricingType]++

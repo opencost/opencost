@@ -779,6 +779,68 @@ func TestAWS_getFargatePod(t *testing.T) {
 	}
 }
 
+// awsMockConfig implements models.ProviderConfig for testing RefreshCustomPricing.
+type awsMockConfig struct {
+	customPricing *models.CustomPricing
+}
+
+func (m *awsMockConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	return m.customPricing, nil
+}
+
+func (m *awsMockConfig) Update(_ func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *awsMockConfig) UpdateFromMap(_ map[string]string) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *awsMockConfig) ConfigFileManager() *config.ConfigFileManager {
+	return nil
+}
+
+func TestAWSRefreshCustomPricing(t *testing.T) {
+	cp := &models.CustomPricing{
+		CPU:            "0.02",
+		RAM:            "0.003",
+		GPU:            "0.5",
+		SpotCPU:        "0.01",
+		SpotRAM:        "0.002",
+		SpotGPU:        "0.25",
+		SpotLabel:      "eks.amazonaws.com/capacityType",
+		SpotLabelValue: "SPOT",
+	}
+	a := &AWS{Config: &awsMockConfig{customPricing: cp}}
+	if err := a.RefreshCustomPricing(); err != nil {
+		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
+	}
+	if a.BaseCPUPrice != cp.CPU {
+		t.Errorf("BaseCPUPrice = %q, want %q", a.BaseCPUPrice, cp.CPU)
+	}
+	if a.BaseRAMPrice != cp.RAM {
+		t.Errorf("BaseRAMPrice = %q, want %q", a.BaseRAMPrice, cp.RAM)
+	}
+	if a.BaseGPUPrice != cp.GPU {
+		t.Errorf("BaseGPUPrice = %q, want %q", a.BaseGPUPrice, cp.GPU)
+	}
+	if a.BaseSpotCPUPrice != cp.SpotCPU {
+		t.Errorf("BaseSpotCPUPrice = %q, want %q", a.BaseSpotCPUPrice, cp.SpotCPU)
+	}
+	if a.BaseSpotRAMPrice != cp.SpotRAM {
+		t.Errorf("BaseSpotRAMPrice = %q, want %q", a.BaseSpotRAMPrice, cp.SpotRAM)
+	}
+	if a.BaseSpotGPUPrice != cp.SpotGPU {
+		t.Errorf("BaseSpotGPUPrice = %q, want %q", a.BaseSpotGPUPrice, cp.SpotGPU)
+	}
+	if a.SpotLabelName != cp.SpotLabel {
+		t.Errorf("SpotLabelName = %q, want %q", a.SpotLabelName, cp.SpotLabel)
+	}
+	if a.SpotLabelValue != cp.SpotLabelValue {
+		t.Errorf("SpotLabelValue = %q, want %q", a.SpotLabelValue, cp.SpotLabelValue)
+	}
+}
+
 // fakeProviderConfig implements models.ProviderConfig for testing
 type fakeProviderConfig struct {
 	customPricing *models.CustomPricing
@@ -1489,6 +1551,65 @@ func TestAWS_findCostForDisk(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "parsing \"not-a-float\"") {
 			t.Fatalf("expected parsing float error, got %q", err.Error())
+		}
+	})
+}
+
+// A product in the public price list can have no OnDemand term (for example, a newly launched instance type).
+// createNode must not dereference the nil term: preemptible nodes fall back to the configured spot prices and
+// on-demand nodes return an error, as when the price dimension is missing.
+func TestAWS_createNode_nilOnDemandTerm(t *testing.T) {
+	terms := &AWSProductTerms{
+		Sku:      "SKUNOONDEMAND",
+		OnDemand: nil,
+		VCpu:     "4",
+		Memory:   "32 GiB",
+	}
+	newKey := func(spot bool) *awsKey {
+		labels := map[string]string{
+			"topology.kubernetes.io/region":    "us-east-1",
+			"topology.kubernetes.io/zone":      "us-east-1a",
+			"node.kubernetes.io/instance-type": "r9g.xlarge",
+			"kubernetes.io/os":                 "linux",
+		}
+		if spot {
+			labels["karpenter.sh/capacity-type"] = "spot"
+		}
+		return &awsKey{
+			ProviderID: "aws:///us-east-1a/i-0123456789abcdef0",
+			Labels:     labels,
+		}
+	}
+
+	t.Run("preemptible node falls back to default spot prices", func(t *testing.T) {
+		aws := &AWS{
+			BaseCPUPrice:     "0.04",
+			BaseRAMPrice:     "0.01",
+			BaseGPUPrice:     "0.95",
+			BaseSpotCPUPrice: "0.01",
+			BaseSpotRAMPrice: "0.002",
+		}
+		node, _, err := aws.createNode(terms, PreemptibleType, newKey(true))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if node.UsageType != PreemptibleType {
+			t.Errorf("Expected usage type %s, got %s", PreemptibleType, node.UsageType)
+		}
+		if node.VCPUCost != "0.01" || node.RAMCost != "0.002" {
+			t.Errorf("Expected default spot prices 0.01/0.002, got %s/%s", node.VCPUCost, node.RAMCost)
+		}
+	})
+
+	t.Run("on-demand node returns an error instead of panicking", func(t *testing.T) {
+		aws := &AWS{
+			BaseCPUPrice: "0.04",
+			BaseRAMPrice: "0.01",
+			BaseGPUPrice: "0.95",
+		}
+		node, _, err := aws.createNode(terms, "ondemand", newKey(false))
+		if err == nil {
+			t.Fatalf("Expected an error for a product without OnDemand term, got node %+v", node)
 		}
 	})
 }

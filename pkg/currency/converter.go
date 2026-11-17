@@ -8,15 +8,15 @@ import (
 )
 
 type currencyConverter struct {
-	client client
-	cache  cache
-	config Config
-	mu     sync.RWMutex
+	provider RateProvider
+	cache    cache
+	config   Config
+	mu       sync.RWMutex
 }
 
 func NewConverter(config Config) (Converter, error) {
-	if config.APIKey == "" {
-		return nil, fmt.Errorf("API key is required")
+	if config.Provider == nil && config.APIKey == "" {
+		return nil, fmt.Errorf("API key is required when no rate provider is set (Config.Provider is nil)")
 	}
 
 	if config.CacheTTL == 0 {
@@ -27,14 +27,33 @@ func NewConverter(config Config) (Converter, error) {
 		config.APITimeout = 10 * time.Second
 	}
 
-	client := newExchangeRateClient(config.APIKey, config.APITimeout)
+	provider := config.Provider
+	if provider == nil {
+		var err error
+		provider, err = newNamedProvider(config.ProviderName, config.APIKey, config.APITimeout)
+		if err != nil {
+			return nil, err
+		}
+	}
 	cache := newMemoryCache(config.CacheTTL)
 
 	return &currencyConverter{
-		client: client,
-		cache:  cache,
-		config: config,
+		provider: provider,
+		cache:    cache,
+		config:   config,
 	}, nil
+}
+
+// newNamedProvider returns the built-in provider selected by name.
+func newNamedProvider(name, apiKey string, timeout time.Duration) (RateProvider, error) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "", ProviderExchangeRateAPI:
+		return newExchangeRateClient(apiKey, timeout), nil
+	case ProviderAllRatesToday:
+		return NewAllRatesTodayProvider(apiKey, timeout), nil
+	default:
+		return nil, fmt.Errorf("unknown rate provider %q (use %q or %q)", name, ProviderExchangeRateAPI, ProviderAllRatesToday)
+	}
 }
 
 func (c *currencyConverter) Convert(amount float64, from, to string) (float64, error) {
@@ -89,17 +108,21 @@ func (c *currencyConverter) fetchAndCacheRates(baseCurrency string) (map[string]
 		return cachedRates.rates, nil
 	}
 
-	response, err := c.client.fetchRates(baseCurrency)
+	rates, err := c.provider.FetchRates(baseCurrency)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch rates from API: %w", err)
 	}
 
+	if len(rates) == 0 {
+		return nil, fmt.Errorf("no conversion rates returned for %s", baseCurrency)
+	}
+
 	cachedRates := &cachedRates{
-		rates:     response.ConversionRates,
-		baseCode:  response.BaseCode,
+		rates:     rates,
+		baseCode:  baseCurrency,
 		fetchedAt: time.Now(),
 	}
 	c.cache.set(baseCurrency, cachedRates)
 
-	return response.ConversionRates, nil
+	return rates, nil
 }

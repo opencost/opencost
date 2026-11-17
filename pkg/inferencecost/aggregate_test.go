@@ -252,6 +252,79 @@ func TestAggregate_ByModelName_SumsTokensAndRecomputesRates(t *testing.T) {
 	}
 }
 
+func TestAggregate_KeepsGroupedPropertiesOnly(t *testing.T) {
+	now := time.Now().UTC()
+	win := makeWindow(now.Add(-time.Hour), now)
+
+	newEntry := func(model, version, ns, controller, kind string) *InferenceCostResponse {
+		ic := makeICR(model, ns, 10, 1000, 500, 7, 3)
+		ic.Properties.ModelVersion = version
+		ic.Properties.Controller = controller
+		ic.Properties.ControllerKind = kind
+		return ic
+	}
+
+	tests := []struct {
+		name        string
+		aggregateBy []string
+		wantKey     string
+		want        InferenceCostAPIProperties
+	}{
+		{
+			name:        "controller_kind keeps the kind",
+			aggregateBy: []string{"controller_kind"},
+			wantKey:     "deployment",
+			want:        InferenceCostAPIProperties{ControllerKind: "deployment"},
+		},
+		{
+			name:        "controller drops the kind",
+			aggregateBy: []string{"controller"},
+			wantKey:     "vllm",
+			want:        InferenceCostAPIProperties{Controller: "vllm"},
+		},
+		{
+			name:        "controller and controller_kind keep both",
+			aggregateBy: []string{"controller", "controller_kind"},
+			wantKey:     "vllm/deployment",
+			want:        InferenceCostAPIProperties{Controller: "vllm", ControllerKind: "deployment"},
+		},
+		{
+			name:        "model_version keeps the version",
+			aggregateBy: []string{"model_version"},
+			wantKey:     "v2",
+			want:        InferenceCostAPIProperties{ModelVersion: "v2"},
+		},
+		{
+			name:        "model_name drops the version",
+			aggregateBy: []string{"model_name"},
+			wantKey:     "llama",
+			want:        InferenceCostAPIProperties{ModelName: "llama"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			set := newInferenceCostSet(win)
+			set.InferenceCosts["llama:ns1"] = newEntry("llama", "v2", "ns1", "vllm", "deployment")
+			set.InferenceCosts["llama:ns2"] = newEntry("llama", "v2", "ns2", "vllm", "deployment")
+
+			if err := set.aggregate(tt.aggregateBy); err != nil {
+				t.Fatalf("aggregate error: %v", err)
+			}
+			if len(set.InferenceCosts) != 1 {
+				t.Fatalf("expected 1 entry after aggregation, got %d", len(set.InferenceCosts))
+			}
+			agg := set.InferenceCosts[tt.wantKey]
+			if agg == nil {
+				t.Fatalf("expected key %q, got %v", tt.wantKey, set.InferenceCosts)
+			}
+			if agg.Properties != tt.want {
+				t.Errorf("Properties = %+v, want %+v", agg.Properties, tt.want)
+			}
+		})
+	}
+}
+
 func TestAggregate_NoAggregation_DoesNothing(t *testing.T) {
 	now := time.Now().UTC()
 	win := makeWindow(now.Add(-time.Hour), now)

@@ -96,8 +96,8 @@ var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnos
 	},
 	CPUThrottlingDiagnosticMetricID: {
 		ID: CPUThrottlingDiagnosticMetricID,
-		QueryFmt: `avg(increase(container_cpu_cfs_throttled_periods_total{container="cost-model", %s}[10m] %s)) by (container_name, pod_name, namespace)
-	/ avg(increase(container_cpu_cfs_periods_total{container="cost-model",%s}[10m] %s)) by (container_name, pod_name, namespace) > 0.2`,
+		QueryFmt: `avg(increase(container_cpu_cfs_throttled_periods_total{container="cost-model", %[1]s}[10m] %[2]s)) by (container_name, pod_name, namespace)
+	/ avg(increase(container_cpu_cfs_periods_total{container="cost-model",%[1]s}[10m] %[2]s)) by (container_name, pod_name, namespace) > 0.2`,
 		Label:       "Kubecost is not CPU throttled",
 		Description: "Kubecost loading slowly? A kubecost component might be CPU throttled",
 	},
@@ -259,14 +259,7 @@ type diagnosticDefinition struct {
 
 // NewDiagnostic creates a new PrometheusDiagnostic instance using the provided definition data.
 func (pdd *diagnosticDefinition) NewDiagnostic(filter string, offset string) *PrometheusDiagnostic {
-	// FIXME: Any reasonable way to get the total number of replacements required in the query?
-	// FIXME: All of the other queries require a single offset replace, but CPUThrottle requires two.
-	var query string
-	if pdd.ID == CPUThrottlingDiagnosticMetricID {
-		query = fmt.Sprintf(pdd.QueryFmt, filter, offset, filter, offset)
-	} else {
-		query = fmt.Sprintf(pdd.QueryFmt, filter, offset)
-	}
+	query := fmt.Sprintf(pdd.QueryFmt, filter, offset)
 
 	return &PrometheusDiagnostic{
 		ID:          pdd.ID,

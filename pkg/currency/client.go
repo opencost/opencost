@@ -23,6 +23,12 @@ type exchangeRateClient struct {
 	timeout    time.Duration
 }
 
+// NewExchangeRateAPIProvider returns a RateProvider backed by
+// exchangerate-api.com. It is the provider NewConverter uses by default.
+func NewExchangeRateAPIProvider(apiKey string, timeout time.Duration) RateProvider {
+	return newExchangeRateClient(apiKey, timeout)
+}
+
 func newExchangeRateClient(apiKey string, timeout time.Duration) *exchangeRateClient {
 	if timeout == 0 {
 		timeout = 10 * time.Second
@@ -35,6 +41,15 @@ func newExchangeRateClient(apiKey string, timeout time.Duration) *exchangeRateCl
 		},
 		timeout: timeout,
 	}
+}
+
+// FetchRates implements RateProvider.
+func (c *exchangeRateClient) FetchRates(baseCurrency string) (map[string]float64, error) {
+	response, err := c.fetchRates(baseCurrency)
+	if err != nil {
+		return nil, err
+	}
+	return response.ConversionRates, nil
 }
 
 func (c *exchangeRateClient) fetchRates(baseCurrency string) (*exchangeRateResponse, error) {

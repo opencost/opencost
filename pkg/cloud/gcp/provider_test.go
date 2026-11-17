@@ -60,6 +60,18 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 			input:    "n4-highmem-16",
 			expected: "n4standard",
 		},
+		{
+			input:    "c4-standard-8",
+			expected: "c4standard",
+		},
+		{
+			input:    "c4-highcpu-16",
+			expected: "c4standard",
+		},
+		{
+			input:    "c4-highmem-32-lssd",
+			expected: "c4standard",
+		},
 	}
 
 	for _, test := range cases {
@@ -221,6 +233,39 @@ func TestParsePage(t *testing.T) {
 			pvKeys:         nil,
 			expectedPrices: nil,
 			expectError:    true,
+		},
+		"C4 SKUs": {
+			// The prices in this file are made up; it only has the C4 core and RAM SKUs.
+			inputFile: "./test/c4_skus.json",
+			inputKeys: map[string]models.Key{
+				"us-central1,c4standard,ondemand": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c4-standard-8",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+			},
+			pvKeys: map[string]models.PVKey{},
+			expectedPrices: map[string]*GCPPricing{
+				"us-central1,c4standard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.032",
+						RAMCost:          "0.004",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c4standard,ondemand,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.032",
+						RAMCost:          "0.004",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+			},
+			expectedToken: "done",
+			expectError:   false,
 		},
 		"SKU file": {
 			// NOTE: SKUs here are copied directly from GCP Billing API. Some of them
@@ -1024,6 +1069,13 @@ func TestSustainedUseDiscount(t *testing.T) {
 			expected:        0.0,
 		},
 		{
+			name:            "C4 instance",
+			class:           "c4",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
 			name:            "N2 instance",
 			class:           "n2",
 			defaultDiscount: 0.30,
@@ -1096,6 +1148,42 @@ func TestGCP_parsePages(t *testing.T) {
 	// This will fail due to missing API key, but we can test the function structure
 	_, err := gcp.parsePages(keys, pvKeys)
 	assert.Error(t, err) // Expect error due to missing API key
+}
+
+func TestGCP_fetchAndParsePage_Non200Status(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "boom")
+	}))
+	defer srv.Close()
+
+	gcp := &GCP{}
+	_, _, err := gcp.fetchAndParsePage(srv.Client(), srv.URL, map[string]models.Key{}, map[string]models.PVKey{})
+	if err == nil {
+		t.Fatal("expected an error for a non-200 response, got nil")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("expected error to include status code 500, got %q", err.Error())
+	}
+}
+
+func TestGCP_fetchAndParsePage_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"skus":[],"nextPageToken":""}`)
+	}))
+	defer srv.Close()
+
+	gcp := &GCP{}
+	page, token, err := gcp.fetchAndParsePage(srv.Client(), srv.URL, map[string]models.Key{}, map[string]models.PVKey{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if token != "done" {
+		t.Errorf("token = %q, want %q", token, "done")
+	}
+	if len(page) != 0 {
+		t.Errorf("page len = %d, want 0", len(page))
+	}
 }
 
 // TestGCP_parsePagesWithClient_Pagination verifies that multi-page traversal
@@ -1368,4 +1456,24 @@ func (m *mockConfig) Update(updateFn func(*models.CustomPricing) error) (*models
 
 func (m *mockConfig) ConfigFileManager() *config.ConfigFileManager {
 	return nil
+}
+
+func TestGCPRefreshCustomPricing(t *testing.T) {
+	gcp := &GCP{Config: &mockConfig{}}
+	if err := gcp.RefreshCustomPricing(); err != nil {
+		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
+	}
+	// mockConfig returns an empty CustomPricing; verify fields are updated (to "")
+	if gcp.BaseCPUPrice != "" {
+		t.Errorf("BaseCPUPrice = %q, want empty string", gcp.BaseCPUPrice)
+	}
+}
+
+func TestCombinedDiscountForC4Node(t *testing.T) {
+	gcp := &GCP{}
+
+	// C4 gets no sustained use discount, only the negotiated one.
+	assert.InDelta(t, 0.1, gcp.CombinedDiscountForNode("c4-standard-8", false, 0.30, 0.1), 1e-9)
+	// N1 still gets the default sustained use discount on top of the negotiated one.
+	assert.InDelta(t, 1-(1-0.30)*(1-0.1), gcp.CombinedDiscountForNode("n1-standard-8", false, 0.30, 0.1), 1e-9)
 }

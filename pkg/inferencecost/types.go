@@ -34,6 +34,12 @@ const (
 	AllocationMethodMultiplier AllocationMethod = "multiplier"
 )
 
+// prefillDominanceWarnThreshold is the prefill share of total processing time
+// above which the compute-time split is logged as suspicious. Diagnostic only —
+// the split is still applied, since a prefill-dominant share is legitimate for
+// workloads with long prompts and very short generations.
+const prefillDominanceWarnThreshold = 0.5
+
 // InferenceCostProperties identifies a unique inference cost entity.
 type InferenceCostProperties struct {
 	ModelName      string

@@ -11,7 +11,6 @@ Official list of [OpenCost Maintainers](https://github.com/orgs/opencost/teams/o
 | Artur Khantimirov | @r2k1 | Microsoft | <akhantimirov@microsoft.com> |
 | Christian Petersen | @cpetersen5 | IBM | <Christian.Petersen2@ibm.com> |
 | Matt Bolt | @​mbolt35 | IBM | <matthew.bolt@ibm.com> |
-| Niko Kovacevic | @nikovacevic | IBM | <Nicholas.Kovacevic@ibm.com> |
 | Sean Holcomb | @Sean-Holcomb | IBM | <sean.holcomb@ibm.com> |
 | Warwick Peatey | @peatey | IBM | <warwick.peatey@ibm.com> |
 
@@ -38,3 +37,4 @@ We would like to acknowledge previous committers and their huge contributions to
 | Michael Dresser | @michaelmdresser | Kubecost (former) | <michaelmdresser@gmail.com> |
 | Matt Ray | @mattray | Kubecost (former) | <mattray@kubecost.com> |
 | Thomas Evans | @teevans | Kubecost (former) | <thomas@kubecost.com> |
+| Niko Kovacevic | @nikovacevic | IBM | <Nicholas.Kovacevic@ibm.com> |

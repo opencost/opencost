@@ -64,6 +64,10 @@ func (m *mockProvider) DownloadPricingData() error {
 	return nil
 }
 
+func (m *mockProvider) RefreshCustomPricing() error {
+	return nil
+}
+
 func (m *mockProvider) GetPVKey(*clustercache.PersistentVolume, map[string]string, string) models.PVKey {
 	return nil
 }

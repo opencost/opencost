@@ -58,7 +58,7 @@ func (km *KubeModel) ComputeKubeModelSet(start, end time.Time) (*kubemodel.KubeM
 
 // computeFuncs returns the set of compute functions to run for the window,
 // in struct field order. If cluster_info is not yet reporting the
-// complete_kubemodel label for any cluster in the result, the source has not
+// kubemodel_version label for any cluster in the result, the source has not
 // been upgraded to emit a full kubemodel, so only the minimal set of
 // resources (cluster, namespaces, resource quotas) is computed. The
 // FORCE_KUBEMODEL_V1 env var skips the check entirely and always returns the

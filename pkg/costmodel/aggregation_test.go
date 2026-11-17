@@ -511,3 +511,19 @@ func TestComputeAllocationHandlerSummary_MissingWindow_Returns400(t *testing.T) 
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
 	}
 }
+
+func TestResolveQueryWindowForAccumulate_WeekKeepsPartialWeekAfterSundayMidnight(t *testing.T) {
+	start := time.Date(2026, 4, 5, 0, 0, 0, 0, time.UTC) // Sunday
+	end := time.Date(2026, 4, 19, 0, 30, 0, 0, time.UTC) // Sunday, 30 minutes past midnight
+	window := opencost.NewClosedWindow(start, end)
+
+	got, err := resolveQueryWindowForAccumulate(window, opencost.AccumulateOptionWeek)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	expectedEnd := time.Date(2026, 4, 26, 0, 0, 0, 0, time.UTC) // Sunday after the partial week
+	if !got.End().Equal(expectedEnd) {
+		t.Fatalf("expected rounded end %s, got %s", expectedEnd, got.End())
+	}
+}

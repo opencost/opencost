@@ -65,6 +65,9 @@ func run(cmd *cobra.Command, args []string) error {
 
 // writePricingJSONL writes each pricing kind to its own JSONL file under dir.
 func writePricingJSONL(dir string, ps *pricing.PricingSet) error {
+	if err := writeJSONL(dir+"/clusters.jsonl", ps.ClusterPricing); err != nil {
+		return err
+	}
 	if err := writeJSONL(dir+"/nodes.jsonl", ps.NodePricing); err != nil {
 		return err
 	}
@@ -128,9 +131,15 @@ func comparePricing(curr unit.Currency, newSet *pricing.PricingSet) error {
 	return nil
 }
 
-// readPricingJSONL reads nodes.jsonl and persistentvolumes.jsonl from dir.
+// readPricingJSONL reads all pricing JSONL files from dir.
 func readPricingJSONL(dir string) (*pricing.PricingSet, error) {
 	ps := &pricing.PricingSet{}
+
+	clusters, err := readJSONL[*pricing.ClusterPricing](dir + "/clusters.jsonl")
+	if err != nil {
+		return nil, err
+	}
+	ps.ClusterPricing = clusters
 
 	nodes, err := readJSONL[*pricing.NodePricing](dir + "/nodes.jsonl")
 	if err != nil {

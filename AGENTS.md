@@ -67,11 +67,11 @@ opencost/
 ### Prerequisites
 
 - Go (see go.mod for the required version)
-- Docker with `buildx` support
+- Docker with `buildx` support, or Podman
 - [just](https://github.com/casey/just) - command runner
 - [Tilt](https://tilt.dev/) - for local Kubernetes development
-- Kubernetes cluster (local or remote)
-- Prometheus instance
+- Kubernetes cluster (local, e.g. kind, or remote)
+- Prometheus instance, unless using the Collector data source (see [Testing Collector Source on kind](#testing-collector-source-on-kind))
 
 ### Quick Start Commands
 
@@ -88,7 +88,7 @@ just test-collector-source
 # Build local binary
 just build-local
 
-# Run locally (requires Prometheus and optionally Kubernetes access)
+# Run locally with the Prometheus data source (requires Prometheus and optionally Kubernetes access)
 PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9080" go run ./cmd/costmodel/main.go
 
 # Start development environment with Tilt
@@ -97,7 +97,7 @@ tilt up
 
 ### Running Locally Without Kubernetes
 
-Set `PROMETHEUS_SERVER_ENDPOINT` to your Prometheus URL:
+With the Prometheus data source, set `PROMETHEUS_SERVER_ENDPOINT` to your Prometheus URL:
 
 ```bash
 # Port-forward to Prometheus in your cluster
@@ -112,6 +112,44 @@ PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9080" go run ./cmd/costmodel/main.g
 ```bash
 INTEGRATION=true just test-integration
 ```
+
+### Testing Collector Source on kind
+
+Use this to run a locally built image end to end with the Collector data source, with no Prometheus needed:
+
+```bash
+kind create cluster --name opencost-dev   # podman: export KIND_EXPERIMENTAL_PROVIDER=podman
+
+# Build for the node's architecture (`docker info` / `podman info` shows it).
+# Dockerfile.cross wraps a prebuilt binary.
+(cd cmd/costmodel && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o costmodel-arm64 .)
+docker build -f Dockerfile.cross --build-arg binarypath=./cmd/costmodel/costmodel-arm64 -t localhost/opencost:dev .
+
+# Side-load the image instead of pushing it. With podman, use `podman save -o opencost.tar ...`
+# and `kind load image-archive opencost.tar --name opencost-dev`.
+kind load docker-image localhost/opencost:dev --name opencost-dev
+
+cat > values.yaml <<'EOF'
+opencost:
+  exporter:
+    image:
+      fullImageName: localhost/opencost:dev
+      pullPolicy: Never           # use the side-loaded image
+    collectorDataSource:
+      enabled: true
+  prometheus:
+    internal:
+      enabled: false
+EOF
+helm install opencost opencost --repo https://opencost.github.io/opencost-helm-chart \
+  -n opencost --create-namespace -f values.yaml
+kubectl -n opencost logs deploy/opencost -f
+```
+
+Notes:
+
+- Without persistence, these startup warnings are expected: `/var/configs permission denied` (falls back to in-memory), `failed to resolve path`, and `localhost:9003 connection refused`.
+- Rebuild, `kind load`, then `kubectl -n opencost rollout restart deploy/opencost` to pick up a new image under the same tag.
 
 ## Build Commands
 

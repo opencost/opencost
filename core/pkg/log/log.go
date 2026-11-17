@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -20,6 +21,7 @@ var ctr = newCounter()
 const (
 	flagFormat       = "log-format"
 	flagLevel        = "log-level"
+	flagExclude      = "log-exclude"
 	flagDisableColor = "disable-log-color"
 )
 
@@ -34,6 +36,9 @@ func InitLogging(showLogLevelSetMessage bool) {
 		disableColor := viper.GetBool(flagDisableColor)
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339Nano, NoColor: disableColor})
 	}
+
+	SetExcludePatterns(parseExcludeCSV(viper.GetString(flagExclude)))
+	log.Logger = log.Logger.Hook(excludeHook{})
 
 	level, err := zerolog.ParseLevel(viper.GetString(flagLevel))
 	if err != nil {
@@ -62,7 +67,6 @@ func GetLogLevel() string {
 }
 
 func SetLogLevel(l string) error {
-
 	level, err := zerolog.ParseLevel(l)
 	if err != nil {
 		return err
@@ -71,6 +75,47 @@ func SetLogLevel(l string) error {
 	zerolog.SetGlobalLevel(level)
 	log.Info().Msg(fmt.Sprintf("log level set to %s.", l))
 	return nil
+}
+
+// excludePatterns holds substrings; any log message containing one is dropped.
+var excludePatterns atomic.Pointer[[]string]
+
+type excludeHook struct{}
+
+func (excludeHook) Run(e *zerolog.Event, _ zerolog.Level, msg string) {
+	if p := excludePatterns.Load(); p != nil {
+		for _, s := range *p {
+			if strings.Contains(msg, s) {
+				e.Discard()
+				return
+			}
+		}
+	}
+}
+
+func GetExcludePatterns() []string {
+	p := excludePatterns.Load()
+	if p == nil {
+		return []string{}
+	}
+	return append([]string(nil), *p...)
+}
+
+// SetExcludePatterns replaces the exclusion list. Empty and whitespace-only
+// entries are ignored; an empty or nil slice clears all exclusions.
+func SetExcludePatterns(patterns []string) {
+	out := make([]string, 0, len(patterns))
+	for _, s := range patterns {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	excludePatterns.Store(&out)
+}
+
+// parseExcludeCSV splits a comma-separated LOG_EXCLUDE value into patterns.
+func parseExcludeCSV(csv string) []string {
+	return strings.Split(csv, ",")
 }
 
 func Error(msg string) {
