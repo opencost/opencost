@@ -201,16 +201,18 @@ func (mi *MetricCollector) Update(labels map[string]string, value float64, times
 		return
 	}
 
-	labelValues := make([]string, len(mi.labels))
-	for i, key := range mi.labels {
-		labelValues[i] = labels[key]
-	}
-	key := util.Hash(labelValues)
-	if mi.metrics[key] == nil {
-		mi.metrics[key] = mi.aggregatorFactory(labelValues)
+	key := util.HashLabelValues(labels, mi.labels)
+	agg := mi.metrics[key]
+	if agg == nil {
+		labelValues := make([]string, len(mi.labels))
+		for i, key := range mi.labels {
+			labelValues[i] = labels[key]
+		}
+		agg = mi.aggregatorFactory(labelValues)
+		mi.metrics[key] = agg
 	}
 
-	mi.metrics[key].Update(value, timestamp, additionalInfo)
+	agg.Update(value, timestamp, additionalInfo)
 }
 
 func (mi *MetricCollector) Get() []*aggregator.MetricResult {
