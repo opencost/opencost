@@ -20,6 +20,14 @@ import (
 type AthenaQuerier struct {
 	AthenaConfiguration
 	ConnectionStatus cloud.ConnectionStatus
+	// client is only set by tests; when nil, queries build one from AthenaConfiguration.
+	client athenaClient
+}
+
+type athenaClient interface {
+	StartQueryExecution(context.Context, *athena.StartQueryExecutionInput, ...func(*athena.Options)) (*athena.StartQueryExecutionOutput, error)
+	GetQueryExecution(context.Context, *athena.GetQueryExecutionInput, ...func(*athena.Options)) (*athena.GetQueryExecutionOutput, error)
+	athena.GetQueryResultsAPIClient
 }
 
 func (aq *AthenaQuerier) GetStatus() cloud.ConnectionStatus {
@@ -122,10 +130,13 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 		}
 	}
 
-	// Create Athena Client
-	cli, err := aq.GetAthenaClient()
-	if err != nil {
-		return fmt.Errorf("QueryAthenaPaginated: GetAthenaClient error: %s", err.Error())
+	cli := aq.client
+	if cli == nil {
+		c, err := aq.GetAthenaClient()
+		if err != nil {
+			return fmt.Errorf("QueryAthenaPaginated: GetAthenaClient error: %s", err.Error())
+		}
+		cli = c
 	}
 
 	// Query Athena
@@ -141,19 +152,32 @@ func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string,
 		QueryExecutionId: startQueryExecutionOutput.QueryExecutionId,
 		MaxResults:       aws.Int32(1000), // this is the default value
 	}
-	getQueryResultsPaginator := athena.NewGetQueryResultsPaginator(cli, queryResultsInput)
-	for getQueryResultsPaginator.HasMorePages() {
-		pg, err := getQueryResultsPaginator.NextPage(ctx)
-		if err != nil {
-			log.Errorf("queryAthenaPaginated: NextPage error: %s", err.Error())
-			continue
-		}
-		fn(pg)
+	if err := readQueryResults(ctx, cli, queryResultsInput, fn); err != nil {
+		return fmt.Errorf("QueryAthenaPaginated: %w", err)
 	}
 	return nil
 }
 
-func waitForQueryToComplete(ctx context.Context, client *athena.Client, queryExecutionID *string) error {
+// readQueryResults hands each results page to fn, stopping at the first error. The paginator does not advance
+// past a failed page, and the SDK has already retried transient failures, so retrying here would loop forever.
+func readQueryResults(ctx context.Context, client athena.GetQueryResultsAPIClient, input *athena.GetQueryResultsInput, fn func(*athena.GetQueryResultsOutput) bool) error {
+	paginator := athena.NewGetQueryResultsPaginator(client, input)
+	for page := 0; paginator.HasMorePages(); page++ {
+		pg, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("results page %d: %w", page, err)
+		}
+		if !fn(pg) {
+			return fmt.Errorf("results page %d could not be processed", page)
+		}
+	}
+	return nil
+}
+
+func waitForQueryToComplete(ctx context.Context, client athenaClient, queryExecutionID *string) error {
+	if queryExecutionID == nil {
+		return fmt.Errorf("waitForQueryToComplete: nil query execution ID")
+	}
 	inp := &athena.GetQueryExecutionInput{
 		QueryExecutionId: queryExecutionID,
 	}
