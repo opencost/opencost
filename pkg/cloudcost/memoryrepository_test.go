@@ -367,6 +367,8 @@ func TestMemoryRepository_Put_CompactsStoredEntries(t *testing.T) {
 	ccs.Integration = "key-1"
 	ccs.Insert(opencost.NewCloudCost(start, end, &opencost.CloudCostProperties{ProviderID: "full"}, 0, 1, 1, 1, 1, 1))
 	ccs.Insert(opencost.NewCloudCost(start, start.Add(time.Hour), &opencost.CloudCostProperties{ProviderID: "partial"}, 0, 1, 1, 1, 1, 1))
+	est := time.FixedZone("EST", -5*60*60)
+	ccs.Insert(opencost.NewCloudCost(start.In(est), end.In(est), &opencost.CloudCostProperties{ProviderID: "offset"}, 0, 1, 1, 1, 1, 1))
 
 	repo := NewMemoryRepository()
 	if err := repo.Put(ccs); err != nil {
@@ -391,6 +393,9 @@ func TestMemoryRepository_Put_CompactsStoredEntries(t *testing.T) {
 	}
 	if want := opencost.NewClosedWindow(start, start.Add(time.Hour)); !find(stored, "partial").Window.Equal(want) {
 		t.Errorf("partial entry window = %s, want %s", find(stored, "partial").Window, want)
+	}
+	if find(stored, "offset").Window.Start().Location() != est {
+		t.Errorf("sharing changed the time zone of a same-instant entry")
 	}
 
 	got, err := repo.Get(start, "key-1")

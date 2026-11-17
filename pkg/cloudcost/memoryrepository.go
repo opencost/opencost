@@ -60,9 +60,6 @@ func (m *MemoryRepository) Keys() ([]string, error) {
 }
 
 func (m *MemoryRepository) Put(ccs *opencost.CloudCostSet) error {
-	m.rwLock.Lock()
-	defer m.rwLock.Unlock()
-
 	if ccs == nil {
 		return fmt.Errorf("MemoryRepository: Put: cannot save nil")
 	}
@@ -76,15 +73,19 @@ func (m *MemoryRepository) Put(ccs *opencost.CloudCostSet) error {
 	}
 
 	// Get only hands out clones, so stored entries can drop empty label maps and share the set's
-	// window times without callers ever seeing the shared values.
+	// window times without callers ever seeing the shared values. Done before locking: the set
+	// isn't visible to readers yet.
 	for _, cc := range ccs.CloudCosts {
 		if cc.Properties != nil && len(cc.Properties.Labels) == 0 {
 			cc.Properties.Labels = nil
 		}
-		if cc.Window.Equal(ccs.Window) {
+		if sameWindow(cc.Window, ccs.Window) {
 			cc.Window = ccs.Window
 		}
 	}
+
+	m.rwLock.Lock()
+	defer m.rwLock.Unlock()
 
 	if _, ok := m.data[ccs.Integration]; !ok {
 		m.data[ccs.Integration] = make(map[time.Time]*opencost.CloudCostSet)
@@ -92,6 +93,13 @@ func (m *MemoryRepository) Put(ccs *opencost.CloudCostSet) error {
 
 	m.data[ccs.Integration][ccs.Window.Start().UTC()] = ccs
 	return nil
+}
+
+// sameWindow is stricter than Window.Equal: == also compares time zones, so sharing never changes
+// an entry's serialized offset.
+func sameWindow(a, b opencost.Window) bool {
+	as, ae, bs, be := a.Start(), a.End(), b.Start(), b.End()
+	return as != nil && ae != nil && bs != nil && be != nil && *as == *bs && *ae == *be
 }
 
 // Expire deletes all items in the map with a start time before the given limit
