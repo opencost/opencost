@@ -215,6 +215,7 @@ type AWS struct {
 	FargatePricing              *FargatePricing
 	FargatePricingError         error
 	ValidPricingKeys            map[string]bool
+	ec2ClientForRegionFunc      func(ctx context.Context, region string) (describeVolumesAPI, error)
 	Clientset                   clustercache.ClusterCache
 	BaseCPUPrice                string
 	BaseRAMPrice                string
@@ -254,18 +255,18 @@ func (accessKey AWSAccessKey) Retrieve(ctx context.Context) (awsSDK.Credentials,
 }
 
 // CreateConfig creates an AWS SDK V2 Config for the credentials that it contains for the provided region
-func (accessKey AWSAccessKey) CreateConfig(region string) (awsSDK.Config, error) {
+func (accessKey AWSAccessKey) CreateConfig(ctx context.Context, region string) (awsSDK.Config, error) {
 	var cfg awsSDK.Config
 	var err error
 	// If accessKey values have not been provided, attempt to load cfg from service key annotations
 	if accessKey.AccessKeyID == "" && accessKey.SecretAccessKey == "" {
-		cfg, err = config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
+		cfg, err = config.LoadDefaultConfig(ctx, config.WithRegion(region))
 		if err != nil {
 			return cfg, fmt.Errorf("failed to initialize AWS SDK config for region from annotation %s: %s", region, err)
 		}
 	} else {
 		// The AWS SDK v2 requires an object fulfilling the CredentialsProvider interface, which cloud.AWSAccessKey does
-		cfg, err = config.LoadDefaultConfig(context.TODO(), config.WithCredentialsProvider(accessKey), config.WithRegion(region))
+		cfg, err = config.LoadDefaultConfig(ctx, config.WithCredentialsProvider(accessKey), config.WithRegion(region))
 		if err != nil {
 			return cfg, fmt.Errorf("failed to initialize AWS SDK config for region %s: %s", region, err)
 		}
@@ -451,7 +452,7 @@ func (aai *AwsAthenaInfo) IsEmpty() bool {
 // CreateConfig creates an AWS SDK V2 Config for the credentials that it contains
 func (aai *AwsAthenaInfo) CreateConfig() (awsSDK.Config, error) {
 	keyProvider := AWSAccessKey{AccessKeyID: aai.ServiceKeyName, SecretAccessKey: aai.ServiceKeySecret}
-	cfg, err := keyProvider.CreateConfig(aai.AthenaRegion)
+	cfg, err := keyProvider.CreateConfig(context.Background(), aai.AthenaRegion)
 	if err != nil {
 		return cfg, err
 	}
@@ -1391,7 +1392,7 @@ func (aws *AWS) initializeSpotPriceHistoryCache() (*SpotPriceHistoryCache, error
 	}
 
 	// Create config for the cluster region
-	awsConfig, err := accessKey.CreateConfig(aws.ClusterRegion)
+	awsConfig, err := accessKey.CreateConfig(context.Background(), aws.ClusterRegion)
 	if err != nil {
 		return nil, fmt.Errorf("creating AWS config for spot price history: %w", err)
 	}
@@ -1928,7 +1929,7 @@ func (aws *AWS) getAddressesForRegion(ctx context.Context, region string) (*ec2.
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := aak.CreateConfig(region)
+	cfg, err := aak.CreateConfig(ctx, region)
 	if err != nil {
 		return nil, err
 	}
@@ -2033,30 +2034,36 @@ func (aws *AWS) isAddressOrphaned(address *ec2Types.Address) bool {
 	return true
 }
 
-func (aws *AWS) getDisksForRegion(ctx context.Context, region string, maxResults int32, nextToken *string) (*ec2.DescribeVolumesOutput, error) {
+const describeVolumesPageSize = 500
+
+type describeVolumesAPI interface {
+	DescribeVolumes(ctx context.Context, params *ec2.DescribeVolumesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeVolumesOutput, error)
+}
+
+func (aws *AWS) ec2ClientForRegion(ctx context.Context, region string) (describeVolumesAPI, error) {
+	if aws.ec2ClientForRegionFunc != nil {
+		return aws.ec2ClientForRegionFunc(ctx, region)
+	}
+
 	aak, err := aws.GetAWSAccessKey()
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := aak.CreateConfig(region)
+	cfg, err := aak.CreateConfig(ctx, region)
 	if err != nil {
 		return nil, err
 	}
 
-	cli := ec2.NewFromConfig(cfg)
-	return cli.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
-		MaxResults: &maxResults,
-		NextToken:  nextToken,
-	})
+	return ec2.NewFromConfig(cfg), nil
 }
 
-func (aws *AWS) getAllDisks() ([]*ec2Types.Volume, error) {
+func (aws *AWS) getAllDisks(ctx context.Context) ([]*ec2Types.Volume, error) {
 	aws.ConfigureAuth() // load authentication data into env vars
 
 	regions := aws.Regions()
 
-	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(regions))
+	volumeCh := make(chan []ec2Types.Volume, len(regions))
 	errorCh := make(chan error, len(regions))
 
 	var wg sync.WaitGroup
@@ -2070,35 +2077,29 @@ func (aws *AWS) getAllDisks() ([]*ec2Types.Volume, error) {
 			defer wg.Done()
 			defer errs.HandlePanic()
 
-			// Query for first page of volume results
-			resp, err := aws.getDisksForRegion(context.TODO(), region, 1000, nil)
+			client, err := aws.ec2ClientForRegion(ctx, region)
 			if err != nil {
-				var awsErr smithy.APIError
-				if errors.As(err, &awsErr) {
-					switch awsErr.ErrorCode() {
-					case "AuthFailure", "InvalidClientTokenId", "UnauthorizedOperation":
-						log.DedupedInfof(5, "Unable to get disks for region %s due to AWS permissions, error message: %s", region, awsErr.ErrorMessage())
-						return
-					default:
-						errorCh <- err
-						return
-					}
-				} else {
-					errorCh <- err
-					return
-				}
+				errorCh <- err
+				return
 			}
-			volumeCh <- resp
 
-			// A NextToken indicates more pages of results. Keep querying
-			// until all pages are retrieved.
-			for resp.NextToken != nil {
-				resp, err = aws.getDisksForRegion(context.TODO(), region, 100, resp.NextToken)
+			paginator := ec2.NewDescribeVolumesPaginator(client, &ec2.DescribeVolumesInput{},
+				func(o *ec2.DescribeVolumesPaginatorOptions) { o.Limit = describeVolumesPageSize })
+			for paginator.HasMorePages() {
+				page, err := paginator.NextPage(ctx)
 				if err != nil {
+					var awsErr smithy.APIError
+					if errors.As(err, &awsErr) {
+						switch awsErr.ErrorCode() {
+						case "AuthFailure", "InvalidClientTokenId", "UnauthorizedOperation":
+							log.DedupedInfof(5, "Unable to get disks for region %s due to AWS permissions, error message: %s", region, awsErr.ErrorMessage())
+							return
+						}
+					}
 					errorCh <- err
 					return
 				}
-				volumeCh <- resp
+				volumeCh <- page.Volumes
 			}
 		}(r)
 	}
@@ -2114,9 +2115,8 @@ func (aws *AWS) getAllDisks() ([]*ec2Types.Volume, error) {
 
 	var volumes []*ec2Types.Volume
 	for vols := range volumeCh {
-		for _, vol := range vols.Volumes {
-			v := vol // duplicate to avoid pointer to iterator
-			volumes = append(volumes, &v)
+		for i := range vols {
+			volumes = append(volumes, &vols[i])
 		}
 	}
 
@@ -2124,6 +2124,11 @@ func (aws *AWS) getAllDisks() ([]*ec2Types.Volume, error) {
 	for err := range errorCh {
 		log.DedupedWarningf(5, "unable to get disks: %s", err)
 		errs = append(errs, err)
+	}
+
+	// Regions that finished before the deadline must not pass for the whole inventory.
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("listing volumes did not finish: %w", ctx.Err())
 	}
 
 	// Return error if no volumes are returned
@@ -2136,7 +2141,10 @@ func (aws *AWS) getAllDisks() ([]*ec2Types.Volume, error) {
 
 // GetDisks returns the AWS disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
 func (aws *AWS) GetDisks() ([]byte, error) {
-	volumes, err := aws.getAllDisks()
+	ctx, cancel := context.WithTimeout(context.Background(), env.GetDiskListingTimeout())
+	defer cancel()
+
+	volumes, err := aws.getAllDisks(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -2168,7 +2176,10 @@ func (aws *AWS) isDiskOrphaned(vol *ec2Types.Volume) bool {
 }
 
 func (aws *AWS) GetOrphanedResources() ([]models.OrphanedResource, error) {
-	volumes, volumesErr := aws.getAllDisks()
+	ctx, cancel := context.WithTimeout(context.Background(), env.GetDiskListingTimeout())
+	defer cancel()
+
+	volumes, volumesErr := aws.getAllDisks(ctx)
 	addresses, addressesErr := aws.getAllAddresses()
 
 	// If we have any orphaned resources - prioritize returning them over returning errors
@@ -2630,7 +2641,7 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 		return nil, err
 	}
 
-	cfg, err := aak.CreateConfig(region)
+	cfg, err := aak.CreateConfig(context.Background(), region)
 	if err != nil {
 		return nil, err
 	}

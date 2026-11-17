@@ -3,6 +3,7 @@ package env
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func TestGetExportCSVMaxDays(t *testing.T) {
@@ -99,5 +100,27 @@ func TestIsMCPServerEnabled_True(t *testing.T) {
 	t.Setenv("MCP_SERVER_ENABLED", "true")
 	if got := IsMCPServerEnabled(); !got {
 		t.Fatalf("expected true when env var set to true, got %v", got)
+	}
+}
+
+func TestGetDiskListingTimeout(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  time.Duration
+	}{
+		{name: "Ensure the default value is 120s", want: 120 * time.Second},
+		{name: "Ensure the value is 300s when DISK_LISTING_TIMEOUT_SECONDS is set to 300", value: "300", want: 300 * time.Second},
+		{name: "Ensure the value is 120s when DISK_LISTING_TIMEOUT_SECONDS is set to invalid value", value: "foo", want: 120 * time.Second},
+		{name: "Ensure the value is 120s when DISK_LISTING_TIMEOUT_SECONDS is set to 0", value: "0", want: 120 * time.Second},
+		{name: "Ensure the value is 120s when DISK_LISTING_TIMEOUT_SECONDS is negative", value: "-5", want: 120 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(DiskListingTimeoutSecondsEnvVar, tt.value)
+			if got := GetDiskListingTimeout(); got != tt.want {
+				t.Errorf("GetDiskListingTimeout() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

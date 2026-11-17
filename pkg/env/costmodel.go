@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/log"
 )
 
 // FilePaths
@@ -28,6 +29,8 @@ const (
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 	AWSPricingURL            = "AWS_PRICING_URL"
 	AWSECSPricingURLOverride = "AWS_ECS_PRICING_URL"
+
+	DiskListingTimeoutSecondsEnvVar = "DISK_LISTING_TIMEOUT_SECONDS"
 
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
@@ -171,6 +174,18 @@ func GetAWSAccessKeySecret() string {
 // an AWS specific cluster identifier.
 func GetAWSClusterID() string {
 	return env.Get(AWSClusterIDEnvVar, "")
+}
+
+const defaultDiskListingTimeoutSeconds = 120
+
+// GetDiskListingTimeout returns the timeout for listing all of a provider's disks, across every page and region
+func GetDiskListingTimeout() time.Duration {
+	seconds := env.GetInt(DiskListingTimeoutSecondsEnvVar, defaultDiskListingTimeoutSeconds)
+	if seconds <= 0 {
+		log.Warnf("%s must be positive, using %d", DiskListingTimeoutSecondsEnvVar, defaultDiskListingTimeoutSeconds)
+		seconds = defaultDiskListingTimeoutSeconds
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 // GetAWSPricingURL returns an optional alternative URL to fetch AWS pricing data from; for use in airgapped environments

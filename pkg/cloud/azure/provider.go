@@ -1673,7 +1673,8 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 	client := compute.NewDisksClient(config.AzureSubscriptionID)
 	client.Authorizer = authorizer
 
-	ctx := context.TODO()
+	ctx, cancel := context.WithTimeout(context.Background(), env.GetDiskListingTimeout())
+	defer cancel()
 
 	var disks []*compute.Disk
 
@@ -1687,7 +1688,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 			d := d
 			disks = append(disks, &d)
 		}
-		err := diskPage.NextWithContext(context.Background())
+		err := diskPage.NextWithContext(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error getting next page: %v", err)
 		}
