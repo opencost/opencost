@@ -803,6 +803,124 @@ func TestCollector_UsageCost_TwoModelsIndependent(t *testing.T) {
 	}
 }
 
+// makePodAllocation builds an unaggregated, pod-level allocation carrying the
+// model label in the sanitized form that AggregateBy looks up.
+func makePodAllocation(start, end time.Time, modelName, namespace, pod string, gpuCost float64) *opencost.Allocation {
+	return &opencost.Allocation{
+		Name:    "cluster-one/node-1/" + namespace + "/" + pod + "/server",
+		Start:   start,
+		End:     end,
+		Window:  opencost.NewWindow(&start, &end),
+		GPUCost: gpuCost,
+		Properties: &opencost.AllocationProperties{
+			Cluster:   "cluster-one",
+			Node:      "node-1",
+			Namespace: namespace,
+			Pod:       pod,
+			Container: "server",
+			Labels:    opencost.AllocationLabels{"llm_d_ai_model": modelName},
+		},
+	}
+}
+
+// TestCollector_QueryAllocationCosts_SameModelInTwoNamespaces verifies that the
+// same model label in two namespaces yields one cost entry per namespace.
+// Token metrics are keyed by model and namespace; aggregating by the label
+// alone merged both into one entry with no namespace, so neither joined its cost.
+func TestCollector_QueryAllocationCosts_SameModelInTwoNamespaces(t *testing.T) {
+	now := time.Now()
+	start := now.Add(-5 * time.Minute)
+	newSet := func() *opencost.AllocationSet {
+		as := opencost.NewAllocationSet(start, now)
+		as.Set(makePodAllocation(start, now, "llama-3", "team-a", "llama-3-a", 3.0))
+		as.Set(makePodAllocation(start, now, "llama-3", "team-b", "llama-3-b", 1.0))
+		return as
+	}
+	// queryAllocationCosts runs two queries and AggregateBy mutates the set,
+	// so each query gets its own copy.
+	querier := &mockQuerier{sets: []*opencost.AllocationSet{newSet(), newSet()}}
+	c := &Collector{config: baseConfig(), allocationQuerier: querier}
+
+	results, err := c.queryAllocationCosts(context.Background(), start, now)
+	if err != nil {
+		t.Fatalf("queryAllocationCosts failed: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected one entry per namespace, got %d: %v", len(results), results)
+	}
+
+	for _, tc := range []struct {
+		namespace string
+		cost      float64
+	}{{"team-a", 3.0}, {"team-b", 1.0}} {
+		r, ok := results[modelNamespaceKey("llama-3", tc.namespace)]
+		if !ok {
+			t.Fatalf("expected result for llama-3/%s", tc.namespace)
+		}
+		if r.namespace != tc.namespace {
+			t.Errorf("llama-3/%s namespace = %q", tc.namespace, r.namespace)
+		}
+		if !floatEq(r.allocationTotalCost, tc.cost) {
+			t.Errorf("llama-3/%s allocationTotalCost want %.2f got %.4f", tc.namespace, tc.cost, r.allocationTotalCost)
+		}
+		if !floatEq(r.usageTotalCost, tc.cost) {
+			t.Errorf("llama-3/%s usageTotalCost want %.2f got %.4f", tc.namespace, tc.cost, r.usageTotalCost)
+		}
+	}
+}
+
+// TestCollector_CollectMetrics_SameModelInTwoNamespacesJoinsTokens verifies the
+// end-to-end join: each namespace's tokens meet that namespace's cost.
+func TestCollector_CollectMetrics_SameModelInTwoNamespacesJoinsTokens(t *testing.T) {
+	now := time.Now()
+	start := now.Add(-5 * time.Minute)
+	newSet := func() *opencost.AllocationSet {
+		as := opencost.NewAllocationSet(start, now)
+		as.Set(makePodAllocation(start, now, "llama-3", "team-a", "llama-3-a", 3.0))
+		as.Set(makePodAllocation(start, now, "llama-3", "team-b", "llama-3-b", 1.0))
+		return as
+	}
+	querier := &mockQuerier{sets: []*opencost.AllocationSet{newSet(), newSet()}}
+	tokens := map[string]float64{
+		modelNamespaceKey("llama-3", "team-a"): 3000,
+		modelNamespaceKey("llama-3", "team-b"): 1000,
+	}
+	metrics := newMockMetricsQuerierWithInferenceMetrics(tokens, tokens, nil, nil, nil, nil)
+
+	cfg := baseConfig()
+	cfg.AllocationMode = AllocationModeMultiplier
+	c, err := NewCollector(cfg, querier, metrics)
+	if err != nil {
+		t.Fatalf("NewCollector: %v", err)
+	}
+
+	costs, err := c.CollectMetrics(context.Background(), start, now)
+	if err != nil {
+		t.Fatalf("CollectMetrics failed: %v", err)
+	}
+
+	byNamespace := map[string]*InferenceCost{}
+	for _, ic := range costs {
+		byNamespace[ic.Properties.Namespace] = ic
+	}
+	for _, tc := range []struct {
+		namespace string
+		cost      float64
+		tokens    float64
+	}{{"team-a", 3.0, 3000}, {"team-b", 1.0, 1000}} {
+		ic, ok := byNamespace[tc.namespace]
+		if !ok {
+			t.Fatalf("expected inference cost for namespace %s, got %d entries", tc.namespace, len(costs))
+		}
+		if !floatEq(ic.AllocationTotalCost, tc.cost) {
+			t.Errorf("%s AllocationTotalCost want %.2f got %.4f", tc.namespace, tc.cost, ic.AllocationTotalCost)
+		}
+		if !floatEq(ic.PromptTokens, tc.tokens) {
+			t.Errorf("%s PromptTokens want %.0f got %.0f", tc.namespace, tc.tokens, ic.PromptTokens)
+		}
+	}
+}
+
 // TestCollector_CombineMetrics_DerivesCachedTokens verifies that combineMetrics
 // passes CachedTokens through directly and derives EffectiveInputTokens correctly.
 func TestCollector_CombineMetrics_DerivesCachedTokens(t *testing.T) {

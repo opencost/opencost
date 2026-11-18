@@ -282,6 +282,8 @@ If this label is missing or the value differs from `model_name` in vLLM metrics,
 
 OpenCost attempts to reconcile fully-qualified model names (e.g. `org/model`) against short names (`model`) automatically, but the namespace must always match exactly.
 
+The same model label can be used in several namespaces (for example one deployment per team, or `dev` and `prod`). Allocations are grouped by model label and namespace, so each namespace gets its own cost and joins its own token metrics.
+
 ### Diagnosing a labeling mismatch
 
 ```bash
