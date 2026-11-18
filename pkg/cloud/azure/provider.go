@@ -1518,6 +1518,7 @@ func (azr *Azure) LoadBalancerPricing() (*models.LoadBalancer, error) {
 type azurePvKey struct {
 	Labels                 map[string]string
 	StorageClass           string
+	StorageDriver          string
 	StorageClassParameters map[string]string
 	DefaultRegion          string
 	ProviderId             string
@@ -1535,6 +1536,7 @@ func (az *Azure) GetPVKey(pv *clustercache.PersistentVolume, parameters map[stri
 	key := &azurePvKey{
 		Labels:                 pv.Labels,
 		StorageClass:           pv.Spec.StorageClassName,
+		StorageDriver:          pv.Spec.CSI.Driver,
 		StorageClassParameters: parameters,
 		DefaultRegion:          defaultRegion,
 		ProviderId:             providerID,
@@ -1558,27 +1560,55 @@ func (key *azurePvKey) resolveSKU() {
 	if key.StorageClassParameters == nil {
 		return
 	}
-	diskParam := key.StorageClassParameters["storageaccounttype"]
-	if diskParam == "" {
-		diskParam = key.StorageClassParameters["skuname"]
-	}
-	if diskParam == "" {
-		diskParam = key.StorageClassParameters["skuName"]
-	}
-	if diskParam != "" {
-		if sku, ok := resolveDiskSKU(diskParam); ok {
-			key.DiskStorageClass = sku.StorageClass
-			key.DiskRedundancy = sku.Redundancy
-			return
+
+	switch strings.ToLower(key.StorageDriver) {
+	case "file.csi.azure.com":
+		// Azure files (StorageAccount) driver
+		fileSku := key.StorageClassParameters["skuName"]
+		if fileSku == "" {
+			fileSku = key.StorageClassParameters["skuname"]
 		}
-	}
-	fileSKU := key.StorageClassParameters["skuName"]
-	if strings.EqualFold(fileSKU, "Premium_LRS") {
-		key.DiskStorageClass = AzureFilePremiumStorageClass
-		key.IsAzureFiles = true
-	} else if strings.EqualFold(fileSKU, "Standard_LRS") {
-		key.DiskStorageClass = AzureFileStandardStorageClass
-		key.IsAzureFiles = true
+		if strings.EqualFold(fileSku, "Premium_LRS") {
+			key.DiskStorageClass = AzureFilePremiumStorageClass
+			key.IsAzureFiles = true
+		} else if strings.EqualFold(fileSku, "Standard_LRS") {
+			key.DiskStorageClass = AzureFileStandardStorageClass
+			key.IsAzureFiles = true
+		}
+	case "disk.csi.azure.com":
+		// ManagedDisk driver
+		diskSku := key.StorageClassParameters["skuname"]
+		if diskSku == "" {
+			diskSku = key.StorageClassParameters["skuName"]
+		}
+		if diskSku != "" {
+			if sku, ok := resolveDiskSKU(diskSku); ok {
+				key.DiskStorageClass = sku.StorageClass
+				key.DiskRedundancy = sku.Redundancy
+				key.IsAzureFiles = false
+			}
+		}
+	default:
+		// legacy detection
+		diskParam := key.StorageClassParameters["storageaccounttype"]
+		if diskParam == "" {
+			diskParam = key.StorageClassParameters["skuname"]
+		}
+		if diskParam != "" {
+			if sku, ok := resolveDiskSKU(diskParam); ok {
+				key.DiskStorageClass = sku.StorageClass
+				key.DiskRedundancy = sku.Redundancy
+				return
+			}
+		}
+		fileSKU := key.StorageClassParameters["skuName"]
+		if strings.EqualFold(fileSKU, "Premium_LRS") {
+			key.DiskStorageClass = AzureFilePremiumStorageClass
+			key.IsAzureFiles = true
+		} else if strings.EqualFold(fileSKU, "Standard_LRS") {
+			key.DiskStorageClass = AzureFileStandardStorageClass
+			key.IsAzureFiles = true
+		}
 	}
 }
 
@@ -1596,9 +1626,6 @@ func (key *azurePvKey) legacyStorageClass() string {
 	storageClass := key.StorageClassParameters["storageaccounttype"]
 	if storageClass == "" {
 		storageClass = key.StorageClassParameters["skuname"]
-	}
-	if storageClass == "" {
-		storageClass = key.StorageClassParameters["skuName"]
 	}
 	if storageClass != "" {
 		return storageClass
@@ -1991,7 +2018,7 @@ func (az *Azure) pvPricingFromAzureKey(key *azurePvKey) (*models.PV, error) {
 	if key.IsAzureFiles || key.DiskStorageClass == AzureFilePremiumStorageClass || key.DiskStorageClass == AzureFileStandardStorageClass {
 		pricing, ok := az.Pricing[diskClassKey(region, key.DiskStorageClass)]
 		if !ok || pricing == nil || pricing.PV == nil {
-			log.Debugf("Persistent Volume pricing not found for %s: %s", key.GetStorageClass(), key.Features())
+			log.Debugf("Persistent Volume pricing not found for %s (%s): %s", key.GetStorageClass(), key.StorageDriver, key.Features())
 			return &models.PV{}, nil
 		}
 		return pricing.PV, nil
@@ -2005,7 +2032,7 @@ func (az *Azure) pvPricingFromAzureKey(key *azurePvKey) (*models.PV, error) {
 				return pricing.PV, nil
 			}
 		}
-		log.Debugf("Persistent Volume pricing not found for %s: %s", key.GetStorageClass(), key.Features())
+		log.Debugf("Persistent Volume pricing not found for %s (%s): %s", key.GetStorageClass(), key.StorageDriver, key.Features())
 		return &models.PV{}, nil
 	}
 
@@ -2017,7 +2044,7 @@ func (az *Azure) pvPricingFromAzureKey(key *azurePvKey) (*models.PV, error) {
 	if key.SizeGiB > 0 {
 		tier, ok := selectDiskTier(key.DiskStorageClass, key.SizeGiB)
 		if !ok {
-			log.Warnf("No disk tier for storage class %s size %g; falling back to class rate", key.DiskStorageClass, key.SizeGiB)
+			log.Warnf("No disk tier for storage class %s (%s) size %g; falling back to class rate", key.DiskStorageClass, key.StorageDriver, key.SizeGiB)
 			return az.pvClassFallback(region, key.DiskStorageClass, redundancy)
 		}
 		hasPrice := func(tierName string) bool {
@@ -2026,8 +2053,8 @@ func (az *Azure) pvPricingFromAzureKey(key *azurePvKey) (*models.PV, error) {
 		}
 		pricedTier, ok := pickSizedOrLargerAvailableTier(key.DiskStorageClass, tier.Name, hasPrice)
 		if !ok {
-			log.Warnf("Persistent Volume tier pricing not found for %s size %g (%s); falling back to class rate",
-				diskTierKey(region, key.DiskStorageClass, redundancy, tier.Name), key.SizeGiB, redundancy)
+			log.Warnf("Persistent Volume tier pricing not found for %s (%s) size %g (%s); falling back to class rate",
+				diskTierKey(region, key.DiskStorageClass, redundancy, tier.Name), key.StorageDriver, key.SizeGiB, redundancy)
 			return az.pvClassFallback(region, key.DiskStorageClass, redundancy)
 		}
 		if pricedTier.Name != tier.Name {
@@ -2037,8 +2064,8 @@ func (az *Azure) pvPricingFromAzureKey(key *azurePvKey) (*models.PV, error) {
 		tierKey := diskTierKey(region, key.DiskStorageClass, redundancy, pricedTier.Name)
 		hourly, ok := az.managedDiskTierHourly[tierKey]
 		if !ok {
-			log.Warnf("Persistent Volume tier pricing not found for %s size %g (%s); falling back to class rate",
-				tierKey, key.SizeGiB, redundancy)
+			log.Warnf("Persistent Volume tier pricing not found for %s (%s) size %g (%s); falling back to class rate",
+				tierKey, key.StorageDriver, key.SizeGiB, redundancy)
 			return az.pvClassFallback(region, key.DiskStorageClass, redundancy)
 		}
 		rate := effectiveGiBHourRateFromHourly(hourly, key.SizeGiB)
