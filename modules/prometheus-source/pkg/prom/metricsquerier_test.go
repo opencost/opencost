@@ -199,6 +199,32 @@ func TestQueryLogs(t *testing.T) {
 	}
 }
 
+// TestQueryGPUsRequestedMatchesAccelerators checks that GPU requests are read
+// for other vendors' accelerators as well as NVIDIA GPUs.
+func TestQueryGPUsRequestedMatchesAccelerators(t *testing.T) {
+	initLogging(t, "debug", false)
+	logWriter := new(SingleLogWriter)
+	zerologger.Logger = zerologger.Output(zerolog.ConsoleWriter{Out: logWriter, NoColor: true})
+	defer initLogging(t, "debug", false)
+
+	t.Setenv("PROMETHEUS_SERVER_ENDPOINT", "nowhere")
+	config, err := NewOpenCostPrometheusConfigFromEnv()
+	if err != nil {
+		t.Fatalf("Failed to create OpenCost Prometheus config: %v", err)
+	}
+	mock := new(NoOpPromClient)
+	querier := newPrometheusMetricsQuerier(config, mock, NewContextFactory(mock, config))
+
+	end := time.Now().UTC().Truncate(time.Hour)
+	querier.QueryGPUsRequested(end.Add(-time.Hour), end)
+
+	for _, want := range []string{"nvidia_com_gpu", "amd_com_gpu", "amd[.]com/gpu", "google_com_tpu", "gpu_intel_com_xe", "aws_amazon_com_neuron"} {
+		if !bytes.Contains([]byte(logWriter.Log), []byte(want)) {
+			t.Errorf("GPU requests query does not match %q: %s", want, logWriter.Log)
+		}
+	}
+}
+
 func checkQueryLog(t *testing.T, logWriter *SingleLogWriter, query func(time.Time, time.Time), queryName string, start time.Time, end time.Time) {
 	t.Helper()
 

@@ -2,6 +2,7 @@ package collector
 
 import (
 	"github.com/opencost/opencost/core/pkg/source"
+	coreutil "github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric/aggregator"
 )
@@ -1403,7 +1404,9 @@ func NewGPUsRequestedMetricCollector() *metric.MetricCollector {
 		},
 		aggregator.AverageOverTime,
 		func(labels map[string]string) bool {
-			return (labels[source.ResourceLabel] == "nvidia_com_gpu" || labels[source.ResourceLabel] == "nvidia.com/gpu") && labels[source.ContainerLabel] != "POD" && labels[source.ContainerLabel] != "" && labels[source.NodeLabel] != ""
+			resource := labels[source.ResourceLabel]
+			isGPU := resource == "nvidia_com_gpu" || resource == "nvidia.com/gpu" || coreutil.IsAcceleratorResourceName(resource)
+			return isGPU && labels[source.ContainerLabel] != "POD" && labels[source.ContainerLabel] != "" && labels[source.NodeLabel] != ""
 		},
 	)
 }

@@ -73,6 +73,36 @@ func TestIsValidNodeName(t *testing.T) {
 	}
 }
 
+func TestAcceleratorRequest(t *testing.T) {
+	tests := []struct {
+		name      string
+		resources v1.ResourceRequirements
+		expected  float64
+	}{
+		{
+			name:      "AMD GPU request",
+			resources: v1.ResourceRequirements{Requests: v1.ResourceList{"amd.com/gpu": resource.MustParse("2")}},
+			expected:  2,
+		},
+		{
+			name:      "Google Cloud TPU limit only",
+			resources: v1.ResourceRequirements{Limits: v1.ResourceList{"google.com/tpu": resource.MustParse("4")}},
+			expected:  4,
+		},
+		{
+			name:      "No accelerator",
+			resources: v1.ResourceRequirements{Requests: v1.ResourceList{"cpu": resource.MustParse("1")}},
+			expected:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, acceleratorRequest(tt.resources))
+		})
+	}
+}
+
 func TestGetGPUCount(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -124,6 +154,67 @@ func TestGetGPUCount(t *testing.T) {
 			},
 			expectedGPU:  1.0,
 			expectedVGPU: 4.0,
+		},
+		{
+			name: "AMD GPU",
+			node: &clustercache.Node{
+				Status: v1.NodeStatus{
+					Capacity: v1.ResourceList{
+						"amd.com/gpu": resource.MustParse("8"),
+					},
+				},
+			},
+			expectedGPU:  8.0,
+			expectedVGPU: 8.0,
+		},
+		{
+			name: "Intel GPU (xe driver)",
+			node: &clustercache.Node{
+				Status: v1.NodeStatus{
+					Capacity: v1.ResourceList{
+						"gpu.intel.com/xe": resource.MustParse("2"),
+					},
+				},
+			},
+			expectedGPU:  2.0,
+			expectedVGPU: 2.0,
+		},
+		{
+			name: "Google Cloud TPU",
+			node: &clustercache.Node{
+				Status: v1.NodeStatus{
+					Capacity: v1.ResourceList{
+						"google.com/tpu": resource.MustParse("4"),
+					},
+				},
+			},
+			expectedGPU:  4.0,
+			expectedVGPU: 4.0,
+		},
+		{
+			name: "AWS Neuron devices",
+			node: &clustercache.Node{
+				Status: v1.NodeStatus{
+					Capacity: v1.ResourceList{
+						"aws.amazon.com/neuron":     resource.MustParse("1"),
+						"aws.amazon.com/neuroncore": resource.MustParse("2"),
+					},
+				},
+			},
+			expectedGPU:  1.0,
+			expectedVGPU: 1.0,
+		},
+		{
+			name: "Accelerator resource advertised with zero devices",
+			node: &clustercache.Node{
+				Status: v1.NodeStatus{
+					Capacity: v1.ResourceList{
+						"amd.com/gpu": resource.MustParse("0"),
+					},
+				},
+			},
+			expectedGPU:  -1.0,
+			expectedVGPU: -1.0,
 		},
 		{
 			name: "No GPU",
