@@ -10,6 +10,61 @@ import (
 	"github.com/opencost/opencost/core/pkg/util"
 )
 
+// Token counters per model server. The token queries read every engine's
+// counter and add the deltas per (model_name, namespace), so vLLM and SGLang
+// pods are both counted without needing to know which engine serves a model.
+//
+// In SGLang prefill/decode disaggregation both workers see every request, and
+// label their metrics with engine_type="prefill" or "decode" ("unified" when
+// not disaggregated). Prompt and cached tokens are counted where the prompt is
+// processed (not decode workers) and generation tokens where they are produced
+// (not prefill workers), so each request is counted once.
+//
+// SGLang has no prefill-time counter or cache_config_info equivalent, so the
+// processing-time and cache-config queries read vLLM only, and skip models that
+// SGLang also serves (see notSGLangServed): SGLang models fall back to the
+// multiplier split, and their cache savings come from cached tokens.
+var (
+	inferencePromptTokenMetrics = []string{
+		"vllm:prompt_tokens_total",
+		`sglang:prompt_tokens_total{engine_type!="decode"}`,
+	}
+	inferenceGenerationTokenMetrics = []string{
+		"vllm:generation_tokens_total",
+		`sglang:generation_tokens_total{engine_type!="prefill"}`,
+	}
+	// sglang:cached_tokens_total is split by cache_source (device, host,
+	// storage, or total when the breakdown is unavailable); each request is
+	// counted under exactly one source, so summing the sources is correct.
+	inferenceCachedTokenMetrics = []string{
+		"vllm:prefix_cache_hits_total",
+		`sglang:cached_tokens_total{engine_type!="decode"}`,
+	}
+)
+
+// notSGLangServed returns a PromQL suffix that drops (model_name, namespace)
+// series also served by SGLang, using the given range and @ modifier for the
+// SGLang side. Appended to the vLLM-only timing and cache-config queries so
+// vLLM's timing or prefix-caching setting is not applied to SGLang's share of a
+// model served by both engines.
+func notSGLangServed(clusterFilter, rangeAndAt string) string {
+	return fmt.Sprintf(` unless on (model_name, namespace) sum by (model_name, namespace) (last_over_time(%s%s))`,
+		withClusterFilter("sglang:prompt_tokens_total", clusterFilter), rangeAndAt)
+}
+
+// withClusterFilter adds the configured cluster filter (e.g. cluster_id="a",
+// empty when filtering is off) to a metric selector, so a Prometheus shared by
+// several clusters only contributes this cluster's series.
+func withClusterFilter(selector, clusterFilter string) string {
+	if clusterFilter == "" {
+		return selector
+	}
+	if strings.HasSuffix(selector, "}") {
+		return strings.TrimSuffix(selector, "}") + ", " + clusterFilter + "}"
+	}
+	return selector + "{" + clusterFilter + "}"
+}
+
 // QueryInferencePromptTokens implements MetricsQuerier.QueryInferencePromptTokens
 func (pds *PrometheusMetricsQuerier) QueryInferencePromptTokens(start, end time.Time) *source.Future[source.InferenceTokensResult] {
 	ctx := pds.promContexts.NewNamedContext(ClusterContextName)
@@ -19,7 +74,7 @@ func (pds *PrometheusMetricsQuerier) QueryInferencePromptTokens(start, end time.
 
 	// Execute query asynchronously
 	go func() {
-		values, err := queryCounterDelta(ctx, "vllm:prompt_tokens_total", start, end)
+		values, err := queryCounterDeltaSum(ctx, inferencePromptTokenMetrics, start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
@@ -40,7 +95,7 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceGenerationTokens(start, end t
 	resultsChan := make(source.QueryResultsChan, 1)
 
 	go func() {
-		values, err := queryCounterDelta(ctx, "vllm:generation_tokens_total", start, end)
+		values, err := queryCounterDeltaSum(ctx, inferenceGenerationTokenMetrics, start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
@@ -60,7 +115,7 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceInputProcessingTime(start, en
 	resultsChan := make(source.QueryResultsChan, 1)
 
 	go func() {
-		values, err := queryCounterDelta(ctx, "vllm:request_prefill_time_seconds_sum", start, end)
+		values, err := queryVLLMOnlyCounterDelta(ctx, "vllm:request_prefill_time_seconds_sum", start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
@@ -82,7 +137,7 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceOutputProcessingTime(start, e
 	go func() {
 		// DECODE-phase seconds. NOT request_time_per_output_token_seconds_sum, which
 		// sums per-request mean seconds-per-token rather than a duration.
-		values, err := queryCounterDelta(ctx, "vllm:request_decode_time_seconds_sum", start, end)
+		values, err := queryVLLMOnlyCounterDelta(ctx, "vllm:request_decode_time_seconds_sum", start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
@@ -102,7 +157,7 @@ func (pds *PrometheusMetricsQuerier) QueryInferenceCachedTokens(start, end time.
 	resultsChan := make(source.QueryResultsChan, 1)
 
 	go func() {
-		values, err := queryCounterDelta(ctx, "vllm:prefix_cache_hits_total", start, end)
+		values, err := queryCounterDeltaSum(ctx, inferenceCachedTokenMetrics, start, end)
 		if err != nil {
 			resultsChan <- &source.QueryResults{Error: err}
 			return
@@ -215,6 +270,16 @@ func cacheConfigMapToQueryResults(configs map[string]*source.InferenceCacheConfi
 // which is the correct behaviour for pods that started mid-window.
 // Negative deltas (counter resets) are treated as resets and the delta is set to the end value (post-reset activity).
 func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[string]float64, error) {
+	return queryCounterDeltaFiltered(ctx, metric, false, start, end)
+}
+
+// queryVLLMOnlyCounterDelta is queryCounterDelta for vLLM-only metrics: it skips
+// models that SGLang also serves in the window (see notSGLangServed).
+func queryVLLMOnlyCounterDelta(ctx *Context, metric string, start, end time.Time) (map[string]float64, error) {
+	return queryCounterDeltaFiltered(ctx, metric, true, start, end)
+}
+
+func queryCounterDeltaFiltered(ctx *Context, metric string, skipSGLangServed bool, start, end time.Time) (map[string]float64, error) {
 	startUnix := start.Unix()
 	// Clamp end to now: last_over_time with a future @ timestamp returns no results.
 	effectiveEnd := end
@@ -235,8 +300,14 @@ func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[s
 		windowMinutes = 2
 	}
 
+	selector := withClusterFilter(metric, ctx.config.ClusterFilter)
+
 	// Query counter value at the end of the window.
-	endQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[%dm] @ %d))`, metric, windowMinutes, endUnix)
+	endQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[%dm] @ %d))`, selector, windowMinutes, endUnix)
+	if skipSGLangServed {
+		// Only the end query needs the filter: deltas are computed for end keys.
+		endQuery += notSGLangServed(ctx.config.ClusterFilter, fmt.Sprintf("[%dm] @ %d", windowMinutes, endUnix))
+	}
 	endVals, err := queryInstantMetric(ctx, endQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
@@ -245,7 +316,7 @@ func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[s
 	// Query counter value at the start of the window.
 	// Use a narrow 2m lookback here: we want the value just before the window
 	// opens, not a stale value from much earlier that would undercount the delta.
-	startQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[2m] @ %d))`, metric, startUnix)
+	startQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[2m] @ %d))`, selector, startUnix)
 	startVals, err := queryInstantMetric(ctx, startQuery, effectiveEnd)
 	if err != nil {
 		return nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
@@ -265,6 +336,23 @@ func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[s
 	return out, nil
 }
 
+// queryCounterDeltaSum returns the sum of queryCounterDelta over several counter
+// metrics, per (model_name, namespace). A metric with no series contributes
+// nothing, so an engine that is not deployed costs only two empty queries.
+func queryCounterDeltaSum(ctx *Context, metrics []string, start, end time.Time) (map[string]float64, error) {
+	out := make(map[string]float64)
+	for _, metric := range metrics {
+		values, err := queryCounterDelta(ctx, metric, start, end)
+		if err != nil {
+			return nil, err
+		}
+		for key, value := range values {
+			out[key] += value
+		}
+	}
+	return out, nil
+}
+
 // queryCacheConfigs queries vllm:cache_config_info joined with token metrics
 // to get enable_prefix_caching per (model_name, namespace).
 // When the join produces no results for a model that has token data, a warning
@@ -272,13 +360,16 @@ func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[s
 func queryCacheConfigs(ctx *Context, t time.Time) (map[string]*source.InferenceCacheConfig, error) {
 	// Join cache_config_info (has enable_prefix_caching label) with
 	// prompt_tokens_total (has model_name) using namespace+pod as the join key.
-	query := `
+	// Models SGLang also serves are skipped: vLLM's setting says nothing about
+	// SGLang's cache hits, so their cache config is left unknown.
+	filter := ctx.config.ClusterFilter
+	join := fmt.Sprintf(`
 		max by (model_name, namespace, enable_prefix_caching) (
-			sum by (model_name, namespace, pod) (vllm:prompt_tokens_total)
+			sum by (model_name, namespace, pod) (%s)
 			* on (namespace, pod) group_left(enable_prefix_caching)
-			max by (namespace, pod, enable_prefix_caching) (vllm:cache_config_info)
-		)
-	`
+			max by (namespace, pod, enable_prefix_caching) (%s)
+		)`, withClusterFilter("vllm:prompt_tokens_total", filter), withClusterFilter("vllm:cache_config_info", filter))
+	query := join + notSGLangServed(filter, "[5m]")
 
 	raw, _, err := ctx.query(query, t)
 	if err != nil {
@@ -312,21 +403,27 @@ func queryCacheConfigs(ctx *Context, t time.Time) (map[string]*source.InferenceC
 	// Check for models that have token data but no cache config — likely a join
 	// failure due to pod-label mismatch between cache_config_info and prompt_tokens_total.
 	// Only run the diagnostic query when the join produced nothing; skip it on the happy path.
-	if len(out) == 0 {
-		rawQuery := `max by (namespace) (vllm:cache_config_info)`
-		rawResult, _, rawErr := ctx.query(rawQuery, t)
-		if rawErr == nil {
-			diagResults := NewQueryResults(rawQuery, rawResult, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
-			if diagResults.Error == nil && len(diagResults.Results) > 0 {
-				log.Warnf("InferenceCost: vllm:cache_config_info exists in Prometheus but the join with " +
-					"vllm:prompt_tokens_total produced no results — likely a pod-label mismatch between " +
-					"the two metrics (check that both carry matching 'namespace' and 'pod' labels). " +
-					"prefix_caching_off detection will be disabled; allocation method will be 'compute_time'.")
-			}
-		}
+	// An empty result is expected when every vLLM model is also served by SGLang,
+	// so only warn when the join itself (without that exclusion) is empty too.
+	if len(out) == 0 && !hasResults(ctx, join, t) && hasResults(ctx, fmt.Sprintf(`max by (namespace) (%s)`, withClusterFilter("vllm:cache_config_info", filter)), t) {
+		log.Warnf("InferenceCost: vllm:cache_config_info exists in Prometheus but the join with " +
+			"vllm:prompt_tokens_total produced no results — likely a pod-label mismatch between " +
+			"the two metrics (check that both carry matching 'namespace' and 'pod' labels). " +
+			"prefix_caching_off detection will be disabled.")
 	}
 
 	return out, nil
+}
+
+// hasResults reports whether an instant query evaluated at t returns any series.
+// Query errors count as no results; it is only used for diagnostics.
+func hasResults(ctx *Context, query string, t time.Time) bool {
+	raw, _, err := ctx.query(query, t)
+	if err != nil {
+		return false
+	}
+	results := NewQueryResults(query, raw, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+	return results.Error == nil && len(results.Results) > 0
 }
 
 // queryInstantMetric runs a Prometheus instant query evaluated at t and returns a
