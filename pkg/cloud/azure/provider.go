@@ -1533,10 +1533,14 @@ func (az *Azure) GetPVKey(pv *clustercache.PersistentVolume, parameters map[stri
 	if pv.Spec.AzureDisk != nil {
 		providerID = pv.Spec.AzureDisk.DiskName
 	}
+	storageDriver := ""
+	if pv.Spec.CSI != nil {
+		storageDriver = pv.Spec.CSI.Driver
+	}
 	key := &azurePvKey{
 		Labels:                 pv.Labels,
 		StorageClass:           pv.Spec.StorageClassName,
-		StorageDriver:          pv.Spec.CSI.Driver,
+		StorageDriver:          storageDriver,
 		StorageClassParameters: parameters,
 		DefaultRegion:          defaultRegion,
 		ProviderId:             providerID,
