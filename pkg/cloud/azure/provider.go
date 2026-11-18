@@ -1597,6 +1597,9 @@ func (key *azurePvKey) legacyStorageClass() string {
 	if storageClass == "" {
 		storageClass = key.StorageClassParameters["skuname"]
 	}
+	if storageClass == "" {
+		storageClass = key.StorageClassParameters["skuName"]
+	}
 	if storageClass != "" {
 		return storageClass
 	}
