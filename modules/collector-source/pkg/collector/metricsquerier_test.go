@@ -7,9 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/modules/collector-source/pkg/metric"
+	"github.com/opencost/opencost/modules/collector-source/pkg/scrape"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var Start1Str = "2025-01-01T00:00:00Z"
@@ -984,5 +988,41 @@ func Test_collectorMetricsQuerier_QueryNetReceiveBytes(t *testing.T) {
 		if !reflect.DeepEqual(got, expected[i]) {
 			t.Errorf("result at index %d did not match: got = %v, want %v", i, got, expected[i])
 		}
+	}
+}
+
+func TestCollectorMetricsQuerier_QueryStatefulSetMatchLabels(t *testing.T) {
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(time.Hour)
+	statefulSet := &clustercache.StatefulSet{
+		Name:      "database",
+		Namespace: "prod",
+		UID:       "database-uid",
+		SpecSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{"app": "postgres"},
+		},
+	}
+	scraper := &scrape.ClusterCacheScraper{}
+	scrapeStatefulSets := scraper.GetScrapeStatefulSets([]*clustercache.StatefulSet{statefulSet}, map[string]types.UID{"prod": "prod-uid"})
+	store := NewOpenCostMetricStore()
+	for _, update := range scrapeStatefulSets() {
+		store.Update(update.Name, update.Labels, update.Value, start, update.AdditionalInfo)
+	}
+
+	querier := &collectorMetricsQuerier{collectorProvider: &MockStoreProvider{metricsCollector: store}}
+	result, err := querier.QueryStatefulSetMatchLabels(start, end).Await()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected one StatefulSet selector, got %d", len(result))
+	}
+	got := result[0]
+	if got.Namespace != statefulSet.Namespace || got.StatefulSet != statefulSet.Name || got.UID != string(statefulSet.UID) {
+		t.Errorf("got namespace %q, StatefulSet %q and UID %q, want %q, %q and %q",
+			got.Namespace, got.StatefulSet, got.UID, statefulSet.Namespace, statefulSet.Name, statefulSet.UID)
+	}
+	if !reflect.DeepEqual(got.Labels, statefulSet.SpecSelector.MatchLabels) {
+		t.Errorf("got selector %v, want %v", got.Labels, statefulSet.SpecSelector.MatchLabels)
 	}
 }
