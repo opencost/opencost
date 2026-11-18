@@ -1581,7 +1581,10 @@ func (key *azurePvKey) resolveSKU() {
 		}
 	case "disk.csi.azure.com":
 		// ManagedDisk driver
-		diskSku := key.StorageClassParameters["skuname"]
+		diskSku := key.StorageClassParameters["storageaccounttype"]
+		if diskSku == "" {
+			diskSku := key.StorageClassParameters["skuname"]
+		}
 		if diskSku == "" {
 			diskSku = key.StorageClassParameters["skuName"]
 		}
