@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -398,7 +399,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// before they are potentially lost or merged during aggregation.
 	asr, err := a.Model.QueryAllocation(window, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy, shareIdle, allocationFilter)
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
+		if errors.Is(err, ErrBadRequest) {
 			proto.WriteError(w, proto.BadRequest(err.Error()))
 		} else {
 			proto.WriteError(w, proto.InternalServerError(err.Error()))
