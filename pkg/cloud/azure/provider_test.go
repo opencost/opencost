@@ -329,6 +329,38 @@ func TestAzurePVPricing_TierAware(t *testing.T) {
 		require.Equal(t, "10", pv.Size)
 	})
 
+	t.Run("10 gib premium uses P3 effective rate with CSI driver using skuname", func(t *testing.T) {
+		key := &azurePvKey{
+			StorageDriver: "disk.csi.azure.com",
+			DefaultRegion: "centralus",
+			SizeGiB:       10,
+			StorageClassParameters: map[string]string{
+				"skuname": "Premium_LRS",
+			},
+		}
+		key.resolveSKU()
+		pv, err := az.PVPricing(key)
+		require.NoError(t, err)
+		require.Equal(t, formatPrice(effectiveGiBHourRate(2.64, 10)), pv.Cost)
+		require.Equal(t, "10", pv.Size)
+	})
+
+	t.Run("10 gib premium uses P3 effective rate with CSI driver using skuName", func(t *testing.T) {
+		key := &azurePvKey{
+			StorageDriver: "disk.csi.azure.com",
+			DefaultRegion: "centralus",
+			SizeGiB:       10,
+			StorageClassParameters: map[string]string{
+				"skuName": "Premium_LRS",
+			},
+		}
+		key.resolveSKU()
+		pv, err := az.PVPricing(key)
+		require.NoError(t, err)
+		require.Equal(t, formatPrice(effectiveGiBHourRate(2.64, 10)), pv.Cost)
+		require.Equal(t, "10", pv.Size)
+	})
+
 	t.Run("100 gib premium uses P10 effective rate", func(t *testing.T) {
 		key := &azurePvKey{
 			DefaultRegion: "centralus",
