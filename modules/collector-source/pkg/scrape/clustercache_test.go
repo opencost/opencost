@@ -3135,3 +3135,77 @@ func TestClusterCacheScraper_Scrape_PodRetainsUIDsOfRemovedReferents(t *testing.
 		t.Errorf("expected namespace UID to be retained, got %q", second[source.NamespaceUIDLabel])
 	}
 }
+
+func TestClusterCacheScraper_Scrape_ContainerGPUAllocationTimeSlicing(t *testing.T) {
+	tests := []struct {
+		name         string
+		nodeCapacity v1.ResourceList
+		podResource  v1.ResourceName
+		want         float64
+	}{
+		{
+			name:         "renameByDefault=false exposes replicas as nvidia.com/gpu",
+			nodeCapacity: v1.ResourceList{"nvidia.com/gpu": resource.MustParse("4")},
+			podResource:  "nvidia.com/gpu",
+			want:         0.25,
+		},
+		{
+			name:         "renameByDefault=true exposes replicas as nvidia.com/gpu.shared",
+			nodeCapacity: v1.ResourceList{"nvidia.com/gpu.shared": resource.MustParse("4")},
+			podResource:  "nvidia.com/gpu.shared",
+			want:         0.25,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := &clustercache.MockClusterCache{
+				Nodes: []*clustercache.Node{
+					{
+						Name: "gpu-node",
+						UID:  "uid-gpu-node",
+						Labels: map[string]string{
+							"nvidia.com/gpu.count":    "1",
+							"nvidia.com/gpu.replicas": "4",
+						},
+						Status: v1.NodeStatus{Capacity: tt.nodeCapacity},
+					},
+				},
+				Namespaces: []*clustercache.Namespace{{Name: "ns-1", UID: "uid-ns-1"}},
+				Pods: []*clustercache.Pod{
+					{
+						Name:      "inference",
+						Namespace: "ns-1",
+						UID:       "uid-inference",
+						Spec: clustercache.PodSpec{
+							NodeName: "gpu-node",
+							Containers: []clustercache.Container{
+								{
+									Name: "model",
+									Resources: v1.ResourceRequirements{
+										Limits: v1.ResourceList{tt.podResource: resource.MustParse("1")},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			ccs := newClusterCacheScraper(cache, nil).(*ClusterCacheScraper)
+
+			var got []float64
+			for _, u := range ccs.Scrape() {
+				if u.Name == metric.ContainerGPUAllocation {
+					got = append(got, u.Value)
+				}
+			}
+
+			if len(got) != 1 {
+				t.Fatalf("expected 1 %s update, got %d", metric.ContainerGPUAllocation, len(got))
+			}
+			if got[0] != tt.want {
+				t.Errorf("%s = %v, want %v", metric.ContainerGPUAllocation, got[0], tt.want)
+			}
+		})
+	}
+}
