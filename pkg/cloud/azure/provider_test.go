@@ -732,7 +732,7 @@ func TestAzurePVKeyFeatures(t *testing.T) {
 			expected: "eastus,standard_smb",
 		},
 		{
-			name:          "azure files skuName remains file pricing with csi driver with skuName",
+			name:          "azure files skuName remains file pricing with csi driver",
 			storageDriver: "file.csi.azure.com",
 			parameters: map[string]string{
 				"skuName": "Premium_LRS",
@@ -740,7 +740,7 @@ func TestAzurePVKeyFeatures(t *testing.T) {
 			expected: "eastus,premium_smb",
 		},
 		{
-			name:          "azure files skuName standard remains file pricing with csi driver with skuName",
+			name:          "azure files skuName standard remains file pricing with csi driver",
 			storageDriver: "file.csi.azure.com",
 			parameters: map[string]string{
 				"skuName": "Standard_LRS",
@@ -748,7 +748,7 @@ func TestAzurePVKeyFeatures(t *testing.T) {
 			expected: "eastus,standard_smb",
 		},
 		{
-			name:          "azure files skuName remains file pricing with csi driver with skuname",
+			name:          "azure files skuname remains file pricing with csi driver",
 			storageDriver: "file.csi.azure.com",
 			parameters: map[string]string{
 				"skuname": "Premium_LRS",
@@ -756,7 +756,7 @@ func TestAzurePVKeyFeatures(t *testing.T) {
 			expected: "eastus,premium_smb",
 		},
 		{
-			name:          "azure files skuName standard remains file pricing with csi driver with skuname",
+			name:          "azure files skuname standard remains file pricing with csi driver",
 			storageDriver: "file.csi.azure.com",
 			parameters: map[string]string{
 				"skuname": "Standard_LRS",
