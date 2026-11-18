@@ -677,9 +677,10 @@ func TestAzure_findCostForDisk(t *testing.T) {
 
 func TestAzurePVKeyFeatures(t *testing.T) {
 	tests := []struct {
-		name       string
-		parameters map[string]string
-		expected   string
+		name          string
+		storageDriver string
+		parameters    map[string]string
+		expected      string
 	}{
 		{
 			name: "managed disk storageaccounttype premium",
@@ -731,6 +732,30 @@ func TestAzurePVKeyFeatures(t *testing.T) {
 			expected: "eastus,standard_smb",
 		},
 		{
+			name:          "azure files skuName remains file pricing with csi driver",
+			storageDriver: "file.csi.azure.com",
+			parameters: map[string]string{
+				"skuName": "Premium_LRS",
+			},
+			expected: "eastus,premium_smb",
+		},
+		{
+			name:          "azure files skuName standard remains file pricing",
+			storageDriver: "file.csi.azure.com",
+			parameters: map[string]string{
+				"skuName": "Standard_LRS",
+			},
+			expected: "eastus,standard_smb",
+		},
+		{
+			name:          "azure files skuName standard remains file pricing",
+			storageDriver: "file.csi.azure.com",
+			parameters: map[string]string{
+				"skuName": "Standard_LRS",
+			},
+			expected: "eastus,standard_smb",
+		},
+		{
 			name: "unknown skuname keeps raw legacy class key",
 			parameters: map[string]string{
 				"skuname": "Custom_LRS",
@@ -742,6 +767,7 @@ func TestAzurePVKeyFeatures(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			key := &azurePvKey{
+				StorageDriver:          tc.storageDriver,
 				StorageClassParameters: tc.parameters,
 				DefaultRegion:          "eastus",
 			}
