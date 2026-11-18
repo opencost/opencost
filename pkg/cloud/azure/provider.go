@@ -1562,6 +1562,9 @@ func (key *azurePvKey) resolveSKU() {
 	if diskParam == "" {
 		diskParam = key.StorageClassParameters["skuname"]
 	}
+	if diskParam == "" {
+		diskParam = key.StorageClassParameters["skuName"]
+	}
 	if diskParam != "" {
 		if sku, ok := resolveDiskSKU(diskParam); ok {
 			key.DiskStorageClass = sku.StorageClass
