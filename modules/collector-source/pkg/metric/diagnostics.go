@@ -339,6 +339,7 @@ func (d *DiagnosticsModule) DiagnosticsDetails(diagnosticsId string) (map[string
 
 	// If a bogus diagnostics id was passed, we can check the definitions first
 	if _, exists := diagnosticDefinitions[diagnosticsId]; !exists {
+		log.Warnf("invalid diagnostic id: %s not found", diagnosticsId)
 		return nil, fmt.Errorf("invalid diagnostic id: %s not found", diagnosticsId)
 	}
 
@@ -347,6 +348,7 @@ func (d *DiagnosticsModule) DiagnosticsDetails(diagnosticsId string) (map[string
 	// hasn't occurred yet
 	diagnostic, exists := d.diagnostics.ById(diagnosticsId)
 	if !exists {
+		log.Warnf("diagnostic not available for %s: no scrape event has been received — scraper may be hung or not yet started", diagnosticsId)
 		return nil, fmt.Errorf("diagnostic not available: %s", diagnosticsId)
 	}
 
