@@ -131,6 +131,15 @@ func TestCalculatePodStartAndEnd(t *testing.T) {
 			ends:    []time.Time{windowStart.Add(-10 * time.Second)},
 			// zero times: applyPodResults skips the pod
 		},
+		"completion before the window without an exact start is skipped": {
+			samples: samplesAt(windowStart),
+			ends:    []time.Time{windowStart.Add(-10 * time.Second)},
+		},
+		"completion before the window with an out-of-bounds start is skipped": {
+			samples: samplesAt(windowStart),
+			starts:  []time.Time{windowStart.Add(-10 * time.Minute)},
+			ends:    []time.Time{windowStart.Add(-10 * time.Second)},
+		},
 		"pod that started at the window end is skipped": {
 			samples: samplesAt(windowEnd),
 			starts:  []time.Time{windowEnd},

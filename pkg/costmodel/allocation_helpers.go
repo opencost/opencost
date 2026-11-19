@@ -2664,7 +2664,13 @@ func calculatePodStartAndEnd(result []*util.Vector, resolution time.Duration, wi
 	if t, ok := exactStart(first, starts, resolution); ok {
 		s, startExact = t, true
 	}
-	if t, ok := exactEnd(last, ends, resolution); ok && t.After(s) {
+	t, endOK := exactEnd(last, ends, resolution)
+	if endOK && !t.After(*window.Start()) {
+		// A validated completion at or before the window start: the pod finished before
+		// this window, whatever its start, so it belongs to the previous window only.
+		return time.Time{}, time.Time{}
+	}
+	if endOK && t.After(s) {
 		e, endExact = t, true
 	} else if first.Equal(last) {
 		// Single sample: keep calculateStartAndEnd's one-resolution duration, starting at s,
