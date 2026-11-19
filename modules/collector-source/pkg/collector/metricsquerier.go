@@ -249,6 +249,22 @@ func (c *collectorMetricsQuerier) QueryPodsUID(start, end time.Time) *source.Fut
 	return queryCollector(c, start, end, metric.PodActiveMinutesID, source.DecodePodsResult)
 }
 
+// The collector does not record container start or pod completion timestamps, so these return
+// no results and pod start/end stay based on the sampled running minutes.
+func (c *collectorMetricsQuerier) QueryPodContainerStartTime(start, end time.Time) *source.Future[source.PodTimestampResult] {
+	return emptyPodTimestampResult("QueryPodContainerStartTime")
+}
+
+func (c *collectorMetricsQuerier) QueryPodCompletionTime(start, end time.Time) *source.Future[source.PodTimestampResult] {
+	return emptyPodTimestampResult("QueryPodCompletionTime")
+}
+
+func emptyPodTimestampResult(query string) *source.Future[source.PodTimestampResult] {
+	ch := make(source.QueryResultsChan, 1)
+	ch <- source.NewQueryResults(query)
+	return source.NewFuture(source.DecodePodTimestampResult, ch)
+}
+
 func (c *collectorMetricsQuerier) QueryPodInfo(start, end time.Time) *source.Future[source.PodInfoResult] {
 	return queryCollector(c, start, end, metric.PodInfoID, source.DecodePodInfoResult)
 }

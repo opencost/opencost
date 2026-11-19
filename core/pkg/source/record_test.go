@@ -48,6 +48,8 @@ func TestRecordMetricsQuerier_Counts(t *testing.T) {
 	r.QueryPodPVCVolumes(start, end)
 	r.QueryPodNetworkEgressBytes(start, end)
 	r.QueryPodNetworkIngressBytes(start, end)
+	r.QueryPodContainerStartTime(start, end)
+	r.QueryPodCompletionTime(start, end)
 	r.QueryContainerUptime(start, end)
 	r.QueryContainerResourceRequests(start, end)
 	r.QueryContainerResourceLimits(start, end)
@@ -205,6 +207,8 @@ func TestRecordMetricsQuerier_Counts(t *testing.T) {
 		"QueryPodPVCVolumes":                            1,
 		"QueryPodNetworkEgressBytes":                    1,
 		"QueryPodNetworkIngressBytes":                   1,
+		"QueryPodContainerStartTime":                    1,
+		"QueryPodCompletionTime":                        1,
 		"QueryContainerUptime":                          1,
 		"QueryContainerResourceRequests":                1,
 		"QueryContainerResourceLimits":                  1,

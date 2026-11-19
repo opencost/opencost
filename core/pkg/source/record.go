@@ -216,6 +216,16 @@ func (m *RecordMetricsQuerier) QueryPodNetworkIngressBytes(start, end time.Time)
 	return m.Querier.QueryPodNetworkIngressBytes(start, end)
 }
 
+func (m *RecordMetricsQuerier) QueryPodContainerStartTime(start, end time.Time) *Future[PodTimestampResult] {
+	m.recordCall(QueryPodContainerStartTime)
+	return m.Querier.QueryPodContainerStartTime(start, end)
+}
+
+func (m *RecordMetricsQuerier) QueryPodCompletionTime(start, end time.Time) *Future[PodTimestampResult] {
+	m.recordCall(QueryPodCompletionTime)
+	return m.Querier.QueryPodCompletionTime(start, end)
+}
+
 // Container
 
 func (m *RecordMetricsQuerier) QueryContainerUptime(start, end time.Time) *Future[ContainerUptimeResult] {
