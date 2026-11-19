@@ -4,6 +4,7 @@ import (
 	"encoding"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -2911,10 +2912,7 @@ func (as *AssetSet) Clone() *AssetSet {
 		return nil
 	}
 
-	var aggregateBy []string
-	if as.AggregationKeys != nil {
-		aggregateBy = append(aggregateBy, as.AggregationKeys...)
-	}
+	aggregateBy := slices.Clone(as.AggregationKeys)
 
 	s := as.Start()
 	e := as.End()
@@ -3084,6 +3082,24 @@ func (as *AssetSet) insertKeyed(k string, asset Asset) {
 	as.Assets[k].ExpandWindow(as.Window)
 }
 
+// insertFrom keeps precomputed keys, including label aliases, when the ordered
+// aggregation dimensions match. Otherwise it keys each asset using the receiver's
+// dimensions, as Insert does. A nil list represents the default dimensions.
+func (as *AssetSet) insertFrom(that *AssetSet) error {
+	sameDefaults := (as.AggregationKeys == nil) == (that.AggregationKeys == nil)
+	sameKeys := sameDefaults && slices.Equal(as.AggregationKeys, that.AggregationKeys)
+	for k, asset := range that.Assets {
+		if sameKeys {
+			as.insertKeyed(k, asset)
+			continue
+		}
+		if err := as.Insert(asset, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // IsEmpty returns true if the AssetSet is nil, or if it contains
 // zero assets.
 func (as *AssetSet) IsEmpty() bool {
@@ -3153,15 +3169,6 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 		return as, nil
 	}
 
-	// In the case of an AssetSetRange with empty entries, we may end up with
-	// an incoming `as` without an `aggregateBy`, even though we are tring to
-	// aggregate here. This handles that case by assigning the correct `aggregateBy`.
-	if !sameContents(as.AggregationKeys, that.AggregationKeys) {
-		if len(as.AggregationKeys) == 0 {
-			as.AggregationKeys = that.AggregationKeys
-		}
-	}
-
 	// Set start, end to min(start), max(end)
 	start := as.Start()
 	end := as.End()
@@ -3180,13 +3187,16 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 
 	acc := NewAssetSet(start, end)
 	acc.AggregationKeys = as.AggregationKeys
-
-	for k, asset := range as.Assets {
-		acc.insertKeyed(k, asset)
+	// An earlier set in the range may have no aggregation dimensions.
+	if len(acc.AggregationKeys) == 0 && len(that.AggregationKeys) > 0 {
+		acc.AggregationKeys = that.AggregationKeys
 	}
 
-	for k, asset := range that.Assets {
-		acc.insertKeyed(k, asset)
+	if err := acc.insertFrom(as); err != nil {
+		return nil, err
+	}
+	if err := acc.insertFrom(that); err != nil {
+		return nil, err
 	}
 
 	return acc, nil
@@ -3552,12 +3562,10 @@ func (asr *AssetSetRange) Length() int {
 	return len(asr.Assets)
 }
 
-// InsertRange merges the given AssetSetRange into the receiving one by
-// lining up sets with matching windows, then inserting each asset from
-// the given ASR into the respective set in the receiving ASR. If the given
-// ASR contains an AssetSetRange from a window that does not exist in the
-// receiving ASR, then an error is returned. However, the given ASR does not
-// need to cover the full range of the receiver.
+// InsertRange merges the given AssetSetRange into the receiver by matching
+// windows. When the aggregation dimensions differ, incoming assets are keyed
+// using the receiving set's dimensions. A source window missing from the
+// receiver returns an error. The source may cover only part of the range.
 func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 	if asr == nil {
 		return fmt.Errorf("cannot insert range into nil AssetSetRange")
@@ -3596,9 +3604,8 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 			continue
 		}
 
-		// Insert each Asset from the given set under the key it already has
-		for k, asset := range thatAS.Assets {
-			as.insertKeyed(k, asset)
+		if err = as.insertFrom(thatAS); err != nil {
+			err = fmt.Errorf("error inserting asset: %w", err)
 		}
 	}
 
@@ -3832,28 +3839,6 @@ func (asr *AssetSetRange) clone() *AssetSetRange {
 type AssetAPIResponse struct {
 	Code int                   `json:"code"`
 	Data AssetSetRangeResponse `json:"data"`
-}
-
-// Returns true if string slices a and b contain all of the same strings, in any order.
-func sameContents(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if !contains(b, a[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func contains(slice []string, item string) bool {
-	for _, element := range slice {
-		if element == item {
-			return true
-		}
-	}
-	return false
 }
 
 func GetNodePoolName(provider string, labels map[string]string) string {
