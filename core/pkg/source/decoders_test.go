@@ -176,3 +176,21 @@ func TestDecodeInferenceCacheConfigResult(t *testing.T) {
 		})
 	}
 }
+
+func TestDecodePodTimestampResult(t *testing.T) {
+	res := DecodePodTimestampResult(NewQueryResult(
+		map[string]any{"namespace": "ns", "pod": "job-abc", "uid": "uid-1"},
+		[]*util.Vector{{Timestamp: 1700000100, Value: 1700000000}},
+		nil,
+	))
+	require.Equal(t, "ns", res.Namespace)
+	require.Equal(t, "job-abc", res.Pod)
+	require.Equal(t, "uid-1", res.UID)
+	require.Equal(t, int64(1700000000), res.Timestamp.Unix())
+
+	empty := DecodePodTimestampResult(NewQueryResult(map[string]any{"pod": "p"}, nil, nil))
+	require.True(t, empty.Timestamp.IsZero())
+
+	zero := DecodePodTimestampResult(NewQueryResult(nil, []*util.Vector{{Value: 0}}, nil))
+	require.True(t, zero.Timestamp.IsZero())
+}

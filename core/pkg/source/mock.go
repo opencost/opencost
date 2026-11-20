@@ -252,6 +252,18 @@ func (m *MockMetricsQuerier) QueryPodUptime(start, end time.Time) *Future[Uptime
 	})
 }
 
+func (m *MockMetricsQuerier) QueryPodContainerStartTime(start, end time.Time) *Future[PodTimestampResult] {
+	return getFutureFromOverride(m.overrides, QueryPodContainerStartTime, func() *Future[PodTimestampResult] {
+		return m.noop.QueryPodContainerStartTime(start, end)
+	})
+}
+
+func (m *MockMetricsQuerier) QueryPodCompletionTime(start, end time.Time) *Future[PodTimestampResult] {
+	return getFutureFromOverride(m.overrides, QueryPodCompletionTime, func() *Future[PodTimestampResult] {
+		return m.noop.QueryPodCompletionTime(start, end)
+	})
+}
+
 func (m *MockMetricsQuerier) QueryPodOwners(start, end time.Time) *Future[OwnerResult] {
 	return getFutureFromOverride(m.overrides, QueryPodOwners, func() *Future[OwnerResult] {
 		return m.noop.QueryPodOwners(start, end)

@@ -122,6 +122,8 @@ func TestQueryLogs(t *testing.T) {
 		"QueryClusterManagementPricePerHr":              func(s, e time.Time) { querier.QueryClusterManagementPricePerHr(s, e) },
 		"QueryPods":                                     func(s, e time.Time) { querier.QueryPods(s, e) },
 		"QueryPodsUID":                                  func(s, e time.Time) { querier.QueryPodsUID(s, e) },
+		"QueryPodContainerStartTime":                    func(s, e time.Time) { querier.QueryPodContainerStartTime(s, e) },
+		"QueryPodCompletionTime":                        func(s, e time.Time) { querier.QueryPodCompletionTime(s, e) },
 		"QueryRAMBytesAllocated":                        func(s, e time.Time) { querier.QueryRAMBytesAllocated(s, e) },
 		"QueryRAMRequests":                              func(s, e time.Time) { querier.QueryRAMRequests(s, e) },
 		"QueryRAMLimits":                                func(s, e time.Time) { querier.QueryRAMLimits(s, e) },

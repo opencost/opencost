@@ -46,6 +46,11 @@ func (cm *CostModel) buildPodMap(window opencost.Window, podMap map[podKey]*pod,
 	ds := cm.DataSource.Metrics()
 	resolution := cm.DataSource.Resolution()
 
+	// Exact container start and pod completion times sharpen the sampled start/end below.
+	// They are optional: a missing or failing query leaves the sampled values untouched.
+	startTimesFuture := source.WithGroup(grp, ds.QueryPodContainerStartTime(start, end))
+	completionTimesFuture := source.WithGroup(grp, ds.QueryPodCompletionTime(start, end))
+
 	var resPods []*source.PodsResult
 	var err error
 	maxTries := 3
@@ -71,6 +76,9 @@ func (cm *CostModel) buildPodMap(window opencost.Window, podMap map[podKey]*pod,
 	}
 
 	if err != nil {
+		// Await the optional queries so their goroutines are not left blocked.
+		_, _ = startTimesFuture.Await()
+		_, _ = completionTimesFuture.Await()
 		return err
 	}
 
@@ -95,12 +103,22 @@ func (cm *CostModel) buildPodMap(window opencost.Window, podMap map[podKey]*pod,
 		}
 	}
 
-	applyPodResults(window, resolution, podMap, resPods, ingestPodUID, podUIDKeyMap)
+	resStartTimes, errStart := startTimesFuture.Await()
+	if errStart != nil {
+		log.Debugf("CostModel.ComputeAllocation: pod container start time query failed, using sampled start: %s", errStart)
+	}
+	resCompletionTimes, errEnd := completionTimesFuture.Await()
+	if errEnd != nil {
+		log.Debugf("CostModel.ComputeAllocation: pod completion time query failed, using sampled end: %s", errEnd)
+	}
+	exact := newPodExactTimes(resStartTimes, resCompletionTimes)
+
+	applyPodResults(window, resolution, podMap, resPods, ingestPodUID, podUIDKeyMap, exact)
 
 	return nil
 }
 
-func applyPodResults(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, resPods []*source.PodsResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey) {
+func applyPodResults(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, resPods []*source.PodsResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey, exact *podExactTimes) {
 	for _, res := range resPods {
 		if len(res.Data) == 0 {
 			log.Warnf("CostModel.ComputeAllocation: empty minutes result")
@@ -125,6 +143,8 @@ func applyPodResults(window opencost.Window, resolution time.Duration, podMap ma
 		}
 
 		key := newPodKey(cluster, namespace, podName)
+		exactStarts, exactEnds := exact.lookup(key, res.UID)
+		var uidKey podKey
 
 		// If thisPod UIDs are being used to ID pods, append them to the thisPod name in
 		// the podKey.
@@ -134,17 +154,19 @@ func applyPodResults(window opencost.Window, resolution time.Duration, podMap ma
 			if uid == "" {
 				log.Warnf("CostModel.ComputeAllocation: UID ingestion enabled, but query result missing field: uid")
 			} else {
-				newKey := newPodKey(cluster, namespace, podName+" "+uid)
-				podUIDKeyMap[key] = append(podUIDKeyMap[key], newKey)
-
-				key = newKey
+				uidKey = newPodKey(cluster, namespace, podName+" "+uid)
 			}
 
 		}
 
-		allocStart, allocEnd := calculateStartAndEnd(res.Data, resolution, window)
+		allocStart, allocEnd := calculatePodStartAndEnd(res.Data, resolution, window, exactStarts, exactEnds)
 		if allocStart.IsZero() || allocEnd.IsZero() {
 			continue
+		}
+
+		if uidKey != (podKey{}) {
+			podUIDKeyMap[key] = append(podUIDKeyMap[key], uidKey)
+			key = uidKey
 		}
 
 		if thisPod, ok := podMap[key]; ok {
@@ -2545,6 +2567,12 @@ func calculateStartAndEnd(result []*util.Vector, resolution time.Duration, windo
 	if s.Equal(e) {
 		e = e.Add(resolution)
 	}
+
+	return clampStartAndEnd(s, e, window)
+}
+
+// clampStartAndEnd keeps start and end inside the window and not in the future.
+func clampStartAndEnd(s, e time.Time, window opencost.Window) (time.Time, time.Time) {
 	if s.Before(*window.Start()) {
 		s = *window.Start()
 	}
@@ -2558,6 +2586,149 @@ func calculateStartAndEnd(result []*util.Vector, resolution time.Duration, windo
 	}
 
 	return s, e
+}
+
+// podTimestamp is one exact timestamp for one pod instance.
+type podTimestamp struct {
+	uid string
+	ts  time.Time
+}
+
+// podExactTimes indexes exact container start and pod completion times by pod.
+// A nil *podExactTimes is valid and holds nothing.
+type podExactTimes struct {
+	starts map[podKey][]podTimestamp
+	ends   map[podKey][]podTimestamp
+}
+
+func newPodExactTimes(starts, ends []*source.PodTimestampResult) *podExactTimes {
+	index := func(results []*source.PodTimestampResult) map[podKey][]podTimestamp {
+		m := make(map[podKey][]podTimestamp, len(results))
+		for _, res := range results {
+			if res == nil || res.Timestamp.IsZero() || res.Namespace == "" || res.Pod == "" {
+				continue
+			}
+			cluster := res.Cluster
+			if cluster == "" {
+				cluster = coreenv.GetClusterID()
+			}
+			key := newPodKey(cluster, res.Namespace, res.Pod)
+			m[key] = append(m[key], podTimestamp{uid: res.UID, ts: res.Timestamp})
+		}
+		return m
+	}
+	return &podExactTimes{starts: index(starts), ends: index(ends)}
+}
+
+// lookup returns the candidate start and end times for a pod. When the pod's UID is known,
+// timestamps of other pod instances with the same name are left out.
+func (p *podExactTimes) lookup(key podKey, uid string) (starts, ends []time.Time) {
+	if p == nil {
+		return nil, nil
+	}
+	pick := func(candidates []podTimestamp) []time.Time {
+		var out []time.Time
+		for _, c := range candidates {
+			if uid != "" && c.uid != "" && c.uid != uid {
+				continue
+			}
+			out = append(out, c.ts)
+		}
+		return out
+	}
+	return pick(p.starts[key]), pick(p.ends[key])
+}
+
+// calculatePodStartAndEnd is calculateStartAndEnd for pods, sharpened by exact timestamps.
+//
+// The sampled running series only says a pod was running at the first and last sample, so a
+// pod that lives for a few minutes loses up to one resolution step at each end (e.g. a 2.5m
+// pod at 1m resolution is counted as 1m or 2m). Kube-state-metrics records the container start
+// and pod completion to the second. A timestamp is used only if it is consistent with the
+// samples: the start in the gap before the first sample, the end close to the last one.
+// Otherwise, or with no timestamps at all, the result is the same as calculateStartAndEnd.
+//
+// Exact timestamps can also show that a sample on a window boundary belongs to the adjacent
+// window (e.g. the pod ended before this window started). Then zero times are returned and the
+// pod is skipped, so it is not counted in both windows.
+func calculatePodStartAndEnd(result []*util.Vector, resolution time.Duration, window opencost.Window, starts, ends []time.Time) (time.Time, time.Time) {
+	if len(starts) == 0 && len(ends) == 0 {
+		return calculateStartAndEnd(result, resolution, window)
+	}
+
+	first := time.Unix(int64(result[0].Timestamp), 0).UTC()
+	last := time.Unix(int64(result[len(result)-1].Timestamp), 0).UTC()
+
+	s, e := first, last
+	startExact, endExact := false, false
+	if t, ok := exactStart(first, starts, resolution); ok {
+		s, startExact = t, true
+	}
+	t, endOK := exactEnd(last, ends, resolution)
+	if endOK && !t.After(*window.Start()) {
+		// A validated completion at or before the window start: the pod finished before
+		// this window, whatever its start, so it belongs to the previous window only.
+		return time.Time{}, time.Time{}
+	}
+	if endOK && t.After(s) {
+		e, endExact = t, true
+	} else if first.Equal(last) {
+		// Single sample: keep calculateStartAndEnd's one-resolution duration, starting at s,
+		// but never end before the sample that saw the pod running.
+		e = s.Add(resolution)
+		if e.Before(first) {
+			e = first
+		}
+	}
+
+	s, e = clampStartAndEnd(s, e, window)
+	if !e.After(s) {
+		if startExact || endExact {
+			// The exact times put the whole run outside this window.
+			return time.Time{}, time.Time{}
+		}
+		return calculateStartAndEnd(result, resolution, window)
+	}
+
+	return s, e
+}
+
+// exactStart picks the latest start time at or before the first sample and no more than two
+// resolution steps earlier (one step of sampling gap plus one of scrape delay).
+func exactStart(first time.Time, starts []time.Time, resolution time.Duration) (time.Time, bool) {
+	var best time.Time
+	for _, t := range starts {
+		if t.After(first) || first.Sub(t) > 2*resolution {
+			continue
+		}
+		if best.IsZero() || t.After(best) {
+			best = t
+		}
+	}
+	return best, !best.IsZero()
+}
+
+// exactEnd picks the completion time closest to the last sample, from half a resolution step
+// before it (the last sample may come from a scrape older than the sample time) to two steps
+// after it (sampling gap plus scrape delay). Kube-state-metrics sets a completion time as soon
+// as any container has terminated, so the lower bound is kept tight: a sidecar that finished
+// while the main container kept running can shorten a pod by at most half a step.
+func exactEnd(last time.Time, ends []time.Time, resolution time.Duration) (time.Time, bool) {
+	var best time.Time
+	var bestDist time.Duration
+	for _, t := range ends {
+		if t.Before(last.Add(-resolution/2)) || t.Sub(last) > 2*resolution {
+			continue
+		}
+		dist := t.Sub(last)
+		if dist < 0 {
+			dist = -dist
+		}
+		if best.IsZero() || dist < bestDist {
+			best, bestDist = t, dist
+		}
+	}
+	return best, !best.IsZero()
 }
 
 func getSanitizedDeviceName(deviceName string) string {

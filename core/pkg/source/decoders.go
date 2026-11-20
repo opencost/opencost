@@ -808,6 +808,37 @@ func DecodePodsResult(result *QueryResult) *PodsResult {
 	}
 }
 
+// PodTimestampResult carries one Unix timestamp per pod, such as when its first
+// container started or when the pod completed. Timestamp is zero when unknown.
+type PodTimestampResult struct {
+	UID       string
+	Cluster   string
+	Namespace string
+	Pod       string
+
+	Timestamp time.Time
+}
+
+func DecodePodTimestampResult(result *QueryResult) *PodTimestampResult {
+	uid, _ := result.GetString(UIDLabel)
+	cluster, _ := result.GetCluster()
+	namespace, _ := result.GetNamespace()
+	pod, _ := result.GetPod()
+
+	var ts time.Time
+	if len(result.Values) > 0 && result.Values[0].Value > 0 {
+		ts = time.Unix(int64(result.Values[0].Value), 0).UTC()
+	}
+
+	return &PodTimestampResult{
+		UID:       uid,
+		Cluster:   cluster,
+		Namespace: namespace,
+		Pod:       pod,
+		Timestamp: ts,
+	}
+}
+
 type ContainerMetricResult struct {
 	UID       string
 	Cluster   string
