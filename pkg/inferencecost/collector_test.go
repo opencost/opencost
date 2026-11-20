@@ -242,12 +242,6 @@ func makeAllocationWithUtilisation(
 	return a
 }
 
-// gpuUsage is a helper that returns a pointer to a float64, for use in
-// makeAllocationWithUtilisation calls.
-//
-//go:fix inline
-func gpuUsage(v float64) *float64 { return new(v) }
-
 // TestCollector_UsageCost_ScalesResourcesByUtilisation verifies that when
 // utilisation metrics are present, extractAllocationResults scales GPU, CPU,
 // and RAM costs proportionally to their actual consumption.
