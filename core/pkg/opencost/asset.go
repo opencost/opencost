@@ -4,6 +4,7 @@ import (
 	"encoding"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -2712,6 +2713,7 @@ type AssetSet struct {
 	Window            Window
 	Warnings          []string
 	Errors            []string
+	labelConfig       *LabelConfig //@bingen:field[ignore]
 }
 
 // This methid is executed before marshalling the AssetSet binary.
@@ -2726,6 +2728,7 @@ func preProcessAssetSet(assetSet *AssetSet) {
 
 // This method is executed after unmarshalling the AssetSet binary.
 func postProcessAssetSet(assetSet *AssetSet) {
+	assetSet.labelConfig = nil
 	for key, as := range assetSet.Assets {
 		addToConcreteMap(assetSet, key, as)
 	}
@@ -2831,13 +2834,25 @@ func NewAssetSet(start, end time.Time, assets ...Asset) *AssetSet {
 
 // AggregateBy aggregates the Assets in the AssetSet by the given list of
 // AssetProperties, such that each asset is binned by a key determined by its
-// relevant property values.
+// relevant property values. A nil list uses the default dimensions, and an
+// empty list groups all assets under one key.
 func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOptions) error {
 	if opts == nil {
 		opts = &AssetAggregationOptions{}
 	}
 
+	// Keep the same label aliases available when later merges need to recompute a key.
+	labelConfig := opts.LabelConfig
+	if labelConfig != nil {
+		config := *labelConfig
+		labelConfig = &config
+	}
+
 	if as.IsEmpty() && len(opts.SharedHourlyCosts) == 0 {
+		if as != nil {
+			as.AggregationKeys = aggregateBy
+			as.labelConfig = labelConfig
+		}
 		return nil
 	}
 
@@ -2874,7 +2889,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 
 		// Insert shared asset if it passes filter
 		if filter.Matches(sa) {
-			err := aggSet.Insert(sa, opts.LabelConfig)
+			err := aggSet.Insert(sa, labelConfig)
 			if err != nil {
 				return err
 			}
@@ -2891,7 +2906,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 	// Insert each asset into the new set, which will be keyed by the `aggregateBy`
 	// on aggSet, resulting in aggregation.
 	for _, asset := range as.Assets {
-		err := aggSet.Insert(asset, opts.LabelConfig)
+		err := aggSet.Insert(asset, labelConfig)
 		if err != nil {
 			return err
 		}
@@ -2900,6 +2915,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 	// Assign the aggregated values back to the original set
 	as.Assets = aggSet.Assets
 	as.AggregationKeys = aggregateBy
+	as.labelConfig = labelConfig
 
 	return nil
 }
@@ -2911,10 +2927,7 @@ func (as *AssetSet) Clone() *AssetSet {
 		return nil
 	}
 
-	var aggregateBy []string
-	if as.AggregationKeys != nil {
-		aggregateBy = append(aggregateBy, as.AggregationKeys...)
-	}
+	aggregateBy := slices.Clone(as.AggregationKeys)
 
 	s := as.Start()
 	e := as.End()
@@ -2984,6 +2997,7 @@ func (as *AssetSet) Clone() *AssetSet {
 		SharedAssets:      sharedAssetsMap,
 		Errors:            errors,
 		Warnings:          warnings,
+		labelConfig:       as.labelConfig,
 	}
 
 	for k, v := range as.Assets {
@@ -3054,8 +3068,7 @@ func (as *AssetSet) Insert(asset Asset, labelConfig *LabelConfig) error {
 }
 
 // insertKeyed adds the asset under a key that is already known, merging into the entry there.
-// Rebuilding a set from another keeps the keys the original computed with its own label
-// config, which the copy does not have.
+// Reusing a key preserves any label aliases the original set used to compute it.
 func (as *AssetSet) insertKeyed(k string, asset Asset) {
 	if as.Assets == nil {
 		as.Assets = map[string]Asset{}
@@ -3082,6 +3095,24 @@ func (as *AssetSet) insertKeyed(k string, asset Asset) {
 	// Expand the window, just to be safe. It's possible that the asset will
 	// be set into the map without expanding it to the AssetSet's window.
 	as.Assets[k].ExpandWindow(as.Window)
+}
+
+// insertFrom keeps precomputed keys, including label aliases, when the ordered
+// aggregation dimensions match. Otherwise it keys each asset using the receiver's
+// dimensions and label aliases. A nil list represents the default dimensions.
+func (as *AssetSet) insertFrom(that *AssetSet) error {
+	sameDefaults := (as.AggregationKeys == nil) == (that.AggregationKeys == nil)
+	sameKeys := sameDefaults && slices.Equal(as.AggregationKeys, that.AggregationKeys)
+	for k, asset := range that.Assets {
+		if sameKeys {
+			as.insertKeyed(k, asset)
+			continue
+		}
+		if err := as.Insert(asset, as.labelConfig); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // IsEmpty returns true if the AssetSet is nil, or if it contains
@@ -3153,15 +3184,6 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 		return as, nil
 	}
 
-	// In the case of an AssetSetRange with empty entries, we may end up with
-	// an incoming `as` without an `aggregateBy`, even though we are tring to
-	// aggregate here. This handles that case by assigning the correct `aggregateBy`.
-	if !sameContents(as.AggregationKeys, that.AggregationKeys) {
-		if len(as.AggregationKeys) == 0 {
-			as.AggregationKeys = that.AggregationKeys
-		}
-	}
-
 	// Set start, end to min(start), max(end)
 	start := as.Start()
 	end := as.End()
@@ -3174,19 +3196,20 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 		end = that.End()
 	}
 
-	if as.IsEmpty() && that.IsEmpty() {
-		return NewAssetSet(start, end), nil
+	// An empty, unconfigured leading set has no grouping to carry forward.
+	grouping := as
+	if as.IsEmpty() && as.AggregationKeys == nil {
+		grouping = that
 	}
-
 	acc := NewAssetSet(start, end)
-	acc.AggregationKeys = as.AggregationKeys
+	acc.AggregationKeys = grouping.AggregationKeys
+	acc.labelConfig = grouping.labelConfig
 
-	for k, asset := range as.Assets {
-		acc.insertKeyed(k, asset)
+	if err := acc.insertFrom(as); err != nil {
+		return nil, err
 	}
-
-	for k, asset := range that.Assets {
-		acc.insertKeyed(k, asset)
+	if err := acc.insertFrom(that); err != nil {
+		return nil, err
 	}
 
 	return acc, nil
@@ -3552,12 +3575,10 @@ func (asr *AssetSetRange) Length() int {
 	return len(asr.Assets)
 }
 
-// InsertRange merges the given AssetSetRange into the receiving one by
-// lining up sets with matching windows, then inserting each asset from
-// the given ASR into the respective set in the receiving ASR. If the given
-// ASR contains an AssetSetRange from a window that does not exist in the
-// receiving ASR, then an error is returned. However, the given ASR does not
-// need to cover the full range of the receiver.
+// InsertRange merges the given AssetSetRange into the receiver by matching
+// windows. When the aggregation dimensions differ, incoming assets are keyed
+// using the receiving set's dimensions and label aliases. A source window missing from the
+// receiver returns an error. The source may cover only part of the range.
 func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 	if asr == nil {
 		return fmt.Errorf("cannot insert range into nil AssetSetRange")
@@ -3596,9 +3617,8 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 			continue
 		}
 
-		// Insert each Asset from the given set under the key it already has
-		for k, asset := range thatAS.Assets {
-			as.insertKeyed(k, asset)
+		if err = as.insertFrom(thatAS); err != nil {
+			err = fmt.Errorf("error inserting asset: %w", err)
 		}
 	}
 
@@ -3832,28 +3852,6 @@ func (asr *AssetSetRange) clone() *AssetSetRange {
 type AssetAPIResponse struct {
 	Code int                   `json:"code"`
 	Data AssetSetRangeResponse `json:"data"`
-}
-
-// Returns true if string slices a and b contain all of the same strings, in any order.
-func sameContents(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if !contains(b, a[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func contains(slice []string, item string) bool {
-	for _, element := range slice {
-		if element == item {
-			return true
-		}
-	}
-	return false
 }
 
 func GetNodePoolName(provider string, labels map[string]string) string {
