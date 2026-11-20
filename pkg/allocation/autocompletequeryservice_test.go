@@ -20,7 +20,7 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 		ControllerKind:  "deployment",
 		Controller:      "deploy-a",
 		Node:            "node-a",
-		Labels:          map[string]string{"Team": "platform", "app": "api"},
+		Labels:          map[string]string{"Team": "platform", "app": "api", "department": "engineering"},
 		NamespaceLabels: map[string]string{"owner": "sre"},
 	}))
 	as.Set(opencost.NewMockUnitAllocation("a2", start, 24*time.Hour, &opencost.AllocationProperties{
@@ -47,7 +47,7 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(resp.Data) != 2 || resp.Data[0] != "Team" || resp.Data[1] != "app" {
+	if len(resp.Data) != 3 || resp.Data[0] != "Team" || resp.Data[1] != "app" || resp.Data[2] != "department" {
 		t.Fatalf("unexpected label autocomplete response: %+v", resp.Data)
 	}
 
@@ -83,6 +83,28 @@ func TestQueryAllocationAutocompleteFromSetRange(t *testing.T) {
 	}
 	if len(accountResp.Data) != 0 {
 		t.Fatalf("expected empty account autocomplete response, got %+v", accountResp.Data)
+	}
+
+	departmentResp, err := QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{
+		Field:  "department",
+		Window: window,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error for department field: %v", err)
+	}
+	if len(departmentResp.Data) != 1 || departmentResp.Data[0] != "engineering" {
+		t.Fatalf("expected one autocomplete response for department, got %+v", departmentResp.Data)
+	}
+
+	productResp, err := QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{
+		Field:  "product", // validate config driven resolution (product -> label:app)
+		Window: window,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error for product field: %v", err)
+	}
+	if len(productResp.Data) != 2 || productResp.Data[0] != "api" || productResp.Data[1] != "db" {
+		t.Fatalf("expected two autocomplete responses for product, got %+v", productResp.Data)
 	}
 
 	_, err = QueryAllocationAutocompleteFromSetRange(asr, autocomplete.Request{

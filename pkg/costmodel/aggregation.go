@@ -212,6 +212,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	window, err := opencost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
+		return
 	}
 
 	// Step is an optional parameter that defines the duration per-set, i.e.
@@ -225,6 +226,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 	aggregateBy, err := ParseAggregationProperties(aggregations)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'aggregate' parameter: %s", err), http.StatusBadRequest)
+		return
 	}
 
 	// Accumulate is an optional parameter that accepts bool-style values (e.g.
@@ -337,6 +339,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	window, err := opencost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
+		return
 	}
 
 	// Step is an optional parameter that defines the duration per-set, i.e.
@@ -350,6 +353,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	aggregateBy, err := ParseAggregationProperties(aggregations)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Invalid 'aggregate' parameter: %s", err), http.StatusBadRequest)
+		return
 	}
 
 	// IncludeIdle, if true, uses Asset data to incorporate Idle Allocation

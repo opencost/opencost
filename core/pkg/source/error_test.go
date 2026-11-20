@@ -39,8 +39,7 @@ func TestErrorCollectionCheck(t *testing.T) {
 func TestNestedErrorAs(t *testing.T) {
 	err := newNestedError()
 
-	var commErr CommError
-	if !errors.As(err, &commErr) {
+	if _, ok := errors.AsType[CommError](err); !ok {
 		t.Fatalf("Expected there to exist a CommError, but failed.")
 		return
 	}
@@ -49,8 +48,7 @@ func TestNestedErrorAs(t *testing.T) {
 func TestErrorCollectionErrorAs(t *testing.T) {
 	err := newErrorCollection()
 
-	var commErr CommError
-	if !errors.As(err, &commErr) {
+	if _, ok := errors.AsType[CommError](err); !ok {
 		t.Fatalf("Expected there to exist a CommError, but failed.")
 		return
 	}
@@ -59,8 +57,7 @@ func TestErrorCollectionErrorAs(t *testing.T) {
 func TestCommErrorAs(t *testing.T) {
 	err := newCommError()
 
-	var commErr CommError
-	if !errors.As(err, &commErr) {
+	if _, ok := errors.AsType[CommError](err); !ok {
 		t.Fatalf("Expected there to exist a CommError, but failed.")
 		return
 	}

@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	TestClusterId = "test-cluster"
-	TestEventName = "test-event-path"
+	TestAppName     = "test-app"
+	TestClusterID   = "test-cluster-id"
+	TestClusterName = "test-cluster"
+	TestEventName   = "test-event-path"
 )
 
 type TestData struct {
@@ -26,7 +28,7 @@ type TestData struct {
 func TestStorageExporters(t *testing.T) {
 	t.Run("test event storage exporter", func(t *testing.T) {
 		store := storage.NewMemoryStorage()
-		p, err := pathing.NewEventStoragePathFormatter("root", TestClusterId, TestEventName)
+		p, err := pathing.NewEventStoragePathFormatter("root", TestClusterName, TestEventName)
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
@@ -67,7 +69,7 @@ func TestStorageExporters(t *testing.T) {
 	t.Run("test compute storage exporter", func(t *testing.T) {
 		res := 24 * time.Hour
 		store := storage.NewMemoryStorage()
-		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, &res)
+		p, err := pathing.NewDefaultStoragePathFormatter(TestAppName, TestClusterID, TestClusterName, pipelines.AllocationPipelineName, &res)
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
@@ -115,7 +117,7 @@ func TestStorageExporters(t *testing.T) {
 	t.Run("test streaming compute storage exporter", func(t *testing.T) {
 		res := 24 * time.Hour
 		store := storage.NewMemoryStorage()
-		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, &res)
+		p, err := pathing.NewDefaultStoragePathFormatter(TestAppName, TestClusterID, TestClusterName, pipelines.AllocationPipelineName, &res)
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}
@@ -163,7 +165,7 @@ func TestStorageExporters(t *testing.T) {
 	t.Run("test compressed streaming compute storage exporter", func(t *testing.T) {
 		res := 24 * time.Hour
 		store := storage.NewMemoryStorage()
-		p, err := pathing.NewDefaultStoragePathFormatter(TestClusterId, pipelines.AllocationPipelineName, &res)
+		p, err := pathing.NewDefaultStoragePathFormatter(TestAppName, TestClusterID, TestClusterName, pipelines.AllocationPipelineName, &res)
 		if err != nil {
 			t.Fatalf("failed to create path formatter: %v", err)
 		}

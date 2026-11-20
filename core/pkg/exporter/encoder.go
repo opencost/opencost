@@ -12,6 +12,13 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	BingenExt = "bingen"
+	JSONExt   = "json"
+	GZipExt   = "gz"
+	PBExt     = "binpb"
+)
+
 // Encoder[T] is a generic interface for encoding an instance of a T type into a byte slice.
 type Encoder[T any] interface {
 	Encode(*T) ([]byte, error)
@@ -52,7 +59,7 @@ func NewBingenEncoder[T any, U BinaryMarshalerPtr[T]]() Encoder[T] {
 // 'T' type with the ".bingen" file extension.
 func NewBingenFileEncoder[T any, U BinaryMarshalerPtr[T]]() Encoder[T] {
 	return &BingenEncoder[T, U]{
-		fileExt: "bingen",
+		fileExt: BingenExt,
 	}
 }
 
@@ -99,7 +106,7 @@ func (j *JSONEncoder[T]) EncodeTo(writer io.Writer, data *T) error {
 // FileExt returns the file extension for the encoded data. In this case, it returns "json" to indicate
 // that the data is in JSON format.
 func (j *JSONEncoder[T]) FileExt() string {
-	return "json"
+	return JSONExt
 }
 
 type GZipEncoder[T any] struct {
@@ -175,9 +182,9 @@ func gZipEncode(data []byte, level int) ([]byte, error) {
 func (gz *GZipEncoder[T]) FileExt() string {
 	prev := gz.encoder.FileExt()
 	if prev == "" {
-		return "gz"
+		return GZipExt
 	}
-	return prev + ".gz"
+	return fmt.Sprintf("%s.%s", prev, GZipExt)
 }
 
 // ProtoMessagePtr [T] is a generic constraint to ensure types passed to the encoder implement
@@ -225,7 +232,7 @@ func (p *ProtobufEncoder[T, U]) EncodeTo(writer io.Writer, data *T) error {
 // FileExt returns the file extension for the encoded data. In this case, it returns an empty string
 // to indicate that there is no specific file extension for the binary encoded data.
 func (p *ProtobufEncoder[T, U]) FileExt() string {
-	return "binpb"
+	return PBExt
 }
 
 // ProtoJsonEncoder [T, U] is a generic encoder that uses the proto.Message interface to encode data in json format.
@@ -268,5 +275,5 @@ func (p *ProtoJsonEncoder[T, U]) EncodeTo(writer io.Writer, data *T) error {
 // FileExt returns the file extension for the encoded data. In this case, it returns an empty string
 // to indicate that there is no specific file extension for the binary encoded data.
 func (p *ProtoJsonEncoder[T, U]) FileExt() string {
-	return "json"
+	return JSONExt
 }

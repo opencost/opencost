@@ -15,13 +15,11 @@ import (
 func TestIngestor_Stop_KillsPluginProcesses(t *testing.T) {
 	cmd := exec.Command("sleep", "60")
 	client := plugin.NewClient(&plugin.ClientConfig{
-		HandshakeConfig: plugin.HandshakeConfig{
-			ProtocolVersion:  1,
-			MagicCookieKey:   "test",
-			MagicCookieValue: "test",
-		},
-		Cmd:          cmd,
-		StartTimeout: 2 * time.Second,
+		ProtocolVersion:  1,
+		MagicCookieKey:   "test",
+		MagicCookieValue: "test",
+		Cmd:              cmd,
+		StartTimeout:     2 * time.Second,
 	})
 	// Start the process (handshake will fail but process runs)
 	_, _ = client.Client()
@@ -44,13 +42,11 @@ func TestIngestor_Stop_MultiplePlugins(t *testing.T) {
 	for _, name := range []string{"plugin-a", "plugin-b", "plugin-c"} {
 		cmd := exec.Command("sleep", "60")
 		client := plugin.NewClient(&plugin.ClientConfig{
-			HandshakeConfig: plugin.HandshakeConfig{
-				ProtocolVersion:  1,
-				MagicCookieKey:   "test",
-				MagicCookieValue: name,
-			},
-			Cmd:          cmd,
-			StartTimeout: 2 * time.Second,
+			ProtocolVersion:  1,
+			MagicCookieKey:   "test",
+			MagicCookieValue: name,
+			Cmd:              cmd,
+			StartTimeout:     2 * time.Second,
 		})
 		_, _ = client.Client()
 		connectors[name] = client
@@ -161,13 +157,11 @@ func TestIngestor_BuildWindow_WithPlugin(t *testing.T) {
 
 	cmd := exec.Command("false") // exits immediately with failure
 	client := plugin.NewClient(&plugin.ClientConfig{
-		HandshakeConfig: plugin.HandshakeConfig{
-			ProtocolVersion:  1,
-			MagicCookieKey:   "test",
-			MagicCookieValue: "test",
-		},
-		Cmd:          cmd,
-		StartTimeout: 2 * time.Second,
+		ProtocolVersion:  1,
+		MagicCookieKey:   "test",
+		MagicCookieValue: "test",
+		Cmd:              cmd,
+		StartTimeout:     2 * time.Second,
 	})
 	t.Cleanup(func() { client.Kill() })
 
@@ -308,7 +302,7 @@ func TestIngestor_Status_ConcurrentWithExpandCoverage(t *testing.T) {
 	// writer: continuously expands coverage under the lock
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 2000; i++ {
+		for i := range 2000 {
 			ingestor.expandCoverage(window, fmt.Sprintf("plugin-%d", i%16))
 		}
 	}()
@@ -317,7 +311,7 @@ func TestIngestor_Status_ConcurrentWithExpandCoverage(t *testing.T) {
 	// serialization the /customCost/status handler performs on the response
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 2000; i++ {
+		for range 2000 {
 			for range ingestor.Status().Coverage {
 			}
 		}

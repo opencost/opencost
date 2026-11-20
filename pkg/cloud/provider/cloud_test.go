@@ -279,7 +279,7 @@ func TestNodePriceFromCSVWithGPULabels(t *testing.T) {
 
 	c.DownloadPricingData()
 
-	fc := NewFakeNodeCache([]*clustercache.Node{n})
+	fc := &clustercache.MockClusterCache{Nodes: []*clustercache.Node{n}}
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
@@ -347,7 +347,7 @@ func TestRKE2NodePriceFromCSVWithGPULabels(t *testing.T) {
 
 	c.DownloadPricingData()
 
-	fc := NewFakeNodeCache([]*clustercache.Node{n})
+	fc := &clustercache.MockClusterCache{Nodes: []*clustercache.Node{n}}
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
@@ -560,22 +560,63 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	}
 }
 
-type FakeCache struct {
-	nodes []*clustercache.Node
-	clustercache.ClusterCache
-}
+// A node that is not listed in the CSV is priced by its class (region and
+// instance type). When several nodes of the same class are listed, the class
+// price must be the average of their prices.
+func TestNodeClassPriceFromCSVAveragesNodes(t *testing.T) {
+	const header = "EndTimestamp,InstanceID,Region,AssetClass,InstanceIDField,InstanceType,MarketPriceHourly,Version\n"
+	csvData := header +
+		"2019-04-17 23:34:22 UTC,node-a,regionone,node,metadata.name,type-small,0.10,\n" +
+		"2019-04-17 23:34:22 UTC,node-b,regionone,node,metadata.name,type-small,0.20,\n" +
+		"2019-04-17 23:34:22 UTC,node-c,regionone,node,metadata.name,type-small,0.60,\n" +
+		"2019-04-17 23:34:22 UTC,node-d,regionone,node,metadata.name,type-large,0.90,\n"
 
-func (f FakeCache) GetAllNodes() []*clustercache.Node {
-	return f.nodes
-}
+	csvPath := filepath.Join(t.TempDir(), "pricing.csv")
+	if err := os.WriteFile(csvPath, []byte(csvData), 0o600); err != nil {
+		t.Fatalf("failed to write CSV: %s", err)
+	}
 
-func (f FakeCache) GetAllDaemonSets() []*clustercache.DaemonSet {
-	return nil
-}
+	c := &provider.CSVProvider{CSVLocation: csvPath}
+	if err := c.DownloadPricingData(); err != nil {
+		t.Fatalf("DownloadPricingData: %s", err)
+	}
 
-func NewFakeNodeCache(nodes []*clustercache.Node) FakeCache {
-	return FakeCache{
-		nodes: nodes,
+	testCases := []struct {
+		instanceType string
+		wantPrice    float64
+		wantCount    float64
+	}{
+		{instanceType: "type-small", wantPrice: 0.30, wantCount: 3},
+		{instanceType: "type-large", wantPrice: 0.90, wantCount: 1},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.instanceType, func(t *testing.T) {
+			// This node is not in the CSV, so only its class can match.
+			n := &clustercache.Node{}
+			n.Name = "node-not-in-csv"
+			n.Labels = map[string]string{
+				v1.LabelTopologyRegion:     "regionone",
+				v1.LabelInstanceTypeStable: tc.instanceType,
+			}
+
+			res, _, err := c.NodePricing(c.GetKey(n.Labels, n))
+			if err != nil {
+				t.Fatalf("NodePricing: %s", err)
+			}
+			gotPrice, err := strconv.ParseFloat(res.Cost, 64)
+			if err != nil {
+				t.Fatalf("failed to parse price '%s': %s", res.Cost, err)
+			}
+			if math.Abs(gotPrice-tc.wantPrice) > 1e-6 {
+				t.Errorf("Wanted class price '%f' got price '%f'", tc.wantPrice, gotPrice)
+			}
+
+			classKey := "regionone," + tc.instanceType + ",node"
+			if gotCount := c.NodeClassCount[classKey]; gotCount != tc.wantCount {
+				t.Errorf("Wanted %f nodes in class '%s' got %f", tc.wantCount, classKey, gotCount)
+			}
+		})
 	}
 }
 
@@ -664,7 +705,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	n.Labels["foo"] = "labelFooWant"
 	n.Labels[v1.LabelTopologyRegion] = "regionone"
 
-	fc := NewFakeNodeCache([]*clustercache.Node{n})
+	fc := &clustercache.MockClusterCache{Nodes: []*clustercache.Node{n}}
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
@@ -721,7 +762,7 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 	n3.Labels[v1.LabelTopologyRegion] = "eastus2"
 	n3.Labels[v1.LabelInstanceTypeStable] = "Standard_F32s_v2"
 
-	fc := NewFakeNodeCache([]*clustercache.Node{n, n2, n3})
+	fc := &clustercache.MockClusterCache{Nodes: []*clustercache.Node{n, n2, n3}}
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 

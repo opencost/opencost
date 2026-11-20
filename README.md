@@ -25,6 +25,7 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 - Easily export pricing data to Prometheus with /metrics endpoint ([learn more](https://www.opencost.io/docs/installation/prometheus))
 - Carbon costs for cloud resources
 - MCP support
+- **AI inference cost tracking** for [vLLM](https://vllm.ai/)-based deployments ([llm-d](https://llm-d.ai/) and compatible): cost per million tokens (input/output), KV cache-corrected pricing, shared infrastructure attribution, REST APIs and Prometheus metrics
 - Support for external costs like Datadog through [OpenCost Plugins](https://github.com/opencost/opencost-plugins)
 - Free and open source distribution ([Apache2 license](LICENSE))
 
@@ -51,6 +52,7 @@ Note: The standalone Kubernetes manifest files have been removed. Please use Hel
 - [CLI / kubectl cost](https://www.opencost.io/docs/integrations/kubectl-cost)
 - [Prometheus Metrics](https://www.opencost.io/docs/integrations/prometheus)
 - [User Interface](https://www.opencost.io/docs/installation/ui)
+- [AI Inference Cost Tracking](docs/inference-cost-tracking.md)
 
 ## MCP Server
 
@@ -71,11 +73,12 @@ The OpenCost MCP (Model Context Protocol) server provides AI agents with access 
 
 #### Using Tilt (Development)
 ```bash
-# Clone and start OpenCost with MCP server
-# You may also need to clone opencost-ui and opencost-helm-charts repositories
-# Make sure the cloned repositories are in the same parent tree as opencost
-
+# Clone OpenCost and its sibling repositories into the same parent directory
 git clone https://github.com/opencost/opencost.git
+git clone https://github.com/opencost/opencost-ui.git
+git clone https://github.com/opencost/opencost-helm-chart.git
+
+# Start OpenCost with MCP server
 cd opencost
 tilt up
 ```
@@ -285,7 +288,7 @@ We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for informati
 
 ## Community
 
-If you need any support or have any questions on contributing to the project, you can reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
+If you need any support or have any questions on contributing to the project, you can reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or attend the biweekly [OpenCost Working Group community meeting](https://docs.google.com/document/d/1hDl-t7hCNN4MlDoloojTsVH0Mso-9H2p1TYPlmMeSUM/edit) from the [Community Calendar](https://bit.ly/opencost-calendar) to discuss OpenCost development.
 
 ## FAQ
 

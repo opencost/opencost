@@ -2,6 +2,7 @@ package source
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -171,6 +172,25 @@ func (qr *QueryResult) GetString(field string) (string, error) {
 	}
 
 	return strField, nil
+}
+
+func (qr *QueryResult) GetBool(field string) (bool, error) {
+	f, ok := qr.Metric[field]
+	if !ok {
+		return false, fmt.Errorf("'%s' field does not exist in data result vector", field)
+	}
+
+	switch f.(type) {
+	case bool:
+		return f.(bool), nil
+	case string:
+		b, err := strconv.ParseBool(f.(string))
+		if err != nil {
+			return false, fmt.Errorf("string value for field could not be parsed to bool: %w", err)
+		}
+		return b, nil
+	}
+	return false, fmt.Errorf("field did not have an appropriate type for bool conversion: %T", f)
 }
 
 // GetStrings returns the requested fields, or an error if it does not exist

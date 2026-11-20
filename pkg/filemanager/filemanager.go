@@ -158,8 +158,7 @@ func (c *S3File) Download(ctx context.Context, f *os.File) error {
 	})
 
 	// Convert AWS error into our own error type.
-	var notFound *types.NoSuchKey
-	if errors.As(err, &notFound) {
+	if _, ok := errors.AsType[*types.NoSuchKey](err); ok {
 		return ErrNotFound
 	}
 

@@ -7,6 +7,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/pkg/clustercache"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
@@ -94,8 +95,11 @@ func (cmw *ConfigMapWatchers) Watch() {
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
 	for cw := range cmw.watchers {
 		configs, err := cmw.kubeClientset.CoreV1().ConfigMaps(cmw.namespace).Get(context.Background(), cw, metav1.GetOptions{})
-		if err != nil {
-			log.Infof("No %s configmap found at install time, using existing configs: %s", cw, err.Error())
+		if apierrors.IsNotFound(err) {
+			// Most of these configmaps are optional, so absence is expected.
+			log.Debugf("No %s configmap found at install time, using existing configs", cw)
+		} else if err != nil {
+			log.Warnf("Failed to read %s configmap, using existing configs: %s", cw, err.Error())
 		} else {
 			log.Infof("Found configmap %s, watching...", configs.Name)
 			watchConfigFunc(configs)

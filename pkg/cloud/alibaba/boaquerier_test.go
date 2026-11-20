@@ -37,13 +37,11 @@ func TestBoaQuerier_GetStatus(t *testing.T) {
 
 func TestBoaQuerier_Equals(t *testing.T) {
 	baseQuerier := BoaQuerier{
-		BOAConfiguration: BOAConfiguration{
-			Account: "account1",
-			Region:  "region1",
-			Authorizer: &AccessKey{
-				AccessKeyID:     "id1",
-				AccessKeySecret: "secret1",
-			},
+		Account: "account1",
+		Region:  "region1",
+		Authorizer: &AccessKey{
+			AccessKeyID:     "id1",
+			AccessKeySecret: "secret1",
 		},
 		ConnectionStatus: cloud.SuccessfulConnection,
 	}
@@ -56,13 +54,11 @@ func TestBoaQuerier_Equals(t *testing.T) {
 		"matching queriers": {
 			left: baseQuerier,
 			right: &BoaQuerier{
-				BOAConfiguration: BOAConfiguration{
-					Account: "account1",
-					Region:  "region1",
-					Authorizer: &AccessKey{
-						AccessKeyID:     "id1",
-						AccessKeySecret: "secret1",
-					},
+				Account: "account1",
+				Region:  "region1",
+				Authorizer: &AccessKey{
+					AccessKeyID:     "id1",
+					AccessKeySecret: "secret1",
 				},
 				ConnectionStatus: cloud.SuccessfulConnection,
 			},
@@ -84,13 +80,11 @@ func TestBoaQuerier_Equals(t *testing.T) {
 		"different account": {
 			left: baseQuerier,
 			right: &BoaQuerier{
-				BOAConfiguration: BOAConfiguration{
-					Account: "account2",
-					Region:  "region1",
-					Authorizer: &AccessKey{
-						AccessKeyID:     "id1",
-						AccessKeySecret: "secret1",
-					},
+				Account: "account2",
+				Region:  "region1",
+				Authorizer: &AccessKey{
+					AccessKeyID:     "id1",
+					AccessKeySecret: "secret1",
 				},
 			},
 			expected: false,
@@ -111,13 +105,11 @@ func TestBoaQuerier_QueryInstanceBill(t *testing.T) {
 	// This test would require a mock BSS client
 	// For now, we'll test the function signature and basic error handling
 	querier := BoaQuerier{
-		BOAConfiguration: BOAConfiguration{
-			Account: "test-account",
-			Region:  "test-region",
-			Authorizer: &AccessKey{
-				AccessKeyID:     "test-id",
-				AccessKeySecret: "test-secret",
-			},
+		Account: "test-account",
+		Region:  "test-region",
+		Authorizer: &AccessKey{
+			AccessKeyID:     "test-id",
+			AccessKeySecret: "test-secret",
 		},
 	}
 
@@ -136,13 +128,11 @@ func TestBoaQuerier_QueryInstanceBill(t *testing.T) {
 
 func TestBoaQuerier_QueryBoaPaginated(t *testing.T) {
 	querier := BoaQuerier{
-		BOAConfiguration: BOAConfiguration{
-			Account: "test-account",
-			Region:  "test-region",
-			Authorizer: &AccessKey{
-				AccessKeyID:     "test-id",
-				AccessKeySecret: "test-secret",
-			},
+		Account: "test-account",
+		Region:  "test-region",
+		Authorizer: &AccessKey{
+			AccessKeyID:     "test-id",
+			AccessKeySecret: "test-secret",
 		},
 	}
 
@@ -337,13 +327,11 @@ func TestSelectAlibabaCategory(t *testing.T) {
 func TestBoaQuerier_Integration(t *testing.T) {
 	// Test that BoaQuerier properly embeds BOAConfiguration
 	querier := BoaQuerier{
-		BOAConfiguration: BOAConfiguration{
-			Account: "test-account",
-			Region:  "test-region",
-			Authorizer: &AccessKey{
-				AccessKeyID:     "test-id",
-				AccessKeySecret: "test-secret",
-			},
+		Account: "test-account",
+		Region:  "test-region",
+		Authorizer: &AccessKey{
+			AccessKeyID:     "test-id",
+			AccessKeySecret: "test-secret",
 		},
 		ConnectionStatus: cloud.SuccessfulConnection,
 	}

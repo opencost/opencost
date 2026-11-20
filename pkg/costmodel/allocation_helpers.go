@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/source"
 	"github.com/opencost/opencost/core/pkg/util"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/cloud/provider"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -808,7 +809,7 @@ func applyGPUUsageShared(podMap map[podKey]*pod, resIsGPUShared []*source.IsGPUS
 			// if a container is using a GPU and it is shared, isGPUShared will be true
 			// if a container is using GPU and it is NOT shared, isGPUShared will be false
 			// if a container is NOT using a GPU, isGPUShared will be null
-			if res.Resource == "nvidia_com_gpu_shared" {
+			if promutil.SanitizedEqual(res.Resource, "nvidia.com/gpu.shared") {
 				trueVal := true
 				if res.Data[0].Value == 1 {
 					if thisPod.Allocations[container].GPUAllocation == nil {
@@ -817,7 +818,7 @@ func applyGPUUsageShared(podMap map[podKey]*pod, resIsGPUShared []*source.IsGPUS
 						thisPod.Allocations[container].GPUAllocation.IsGPUShared = &trueVal
 					}
 				}
-			} else if res.Resource == "nvidia_com_gpu" {
+			} else if promutil.SanitizedEqual(res.Resource, "nvidia.com/gpu") {
 				falseVal := false
 				if res.Data[0].Value == 1 {
 					if thisPod.Allocations[container].GPUAllocation == nil {
@@ -925,13 +926,9 @@ func applyGPUsAllocated(podMap map[podKey]*pod, resGPUsRequested []*source.GPUsR
 			}
 
 			hrs := thisPod.Allocations[container].Minutes() / 60.0
+			// GPUHours reflects the full reserved GPU allocation (request × hours).
+			// For usage-based cost accounting, apply GPUUsageAverage separately.
 			thisPod.Allocations[container].GPUHours = res.Data[0].Value * hrs
-
-			// For now, it will always be the case that Request==Allocation. If
-			// you would like to use a GPU you need to request the full GPU.
-			// Therefore max(usage,request) will always equal request. In the
-			// future this may need to be refactored when building support for
-			// GPU Time Slicing.
 
 			if thisPod.Allocations[container].GPUAllocation == nil {
 				thisPod.Allocations[container].GPUAllocation = &opencost.GPUAllocation{
@@ -1364,7 +1361,7 @@ func labelsToPodControllerMap(podLabels map[podKey]map[string]string, controller
 	return podControllerMap
 }
 
-func resToPodDaemonSetMap(resDaemonSetLabels []*source.DaemonSetLabelsResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
+func resToPodDaemonSetMap(resDaemonSetLabels []*source.PodsWithDaemonSetOwnerResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
 	daemonSetLabels := map[podKey]controllerKey{}
 
 	for _, res := range resDaemonSetLabels {
@@ -1400,7 +1397,7 @@ func resToPodDaemonSetMap(resDaemonSetLabels []*source.DaemonSetLabelsResult, po
 	return daemonSetLabels
 }
 
-func resToPodJobMap(resJobLabels []*source.JobLabelsResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
+func resToPodJobMap(resJobLabels []*source.PodsWithJobOwnerResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
 	jobLabels := map[podKey]controllerKey{}
 
 	for _, res := range resJobLabels {
@@ -1530,10 +1527,10 @@ func applyControllersToPods(podMap map[podKey]*pod, podControllerMap map[podKey]
 
 /* Service Helpers */
 
-func getServiceLabels(resServiceLabels []*source.ServiceLabelsResult) map[serviceKey]map[string]string {
+func getServiceSelectorLabels(resServiceSelectorLabels []*source.ServiceLabelsResult) map[serviceKey]map[string]string {
 	serviceLabels := map[serviceKey]map[string]string{}
 
-	for _, res := range resServiceLabels {
+	for _, res := range resServiceSelectorLabels {
 		serviceKey, err := newResultServiceKey(res.Cluster, res.Namespace, res.Service)
 		if err != nil {
 			continue
@@ -2133,7 +2130,7 @@ func applyPVBytes(pvMap map[pvKey]*pv, resPVBytes []*source.PVBytesResult) {
 			continue
 		}
 
-		pvBytesUsed := res.Data[0].Value
+		pvBytesUsed := res.Value
 		if pvBytesUsed < PV_USAGE_SANITY_LIMIT_BYTES {
 			pvMap[key].Bytes = pvBytesUsed
 		} else {

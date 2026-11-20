@@ -94,17 +94,22 @@ func (bqc *BigQueryConfiguration) Equals(config cloud.Config) bool {
 		return false
 	}
 
+	if bqc.ExcludePartitionTime != thatConfig.ExcludePartitionTime {
+		return false
+	}
+
 	return true
 }
 
 func (bqc *BigQueryConfiguration) Sanitize() cloud.Config {
 	return &BigQueryConfiguration{
-		ProjectID:      bqc.ProjectID,
-		Dataset:        bqc.Dataset,
-		Table:          bqc.Table,
-		Location:       bqc.Location,
-		QueryProjectID: bqc.QueryProjectID,
-		Authorizer:     bqc.Authorizer.Sanitize().(Authorizer),
+		ProjectID:            bqc.ProjectID,
+		Dataset:              bqc.Dataset,
+		Table:                bqc.Table,
+		Location:             bqc.Location,
+		ExcludePartitionTime: bqc.ExcludePartitionTime,
+		QueryProjectID:       bqc.QueryProjectID,
+		Authorizer:           bqc.Authorizer.Sanitize().(Authorizer),
 	}
 }
 
@@ -178,6 +183,14 @@ func (bqc *BigQueryConfiguration) UnmarshalJSON(b []byte) error {
 		bqc.Location = location
 	}
 
+	if _, ok := fmap["excludePartitionTime"]; ok {
+		excludePartitionTime, err := cloud.GetInterfaceValue[bool](fmap, "excludePartitionTime")
+		if err != nil {
+			return fmt.Errorf("BigQueryConfiguration: FromInterface: %s", err.Error())
+		}
+		bqc.ExcludePartitionTime = excludePartitionTime
+	}
+
 	if _, ok := fmap["queryProjectID"]; ok {
 		queryProjectID, err := cloud.GetInterfaceValue[string](fmap, "queryProjectID")
 		if err != nil {
@@ -211,10 +224,11 @@ func ConvertBigQueryConfigToConfig(bqc BigQueryConfig) cloud.KeyedConfig {
 	}
 
 	bigQueryConfiguration := &BigQueryConfiguration{
-		ProjectID:  bqc.ProjectID,
-		Dataset:    dataset,
-		Table:      table,
-		Authorizer: &WorkloadIdentity{}, // Default to WorkloadIdentity
+		ProjectID:            bqc.ProjectID,
+		Dataset:              dataset,
+		Table:                table,
+		ExcludePartitionTime: bqc.ExcludePartitionTime,
+		Authorizer:           &WorkloadIdentity{}, // Default to WorkloadIdentity
 	}
 
 	if len(bqc.Key) != 0 {

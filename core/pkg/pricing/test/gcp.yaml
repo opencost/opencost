@@ -1,0 +1,241 @@
+nodePricing:
+  - properties:
+      provider: GCP
+      provisioning: on-demand
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.031611
+      ram:
+        unit: GiB-hr
+        price: 0.004237
+  - properties:
+      provider: GCP
+      provisioning: spot
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.006655
+      ram:
+        unit: GiB-hr
+        price: 0.000892
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: n2-standard-2
+      provisioning: on-demand
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.031611
+      ram:
+        unit: GiB-hr
+        price: 0.004237
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: n2-standard-2
+      provisioning: spot
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.009483
+      ram:
+        unit: GiB-hr
+        price: 0.001271
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: n2-standard-4
+      provisioning: on-demand
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.031611
+      ram:
+        unit: GiB-hr
+        price: 0.004237
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: n2-standard-4
+      provisioning: spot
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.009483
+      ram:
+        unit: GiB-hr
+        price: 0.001271
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: e2-standard-2
+      provisioning: on-demand
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.031611
+      ram:
+        unit: GiB-hr
+        price: 0.004237
+  - properties:
+      provider: GCP
+      region: us-central1
+      instanceType: e2-standard-2
+      provisioning: spot
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.009483
+      ram:
+        unit: GiB-hr
+        price: 0.001271
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: n2-standard-2
+      provisioning: on-demand
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.033646
+      ram:
+        unit: GiB-hr
+        price: 0.004511
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: n2-standard-2
+      provisioning: spot
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.010094
+      ram:
+        unit: GiB-hr
+        price: 0.001353
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: n2-standard-4
+      provisioning: on-demand
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.033646
+      ram:
+        unit: GiB-hr
+        price: 0.004511
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: n2-standard-4
+      provisioning: spot
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.010094
+      ram:
+        unit: GiB-hr
+        price: 0.001353
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: e2-standard-2
+      provisioning: on-demand
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.033646
+      ram:
+        unit: GiB-hr
+        price: 0.004511
+  - properties:
+      provider: GCP
+      region: us-west1
+      instanceType: e2-standard-2
+      provisioning: spot
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.010094
+      ram:
+        unit: GiB-hr
+        price: 0.001353
+persistentVolumePricing:
+  - properties: {}
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0000581
+  - properties:
+      provider: GCP
+      region: us-central1
+      volumeType: pd-ssd
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0002329
+  - properties:
+      provider: GCP
+      region: us-central1
+      volumeType: pd-balanced
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.000137
+  - properties:
+      provider: GCP
+      region: us-central1
+      volumeType: pd-standard
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0000548
+  - properties:
+      provider: GCP
+      region: us-west1
+      volumeType: pd-ssd
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0002466
+  - properties:
+      provider: GCP
+      region: us-west1
+      volumeType: pd-balanced
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0001452
+  - properties:
+      provider: GCP
+      region: us-west1
+      volumeType: pd-standard
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0000581
+networkPricing:
+  - properties:
+      provider: GCP
+    prices:
+      local-egress:
+        unit: GiB
+        price: 0.0
+      x-zone-egress:
+        unit: GiB
+        price: 0.01
+      x-region-egress:
+        unit: GiB
+        price: 0.01
+      internet-egress:
+        unit: GiB
+        price: 0.12
+      nat-egress:
+        unit: GiB
+        price: 0.045
+      nat-ingress:
+        unit: GiB
+        price: 0.045

@@ -171,7 +171,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 					oldPrice := nodeclasspricing[classKey]
 					oldCount := nodeclasscount[classKey]
 					newPrice := ((oldPrice * oldCount) + cost) / (oldCount + 1.0)
-					nodeclasscount[classKey] = newPrice
+					nodeclasspricing[classKey] = newPrice
 					nodeclasscount[classKey]++
 				} else {
 					nodeclasspricing[classKey] = cost
@@ -234,6 +234,11 @@ func (k *csvKey) GPUType() string {
 }
 func (k *csvKey) ID() string {
 	return k.ProviderID
+}
+
+// RefreshCustomPricing is a no-op since CSVProvider pricing comes from a CSV file, not config.
+func (c *CSVProvider) RefreshCustomPricing() error {
+	return nil
 }
 
 func (c *CSVProvider) nodePricing(key models.Key) *models.Node {

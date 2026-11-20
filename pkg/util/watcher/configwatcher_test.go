@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -29,9 +28,7 @@ func newConfigMap(configMapName string, dataValue string) *v1.ConfigMap {
 		Data: map[string]string{
 			TestDataProperty: dataValue,
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: configMapName,
-		},
+		Name: configMapName,
 	}
 }
 

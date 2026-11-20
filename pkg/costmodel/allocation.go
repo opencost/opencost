@@ -335,16 +335,16 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resChPodLabels := source.WithGroup(grp, ds.QueryPodLabels(start, end))
 	resChPodAnnotations := source.WithGroup(grp, ds.QueryPodAnnotations(start, end))
 
-	resChServiceLabels := source.WithGroup(grp, ds.QueryServiceLabels(start, end))
-	resChDeploymentLabels := source.WithGroup(grp, ds.QueryDeploymentLabels(start, end))
-	resChStatefulSetLabels := source.WithGroup(grp, ds.QueryStatefulSetLabels(start, end))
-	resChDaemonSetLabels := source.WithGroup(grp, ds.QueryDaemonSetLabels(start, end))
+	resChServiceSelectorLabels := source.WithGroup(grp, ds.QueryServiceSelectorLabels(start, end))
+	resChDeploymentMatchLabels := source.WithGroup(grp, ds.QueryDeploymentMatchLabels(start, end))
+	resChStatefulSetMatchLabels := source.WithGroup(grp, ds.QueryStatefulSetMatchLabels(start, end))
+	resChPodsWithDaemonSetOwner := source.WithGroup(grp, ds.QueryPodsWithDaemonSetOwner(start, end))
 
 	resChPodsWithReplicaSetOwner := source.WithGroup(grp, ds.QueryPodsWithReplicaSetOwner(start, end))
 	resChReplicaSetsWithoutOwners := source.WithGroup(grp, ds.QueryReplicaSetsWithoutOwners(start, end))
 	resChReplicaSetsWithRolloutOwner := source.WithGroup(grp, ds.QueryReplicaSetsWithRollout(start, end))
 
-	resChJobLabels := source.WithGroup(grp, ds.QueryJobLabels(start, end))
+	resChPodsWithJobOwner := source.WithGroup(grp, ds.QueryPodsWithJobOwner(start, end))
 
 	resChLBCostPerHr := source.WithGroup(grp, ds.QueryLBPricePerHr(start, end))
 	resChLBActiveMins := source.WithGroup(grp, ds.QueryLBActiveMinutes(start, end))
@@ -402,20 +402,33 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resNamespaceAnnotations, _ := resChNamespaceAnnotations.Await()
 	resPodLabels, _ := resChPodLabels.Await()
 	resPodAnnotations, _ := resChPodAnnotations.Await()
-	resServiceLabels, _ := resChServiceLabels.Await()
-	resDeploymentLabels, _ := resChDeploymentLabels.Await()
-	resStatefulSetLabels, _ := resChStatefulSetLabels.Await()
-	resDaemonSetLabels, _ := resChDaemonSetLabels.Await()
+	resServiceSelectorLabels, _ := resChServiceSelectorLabels.Await()
+	resDeploymentMatchLabels, _ := resChDeploymentMatchLabels.Await()
+	resStatefulSetMatchLabels, _ := resChStatefulSetMatchLabels.Await()
+	resPodsWithDaemonSetOwner, _ := resChPodsWithDaemonSetOwner.Await()
 	resPodsWithReplicaSetOwner, _ := resChPodsWithReplicaSetOwner.Await()
 	resReplicaSetsWithoutOwners, _ := resChReplicaSetsWithoutOwners.Await()
 	resReplicaSetsWithRolloutOwner, _ := resChReplicaSetsWithRolloutOwner.Await()
-	resJobLabels, _ := resChJobLabels.Await()
+	resPodsWithJobOwner, _ := resChPodsWithJobOwner.Await()
 	resLBCostPerHr, _ := resChLBCostPerHr.Await()
 	resLBActiveMins, _ := resChLBActiveMins.Await()
 
 	if grp.HasErrors() {
+		// Many concurrent sub-queries can fail with the exact same underlying
+		// error (e.g. a data source rejecting the whole start/end window), which
+		// would otherwise flood the log with dozens of identical lines. Collapse
+		// duplicates and report each distinct error once with an occurrence count.
+		counts := make(map[string]int)
+		var distinct []string
 		for _, err := range grp.Errors() {
-			log.Errorf("CostModel.ComputeAllocation: query context error %s", err)
+			msg := err.String()
+			if counts[msg] == 0 {
+				distinct = append(distinct, msg)
+			}
+			counts[msg]++
+		}
+		for _, msg := range distinct {
+			log.Errorf("CostModel.ComputeAllocation: query context error (x%d) %s", counts[msg], msg)
 		}
 
 		return allocSet, nil, grp.Error()
@@ -468,10 +481,10 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyLabels(podMap, nodeLabels, namespaceLabels, podLabels)
 	applyAnnotations(podMap, namespaceAnnotations, podAnnotations)
 
-	podDeploymentMap := labelsToPodControllerMap(podLabels, resToDeploymentLabels(resDeploymentLabels))
-	podStatefulSetMap := labelsToPodControllerMap(podLabels, resToStatefulSetLabels(resStatefulSetLabels))
-	podDaemonSetMap := resToPodDaemonSetMap(resDaemonSetLabels, podUIDKeyMap, ingestPodUID)
-	podJobMap := resToPodJobMap(resJobLabels, podUIDKeyMap, ingestPodUID)
+	podDeploymentMap := labelsToPodControllerMap(podLabels, resToDeploymentLabels(resDeploymentMatchLabels))
+	podStatefulSetMap := labelsToPodControllerMap(podLabels, resToStatefulSetLabels(resStatefulSetMatchLabels))
+	podDaemonSetMap := resToPodDaemonSetMap(resPodsWithDaemonSetOwner, podUIDKeyMap, ingestPodUID)
+	podJobMap := resToPodJobMap(resPodsWithJobOwner, podUIDKeyMap, ingestPodUID)
 	podReplicaSetMap := resToPodReplicaSetMap(resPodsWithReplicaSetOwner, resReplicaSetsWithoutOwners, resReplicaSetsWithRolloutOwner, podUIDKeyMap, ingestPodUID)
 	applyControllersToPods(podMap, podDeploymentMap)
 	applyControllersToPods(podMap, podStatefulSetMap)
@@ -479,9 +492,9 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyControllersToPods(podMap, podJobMap)
 	applyControllersToPods(podMap, podReplicaSetMap)
 
-	serviceLabels := getServiceLabels(resServiceLabels)
+	serviceSelectorLabels := getServiceSelectorLabels(resServiceSelectorLabels)
 	allocsByService := map[serviceKey][]*opencost.Allocation{}
-	applyServicesToPods(podMap, podLabels, allocsByService, serviceLabels)
+	applyServicesToPods(podMap, podLabels, allocsByService, serviceSelectorLabels)
 
 	// TODO breakdown network costs?
 

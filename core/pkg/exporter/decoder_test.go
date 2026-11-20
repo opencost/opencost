@@ -12,7 +12,8 @@ import (
 	"github.com/opencost/opencost/core/pkg/model/pb"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/storage"
-	"github.com/opencost/opencost/core/pkg/util"
+
+	"github.com/opencost/bingen/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/json"
 	"google.golang.org/protobuf/proto"
 )

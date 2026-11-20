@@ -158,9 +158,10 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 // BigQueryConfig contain the required config and credentials to access OOC resources for GCP
 // Deprecated: v1.104 Use BigQueryConfiguration instead
 type BigQueryConfig struct {
-	ProjectID          string            `json:"projectID"`
-	BillingDataDataset string            `json:"billingDataDataset"`
-	Key                map[string]string `json:"key"`
+	ProjectID            string            `json:"projectID"`
+	BillingDataDataset   string            `json:"billingDataDataset"`
+	Key                  map[string]string `json:"key"`
+	ExcludePartitionTime bool              `json:"excludePartitionTime"`
 }
 
 // IsEmpty returns true if all fields in config are empty, false if not.
@@ -198,7 +199,7 @@ func (*GCP) loadGCPAuthSecret() {
 			errMessage = err.Error()
 		}
 
-		log.Warnf("Failed to load auth secret, or was not mounted: %s", errMessage)
+		log.DedupedDebugf(1, "Failed to load auth secret, or was not mounted: %s", errMessage)
 		return
 	}
 
@@ -737,6 +738,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 					instanceType = "n4standard"
 				}
 
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "C4 INSTANCE") {
+					instanceType = "c4standard"
+				}
+
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "A2 INSTANCE") {
 					instanceType = "a2"
 				}
@@ -790,7 +795,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 
 				for _, candidateKey := range candidateKeys {
 					instanceType = strings.Split(candidateKey, ",")[1] // we may have overridden this while generating candidate keys
-					region := strings.Split(candidateKey, ",")[0]
+					region, _, _ := strings.Cut(candidateKey, ",")
 					candidateKeyGPU := candidateKey + ",gpu"
 					gcp.ValidPricingKeys[candidateKey] = true
 					gcp.ValidPricingKeys[candidateKeyGPU] = true
@@ -996,8 +1001,25 @@ func (gcp *GCP) getBillingAPIClientAndURL(apiKey, currencyCode string) (*http.Cl
 	return googleHttpClient, url.String(), nil
 }
 
+// fetchAndParsePage fetches a single GCP Billing API page, validates the HTTP
+// status code, and parses the body. The response body is always closed before
+// returning, so paginating the full catalog no longer leaks a connection per
+// page.
+func (gcp *GCP) fetchAndParsePage(client *http.Client, reqURL string, inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, string, error) {
+	resp, err := client.Get(reqURL)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("GCP Billing API responded with error status code %d", resp.StatusCode)
+	}
+
+	return gcp.parsePage(resp.Body, inputKeys, pvKeys)
+}
+
 func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, error) {
-	var pages []map[string]*GCPPricing
 	c, err := gcp.GetConfig()
 	if err != nil {
 		return nil, err
@@ -1008,25 +1030,33 @@ func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]mo
 		return nil, err
 	}
 
+	return gcp.parsePagesWithClient(httpClient, url, inputKeys, pvKeys)
+}
+
+// parsePagesWithClient pages through the billing API at url using httpClient,
+// parsing each page of SKUs and merging the results.
+func (gcp *GCP) parsePagesWithClient(httpClient *http.Client, url string, inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, error) {
+	var pages []map[string]*GCPPricing
+
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {
 		if pageToken == "done" {
 			return nil
-		} else if pageToken != "" {
-			url = url + "&pageToken=" + pageToken
 		}
-		resp, err := httpClient.Get(url)
-		if err != nil {
-			return err
+		// Build the URL per request; appending to the shared url would accumulate
+		// pageToken params across pages.
+		reqURL := url
+		if pageToken != "" {
+			reqURL = url + "&pageToken=" + pageToken
 		}
-		page, token, err := gcp.parsePage(resp.Body, inputKeys, pvKeys)
+		page, token, err := gcp.fetchAndParsePage(httpClient, reqURL, inputKeys, pvKeys)
 		if err != nil {
 			return err
 		}
 		pages = append(pages, page)
 		return parsePagesHelper(token)
 	}
-	err = parsePagesHelper("")
+	err := parsePagesHelper("")
 	if err != nil {
 		return nil, err
 	}
@@ -1128,7 +1158,7 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	reserved, err := gcp.getReservedInstances()
 	if err != nil {
-		log.Warnf("Failed to lookup reserved instance data: %s", err.Error())
+		log.DedupedWarningf(1, "Failed to lookup reserved instance data: %s", err.Error())
 	} else {
 		gcp.ReservedInstances = reserved
 
@@ -1381,6 +1411,10 @@ func (gcp *GCP) getReservedInstances() ([]*GCPReservedInstance, error) {
 
 	projID := gcp.ProjectID
 	if projID == "" {
+		if gcp.MetadataClient == nil {
+			return nil, fmt.Errorf("metadata client was nil")
+		}
+
 		projID, err = gcp.MetadataClient.ProjectID()
 		if err != nil {
 			return nil, err
@@ -1547,6 +1581,8 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n2standard"
 		} else if instanceType == "n4highmem" || instanceType == "n4highcpu" {
 			instanceType = "n4standard" // N4 variants are priced the same per vCPU and RAM
+		} else if instanceType == "c4highmem" || instanceType == "c4highcpu" {
+			instanceType = "c4standard" // C4 variants are priced the same per vCPU and RAM
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
 		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
@@ -1579,6 +1615,21 @@ func (gcp *gcpKey) Features() string {
 	}
 
 	return region + "," + instanceType + "," + usageType
+}
+
+// RefreshCustomPricing reloads base price fields from config.
+// Avoids the full node/PV discovery and external GCP API calls in DownloadPricingData.
+func (gcp *GCP) RefreshCustomPricing() error {
+	gcp.DownloadPricingDataLock.Lock()
+	defer gcp.DownloadPricingDataLock.Unlock()
+	c, err := gcp.Config.GetCustomPricingData()
+	if err != nil {
+		return err
+	}
+	gcp.BaseCPUPrice = c.CPU
+	gcp.ProjectID = c.ProjectID
+	gcp.BillingDataDataset = c.BillingDataDataset
+	return nil
 }
 
 // AllNodePricing returns the GCP pricing objects stored
@@ -1666,7 +1717,7 @@ func (gcp *GCP) PricingSourceStatus() map[string]*models.PricingSource {
 }
 
 func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
-	class := strings.Split(instanceType, "-")[0]
+	class, _, _ := strings.Cut(instanceType, "-")
 	return 1.0 - ((1.0 - sustainedUseDiscount(class, defaultDiscount, isPreemptible)) * (1.0 - negotiatedDiscount))
 }
 
@@ -1688,7 +1739,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	discount := defaultDiscount
 	switch class {
-	case "e2", "f1", "g1", "n4":
+	case "e2", "f1", "g1", "n4", "c4":
 		discount = 0.0
 	case "n2", "n2d":
 		discount = 0.2

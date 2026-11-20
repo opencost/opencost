@@ -2,6 +2,8 @@ package nodestats
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 )
@@ -34,9 +36,10 @@ func NewDirectNodeFormatterFrom(n *clustercache.Node) (*DirectNodeFormatter, err
 	}, nil
 }
 
-// FormatEndpoint formats the endpoint URL for direct node access.
+// FormatEndpoint formats the endpoint URL for direct node access. net.JoinHostPort wraps IPv6 addresses in
+// brackets, so the URL stays valid on IPv6 clusters where the node InternalIP is an IPv6 address.
 func (dnf *DirectNodeFormatter) FormatEndpoint(s string) string {
-	return fmt.Sprintf("https://%s:%v/%s", dnf.ip, dnf.port, s)
+	return fmt.Sprintf("https://%s/%s", net.JoinHostPort(dnf.ip, strconv.FormatInt(dnf.port, 10)), s)
 }
 
 // NodeProxyFormatter is an implementation of a NodeEndpointFormatter that formats endpoints for a node proxy request.

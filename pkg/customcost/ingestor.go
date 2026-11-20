@@ -2,6 +2,7 @@ package customcost
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -322,9 +323,7 @@ func (ing *CustomCostIngestor) copyCoverage() map[string]opencost.Window {
 	ing.coverageLock.Lock()
 	defer ing.coverageLock.Unlock()
 	coverage := make(map[string]opencost.Window, len(ing.coverage))
-	for plugin, window := range ing.coverage {
-		coverage[plugin] = window
-	}
+	maps.Copy(coverage, ing.coverage)
 	return coverage
 }
 

@@ -502,18 +502,16 @@ func getContainerClient(conf AzureConfig) (*container.Client, error) {
 		return nil, fmt.Errorf("error creating transport: %w", err)
 	}
 	opt := &container.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Retry: policy.RetryOptions{
-				MaxRetries:    conf.PipelineConfig.MaxTries,
-				TryTimeout:    time.Duration(conf.PipelineConfig.TryTimeout),
-				RetryDelay:    time.Duration(conf.PipelineConfig.RetryDelay),
-				MaxRetryDelay: time.Duration(conf.PipelineConfig.MaxRetryDelay),
-			},
-			Telemetry: policy.TelemetryOptions{
-				ApplicationID: "Thanos",
-			},
-			Transport: &http.Client{Transport: dt},
+		Retry: policy.RetryOptions{
+			MaxRetries:    conf.PipelineConfig.MaxTries,
+			TryTimeout:    time.Duration(conf.PipelineConfig.TryTimeout),
+			RetryDelay:    time.Duration(conf.PipelineConfig.RetryDelay),
+			MaxRetryDelay: time.Duration(conf.PipelineConfig.MaxRetryDelay),
 		},
+		Telemetry: policy.TelemetryOptions{
+			ApplicationID: "Thanos",
+		},
+		Transport: &http.Client{Transport: dt},
 	}
 
 	// Use connection string if set

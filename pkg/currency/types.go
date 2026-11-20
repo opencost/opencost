@@ -4,11 +4,39 @@ import (
 	"time"
 )
 
+// Names accepted by Config.ProviderName.
+const (
+	// ProviderExchangeRateAPI selects exchangerate-api.com (the default).
+	ProviderExchangeRateAPI = "exchangerate-api"
+	// ProviderAllRatesToday selects allratestoday.com.
+	ProviderAllRatesToday = "allratestoday"
+)
+
 // Config holds configuration for the currency converter
 type Config struct {
+	// APIKey is the key for the provider named by ProviderName
+	// (exchangerate-api.com by default). It is ignored when Provider is set.
 	APIKey     string
 	CacheTTL   time.Duration
 	APITimeout time.Duration
+
+	// ProviderName picks a built-in provider by name so a plugin can expose
+	// the choice in its own configuration: ProviderExchangeRateAPI (the
+	// default when empty) or ProviderAllRatesToday. Matching is
+	// case-insensitive. It is ignored when Provider is set.
+	ProviderName string
+
+	// Provider supplies the exchange rates. If nil, the converter uses the
+	// built-in provider named by ProviderName with APIKey.
+	Provider RateProvider
+}
+
+// RateProvider fetches current exchange rates from an exchange rate source.
+// Implementations must be safe for concurrent use.
+type RateProvider interface {
+	// FetchRates returns the rates for one unit of baseCurrency, keyed by
+	// ISO 4217 currency code.
+	FetchRates(baseCurrency string) (map[string]float64, error)
 }
 
 // Converter interface defines currency conversion operations
@@ -39,12 +67,6 @@ type cachedRates struct {
 	baseCode   string
 	fetchedAt  time.Time
 	validUntil time.Time
-}
-
-// client interface for fetching exchange rates
-type client interface {
-	// fetchRates fetches current exchange rates for a base currency
-	fetchRates(baseCurrency string) (*exchangeRateResponse, error)
 }
 
 // cache interface for storing exchange rates

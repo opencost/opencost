@@ -8,9 +8,11 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
@@ -696,74 +698,6 @@ func Test_configUpdaterWithReaderAndType_forSpotValues(t *testing.T) {
 	}
 }
 
-// Mock cluster cache for testing
-type mockClusterCache struct {
-	pods []*clustercache.Pod
-}
-
-func (m *mockClusterCache) Run()  {}
-func (m *mockClusterCache) Stop() {}
-
-func (m *mockClusterCache) GetAllPods() []*clustercache.Pod {
-	return m.pods
-}
-
-func (m *mockClusterCache) GetAllNodes() []*clustercache.Node {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllPersistentVolumes() []*clustercache.PersistentVolume {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllPersistentVolumeClaims() []*clustercache.PersistentVolumeClaim {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllStorageClasses() []*clustercache.StorageClass {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllServices() []*clustercache.Service {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllDeployments() []*clustercache.Deployment {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllDaemonSets() []*clustercache.DaemonSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllStatefulSets() []*clustercache.StatefulSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllReplicaSets() []*clustercache.ReplicaSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllJobs() []*clustercache.Job {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllNamespaces() []*clustercache.Namespace {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
-	return nil
-}
-
 func TestAWS_getFargatePod(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -823,7 +757,7 @@ func TestAWS_getFargatePod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			aws := &AWS{
-				Clientset: &mockClusterCache{pods: tt.pods},
+				Clientset: &clustercache.MockClusterCache{Pods: tt.pods},
 			}
 
 			gotPod, gotBool := aws.getFargatePod(tt.awsKey)
@@ -842,6 +776,68 @@ func TestAWS_getFargatePod(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// awsMockConfig implements models.ProviderConfig for testing RefreshCustomPricing.
+type awsMockConfig struct {
+	customPricing *models.CustomPricing
+}
+
+func (m *awsMockConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	return m.customPricing, nil
+}
+
+func (m *awsMockConfig) Update(_ func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *awsMockConfig) UpdateFromMap(_ map[string]string) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *awsMockConfig) ConfigFileManager() *config.ConfigFileManager {
+	return nil
+}
+
+func TestAWSRefreshCustomPricing(t *testing.T) {
+	cp := &models.CustomPricing{
+		CPU:            "0.02",
+		RAM:            "0.003",
+		GPU:            "0.5",
+		SpotCPU:        "0.01",
+		SpotRAM:        "0.002",
+		SpotGPU:        "0.25",
+		SpotLabel:      "eks.amazonaws.com/capacityType",
+		SpotLabelValue: "SPOT",
+	}
+	a := &AWS{Config: &awsMockConfig{customPricing: cp}}
+	if err := a.RefreshCustomPricing(); err != nil {
+		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
+	}
+	if a.BaseCPUPrice != cp.CPU {
+		t.Errorf("BaseCPUPrice = %q, want %q", a.BaseCPUPrice, cp.CPU)
+	}
+	if a.BaseRAMPrice != cp.RAM {
+		t.Errorf("BaseRAMPrice = %q, want %q", a.BaseRAMPrice, cp.RAM)
+	}
+	if a.BaseGPUPrice != cp.GPU {
+		t.Errorf("BaseGPUPrice = %q, want %q", a.BaseGPUPrice, cp.GPU)
+	}
+	if a.BaseSpotCPUPrice != cp.SpotCPU {
+		t.Errorf("BaseSpotCPUPrice = %q, want %q", a.BaseSpotCPUPrice, cp.SpotCPU)
+	}
+	if a.BaseSpotRAMPrice != cp.SpotRAM {
+		t.Errorf("BaseSpotRAMPrice = %q, want %q", a.BaseSpotRAMPrice, cp.SpotRAM)
+	}
+	if a.BaseSpotGPUPrice != cp.SpotGPU {
+		t.Errorf("BaseSpotGPUPrice = %q, want %q", a.BaseSpotGPUPrice, cp.SpotGPU)
+	}
+	if a.SpotLabelName != cp.SpotLabel {
+		t.Errorf("SpotLabelName = %q, want %q", a.SpotLabelName, cp.SpotLabel)
+	}
+	if a.SpotLabelValue != cp.SpotLabelValue {
+		t.Errorf("SpotLabelValue = %q, want %q", a.SpotLabelValue, cp.SpotLabelValue)
 	}
 }
 
@@ -1360,6 +1356,260 @@ func TestAWS_PricingSourceStatus_spotPriceHistory(t *testing.T) {
 		sphs := sources[SpotPriceHistorySource]
 		if !sphs.Available {
 			t.Error("Expected Available=true when cache initialized")
+		}
+	})
+}
+
+func TestAWS_findCostForDisk(t *testing.T) {
+	aws := &AWS{
+		ClusterRegion: "us-east-1",
+		Pricing: map[string]*AWSProductTerms{
+			"us-east-1,EBS:VolumeUsage.gp2": {
+				PV: &models.PV{
+					Cost: "0.10",
+				},
+			},
+			"us-west-2,EBS:VolumeUsage.gp2": {
+				PV: &models.PV{
+					Cost: "0.12",
+				},
+			},
+			"us-gov-west-1,EBS:VolumeUsage.gp2": {
+				PV: &models.PV{
+					Cost: "0.15",
+				},
+			},
+		},
+	}
+
+	size1 := int32(100)
+	expectedCost1 := 0.10 * 730.0 * 100.0
+	expectedCost2 := 0.12 * 730.0 * 100.0
+	expectedCostGov := 0.15 * 730.0 * 100.0
+
+	checkCost := func(t *testing.T, disk *ec2Types.Volume, expectedCost float64) {
+		cost, err := aws.findCostForDisk(disk)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cost == nil {
+			t.Fatalf("expected cost %v, got nil", expectedCost)
+		}
+		diff := *cost - expectedCost
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff > 1e-9 {
+			t.Fatalf("expected cost %f, got %f", expectedCost, *cost)
+		}
+	}
+
+	// Case 1: Disk has AvailabilityZone matching ClusterRegion (e.g. us-east-1a)
+	t.Run("AZ matching ClusterRegion", func(t *testing.T) {
+		zone1 := "us-east-1a"
+		disk1 := &ec2Types.Volume{
+			AvailabilityZone: &zone1,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		checkCost(t, disk1, expectedCost1)
+	})
+
+	// Case 2: Disk has AvailabilityZone from a different region (e.g. us-west-2b)
+	t.Run("AZ from different region", func(t *testing.T) {
+		zone2 := "us-west-2b"
+		disk2 := &ec2Types.Volume{
+			AvailabilityZone: &zone2,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		checkCost(t, disk2, expectedCost2)
+	})
+
+	// Case 3: GovCloud region prefix match (e.g. us-gov-west-1a)
+	t.Run("GovCloud region prefix match", func(t *testing.T) {
+		zoneGov := "us-gov-west-1a"
+		diskGov := &ec2Types.Volume{
+			AvailabilityZone: &zoneGov,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		checkCost(t, diskGov, expectedCostGov)
+	})
+
+	// Case 4: Invalid/unknown region format, should fall back to ClusterRegion
+	t.Run("Invalid AZ fallback", func(t *testing.T) {
+		zoneUnknown := "unknown-zone"
+		diskUnknown := &ec2Types.Volume{
+			AvailabilityZone: &zoneUnknown,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		checkCost(t, diskUnknown, expectedCost1)
+	})
+
+	// Case 5: Valid region but pricing not loaded, should fall back to ClusterRegion
+	t.Run("No pricing loaded fallback", func(t *testing.T) {
+		zoneNoPrice := "eu-west-1b"
+		diskNoPrice := &ec2Types.Volume{
+			AvailabilityZone: &zoneNoPrice,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		checkCost(t, diskNoPrice, expectedCost1)
+	})
+
+	// Case 6: Region-specific pricing key is present but value is nil.
+	// It should return an error, NOT fall back.
+	t.Run("Region pricing key present but value is nil", func(t *testing.T) {
+		awsCustom := &AWS{
+			ClusterRegion: "us-east-1",
+			Pricing: map[string]*AWSProductTerms{
+				"us-east-1,EBS:VolumeUsage.gp2": {
+					PV: &models.PV{
+						Cost: "0.10",
+					},
+				},
+				"us-west-2,EBS:VolumeUsage.gp2": nil,
+			},
+		}
+		zone := "us-west-2b"
+		disk := &ec2Types.Volume{
+			AvailabilityZone: &zone,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		_, err := awsCustom.findCostForDisk(disk)
+		if err == nil {
+			t.Fatal("expected error because us-west-2 pricing is nil, but got nil error")
+		}
+		expectedErr := "nil pricing data for key 'us-west-2,EBS:VolumeUsage.gp2'"
+		if err.Error() != expectedErr {
+			t.Fatalf("expected error message %q, got %q", expectedErr, err.Error())
+		}
+	})
+
+	// Case 7: Region-specific pricing key is present but pricing.PV is nil.
+	// It should return an error, NOT fall back.
+	t.Run("Region pricing key present but PV is nil", func(t *testing.T) {
+		awsCustom := &AWS{
+			ClusterRegion: "us-east-1",
+			Pricing: map[string]*AWSProductTerms{
+				"us-east-1,EBS:VolumeUsage.gp2": {
+					PV: &models.PV{
+						Cost: "0.10",
+					},
+				},
+				"us-west-2,EBS:VolumeUsage.gp2": {
+					PV: nil,
+				},
+			},
+		}
+		zone := "us-west-2b"
+		disk := &ec2Types.Volume{
+			AvailabilityZone: &zone,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		_, err := awsCustom.findCostForDisk(disk)
+		if err == nil {
+			t.Fatal("expected error because us-west-2 pricing PV is nil, but got nil error")
+		}
+		expectedErr := "pricing for key 'us-west-2,EBS:VolumeUsage.gp2' has nil PV"
+		if err.Error() != expectedErr {
+			t.Fatalf("expected error message %q, got %q", expectedErr, err.Error())
+		}
+	})
+
+	// Case 8: Region-specific pricing key is present but pricing.PV.Cost is unparsable.
+	// It should return an error, NOT fall back.
+	t.Run("Region pricing key present but Cost is unparsable", func(t *testing.T) {
+		awsCustom := &AWS{
+			ClusterRegion: "us-east-1",
+			Pricing: map[string]*AWSProductTerms{
+				"us-east-1,EBS:VolumeUsage.gp2": {
+					PV: &models.PV{
+						Cost: "0.10",
+					},
+				},
+				"us-west-2,EBS:VolumeUsage.gp2": {
+					PV: &models.PV{
+						Cost: "not-a-float",
+					},
+				},
+			},
+		}
+		zone := "us-west-2b"
+		disk := &ec2Types.Volume{
+			AvailabilityZone: &zone,
+			VolumeType:       ec2Types.VolumeTypeGp2,
+			Size:             &size1,
+		}
+		_, err := awsCustom.findCostForDisk(disk)
+		if err == nil {
+			t.Fatal("expected error because us-west-2 pricing cost is unparsable, but got nil error")
+		}
+		if !strings.Contains(err.Error(), "parsing \"not-a-float\"") {
+			t.Fatalf("expected parsing float error, got %q", err.Error())
+		}
+	})
+}
+
+// A product in the public price list can have no OnDemand term (for example, a newly launched instance type).
+// createNode must not dereference the nil term: preemptible nodes fall back to the configured spot prices and
+// on-demand nodes return an error, as when the price dimension is missing.
+func TestAWS_createNode_nilOnDemandTerm(t *testing.T) {
+	terms := &AWSProductTerms{
+		Sku:      "SKUNOONDEMAND",
+		OnDemand: nil,
+		VCpu:     "4",
+		Memory:   "32 GiB",
+	}
+	newKey := func(spot bool) *awsKey {
+		labels := map[string]string{
+			"topology.kubernetes.io/region":    "us-east-1",
+			"topology.kubernetes.io/zone":      "us-east-1a",
+			"node.kubernetes.io/instance-type": "r9g.xlarge",
+			"kubernetes.io/os":                 "linux",
+		}
+		if spot {
+			labels["karpenter.sh/capacity-type"] = "spot"
+		}
+		return &awsKey{
+			ProviderID: "aws:///us-east-1a/i-0123456789abcdef0",
+			Labels:     labels,
+		}
+	}
+
+	t.Run("preemptible node falls back to default spot prices", func(t *testing.T) {
+		aws := &AWS{
+			BaseCPUPrice:     "0.04",
+			BaseRAMPrice:     "0.01",
+			BaseGPUPrice:     "0.95",
+			BaseSpotCPUPrice: "0.01",
+			BaseSpotRAMPrice: "0.002",
+		}
+		node, _, err := aws.createNode(terms, PreemptibleType, newKey(true))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if node.UsageType != PreemptibleType {
+			t.Errorf("Expected usage type %s, got %s", PreemptibleType, node.UsageType)
+		}
+		if node.VCPUCost != "0.01" || node.RAMCost != "0.002" {
+			t.Errorf("Expected default spot prices 0.01/0.002, got %s/%s", node.VCPUCost, node.RAMCost)
+		}
+	})
+
+	t.Run("on-demand node returns an error instead of panicking", func(t *testing.T) {
+		aws := &AWS{
+			BaseCPUPrice: "0.04",
+			BaseRAMPrice: "0.01",
+			BaseGPUPrice: "0.95",
+		}
+		node, _, err := aws.createNode(terms, "ondemand", newKey(false))
+		if err == nil {
+			t.Fatalf("Expected an error for a product without OnDemand term, got node %+v", node)
 		}
 	})
 }

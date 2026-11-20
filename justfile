@@ -2,6 +2,7 @@ commonenv := "CGO_ENABLED=0"
 
 version := `./tools/image-tag`
 commit := `git rev-parse --short HEAD`
+revision := `git rev-parse HEAD`
 
 default:
     just --list
@@ -9,6 +10,11 @@ default:
 # format all Go code
 fmt:
     go fmt ./...
+    cd ./core && go fmt ./...
+    cd ./modules/collector-source && go fmt ./...
+    cd ./modules/prometheus-source && go fmt ./...
+    cd ./modules/pricing/basic && go fmt ./...
+    cd ./modules/pricing/public && go fmt ./...
 
 # check if code is formatted
 fmt-check:
@@ -80,7 +86,7 @@ build-binary VERSION=version:
            -X github.com/opencost/opencost/core/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel-arm64
 
-# Build and push a multi-arch Docker image
+# Build and push a multi-arch image using Docker
 build IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
     docker buildx build \
         --rm \
@@ -89,6 +95,7 @@ build IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
         --build-arg binarypath=./cmd/costmodel/costmodel-amd64 \
         --build-arg version={{RELEASE_VERSION}} \
         --build-arg commit={{commit}} \
+        --build-arg revision={{revision}} \
         --provenance=false \
         -t {{IMAGE_TAG}}-amd64 \
         --push \
@@ -101,6 +108,7 @@ build IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
         --build-arg binarypath=./cmd/costmodel/costmodel-arm64 \
         --build-arg version={{RELEASE_VERSION}} \
         --build-arg commit={{commit}} \
+        --build-arg revision={{revision}} \
         --provenance=false \
         -t {{IMAGE_TAG}}-arm64 \
         --push \
@@ -110,6 +118,38 @@ build IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
         --platforms "linux/amd64,linux/arm64" \
         --template {{IMAGE_TAG}}-ARCH \
         --target {{IMAGE_TAG}}
+
+# Build and push a multi-arch image using Podman
+build-podman IMAGE_TAG RELEASE_VERSION: (build-binary RELEASE_VERSION)
+    podman build \
+        --rm \
+        --platform "linux/amd64" \
+        -f 'Dockerfile.cross' \
+        --build-arg binarypath=./cmd/costmodel/costmodel-amd64 \
+        --build-arg version={{RELEASE_VERSION}} \
+        --build-arg commit={{commit}} \
+        --build-arg revision={{revision}} \
+        -t {{IMAGE_TAG}}-amd64 \
+        .
+    podman push {{IMAGE_TAG}}-amd64
+
+    podman build \
+        --rm \
+        --platform "linux/arm64" \
+        -f 'Dockerfile.cross' \
+        --build-arg binarypath=./cmd/costmodel/costmodel-arm64 \
+        --build-arg version={{RELEASE_VERSION}} \
+        --build-arg commit={{commit}} \
+        --build-arg revision={{revision}} \
+        -t {{IMAGE_TAG}}-arm64 \
+        .
+    podman push {{IMAGE_TAG}}-arm64
+
+    podman manifest create {{IMAGE_TAG}} \
+        {{IMAGE_TAG}}-amd64 \
+        {{IMAGE_TAG}}-arm64
+    podman manifest push --all {{IMAGE_TAG}}
+    podman manifest rm {{IMAGE_TAG}}
 
 validate-protobuf:
     ./generate.sh

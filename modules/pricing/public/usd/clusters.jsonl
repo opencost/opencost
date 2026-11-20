@@ -1,0 +1,2 @@
+{"properties":{"provider":"AWS"},"prices":{"cluster":{"unit":"hr","price":0.1}}}
+{"properties":{"provider":"GCP"},"prices":{"cluster":{"unit":"hr","price":0.1}}}

@@ -702,6 +702,7 @@ func (mp *mockProvider) PVPricing(models.PVKey) (*models.PV, error)             
 func (mp *mockProvider) NetworkPricing() (*models.Network, error)                { return nil, nil }
 func (mp *mockProvider) LoadBalancerPricing() (*models.LoadBalancer, error)      { return nil, nil }
 func (mp *mockProvider) DownloadPricingData() error                              { return nil }
+func (mp *mockProvider) RefreshCustomPricing() error                             { return nil }
 func (mp *mockProvider) GetKey(map[string]string, *clustercache.Node) models.Key { return nil }
 func (mp *mockProvider) GetPVKey(*clustercache.PersistentVolume, map[string]string, string) models.PVKey {
 	return nil
@@ -750,6 +751,61 @@ func TestTransformAllocationSet_EmptyInput(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Contains(t, result.Allocations, "allocations")
 	assert.Len(t, result.Allocations["allocations"].Allocations, 0)
+}
+
+func TestTransformAllocationSetRange_NilAndEmpty(t *testing.T) {
+	for name, asr := range map[string]*opencost.AllocationSetRange{
+		"nil":      nil,
+		"empty":    opencost.NewAllocationSetRange(),
+		"nil sets": opencost.NewAllocationSetRange(nil, nil),
+	} {
+		t.Run(name, func(t *testing.T) {
+			result := transformAllocationSetRange(asr)
+			require.NotNil(t, result)
+			assert.Len(t, result.Allocations, 0)
+		})
+	}
+}
+
+func TestTransformAllocationSetRange_SingleSetKeepsKey(t *testing.T) {
+	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	set := opencost.NewAllocationSet(start, end, &opencost.Allocation{Name: "ns-a", Start: start, End: end, CPUCost: 1})
+
+	result := transformAllocationSetRange(opencost.NewAllocationSetRange(set))
+
+	require.Contains(t, result.Allocations, "allocations")
+	assert.Len(t, result.Allocations, 1)
+	assert.Len(t, result.Allocations["allocations"].Allocations, 1)
+}
+
+func TestTransformAllocationSetRange_MultipleSetsAllReturned(t *testing.T) {
+	day1 := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	day2 := day1.Add(24 * time.Hour)
+	day3 := day2.Add(24 * time.Hour)
+
+	set1 := opencost.NewAllocationSet(day1, day2, &opencost.Allocation{Name: "ns-a", Start: day1, End: day2, CPUCost: 1})
+	set2 := opencost.NewAllocationSet(day2, day3,
+		&opencost.Allocation{Name: "ns-a", Start: day2, End: day3, CPUCost: 2},
+		&opencost.Allocation{Name: "ns-b", Start: day2, End: day3, CPUCost: 3},
+	)
+
+	result := transformAllocationSetRange(opencost.NewAllocationSetRange(set1, nil, set2))
+
+	require.Len(t, result.Allocations, 2)
+
+	key1 := "2026-10-01T00:00:00Z/2026-10-02T00:00:00Z"
+	key2 := "2026-10-02T00:00:00Z/2026-10-03T00:00:00Z"
+	require.Contains(t, result.Allocations, key1)
+	require.Contains(t, result.Allocations, key2)
+
+	assert.Equal(t, key1, result.Allocations[key1].Name)
+	assert.Len(t, result.Allocations[key1].Allocations, 1)
+	assert.InDelta(t, 1.0, result.Allocations[key1].TotalCost(), 1e-9)
+
+	assert.Equal(t, key2, result.Allocations[key2].Name)
+	assert.Len(t, result.Allocations[key2].Allocations, 2)
+	assert.InDelta(t, 5.0, result.Allocations[key2].TotalCost(), 1e-9)
 }
 
 func TestTransformAssetSet_NilInput(t *testing.T) {
@@ -860,7 +916,7 @@ func TestQueryAssets_InvalidWindow(t *testing.T) {
 		Window:    "invalid-window",
 	}
 
-	_, err := s.QueryAssets(req)
+	_, err := s.QueryAssets(context.Background(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse window")
 }
@@ -873,7 +929,7 @@ func TestQueryAllocations_InvalidWindow(t *testing.T) {
 		Window:    "invalid-window",
 	}
 
-	_, err := s.QueryAllocations(req)
+	_, err := s.QueryAllocations(context.Background(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse window")
 }
@@ -1058,10 +1114,10 @@ func TestComputeEfficiencyMetric_ValidAllocation(t *testing.T) {
 		Start: now.Add(-24 * time.Hour),
 		End:   now,
 		// 24 hours = 1440 minutes
-		CPUCoreHours:           24.0,   // 1 core for 24 hours
-		RAMByteHours:           24.0e9, // ~1GB for 24 hours
-		CPUCoreRequestAverage:  2.0,    // Requested 2 cores
-		RAMBytesRequestAverage: 2.0e9,  // Requested 2GB
+		CPUCoreUsageAverage:    1.0,   // 1 core average usage
+		RAMBytesUsageAverage:   1.0e9, // 1GB average usage
+		CPUCoreRequestAverage:  2.0,   // Requested 2 cores
+		RAMBytesRequestAverage: 2.0e9, // Requested 2GB
 		CPUCost:                10.0,
 		RAMCost:                5.0,
 	}
@@ -1072,8 +1128,8 @@ func TestComputeEfficiencyMetric_ValidAllocation(t *testing.T) {
 	assert.Equal(t, "test-pod", result.Name)
 	assert.Equal(t, 2.0, result.CPUCoresRequested)
 	assert.Equal(t, 2.0e9, result.RAMBytesRequested)
-	assert.Equal(t, 1.0, result.CPUCoresUsed)            // 24 core-hours / 24 hours = 1 core
-	assert.Equal(t, 1.0e9, result.RAMBytesUsed)          // 24GB-hours / 24 hours = 1GB
+	assert.Equal(t, 1.0, result.CPUCoresUsed)            // raw usage average, not CPUCoreHours/hours
+	assert.Equal(t, 1.0e9, result.RAMBytesUsed)          // raw usage average, not RAMByteHours/hours
 	assert.Equal(t, 0.5, result.CPUEfficiency)           // 1 / 2 = 0.5
 	assert.Equal(t, 0.5, result.MemoryEfficiency)        // 1GB / 2GB = 0.5
 	assert.Equal(t, 1.2, result.RecommendedCPURequest)   // 1 * 1.2 = 1.2
@@ -1088,8 +1144,8 @@ func TestComputeEfficiencyMetric_CustomBufferMultiplier(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
-		CPUCoreHours:           24.0,
-		RAMByteHours:           24.0e9,
+		CPUCoreUsageAverage:    1.0,
+		RAMBytesUsageAverage:   1.0e9,
 		CPUCoreRequestAverage:  2.0,
 		RAMBytesRequestAverage: 2.0e9,
 		CPUCost:                10.0,
@@ -1118,8 +1174,8 @@ func TestComputeEfficiencyMetric_MinimumThresholds(t *testing.T) {
 		Start: now.Add(-24 * time.Hour),
 		End:   now,
 		// Very small usage
-		CPUCoreHours:           0.00001, // 0.000000417 cores average
-		RAMByteHours:           100,     // ~4 bytes average
+		CPUCoreUsageAverage:    0.0000004, // very small CPU usage
+		RAMBytesUsageAverage:   4,         // ~4 bytes average
 		CPUCoreRequestAverage:  0.1,
 		RAMBytesRequestAverage: 1000,
 		CPUCost:                0.001,
@@ -1141,8 +1197,8 @@ func TestComputeEfficiencyMetric_NoRequests(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
-		CPUCoreHours:           24.0,
-		RAMByteHours:           24.0e9,
+		CPUCoreUsageAverage:    1.0,
+		RAMBytesUsageAverage:   1.0e9,
 		CPUCoreRequestAverage:  0.0, // No requests set
 		RAMBytesRequestAverage: 0.0, // No requests set
 		CPUCost:                10.0,
@@ -1166,10 +1222,10 @@ func TestComputeEfficiencyMetric_OverProvisioned(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
-		CPUCoreHours:           12.0,   // 0.5 cores average
-		RAMByteHours:           12.0e9, // 0.5GB average
-		CPUCoreRequestAverage:  4.0,    // Requested 4 cores (over-provisioned)
-		RAMBytesRequestAverage: 8.0e9,  // Requested 8GB (over-provisioned)
+		CPUCoreUsageAverage:    0.5,   // 0.5 cores average
+		RAMBytesUsageAverage:   0.5e9, // 0.5GB average
+		CPUCoreRequestAverage:  4.0,   // Requested 4 cores (over-provisioned)
+		RAMBytesRequestAverage: 8.0e9, // Requested 8GB (over-provisioned)
 		CPUCost:                40.0,
 		RAMCost:                20.0,
 	}
@@ -1194,10 +1250,10 @@ func TestComputeEfficiencyMetric_UnderProvisioned(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
-		CPUCoreHours:           48.0,   // 2 cores average
-		RAMByteHours:           48.0e9, // 2GB average
-		CPUCoreRequestAverage:  1.0,    // Requested 1 core (under-provisioned)
-		RAMBytesRequestAverage: 1.0e9,  // Requested 1GB (under-provisioned)
+		CPUCoreUsageAverage:    2.0,   // 2 cores average
+		RAMBytesUsageAverage:   2.0e9, // 2GB average
+		CPUCoreRequestAverage:  1.0,   // Requested 1 core (under-provisioned)
+		RAMBytesRequestAverage: 1.0e9, // Requested 1GB (under-provisioned)
 		CPUCost:                10.0,
 		RAMCost:                5.0,
 	}
@@ -1219,8 +1275,8 @@ func TestComputeEfficiencyMetric_CostCalculations(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
-		CPUCoreHours:           24.0,
-		RAMByteHours:           24.0e9,
+		CPUCoreUsageAverage:    1.0,
+		RAMBytesUsageAverage:   1.0e9,
 		CPUCoreRequestAverage:  2.0,
 		RAMBytesRequestAverage: 2.0e9,
 		CPUCost:                10.0, // $10 for CPU
@@ -1257,8 +1313,8 @@ func TestComputeEfficiencyMetric_OtherCostsPreserved(t *testing.T) {
 		Name:                   "test-pod",
 		Start:                  now.Add(-24 * time.Hour),
 		End:                    now,
-		CPUCoreHours:           24.0,
-		RAMByteHours:           24.0e9,
+		CPUCoreUsageAverage:    1.0,
+		RAMBytesUsageAverage:   1.0e9,
 		CPUCoreRequestAverage:  2.0,
 		RAMBytesRequestAverage: 2.0e9,
 		CPUCost:                10.0,
@@ -1291,6 +1347,40 @@ func TestComputeEfficiencyMetric_OtherCostsPreserved(t *testing.T) {
 	assert.InDelta(t, expectedRecommendedTotal, result.RecommendedCost, 0.01)
 }
 
+func TestComputeEfficiencyMetric_UsesUsageNotAllocation(t *testing.T) {
+	now := time.Now()
+	// CPUCoreHours/RAMByteHours are allocated amounts, max(request, usage),
+	// so for an over-provisioned workload they track the request, not usage.
+	alloc := &opencost.Allocation{
+		Name:                   "daemonset:calico-node",
+		Start:                  now.Add(-24 * time.Hour),
+		End:                    now,
+		CPUCoreHours:           1.79159 * 24.0,
+		RAMByteHours:           2.0e9 * 24.0,
+		CPUCoreRequestAverage:  1.79159,
+		RAMBytesRequestAverage: 2.0e9,
+		CPUCoreUsageAverage:    0.26620,
+		RAMBytesUsageAverage:   0.5e9,
+		CPUCost:                10.0,
+		RAMCost:                5.0,
+	}
+
+	result := computeEfficiencyMetric(alloc, 1.2)
+
+	require.NotNil(t, result)
+	assert.Equal(t, 0.26620, result.CPUCoresUsed)
+	assert.Equal(t, 0.5e9, result.RAMBytesUsed)
+	assert.InDelta(t, 0.1486, result.CPUEfficiency, 0.0001)
+	assert.Equal(t, 0.25, result.MemoryEfficiency)
+	// Must agree with the efficiency the /allocation API reports
+	assert.Equal(t, alloc.CPUEfficiency(), result.CPUEfficiency)
+	assert.Equal(t, alloc.RAMEfficiency(), result.MemoryEfficiency)
+	// A downsize, not request * 1.2
+	assert.InDelta(t, 0.26620*1.2, result.RecommendedCPURequest, 1e-9)
+	assert.InDelta(t, 0.6e9, result.RecommendedRAMRequest, 1)
+	assert.Greater(t, result.CostSavings, 0.0)
+}
+
 func TestQueryEfficiency_InvalidWindow(t *testing.T) {
 	s := &MCPServer{}
 
@@ -1299,7 +1389,7 @@ func TestQueryEfficiency_InvalidWindow(t *testing.T) {
 		Window:    "invalid-window",
 	}
 
-	_, err := s.QueryEfficiency(req)
+	_, err := s.QueryEfficiency(context.Background(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse window")
 }
@@ -1581,4 +1671,56 @@ func TestProcessMCPRequest_ContextPropagation(t *testing.T) {
 	require.NotNil(t, resp)
 	// Verify that the querier was called (context was propagated)
 	assert.NotNil(t, dq.last)
+}
+
+// A nil costModel would panic if reached, so these also prove the query
+// returns before touching the cost model.
+func TestQueries_CancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	s := &MCPServer{}
+
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{"allocation", func() error {
+			_, err := s.QueryAllocations(ctx, &OpenCostQueryRequest{QueryType: AllocationQueryType, Window: "1d"})
+			return err
+		}},
+		{"asset", func() error {
+			_, err := s.QueryAssets(ctx, &OpenCostQueryRequest{QueryType: AssetQueryType, Window: "1d"})
+			return err
+		}},
+		{"efficiency", func() error {
+			_, err := s.QueryEfficiency(ctx, &OpenCostQueryRequest{QueryType: EfficiencyQueryType, Window: "1d"})
+			return err
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.run()
+			require.Error(t, err)
+			assert.ErrorIs(t, err, context.Canceled)
+		})
+	}
+}
+
+func TestProcessMCPRequest_DeadlineExceeded(t *testing.T) {
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+
+	s := &MCPServer{}
+
+	for _, qt := range []QueryType{AllocationQueryType, AssetQueryType, EfficiencyQueryType} {
+		t.Run(string(qt), func(t *testing.T) {
+			_, err := s.ProcessMCPRequest(ctx, &MCPRequest{
+				Query: &OpenCostQueryRequest{QueryType: qt, Window: "1d"},
+			})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, context.DeadlineExceeded)
+		})
+	}
 }

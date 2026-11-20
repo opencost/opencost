@@ -6,6 +6,8 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/external"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/nodestats"
 	"github.com/opencost/opencost/core/pkg/util/atomic"
@@ -21,6 +23,57 @@ type ScrapeController struct {
 	updater        metric.Updater
 }
 
+// getDefaultMetricFilter builds a MetricFilter from environment variable configuration.
+// Metrics whose corresponding env var is false (the default) are added to the deny set.
+func getDefaultMetricFilter() MetricFilter {
+	f := MetricFilter{}
+	deny := func(name string) { f[name] = struct{}{} }
+
+	if !coreenv.IsEmitPodAnnotationsMetric() {
+		deny(metric.KubePodAnnotations)
+	}
+	if !coreenv.IsEmitNamespaceAnnotationsMetric() {
+		deny(metric.KubeNamespaceAnnotations)
+	}
+	if !coreenv.IsEmitDeploymentLabelsMetric() {
+		deny(metric.DeploymentLabels)
+	}
+	if !coreenv.IsEmitDeploymentAnnotationsMetric() {
+		deny(metric.DeploymentAnnotations)
+	}
+	if !coreenv.IsEmitStatefulSetLabelsMetric() {
+		deny(metric.StatefulSetLabels)
+	}
+	if !coreenv.IsEmitStatefulSetAnnotationsMetric() {
+		deny(metric.StatefulSetAnnotations)
+	}
+	if !coreenv.IsEmitDaemonSetLabelsMetric() {
+		deny(metric.DaemonSetLabels)
+	}
+	if !coreenv.IsEmitDaemonSetAnnotationsMetric() {
+		deny(metric.DaemonSetAnnotations)
+	}
+	if !coreenv.IsEmitJobLabelsMetric() {
+		deny(metric.JobLabels)
+	}
+	if !coreenv.IsEmitJobAnnotationsMetric() {
+		deny(metric.JobAnnotations)
+	}
+	if !coreenv.IsEmitCronJobLabelsMetric() {
+		deny(metric.CronJobLabels)
+	}
+	if !coreenv.IsEmitCronJobAnnotationsMetric() {
+		deny(metric.CronJobAnnotations)
+	}
+	if !coreenv.IsEmitReplicaSetLabelsMetric() {
+		deny(metric.ReplicaSetLabels)
+	}
+	if !coreenv.IsEmitReplicaSetAnnotationsMetric() {
+		deny(metric.ReplicaSetAnnotations)
+	}
+	return f
+}
+
 func NewScrapeController(
 	clusterUID string,
 	scrapeInterval string,
@@ -29,25 +82,28 @@ func NewScrapeController(
 	clusterInfoProvider clusters.ClusterInfoProvider,
 	clusterCache clustercache.ClusterCache,
 	statSummaryClient nodestats.StatSummaryClient,
+	externalLabelProvider external.LabelProvider,
 ) *ScrapeController {
+	// Start with env-driven defaults, then layer in any caller-supplied entries.
+	filter := getDefaultMetricFilter()
 
 	var scrapers []Scraper
-	clusterInfoScrapper := newClusterInfoScrapper(clusterUID, clusterInfoProvider)
+	clusterInfoScrapper := withFilter(newClusterInfoScrapper(clusterUID, clusterInfoProvider), filter)
 	scrapers = append(scrapers, clusterInfoScrapper)
 
-	clusterCacheScraper := newClusterCacheScraper(clusterCache)
+	clusterCacheScraper := withFilter(newClusterCacheScraper(clusterCache, externalLabelProvider), filter)
 	scrapers = append(scrapers, clusterCacheScraper)
 
-	opencostScraper := newOpenCostScraper()
+	opencostScraper := withFilter(newOpenCostScraper(), filter)
 	scrapers = append(scrapers, opencostScraper)
 
-	statSummaryScraper := newStatSummaryScraper(statSummaryClient)
+	statSummaryScraper := withFilter(newStatSummaryScraper(statSummaryClient, clusterCache), filter)
 	scrapers = append(scrapers, statSummaryScraper)
 
-	networkScraper := newNetworkScraper(networkPort, clusterCache)
+	networkScraper := withFilter(newNetworkScraper(networkPort, clusterCache), filter)
 	scrapers = append(scrapers, networkScraper)
 
-	dcgmScraper := newDCGMScrapper(clusterCache)
+	dcgmScraper := withFilter(newDCGMScrapper(clusterCache), filter)
 	scrapers = append(scrapers, dcgmScraper)
 
 	si, err := util.NewInterval(scrapeInterval)

@@ -647,6 +647,13 @@ func TestNodePricing_Estimation_FamilySeeds(t *testing.T) {
 	}
 }
 
+func TestDOKSRefreshCustomPricing(t *testing.T) {
+	do := &DOKS{}
+	if err := do.RefreshCustomPricing(); err != nil {
+		t.Fatalf("DOKS.RefreshCustomPricing() unexpected error: %v", err)
+	}
+}
+
 func TestNodePricing_GPU(t *testing.T) {
 	provider, callCount := newTestProviderWithFile(t, "testdata/do_pricing.json")
 

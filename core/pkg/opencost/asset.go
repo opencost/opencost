@@ -28,6 +28,17 @@ const LocalStorageClass = "__local__"
 // UnknownStorageClass is used to assign storage class of persistent volume whose information is unable to be traced.
 const UnknownStorageClass = "__unknown__"
 
+// localPersistentVolumePrefix is the name prefix given to every PV created by
+// sig-storage-local-static-provisioner. For reference, see:
+// https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner/blob/b6f465027bd059e92c0032c81dd1e1d90e35c909/pkg/discovery/discovery.go#L410-L417
+const localPersistentVolumePrefix = "local-pv-"
+
+// IsLocalPersistentVolume returns true if the named PV was created by
+// sig-storage-local-static-provisioner, and is therefore backed by a node local disk.
+func IsLocalPersistentVolume(name string) bool {
+	return strings.HasPrefix(name, localPersistentVolumePrefix)
+}
+
 // Asset defines an entity within a cluster that has a defined cost over a
 // given period of time.
 type Asset interface {
@@ -134,7 +145,7 @@ func key(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error
 			if labelKey := strings.TrimPrefix(s, "label:"); labelKey != "" {
 				labelVal := a.GetLabels()[labelKey]
 				if labelVal == "" {
-					key = "__undefined__"
+					key = UndefinedKey
 				} else {
 					key = fmt.Sprintf("%s=%s", labelKey, labelVal)
 				}
@@ -177,7 +188,13 @@ func getKeyFromLabelConfig(a Asset, labelConfig *LabelConfig, label string) stri
 }
 
 func GetAssetKey(a Asset, aggregateBy []string) (string, error) {
-	return key(a, aggregateBy, nil)
+	return GetAssetKeyWithLabelConfig(a, aggregateBy, nil)
+}
+
+// GetAssetKeyWithLabelConfig returns the key AssetSet.Insert stores the asset under for the
+// same aggregateBy and label config. A nil labelConfig means the NewLabelConfig defaults.
+func GetAssetKeyWithLabelConfig(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error) {
+	return key(a, aggregateBy, labelConfig)
 }
 
 func toString(a Asset) string {
@@ -3031,6 +3048,19 @@ func (as *AssetSet) Insert(asset Asset, labelConfig *LabelConfig) error {
 		return err
 	}
 
+	as.insertKeyed(k, asset)
+
+	return nil
+}
+
+// insertKeyed adds the asset under a key that is already known, merging into the entry there.
+// Rebuilding a set from another keeps the keys the original computed with its own label
+// config, which the copy does not have.
+func (as *AssetSet) insertKeyed(k string, asset Asset) {
+	if as.Assets == nil {
+		as.Assets = map[string]Asset{}
+	}
+
 	// Add the given Asset to the existing entry, if there is one;
 	// otherwise just set directly into assets
 	if _, ok := as.Assets[k]; !ok {
@@ -3052,8 +3082,6 @@ func (as *AssetSet) Insert(asset Asset, labelConfig *LabelConfig) error {
 	// Expand the window, just to be safe. It's possible that the asset will
 	// be set into the map without expanding it to the AssetSet's window.
 	as.Assets[k].ExpandWindow(as.Window)
-
-	return nil
 }
 
 // IsEmpty returns true if the AssetSet is nil, or if it contains
@@ -3153,18 +3181,12 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	acc := NewAssetSet(start, end)
 	acc.AggregationKeys = as.AggregationKeys
 
-	for _, asset := range as.Assets {
-		err := acc.Insert(asset, nil)
-		if err != nil {
-			return nil, err
-		}
+	for k, asset := range as.Assets {
+		acc.insertKeyed(k, asset)
 	}
 
-	for _, asset := range that.Assets {
-		err := acc.Insert(asset, nil)
-		if err != nil {
-			return nil, err
-		}
+	for k, asset := range that.Assets {
+		acc.insertKeyed(k, asset)
 	}
 
 	return acc, nil
@@ -3574,13 +3596,9 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 			continue
 		}
 
-		// Insert each Asset from the given set
-		for _, asset := range thatAS.Assets {
-			err = as.Insert(asset, nil)
-			if err != nil {
-				err = fmt.Errorf("error inserting asset: %s", err)
-				continue
-			}
+		// Insert each Asset from the given set under the key it already has
+		for k, asset := range thatAS.Assets {
+			as.insertKeyed(k, asset)
 		}
 	}
 

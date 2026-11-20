@@ -3,7 +3,6 @@ package costmodel
 import (
 	"net"
 	"strconv"
-	"strings"
 	"time"
 
 	coreenv "github.com/opencost/opencost/core/pkg/env"
@@ -20,15 +19,6 @@ import (
 const MAX_LOCAL_STORAGE_SIZE = 1024 * 1024 * 1024 * 1024
 
 const localStoragePricePerGBHr = 0.04 / 730.0
-
-// When ASSET_INCLUDE_LOCAL_DISK_COST is set to false, local storage
-// provisioned by sig-storage-local-static-provisioner is excluded
-// by checking if the volume is prefixed by "local-pv-".
-//
-// This is based on the sig-storage-local-static-provisioner implementation,
-// which creates all PVs with the "local-pv-" prefix. For reference, see:
-// https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner/blob/b6f465027bd059e92c0032c81dd1e1d90e35c909/pkg/discovery/discovery.go#L410-L417
-const SIG_STORAGE_LOCAL_PROVISIONER_PREFIX = "local-pv-"
 
 // Costs represents cumulative and monthly cluster costs over a given duration. Costs
 // are broken down by cores, memory, and storage.
@@ -764,7 +754,7 @@ func pvCosts(
 
 		// TODO niko/assets storage class
 
-		bytes := result.Data[0].Value
+		bytes := result.Value
 		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
@@ -958,8 +948,7 @@ func pvCosts(
 }
 
 // filterOutLocalPVs removes local Persistent Volumes (PVs) from the given disk map.
-// Local PVs are identified by the prefix "local-pv-" in their names, which is the
-// convention used by sig-storage-local-static-provisioner.
+// Local PVs are identified by opencost.IsLocalPersistentVolume.
 //
 // Parameters:
 //   - diskMap: A map of DiskIdentifier to Disk pointers, representing all PVs.
@@ -969,7 +958,7 @@ func pvCosts(
 func filterOutLocalPVs(diskMap map[DiskIdentifier]*Disk) map[DiskIdentifier]*Disk {
 	nonLocalPVDiskMap := map[DiskIdentifier]*Disk{}
 	for key, val := range diskMap {
-		if !strings.HasPrefix(key.Name, SIG_STORAGE_LOCAL_PROVISIONER_PREFIX) {
+		if !opencost.IsLocalPersistentVolume(key.Name) {
 			nonLocalPVDiskMap[key] = val
 		}
 	}

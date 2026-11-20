@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/storage"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -203,5 +205,150 @@ func TestCustomProviderNodePricingUsesDetectedGPUCount(t *testing.T) {
 	}
 	if node.GPU != "2" {
 		t.Errorf("GPU = %q, want %q", node.GPU, "2")
+	}
+}
+
+func TestCustomProviderClusterInfoUsesStaticDefaultName(t *testing.T) {
+	t.Setenv(coreenv.ClusterIDEnvVar, "")
+
+	customProvider := newTestCustomProvider(t, nil)
+
+	info, err := customProvider.ClusterInfo()
+	if err != nil {
+		t.Fatalf("ClusterInfo returned error: %v", err)
+	}
+
+	if info["name"] != "Custom Cluster" {
+		t.Errorf("name = %q, want %q", info["name"], "Custom Cluster")
+	}
+	if info["id"] != "default-cluster" {
+		t.Errorf("id = %q, want %q", info["id"], "default-cluster")
+	}
+}
+
+func TestCustomProviderLoadBalancerPricingEmptyConfig(t *testing.T) {
+	customProvider := newTestCustomProvider(t, nil)
+
+	lb, err := customProvider.LoadBalancerPricing()
+	if err != nil {
+		t.Fatalf("LoadBalancerPricing returned error: %v", err)
+	}
+	if lb.Cost != 0 {
+		t.Errorf("Cost = %f, want 0", lb.Cost)
+	}
+}
+
+func TestCustomProviderLoadBalancerPricingUsesDefaultLBPriceFallback(t *testing.T) {
+	customProvider := newTestCustomProvider(t, map[string]string{
+		"defaultLBPrice": "0.025",
+	})
+
+	lb, err := customProvider.LoadBalancerPricing()
+	if err != nil {
+		t.Fatalf("LoadBalancerPricing returned error: %v", err)
+	}
+	if lb.Cost != 0.025 {
+		t.Errorf("Cost = %f, want 0.025", lb.Cost)
+	}
+}
+
+func TestCustomProviderLoadBalancerPricingUsesForwardingRulePrice(t *testing.T) {
+	customProvider := newTestCustomProvider(t, map[string]string{
+		"firstFiveForwardingRulesCost": "0.02",
+		"defaultLBPrice":               "0.025",
+	})
+
+	lb, err := customProvider.LoadBalancerPricing()
+	if err != nil {
+		t.Fatalf("LoadBalancerPricing returned error: %v", err)
+	}
+	if lb.Cost != 0.02 {
+		t.Errorf("Cost = %f, want 0.02", lb.Cost)
+	}
+}
+
+func TestCustomProviderLoadBalancerPricingInvalidValue(t *testing.T) {
+	customProvider := newTestCustomProvider(t, map[string]string{
+		"firstFiveForwardingRulesCost": "not-a-price",
+	})
+
+	_, err := customProvider.LoadBalancerPricing()
+	if err == nil {
+		t.Fatal("LoadBalancerPricing returned nil error, want invalid pricing error")
+	}
+}
+
+func newTestCustomProvider(t *testing.T, pricing map[string]string) *CustomProvider {
+	t.Helper()
+
+	confMan := config.NewConfigFileManager(storage.NewMemoryStorage())
+	providerConfig := NewProviderConfig(confMan, "default.json")
+	if pricing != nil {
+		if _, err := providerConfig.UpdateFromMap(pricing); err != nil {
+			t.Fatalf("UpdateFromMap returned error: %v", err)
+		}
+	}
+
+	return &CustomProvider{
+		Config: providerConfig,
+	}
+}
+
+// testProviderConfig implements models.ProviderConfig for unit tests.
+type testProviderConfig struct {
+	customPricing *models.CustomPricing
+}
+
+func (m *testProviderConfig) GetCustomPricingData() (*models.CustomPricing, error) {
+	return m.customPricing, nil
+}
+
+func (m *testProviderConfig) Update(_ func(*models.CustomPricing) error) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *testProviderConfig) UpdateFromMap(_ map[string]string) (*models.CustomPricing, error) {
+	return nil, nil
+}
+
+func (m *testProviderConfig) ConfigFileManager() *config.ConfigFileManager {
+	return nil
+}
+
+func TestCustomProviderRefreshCustomPricing(t *testing.T) {
+	cp := &models.CustomPricing{
+		CPU:            "0.02",
+		RAM:            "0.003",
+		GPU:            "0.5",
+		SpotCPU:        "0.01",
+		SpotRAM:        "0.002",
+		SpotGPU:        "0.25",
+		SpotLabel:      "node.kubernetes.io/instance-type",
+		SpotLabelValue: "spot",
+		GpuLabel:       "gamma.co/gpu",
+		GpuLabelValue:  "true",
+	}
+	cp2 := &CustomProvider{Config: &testProviderConfig{customPricing: cp}}
+	if err := cp2.RefreshCustomPricing(); err != nil {
+		t.Fatalf("CustomProvider.RefreshCustomPricing() unexpected error: %v", err)
+	}
+	if cp2.SpotLabel != cp.SpotLabel {
+		t.Errorf("SpotLabel = %q, want %q", cp2.SpotLabel, cp.SpotLabel)
+	}
+	if cp2.GPULabel != cp.GpuLabel {
+		t.Errorf("GPULabel = %q, want %q", cp2.GPULabel, cp.GpuLabel)
+	}
+	if cp2.Pricing["default"] == nil {
+		t.Fatal("Pricing[\"default\"] should not be nil")
+	}
+	if cp2.Pricing["default"].CPU != cp.CPU {
+		t.Errorf("Pricing[\"default\"].CPU = %q, want %q", cp2.Pricing["default"].CPU, cp.CPU)
+	}
+}
+
+func TestCSVProviderRefreshCustomPricing(t *testing.T) {
+	c := &CSVProvider{}
+	if err := c.RefreshCustomPricing(); err != nil {
+		t.Fatalf("CSVProvider.RefreshCustomPricing() unexpected error: %v", err)
 	}
 }

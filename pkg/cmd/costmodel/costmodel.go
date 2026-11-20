@@ -3,6 +3,7 @@ package costmodel
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -24,6 +25,7 @@ import (
 	"github.com/opencost/opencost/pkg/costmodel"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/filemanager"
+	"github.com/opencost/opencost/pkg/inferencecost"
 	opencost_mcp "github.com/opencost/opencost/pkg/mcp"
 	"github.com/opencost/opencost/pkg/metrics"
 )
@@ -51,6 +53,18 @@ func Execute(conf *Config) error {
 			log.Errorf("couldn't start CSV export worker: %v", err)
 		}
 
+		// Register inference cost routes unconditionally so clients receive 501
+		// (not 404) when INFERENCE_COST_ENABLED=false. The QueryService nil-
+		// checks in each handler produce the 501 when qs is nil.
+		var inferenceCostQueryService *inferencecost.QueryService
+		if conf.InferenceCostEnabled {
+			if err := StartInferenceCostCollector(ctx, a, &inferenceCostQueryService); err != nil {
+				log.Errorf("Failed to start inference cost collector: %v", err)
+			}
+		}
+		router.GET("/inferenceCost/total", inferenceCostQueryService.GetInferenceCostTotalHandler())
+		router.GET("/inferenceCost/timeseries", inferenceCostQueryService.GetInferenceCostTimeseriesHandler())
+
 		// Register OpenCost Specific Endpoints
 		router.GET("/allocation", a.ComputeAllocationHandler)
 		router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
@@ -58,6 +72,7 @@ func Execute(conf *Config) error {
 		if conf.CarbonEstimatesEnabled {
 			router.GET("/assets/carbon", a.ComputeAssetsCarbonHandler)
 		}
+		router.GET("/kubemodel", a.KubeModelHandler)
 
 	}
 
@@ -124,6 +139,10 @@ func Execute(conf *Config) error {
 	case <-ctx.Done():
 		log.Infof("Shutdown signal received, starting graceful shutdown...")
 
+		if a.KubeModelPipeline != nil {
+			a.KubeModelPipeline.Stop()
+		}
+
 		if customCostPipelineService != nil {
 			customCostPipelineService.Stop()
 		}
@@ -140,6 +159,39 @@ func Execute(conf *Config) error {
 		log.Infof("Graceful shutdown completed")
 		return nil
 	}
+}
+
+// StartInferenceCostCollector initialises and starts the inference cost
+// collection loop as a background goroutine, and populates *qs with the
+// QueryService so the caller can register routes. It is a no-op if the
+// collector cannot be initialised (error is logged, existing functionality
+// is unaffected).
+func StartInferenceCostCollector(ctx context.Context, a *costmodel.Accesses, qs **inferencecost.QueryService) error {
+	cfg := inferencecost.DefaultConfig()
+
+	// Get the MetricsQuerier from the DataSource
+	metricsQuerier := a.DataSource.Metrics()
+
+	collector, err := inferencecost.NewCollector(cfg, a.Model, metricsQuerier)
+	if err != nil {
+		return err
+	}
+
+	exporter := inferencecost.NewExporter()
+	if err := exporter.Register(); err != nil {
+		return err
+	}
+
+	calculator := inferencecost.NewCalculator(cfg)
+	runner := inferencecost.NewRunner(collector, calculator, exporter, cfg.CollectionInterval)
+
+	// The collector and calculator are shared between the background runner
+	// and the API; both paths are read-only, so sharing is safe.
+	*qs = inferencecost.NewQueryService(collector, calculator)
+
+	go runner.Start(ctx)
+	log.Infof("InferenceCost: collector started (interval=%s)", cfg.CollectionInterval)
+	return nil
 }
 
 func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {
@@ -179,6 +231,16 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) err
 
 // StartMCPServer starts the MCP server as a background service
 func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCostQuerier cloudcost.Querier) error {
+	addr := fmt.Sprintf(":%d", env.GetMCPHTTPPort())
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen for MCP HTTP on %s: %w", addr, err)
+	}
+	startMCPServer(ctx, accesses, cloudCostQuerier, listener)
+	return nil
+}
+
+func startMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCostQuerier cloudcost.Querier, listener net.Listener) <-chan struct{} {
 	log.Info("Initializing MCP server...")
 
 	// Create MCP server using existing OpenCost dependencies
@@ -350,24 +412,21 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 		handler.ServeHTTP(w, req)
 	})
 
-	// Start HTTP server on configured port
-	port := env.GetMCPHTTPPort()
-	log.Infof("Starting MCP HTTP server on port %d...", port)
-
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
 		Handler: loggingHandler,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			log.Errorf("MCP server failed: %v", err)
 		}
 	}()
 
 	// Graceful shutdown goroutine
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		<-ctx.Done()
 		log.Info("Shutting down MCP server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -379,8 +438,8 @@ func StartMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 		}
 	}()
 
-	log.Info("MCP server started successfully")
-	return nil
+	log.Infof("MCP server listening on %s", listener.Addr())
+	return done
 }
 
 // Tool argument structures for MCP server

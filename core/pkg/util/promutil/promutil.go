@@ -96,6 +96,49 @@ func KubePrependQualifierToLabels(m map[string]string, qualifier string) ([]stri
 	return keys, values
 }
 
+// Prepends a qualifier string to the keys provided in the m map and returns a new map with the new
+// keys and values
+func KubePrependQualifierToLabelsMap(labels map[string]string, qualifier string) map[string]string {
+	result := make(map[string]string, len(labels))
+	for k, v := range labels {
+		result[qualifier+SanitizeLabelName(k)] = v
+	}
+	return result
+}
+
+// Prepends a qualifier string to the keys provided in the m1 and m2 maps and returns a new map with the new
+// keys and values merged. Any overlapping keys will be replaced by the second map parameter.
+func KubePrependQualifierToLabelsAndMerge(m1, m2 map[string]string, qualifier string) map[string]string {
+	size := len(m1) + len(m2)
+	if size == 0 {
+		return map[string]string{}
+	}
+
+	result := make(map[string]string, size)
+	for k, v := range m1 {
+		result[qualifier+SanitizeLabelName(k)] = v
+	}
+	for k, v := range m2 {
+		result[qualifier+SanitizeLabelName(k)] = v
+	}
+	return result
+}
+
+// Converts two sources of labels into a single map of prometheus labels
+func KubeLabelsToLabelsMerge(m1, m2 map[string]string) map[string]string {
+	return KubePrependQualifierToLabelsAndMerge(m1, m2, "label_")
+}
+
+// Converts kubernetes labels into a map of prometheus labels
+func KubeLabelsToLabelsMap(labels map[string]string) map[string]string {
+	return KubePrependQualifierToLabelsMap(labels, "label_")
+}
+
+// Converts kubernetes labels into a map of prometheus labels
+func KubeAnnotationsToLabelsMap(labels map[string]string) map[string]string {
+	return KubePrependQualifierToLabelsMap(labels, "annotation_")
+}
+
 // Converts kubernetes labels into prometheus labels.
 func KubeLabelsToLabels(labels map[string]string) ([]string, []string) {
 	return KubePrependQualifierToLabels(labels, "label_")
@@ -109,6 +152,33 @@ func KubeAnnotationsToLabels(labels map[string]string) ([]string, []string) {
 // Replaces all illegal prometheus label characters with _
 func SanitizeLabelName(s string) string {
 	return invalidLabelCharRE.ReplaceAllString(s, "_")
+}
+
+// LookupWithSanitizedFallback looks up key in m, and if not found retries with
+// the Prometheus-sanitized form of key (e.g. "foo.bar/baz" → "foo_bar_baz").
+func LookupWithSanitizedFallback[T any, K ~string](m map[K]T, key K) (T, bool) {
+	if v, ok := m[key]; ok {
+		return v, true
+	}
+	if v, ok := m[K(SanitizeLabelName(string(key)))]; ok {
+		return v, true
+	}
+	var zero T
+	return zero, false
+}
+
+func SanitizedEqual[T ~string, K ~string](t T, k K) bool {
+	st := string(t)
+	kt := string(k)
+	if st == kt {
+		return true
+	}
+
+	if st == SanitizeLabelName(kt) {
+		return true
+	}
+
+	return false
 }
 
 // SanitizeLabels sanitizes all label names in the given map. This may cause

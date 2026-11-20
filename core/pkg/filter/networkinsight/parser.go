@@ -10,6 +10,7 @@ var networkInsightFilterFields []*ast.Field = []*ast.Field{
 	ast.NewField(FieldClusterID),
 	ast.NewField(FieldNamespace),
 	ast.NewField(FieldPod),
+	ast.NewField(FieldAccount),
 }
 
 var fieldMap map[NetworkInsightField]*ast.Field

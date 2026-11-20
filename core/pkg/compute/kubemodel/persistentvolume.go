@@ -1,0 +1,72 @@
+package kubemodel
+
+import (
+	"time"
+
+	"github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/log"
+	"github.com/opencost/opencost/core/pkg/model/kubemodel"
+	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/source"
+)
+
+func (km *KubeModel) computePersistentVolumes(kms *kubemodel.KubeModelSet, start, end time.Time) error {
+	grp := source.NewQueryGroup()
+	metrics := km.ds.Metrics()
+
+	pvInfoResultFuture := source.WithGroup(grp, metrics.QueryKMPVInfo(start, end))
+	pvUptimeResultFuture := source.WithGroup(grp, metrics.QueryPVUptime(start, end))
+	pvBytesResultFuture := source.WithGroup(grp, metrics.QueryPVBytes(start, end))
+
+	pvMap := make(map[string]*kubemodel.PersistentVolume)
+
+	pvInfoResult, _ := pvInfoResultFuture.Await()
+	for _, res := range pvInfoResult {
+		pvMap[res.UID] = &kubemodel.PersistentVolume{
+			UID:          res.UID,
+			Name:         res.PersistentVolume,
+			StorageClass: res.StorageClass,
+			ProviderID:   res.ProviderID,
+		}
+	}
+
+	pvUptimeResult, _ := pvUptimeResultFuture.Await()
+	for _, res := range pvUptimeResult {
+		pv, ok := pvMap[res.UID]
+		if !ok {
+			log.Warnf("persistent volume with UID '%s' has not been initialized to add uptime", res.UID)
+			continue
+		}
+		s, e := res.GetStartEnd(start, end, km.ds.Resolution())
+		pv.Start = s
+		pv.End = e
+	}
+
+	pvBytesResult, _ := pvBytesResultFuture.Await()
+	for _, res := range pvBytesResult {
+		pv, ok := pvMap[res.UID]
+		if !ok {
+			log.Warnf("persistent volume with UID '%s' has not been initialized to add bytes", res.UID)
+			continue
+		}
+
+		pv.SizeBytes = res.Value
+
+	}
+
+	// Local PVs are backed by node local disks, so exclude them along with node
+	// local storage when local disk costs are disabled.
+	includeLocalDisk := env.IsAssetIncludeLocalDiskCost()
+
+	for _, pv := range pvMap {
+		if !includeLocalDisk && opencost.IsLocalPersistentVolume(pv.Name) {
+			continue
+		}
+		err := kms.RegisterPersistentVolume(pv)
+		if err != nil {
+			log.Warnf("Failed to register persistent volume: %s", err.Error())
+		}
+	}
+
+	return nil
+}

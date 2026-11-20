@@ -289,7 +289,7 @@ func buildGPUCountMap(resNodeGPUCount []*source.NodeGPUCountResult) map[NodeIden
 			continue
 		}
 
-		gpuCount := result.Data[0].Value
+		gpuCount := result.GPUCount
 		providerID := result.ProviderID
 
 		key := NodeIdentifier{
@@ -318,13 +318,11 @@ func buildCPUCoresMap(resNodeCPUCores []*source.NodeCPUCoresCapacityResult) map[
 			continue
 		}
 
-		cpuCores := result.Data[0].Value
-
 		key := nodeIdentifierNoProviderID{
 			Cluster: cluster,
 			Name:    name,
 		}
-		m[key] = cpuCores
+		m[key] = result.CPUCores
 	}
 
 	return m
@@ -345,13 +343,11 @@ func buildRAMBytesMap(resNodeRAMBytes []*source.NodeRAMBytesCapacityResult) map[
 			continue
 		}
 
-		ramBytes := result.Data[0].Value
-
 		key := nodeIdentifierNoProviderID{
 			Cluster: cluster,
 			Name:    name,
 		}
-		m[key] = ramBytes
+		m[key] = result.RAMBytes
 	}
 
 	return m

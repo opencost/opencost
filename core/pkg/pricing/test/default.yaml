@@ -1,0 +1,36 @@
+nodePricing:
+  - properties: {}
+    prices:
+      cpu:
+        unit: vCPU-hr
+        price: 0.031611
+      ram:
+        unit: GiB-hr
+        price: 0.004237
+persistentVolumePricing:
+  - properties: {}
+    prices:
+      storage:
+        unit: GiB-hr
+        price: 0.0000581
+networkPricing:
+  - properties: {}
+    prices:
+      local-egress:
+        unit: GiB
+        price: 0.0
+      x-zone-egress:
+        unit: GiB
+        price: 0.01
+      x-region-egress:
+        unit: GiB
+        price: 0.01
+      internet-egress:
+        unit: GiB
+        price: 0.143
+      nat-egress:
+        unit: GiB
+        price: 0.045
+      nat-ingress:
+        unit: GiB
+        price: 0.045

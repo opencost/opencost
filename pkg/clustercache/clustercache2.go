@@ -25,6 +25,7 @@ type KubernetesClusterCacheV2 struct {
 	persistentVolumeClaimStore *GenericStore[*v1.PersistentVolumeClaim, *cc.PersistentVolumeClaim]
 	storageClassStore          *GenericStore[*stv1.StorageClass, *cc.StorageClass]
 	jobStore                   *GenericStore[*batchv1.Job, *cc.Job]
+	cronJobStore               *GenericStore[*batchv1.CronJob, *cc.CronJob]
 	replicationControllerStore *GenericStore[*v1.ReplicationController, *cc.ReplicationController]
 	replicaSetStore            *GenericStore[*appsv1.ReplicaSet, *cc.ReplicaSet]
 	pdbStore                   *GenericStore[*policyv1.PodDisruptionBudget, *cc.PodDisruptionBudget]
@@ -47,6 +48,7 @@ func NewKubernetesClusterCacheV2(clientset kubernetes.Interface) *KubernetesClus
 		statefulSetStore:           CreateStore(clientset.AppsV1().RESTClient(), "statefulsets", cc.TransformStatefulSet),
 		storageClassStore:          CreateStore(clientset.StorageV1().RESTClient(), "storageclasses", cc.TransformStorageClass),
 		jobStore:                   CreateStore(clientset.BatchV1().RESTClient(), "jobs", cc.TransformJob),
+		cronJobStore:               CreateStore(clientset.BatchV1().RESTClient(), "cronjobs", cc.TransformCronJob),
 		pdbStore:                   CreateStore(clientset.PolicyV1().RESTClient(), "poddisruptionbudgets", cc.TransformPodDisruptionBudget),
 		resourceQuotasStore:        CreateStore(clientset.CoreV1().RESTClient(), "resourcequotas", cc.TransformResourceQuota),
 		stopCh:                     make(chan struct{}),
@@ -57,7 +59,7 @@ func (kcc *KubernetesClusterCacheV2) Run() {
 	var wg sync.WaitGroup
 
 	if env.HasKubernetesResourceAccess() {
-		wg.Add(15)
+		wg.Add(16)
 		kcc.namespaceStore.Watch(kcc.stopCh, wg.Done)
 		kcc.nodeStore.Watch(kcc.stopCh, wg.Done)
 		kcc.persistentVolumeClaimStore.Watch(kcc.stopCh, wg.Done)
@@ -71,6 +73,7 @@ func (kcc *KubernetesClusterCacheV2) Run() {
 		kcc.statefulSetStore.Watch(kcc.stopCh, wg.Done)
 		kcc.storageClassStore.Watch(kcc.stopCh, wg.Done)
 		kcc.jobStore.Watch(kcc.stopCh, wg.Done)
+		kcc.cronJobStore.Watch(kcc.stopCh, wg.Done)
 		kcc.pdbStore.Watch(kcc.stopCh, wg.Done)
 		kcc.resourceQuotasStore.Watch(kcc.stopCh, wg.Done)
 	}
@@ -127,6 +130,10 @@ func (kcc *KubernetesClusterCacheV2) GetAllStorageClasses() []*cc.StorageClass {
 
 func (kcc *KubernetesClusterCacheV2) GetAllJobs() []*cc.Job {
 	return kcc.jobStore.GetAll()
+}
+
+func (kcc *KubernetesClusterCacheV2) GetAllCronJobs() []*cc.CronJob {
+	return kcc.cronJobStore.GetAll()
 }
 
 func (kcc *KubernetesClusterCacheV2) GetAllReplicationControllers() []*cc.ReplicationController {

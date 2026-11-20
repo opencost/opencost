@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"reflect"
@@ -57,6 +59,18 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		{
 			input:    "n4-highmem-16",
 			expected: "n4standard",
+		},
+		{
+			input:    "c4-standard-8",
+			expected: "c4standard",
+		},
+		{
+			input:    "c4-highcpu-16",
+			expected: "c4standard",
+		},
+		{
+			input:    "c4-highmem-32-lssd",
+			expected: "c4standard",
 		},
 	}
 
@@ -219,6 +233,39 @@ func TestParsePage(t *testing.T) {
 			pvKeys:         nil,
 			expectedPrices: nil,
 			expectError:    true,
+		},
+		"C4 SKUs": {
+			// The prices in this file are made up; it only has the C4 core and RAM SKUs.
+			inputFile: "./test/c4_skus.json",
+			inputKeys: map[string]models.Key{
+				"us-central1,c4standard,ondemand": &gcpKey{
+					Labels: map[string]string{
+						"node.kubernetes.io/instance-type": "c4-standard-8",
+						"topology.kubernetes.io/region":    "us-central1",
+					},
+				},
+			},
+			pvKeys: map[string]models.PVKey{},
+			expectedPrices: map[string]*GCPPricing{
+				"us-central1,c4standard,ondemand": {
+					Node: &models.Node{
+						VCPUCost:         "0.032",
+						RAMCost:          "0.004",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+				"us-central1,c4standard,ondemand,gpu": {
+					Node: &models.Node{
+						VCPUCost:         "0.032",
+						RAMCost:          "0.004",
+						UsesBaseCPUPrice: false,
+						UsageType:        "ondemand",
+					},
+				},
+			},
+			expectedToken: "done",
+			expectError:   false,
 		},
 		"SKU file": {
 			// NOTE: SKUs here are copied directly from GCP Billing API. Some of them
@@ -456,7 +503,7 @@ func TestGCP_GetManagementPlatform(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gcp := &GCP{
-				Clientset: &mockClusterCache{nodes: tt.nodes},
+				Clientset: &clustercache.MockClusterCache{Nodes: tt.nodes},
 			}
 
 			result, err := gcp.GetManagementPlatform()
@@ -1022,6 +1069,13 @@ func TestSustainedUseDiscount(t *testing.T) {
 			expected:        0.0,
 		},
 		{
+			name:            "C4 instance",
+			class:           "c4",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
 			name:            "N2 instance",
 			class:           "n2",
 			defaultDiscount: 0.30,
@@ -1096,13 +1150,83 @@ func TestGCP_parsePages(t *testing.T) {
 	assert.Error(t, err) // Expect error due to missing API key
 }
 
+func TestGCP_fetchAndParsePage_Non200Status(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "boom")
+	}))
+	defer srv.Close()
+
+	gcp := &GCP{}
+	_, _, err := gcp.fetchAndParsePage(srv.Client(), srv.URL, map[string]models.Key{}, map[string]models.PVKey{})
+	if err == nil {
+		t.Fatal("expected an error for a non-200 response, got nil")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("expected error to include status code 500, got %q", err.Error())
+	}
+}
+
+func TestGCP_fetchAndParsePage_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"skus":[],"nextPageToken":""}`)
+	}))
+	defer srv.Close()
+
+	gcp := &GCP{}
+	page, token, err := gcp.fetchAndParsePage(srv.Client(), srv.URL, map[string]models.Key{}, map[string]models.PVKey{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if token != "done" {
+		t.Errorf("token = %q, want %q", token, "done")
+	}
+	if len(page) != 0 {
+		t.Errorf("page len = %d, want 0", len(page))
+	}
+}
+
+// TestGCP_parsePagesWithClient_Pagination verifies that multi-page traversal
+// sends exactly one pageToken param per request rather than accumulating
+// tokens from earlier pages.
+func TestGCP_parsePagesWithClient_Pagination(t *testing.T) {
+	var pageTokens [][]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokens := r.URL.Query()["pageToken"]
+		pageTokens = append(pageTokens, tokens)
+		w.Header().Set("Content-Type", "application/json")
+		if len(tokens) > 0 && tokens[0] == "tok2" {
+			fmt.Fprint(w, `{"skus": [], "nextPageToken": ""}`)
+		} else {
+			fmt.Fprint(w, `{"skus": [], "nextPageToken": "tok2"}`)
+		}
+	}))
+	defer srv.Close()
+
+	gcp := &GCP{}
+	_, err := gcp.parsePagesWithClient(srv.Client(), srv.URL+"?currencyCode=USD", map[string]models.Key{}, map[string]models.PVKey{})
+	if err != nil {
+		t.Fatalf("parsePagesWithClient: %v", err)
+	}
+
+	if len(pageTokens) != 2 {
+		t.Fatalf("expected 2 page requests, got %d", len(pageTokens))
+	}
+	if len(pageTokens[0]) != 0 {
+		t.Errorf("first request should have no pageToken, got %v", pageTokens[0])
+	}
+	if len(pageTokens[1]) != 1 || pageTokens[1][0] != "tok2" {
+		t.Errorf("second request should have exactly one pageToken (tok2), got %v", pageTokens[1])
+	}
+}
+
 func TestGCP_DownloadPricingData(t *testing.T) {
 	gcp := &GCP{
 		Config: &mockConfig{},
-		Clientset: &mockClusterCache{
-			nodes: []*clustercache.Node{},
-			pvs:   []*clustercache.PersistentVolume{},
-			scs:   []*clustercache.StorageClass{},
+		Clientset: &clustercache.MockClusterCache{
+			Nodes:             []*clustercache.Node{},
+			PersistentVolumes: []*clustercache.PersistentVolume{},
+			StorageClasses:    []*clustercache.StorageClass{},
 		},
 	}
 
@@ -1154,8 +1278,8 @@ func TestGCP_ApplyReservedInstancePricing(t *testing.T) {
 				},
 			},
 		},
-		Clientset: &mockClusterCache{
-			nodes: []*clustercache.Node{
+		Clientset: &clustercache.MockClusterCache{
+			Nodes: []*clustercache.Node{
 				{
 					Name: "test-node",
 					Labels: map[string]string{
@@ -1334,57 +1458,22 @@ func (m *mockConfig) ConfigFileManager() *config.ConfigFileManager {
 	return nil
 }
 
-type mockClusterCache struct {
-	nodes []*clustercache.Node
-	pvs   []*clustercache.PersistentVolume
-	scs   []*clustercache.StorageClass
-}
-
-func (m *mockClusterCache) GetAllNodes() []*clustercache.Node {
-	return m.nodes
-}
-
-func (m *mockClusterCache) GetAllDaemonSets() []*clustercache.DaemonSet {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllDeployments() []*clustercache.Deployment {
-	return nil
-}
-
-func (m *mockClusterCache) Run()                                                      {}
-func (m *mockClusterCache) Stop()                                                     {}
-func (m *mockClusterCache) GetAllNamespaces() []*clustercache.Namespace               { return nil }
-func (m *mockClusterCache) GetAllPods() []*clustercache.Pod                           { return nil }
-func (m *mockClusterCache) GetAllServices() []*clustercache.Service                   { return nil }
-func (m *mockClusterCache) GetAllStatefulSets() []*clustercache.StatefulSet           { return nil }
-func (m *mockClusterCache) GetAllReplicaSets() []*clustercache.ReplicaSet             { return nil }
-func (m *mockClusterCache) GetAllPersistentVolumes() []*clustercache.PersistentVolume { return m.pvs }
-func (m *mockClusterCache) GetAllPersistentVolumeClaims() []*clustercache.PersistentVolumeClaim {
-	return nil
-}
-func (m *mockClusterCache) GetAllStorageClasses() []*clustercache.StorageClass { return m.scs }
-func (m *mockClusterCache) GetAllJobs() []*clustercache.Job                    { return nil }
-func (m *mockClusterCache) GetAllPodDisruptionBudgets() []*clustercache.PodDisruptionBudget {
-	return nil
-}
-func (m *mockClusterCache) GetAllReplicationControllers() []*clustercache.ReplicationController {
-	return nil
-}
-
-func (m *mockClusterCache) GetAllResourceQuotas() []*clustercache.ResourceQuota {
-	return nil
-}
-
-type mockMetadataClient struct{}
-
-func (m *mockMetadataClient) InstanceAttributeValue(attr string) (string, error) {
-	if attr == "cluster-name" {
-		return "test-cluster", nil
+func TestGCPRefreshCustomPricing(t *testing.T) {
+	gcp := &GCP{Config: &mockConfig{}}
+	if err := gcp.RefreshCustomPricing(); err != nil {
+		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
 	}
-	return "", fmt.Errorf("attribute not found")
+	// mockConfig returns an empty CustomPricing; verify fields are updated (to "")
+	if gcp.BaseCPUPrice != "" {
+		t.Errorf("BaseCPUPrice = %q, want empty string", gcp.BaseCPUPrice)
+	}
 }
 
-func (m *mockMetadataClient) ProjectID() (string, error) {
-	return "test-project", nil
+func TestCombinedDiscountForC4Node(t *testing.T) {
+	gcp := &GCP{}
+
+	// C4 gets no sustained use discount, only the negotiated one.
+	assert.InDelta(t, 0.1, gcp.CombinedDiscountForNode("c4-standard-8", false, 0.30, 0.1), 1e-9)
+	// N1 still gets the default sustained use discount on top of the negotiated one.
+	assert.InDelta(t, 1-(1-0.30)*(1-0.1), gcp.CombinedDiscountForNode("n1-standard-8", false, 0.30, 0.1), 1e-9)
 }

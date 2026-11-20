@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"maps"
 	"math"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/core/pkg/clusters"
+	coreenv "github.com/opencost/opencost/core/pkg/env"
 	"github.com/opencost/opencost/core/pkg/errors"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
@@ -356,13 +358,13 @@ func NewCostModelMetricsEmitter(clusterCache clustercache.ClusterCache, provider
 	// init will only actually execute once to register the custom gauges
 	initCostModelMetrics(clusterInfo, metricsConfig)
 
-	metrics.InitKubeMetrics(clusterCache, metricsConfig, &metrics.KubeMetricsOpts{
+	metrics.InitKubeMetrics(clusterInfo, clusterCache, metricsConfig, &metrics.KubeMetricsOpts{
 		EmitKubecostControllerMetrics: true,
-		EmitNamespaceAnnotations:      env.IsEmitNamespaceAnnotationsMetric(),
-		EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),
-		EmitKubeStateMetrics:          env.IsEmitKsmV1Metrics(),
-		EmitKubeStateMetricsV1Only:    env.IsEmitKsmV1MetricsOnly(),
-		EmitDeprecatedMetrics:         env.IsEmitDeprecatedMetrics(),
+		EmitNamespaceAnnotations:      coreenv.IsEmitNamespaceAnnotationsMetric(),
+		EmitPodAnnotations:            coreenv.IsEmitPodAnnotationsMetric(),
+		EmitKubeStateMetrics:          coreenv.IsEmitKsmV1Metrics(),
+		EmitKubeStateMetricsV1Only:    coreenv.IsEmitKsmV1MetricsOnly(),
+		EmitDeprecatedMetrics:         coreenv.IsEmitDeprecatedMetrics(),
 	})
 
 	metrics.InitOpencostTelemetry(metricsConfig)
@@ -671,23 +673,11 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					cmme.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName, podUID).Set(costs.CPUAllocation[0].Value)
 				}
 				if len(costs.GPUReq) > 0 {
-					// allocation here is set to the request because shared GPU usage not yet supported.
-					// if VPGUs, request x (actual/virtual)
-					vgpu := 0.0
-					gpu := 0.0
-					var err, verr error
-					if matchedNode, found := nodes[nodeName]; found {
-						vgpu, verr = strconv.ParseFloat(matchedNode.VGPU, 64)
-						gpu, err = strconv.ParseFloat(matchedNode.GPU, 64)
-					} else {
+					matchedNode, found := nodes[nodeName]
+					if !found {
 						log.Tracef("cost data for node %s had GPUReq, but there was no cost data available for the node", nodeName)
-						log.Trace("defaulting GPU to 0 cost")
 					}
-
-					gpualloc := costs.GPUReq[0].Value
-					if verr != nil && err != nil && vgpu != 0 {
-						gpualloc = gpualloc * (gpu / vgpu)
-					}
+					gpualloc := gpuAllocationForRequest(costs.GPUReq[0].Value, matchedNode)
 
 					podUID := podUIDs[podName]
 					cmme.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName, podUID).Set(gpualloc)
@@ -704,7 +694,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			storageClasses := cmme.KubeClusterCache.GetAllStorageClasses()
 			storageClassMap := make(map[string]map[string]string)
 			for _, storageClass := range storageClasses {
-				params := storageClass.Parameters
+				params := maps.Clone(storageClass.Parameters)
 				storageClassMap[storageClass.Name] = params
 				if storageClass.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.Annotations["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 					storageClassMap["default"] = params
@@ -863,6 +853,22 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 	}()
 
 	return true
+}
+
+// gpuAllocationForRequest converts a container GPU request into physical GPUs.
+// When a node advertises more virtual GPUs than physical ones (time-slicing or
+// MPS replicas, AWS vGPU), each requested replica is a fraction of a GPU, so
+// the request is scaled by GPU/VGPU.
+func gpuAllocationForRequest(request float64, node *models.Node) float64 {
+	if node == nil {
+		return request
+	}
+	vgpu, verr := strconv.ParseFloat(node.VGPU, 64)
+	gpu, err := strconv.ParseFloat(node.GPU, 64)
+	if err != nil || verr != nil || vgpu == 0 || math.IsNaN(vgpu) || math.IsNaN(gpu) {
+		return request
+	}
+	return request * (gpu / vgpu)
 }
 
 // Stop halts the metrics emission loop after the current emission is completed
