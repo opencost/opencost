@@ -229,7 +229,7 @@ func TestCustomProviderClusterInfoUsesStaticDefaultName(t *testing.T) {
 func TestCustomProviderLoadBalancerPricingEmptyConfig(t *testing.T) {
 	customProvider := newTestCustomProvider(t, nil)
 
-	lb, err := customProvider.LoadBalancerPricing()
+	lb, err := customProvider.LoadBalancerPricing(nil)
 	if err != nil {
 		t.Fatalf("LoadBalancerPricing returned error: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestCustomProviderLoadBalancerPricingUsesDefaultLBPriceFallback(t *testing.
 		"defaultLBPrice": "0.025",
 	})
 
-	lb, err := customProvider.LoadBalancerPricing()
+	lb, err := customProvider.LoadBalancerPricing(nil)
 	if err != nil {
 		t.Fatalf("LoadBalancerPricing returned error: %v", err)
 	}
@@ -258,7 +258,7 @@ func TestCustomProviderLoadBalancerPricingUsesForwardingRulePrice(t *testing.T) 
 		"defaultLBPrice":               "0.025",
 	})
 
-	lb, err := customProvider.LoadBalancerPricing()
+	lb, err := customProvider.LoadBalancerPricing(nil)
 	if err != nil {
 		t.Fatalf("LoadBalancerPricing returned error: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestCustomProviderLoadBalancerPricingInvalidValue(t *testing.T) {
 		"firstFiveForwardingRulesCost": "not-a-price",
 	})
 
-	_, err := customProvider.LoadBalancerPricing()
+	_, err := customProvider.LoadBalancerPricing(nil)
 	if err == nil {
 		t.Fatal("LoadBalancerPricing returned nil error, want invalid pricing error")
 	}

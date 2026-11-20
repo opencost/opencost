@@ -788,22 +788,21 @@ func fallbackPV(key models.PVKey) (*models.PV, error) {
 // - Public Network Load Balancer:       ~$0.02232/hr
 // - Statically sized Load Balancers:    $0.01786–$0.10714/hr
 //
-// However, the current OpenCost provider interface does not pass information about
-// individual Load Balancer characteristics (like annotations or network mode).
+// The provider interface has been updated to accept models.LBKey.
 //
-// As a result, this implementation uses a fixed average hourly rate of $0.02,
-// which is representative of the most common DO LBs.
+// However, the current implementation still uses a fixed average hourly rate of $0.02,
+// which is representative of the most common DO LBs, because the key is not yet used for
+// pricing selection.
 //
-// TODO Once the provider interface supports more granular Load Balancer metadata,
-// this method should be updated to assign costs more precisely.
-func (do *DOKS) LoadBalancerPricing() (*models.LoadBalancer, error) {
+// TODO: Update this method to use the key for assigning costs more precisely when dynamic lookup is supported.
+func (do *DOKS) LoadBalancerPricing(key models.LBKey) (*models.LoadBalancer, error) {
 	hourlyCost := 0.02
 	return &models.LoadBalancer{
 		Cost: hourlyCost,
 	}, nil
 }
 
-func (do *DOKS) NetworkPricing() (*models.Network, error) {
+func (do *DOKS) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	// fallback
 	const (
 		defaultZoneEgress        = 0.00
