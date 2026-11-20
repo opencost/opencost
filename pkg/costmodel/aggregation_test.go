@@ -326,6 +326,24 @@ func TestResolveStepFromQuery(t *testing.T) {
 			accumulateBy: opencost.AccumulateOptionNone,
 			expectErr:    true,
 		},
+		{
+			name:         "zero duration errors",
+			stepRaw:      "0s",
+			accumulateBy: opencost.AccumulateOptionNone,
+			expectErr:    true,
+		},
+		{
+			name:         "bare zero errors",
+			stepRaw:      "0",
+			accumulateBy: opencost.AccumulateOptionAll,
+			expectErr:    true,
+		},
+		{
+			name:         "negative duration errors",
+			stepRaw:      "-1h",
+			accumulateBy: opencost.AccumulateOptionNone,
+			expectErr:    true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -497,6 +515,33 @@ func TestComputeAllocationHandlerSummary_InvalidWindow_Returns400(t *testing.T) 
 	}
 	if !strings.Contains(w.Body.String(), "Invalid 'window' parameter") {
 		t.Fatalf("expected invalid window error in body, got: %q", w.Body.String())
+	}
+}
+
+// A step of zero or less never advances the query loop, so the handlers must
+// reject it with a 400 before reaching the (nil, in this test) Model.
+func TestAllocationHandlers_NonPositiveStep_Returns400(t *testing.T) {
+	a := &Accesses{}
+	handlers := map[string]func(http.ResponseWriter, *http.Request, httprouter.Params){
+		"/allocation":         a.ComputeAllocationHandler,
+		"/allocation/summary": a.ComputeAllocationHandlerSummary,
+	}
+
+	for path, handler := range handlers {
+		for _, step := range []string{"0s", "-1h"} {
+			t.Run(path+"?step="+step, func(t *testing.T) {
+				r, _ := http.NewRequest(http.MethodGet, path+"?window=7d&step="+step, nil)
+				w := httptest.NewRecorder()
+				handler(w, r, httprouter.Params{})
+
+				if w.Code != http.StatusBadRequest {
+					t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+				}
+				if !strings.Contains(w.Body.String(), "greater than zero") {
+					t.Fatalf("expected non-positive step error in body, got: %q", w.Body.String())
+				}
+			})
+		}
 	}
 }
 
