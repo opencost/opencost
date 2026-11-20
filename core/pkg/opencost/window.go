@@ -20,7 +20,7 @@ var (
 	durationOffsetRegex = regexp.MustCompile(`^(\d+)(m|h|d|w) offset (\d+)(m|h|d|w)$`)
 	offesetRegex        = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
 	rfc3339             = `\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ`
-	rfcRegex            = regexp.MustCompile(fmt.Sprintf(`(%s),(%s)`, rfc3339, rfc3339))
+	rfcRegex            = regexp.MustCompile(fmt.Sprintf(`^(%s),(%s)$`, rfc3339, rfc3339))
 	timestampPairRegex  = regexp.MustCompile(`^(\d+)[,|-](\d+)$`)
 
 	utcOffsetLock sync.Mutex
@@ -330,8 +330,14 @@ func parseWindow(window string, now time.Time) (Window, error) {
 	// Match RFC3339 pairs, e.g. "2020-04-01T00:00:00Z,2020-04-03T00:00:00Z"
 	match = rfcRegex.FindStringSubmatch(window)
 	if match != nil {
-		start, _ := time.Parse(time.RFC3339, match[1])
-		end, _ := time.Parse(time.RFC3339, match[2])
+		start, err := time.Parse(time.RFC3339, match[1])
+		if err != nil {
+			return Window{nil, nil}, fmt.Errorf("illegal window: %s: %w", window, err)
+		}
+		end, err := time.Parse(time.RFC3339, match[2])
+		if err != nil {
+			return Window{nil, nil}, fmt.Errorf("illegal window: %s: %w", window, err)
+		}
 		return NewWindow(&start, &end), nil
 	}
 
