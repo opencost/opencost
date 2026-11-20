@@ -220,13 +220,10 @@ func NewContainerMetricFrom(result *source.ContainerMetricResult, defaultCluster
 	}
 
 	nodeName := result.Node
-	if !isValidNodeName(nodeName) {
-		return nil, fmt.Errorf(invalidNodeNameErrFmt, nodeName)
-	}
-
 	if nodeName == "" {
 		log.Debugf("metric vector does not have node name")
-		nodeName = ""
+	} else if !isValidNodeName(nodeName) {
+		return nil, fmt.Errorf(invalidNodeNameErrFmt, nodeName)
 	}
 
 	clusterID := result.Cluster
