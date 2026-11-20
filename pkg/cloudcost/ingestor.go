@@ -2,6 +2,7 @@ package cloudcost
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -142,11 +143,27 @@ func (ing *ingestor) Start(rebuild bool) {
 	ing.exitBuildCh = make(chan string)
 	ing.exitRunCh = make(chan string)
 
+	skipFirstMonthToDate := ing.firstRunSkipsMonthToDate(rebuild)
+
 	// Build the store once, advancing backward in time from the earliest
 	// point of coverage.
 	go ing.build(rebuild)
 
-	go ing.run()
+	go ing.run(skipFirstMonthToDate)
+}
+
+// firstRunSkipsMonthToDate is true when build() refetches everything: on a rebuild, or when nothing is cached
+// (ingestors recreated on a config change reuse the repository, and build() skips cached windows).
+func (ing *ingestor) firstRunSkipsMonthToDate(rebuild bool) bool {
+	if rebuild {
+		return true
+	}
+	keys, err := ing.repo.Keys()
+	if err != nil {
+		log.Warnf("CloudCost[%s]: ingestor: failed to list repository keys, keeping the month-to-date refresh: %s", ing.key, err)
+		return false
+	}
+	return !slices.Contains(keys, ing.key)
 }
 
 func (ing *ingestor) Stop() {
@@ -263,14 +280,14 @@ func (ing *ingestor) build(rebuild bool) {
 
 }
 
-func (ing *ingestor) run() {
+func (ing *ingestor) run(skipFirstMonthToDate bool) {
 	defer errors.HandlePanic()
 
 	ticker := timeutil.NewJobTicker()
 	defer ticker.Close()
 	ticker.TickIn(0)
 
-	for {
+	for first := true; ; first = false {
 		// If an exit instruction is received, break the run loop
 		select {
 		case <-ing.exitRunCh:
@@ -280,21 +297,11 @@ func (ing *ingestor) run() {
 			// Wait for next tick
 		}
 
-		// Start from the last covered time, minus the RunWindow
-		start := ing.lastRun
-		start = start.Add(-ing.config.RunWindow)
-
-		// Every Nth (determined by the MonthToDateRunInterval) run should be a month to date run. Where the start is
-		// truncated to the beginning of its current month this can mean that early in a new month we will build all of
-		// last month and the first few days of the current month.
-		if ing.runs%ing.config.MonthToDateRunInterval == 0 {
-			start = time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
-			log.Infof("CloudCost[%s]: ingestor: Run[%s]: running month-to-date update starting at %s", ing.key, ing.runID, start.String())
+		monthToDate := ing.runs%ing.config.MonthToDateRunInterval == 0 && !(first && skipFirstMonthToDate)
+		s := ing.runStart(ing.retentionLimit(), monthToDate)
+		if monthToDate {
+			log.Infof("CloudCost[%s]: ingestor: Run[%s]: running month-to-date update starting at %s", ing.key, ing.runID, s.String())
 		}
-
-		// Round start time back to the nearest Resolution point in the past from the
-		// last update to the QueryWindow
-		s := opencost.RoundBack(start.UTC(), ing.config.Resolution)
 		e := s.Add(ing.config.QueryWindow)
 
 		// Start with a window of the configured Duration and starting on the given
@@ -318,7 +325,7 @@ func (ing *ingestor) run() {
 		}
 		ing.lastRun = time.Now().UTC()
 
-		limit := opencost.RoundBack(time.Now().UTC(), ing.config.Resolution).Add(-ing.config.Duration)
+		limit := ing.retentionLimit()
 		err := ing.repo.Expire(limit)
 		if err != nil {
 			log.Errorf("CloudCost: Ingestor: failed to expire Data: %s", err)
@@ -332,6 +339,25 @@ func (ing *ingestor) run() {
 
 		ticker.TickIn(ing.config.RefreshRate)
 	}
+}
+
+func (ing *ingestor) retentionLimit() time.Time {
+	return opencost.RoundBack(time.Now().UTC(), ing.config.Resolution).Add(-ing.config.Duration)
+}
+
+// runStart returns where a run begins: RunWindow before the last run, or for a month-to-date run the 1st of
+// that month (the previous month during its first days). It never starts before limit, because anything older
+// is expired as soon as the run ends and would only inflate the repository until then.
+func (ing *ingestor) runStart(limit time.Time, monthToDate bool) time.Time {
+	start := ing.lastRun.Add(-ing.config.RunWindow).UTC()
+	if monthToDate {
+		start = time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
+	}
+	s := opencost.RoundBack(start, ing.config.Resolution)
+	if s.Before(limit) {
+		return limit
+	}
+	return s
 }
 
 func (ing *ingestor) expandCoverage(window opencost.Window) {
