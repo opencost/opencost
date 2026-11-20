@@ -292,7 +292,7 @@ func parseWindow(window string, now time.Time) (Window, error) {
 			offUnit = 24 * time.Hour
 		}
 		if match[4] == "w" {
-			offUnit = 24 * timeutil.Week
+			offUnit = timeutil.Week
 		}
 
 		offNum, _ := strconv.ParseInt(match[3], 10, 64)
