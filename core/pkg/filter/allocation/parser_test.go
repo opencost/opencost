@@ -149,6 +149,23 @@ func TestFailingParses(t *testing.T) {
 			input:  `((namespace:"kubecost")`,
 			errors: 1,
 		},
+		// A "+" in a URL query string that was not percent-encoded reaches the
+		// parser as a space, so these must be errors and not a shorter filter.
+		{
+			name:   "Missing Group Op Between Comparisons",
+			input:  `namespace:"kubecost" cluster:"bar"`,
+			errors: 1,
+		},
+		{
+			name:   "Trailing Token After Single Comparison",
+			input:  `namespace:"kubecost" "bar"`,
+			errors: 1,
+		},
+		{
+			name:   "Trailing Comparison After Group",
+			input:  `(namespace:"kubecost" + cluster:"bar") controllerKind:"deployment"`,
+			errors: 1,
+		},
 		{
 			name:   "Or And Mixing",
 			input:  `namespace:"kubecost" | services~:"foo" + cluster:"bar"`,
