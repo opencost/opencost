@@ -241,6 +241,3 @@ func seq(n int) []int {
 	}
 	return s
 }
-
-//go:fix inline
-func ptr[T any](v T) *T { return new(v) }
