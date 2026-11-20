@@ -63,7 +63,7 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 		customPricing := new(models.CustomPricing)
 		err := json.Unmarshal(data, customPricing)
 		if err != nil {
-			log.Infof("Could not decode Custom Pricing file at path %s. Using default.", pc.configFile.Path())
+			log.Warnf("Could not decode Custom Pricing file at path %s: %s. Using default pricing.", pc.configFile.Path(), err)
 			customPricing = DefaultPricing()
 		}
 
@@ -126,7 +126,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPrici
 	var customPricing models.CustomPricing
 	err = json.Unmarshal(byteValue, &customPricing)
 	if err != nil {
-		log.Infof("Could not decode Custom Pricing file at path %s", pc.configFile.Path())
+		log.DedupedWarningf(5, "Could not decode Custom Pricing file at path %s: %s. Using default pricing.", pc.configFile.Path(), err)
 		return DefaultPricing(), err
 	}
 

@@ -918,10 +918,12 @@ func (cm *CostModel) GetPVCost(pv *costAnalyzerCloud.PV, kpv *clustercache.Persi
 
 	pvWithCost, err := cp.PVPricing(key)
 	if err != nil {
+		log.DedupedWarningf(5, "Could not get pricing for PV %s: %s. Falling back to the default storage price.", kpv.Name, err)
 		pv.Cost = cfg.Storage
 		return err
 	}
 	if pvWithCost == nil || pvWithCost.Cost == "" {
+		log.DedupedWarningf(5, "No pricing found for PV %s (%s). Falling back to the default storage price.", kpv.Name, key.Features())
 		pv.Cost = cfg.Storage
 		return nil // set default cost
 	}
@@ -973,7 +975,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 			cnode = &c
 		}
 		if err != nil {
-			log.DedupedInfof(10, "Could not get node pricing for node %s: %s. Falling back to default pricing.", name, err.Error())
+			log.DedupedWarningf(10, "Could not get node pricing for node %s: %s. Falling back to default pricing.", name, err.Error())
 			if cnode != nil {
 				nodes[name] = cnode
 				continue
@@ -1239,7 +1241,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 						return nil, err
 					}
 				} else { // add case to use default pricing model when API data fails.
-					log.Debugf("No node price or CPUprice found, falling back to default")
+					log.DedupedWarningf(10, "No node price or CPU price found for node %s. Falling back to default pricing.", name)
 					nodePrice = defaultCPU*cpu + defaultRAM*ram + gpuc*defaultGPU
 				}
 				if math.IsNaN(nodePrice) {
@@ -1327,7 +1329,7 @@ func (cm *CostModel) GetNodeCost() (map[string]*costAnalyzerCloud.Node, error) {
 					return nil, err
 				}
 			} else { // add case to use default pricing model when API data fails.
-				log.Debugf("No node price or CPUprice found, falling back to default")
+				log.DedupedWarningf(10, "No node price or CPU price found for node %s. Falling back to default pricing.", name)
 				nodePrice = defaultCPU*cpu + defaultRAM*ramGB
 			}
 			if math.IsNaN(nodePrice) {
