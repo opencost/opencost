@@ -6,7 +6,7 @@ import (
 )
 
 // Merging sets grouped by the same dimensions keeps the keys derived from the
-// caller's label config, which the merged set does not have.
+// caller's label config.
 func TestAssetSetRange_KeepsLabelConfigKeys(t *testing.T) {
 	day := 24 * time.Hour
 	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
@@ -103,6 +103,10 @@ func TestAssetSetRange_MixedAggregationKeys(t *testing.T) {
 	day := 24 * time.Hour
 	cluster := string(AssetClusterProp)
 	name := string(AssetNameProp)
+	team := string(AssetTeamProp)
+	labelConfig := NewLabelConfig()
+	labelConfig.TeamExternalLabel = "my_team"
+	opts := &AssetAggregationOptions{LabelConfig: labelConfig}
 	cases := []struct {
 		name                string
 		destination, source []string
@@ -111,16 +115,20 @@ func TestAssetSetRange_MixedAggregationKeys(t *testing.T) {
 		{"grouped and raw", []string{cluster}, nil, "cluster1"},
 		{"different dimension order", []string{cluster, name}, []string{name, cluster}, "cluster1/node1"},
 		{"explicit empty and default", []string{}, nil, ""},
+		{"explicit empty and grouped", []string{}, []string{cluster}, ""},
+		{"custom label and raw", []string{cluster, team}, nil, "cluster1/infra"},
+		{"different custom label order", []string{cluster, team}, []string{team, cluster}, "cluster1/infra"},
 	}
 
 	newSet := func(t *testing.T, start time.Time, keys []string, cost float64) *AssetSet {
 		t.Helper()
 		end := start.Add(day)
 		node := NewNode("node1", "cluster1", "i-node1", start, end, NewClosedWindow(start, end))
+		node.SetLabels(AssetLabels{"my_team": "infra"})
 		node.CPUCost = cost
 		as := NewAssetSet(start, end, node)
 		if keys != nil {
-			if err := as.AggregateBy(keys, nil); err != nil {
+			if err := as.AggregateBy(keys, opts); err != nil {
 				t.Fatalf("AggregateBy: %v", err)
 			}
 		}
@@ -129,24 +137,13 @@ func TestAssetSetRange_MixedAggregationKeys(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			check := func(t *testing.T, got *AssetSet) {
-				t.Helper()
-				asset, ok := got.Assets[tc.wantKey]
-				if !ok || len(got.Assets) != 1 {
-					t.Fatalf("keys = %q, want only %q", keysOfSet(got), tc.wantKey)
-				}
-				if got := asset.TotalCost(); got != 30 {
-					t.Fatalf("cost = %v, want 30", got)
-				}
-			}
-
 			t.Run("InsertRange", func(t *testing.T) {
 				dst := newSet(t, start, tc.destination, 10)
 				src := newSet(t, start, tc.source, 20)
 				if err := NewAssetSetRange(dst).InsertRange(NewAssetSetRange(src)); err != nil {
 					t.Fatalf("InsertRange: %v", err)
 				}
-				check(t, dst)
+				assertAssetSetKeyCost(t, dst, tc.wantKey, 30)
 			})
 
 			t.Run("AccumulateToAssetSet", func(t *testing.T) {
@@ -156,7 +153,7 @@ func TestAssetSetRange_MixedAggregationKeys(t *testing.T) {
 				if err != nil {
 					t.Fatalf("AccumulateToAssetSet: %v", err)
 				}
-				check(t, got)
+				assertAssetSetKeyCost(t, got, tc.wantKey, 30)
 			})
 
 			t.Run("Accumulate all", func(t *testing.T) {
@@ -169,8 +166,55 @@ func TestAssetSetRange_MixedAggregationKeys(t *testing.T) {
 				if len(got.Assets) != 1 {
 					t.Fatalf("sets = %d, want 1", len(got.Assets))
 				}
-				check(t, got.Assets[0])
+				assertAssetSetKeyCost(t, got.Assets[0], tc.wantKey, 30)
 			})
 		})
+	}
+
+	t.Run("populated default grouping", func(t *testing.T) {
+		left := newSet(t, start, nil, 10)
+		wantKey := keysOfSet(left)[0]
+		right := newSet(t, start.Add(day), []string{cluster}, 20)
+		got, err := NewAssetSetRange(left, right).AccumulateToAssetSet()
+		if err != nil {
+			t.Fatalf("AccumulateToAssetSet: %v", err)
+		}
+		assertAssetSetKeyCost(t, got, wantKey, 30)
+	})
+
+	t.Run("inherit after an unconfigured empty set", func(t *testing.T) {
+		left := NewAssetSet(start, start.Add(day))
+		grouped := newSet(t, start.Add(day), []string{cluster, team}, 10)
+		raw := newSet(t, start.Add(2*day), nil, 20)
+		got, err := NewAssetSetRange(left, grouped, raw).AccumulateToAssetSet()
+		if err != nil {
+			t.Fatalf("AccumulateToAssetSet: %v", err)
+		}
+		assertAssetSetKeyCost(t, got, "cluster1/infra", 30)
+	})
+
+	t.Run("keep grouping across consecutive empty sets", func(t *testing.T) {
+		left := NewAssetSet(start, start.Add(day))
+		if err := left.AggregateBy([]string{}, nil); err != nil {
+			t.Fatalf("AggregateBy: %v", err)
+		}
+		empty := NewAssetSet(start.Add(day), start.Add(2*day))
+		right := newSet(t, start.Add(2*day), []string{cluster}, 20)
+		got, err := NewAssetSetRange(left, empty, right).AccumulateToAssetSet()
+		if err != nil {
+			t.Fatalf("AccumulateToAssetSet: %v", err)
+		}
+		assertAssetSetKeyCost(t, got, "", 20)
+	})
+}
+
+func assertAssetSetKeyCost(t *testing.T, as *AssetSet, key string, wantCost float64) {
+	t.Helper()
+	asset, ok := as.Assets[key]
+	if !ok || len(as.Assets) != 1 {
+		t.Fatalf("keys = %q, want only %q", keysOfSet(as), key)
+	}
+	if got := asset.TotalCost(); got != wantCost {
+		t.Fatalf("cost = %v, want %v", got, wantCost)
 	}
 }
