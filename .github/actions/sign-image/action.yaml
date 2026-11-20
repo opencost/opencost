@@ -1,7 +1,8 @@
 name: 'Sign Container Image'
 description: >-
-  Sign a container image and attest SLSA v1 build provenance using cosign
-  keyless (Sigstore) with GitHub Actions OIDC. Callers must check out the
+  Sign a multi-platform container image and each of its platform images, and
+  attest SLSA v1 build provenance and a per-platform CycloneDX SBOM, using
+  cosign keyless (Sigstore) with GitHub Actions OIDC. Callers must check out the
   source tree (e.g. `actions/checkout`) before invoking this action — the
   built commit is resolved with `git rev-parse HEAD` so the attestation
   records the revision that was actually built. The calling job must
@@ -9,7 +10,7 @@ description: >-
 
 inputs:
     image:
-        description: 'Full image reference (registry/repo:tag) to sign by digest.'
+        description: 'Full image reference (registry/repo:tag) of a multi-platform index to sign by digest.'
         required: true
     workflow-path:
         description: 'Path to the workflow file (repo-relative) that triggered the build.'
@@ -35,12 +36,19 @@ runs:
           echo "STARTED_ON=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@v4.1.3
+        with:
+          cosign-release: 'v3.1.4'
 
       - name: Install crane
-        uses: imjasonh/setup-crane@v0.5
+        uses: imjasonh/setup-crane@v0.7
 
-      - name: Resolve image digest
+      - name: Install trivy
+        uses: aquasecurity/setup-trivy@v0.3.1
+        with:
+          version: v0.76.2
+
+      - name: Resolve image digests
         id: digest
         shell: bash
         env:
@@ -51,16 +59,35 @@ runs:
           REPO="${IMAGE%:*}"
           REF="${REPO}@${DIGEST}"
           echo "Resolved ${IMAGE} -> ${REF}"
-          echo "REF=${REF}" >> "$GITHUB_OUTPUT"
-          echo "DIGEST=${DIGEST}" >> "$GITHUB_OUTPUT"
 
-      - name: Sign image with cosign (keyless)
+          # One "os/arch[/variant] digest" line per platform image in the index.
+          PLATFORMS="${RUNNER_TEMP}/platforms.txt"
+          crane manifest "${REF}" | jq -r '.manifests[]?
+            | select(.platform.os != "unknown")
+            | "\(.platform.os)/\(.platform.architecture)\(if .platform.variant then "/" + .platform.variant else "" end) \(.digest)"' > "${PLATFORMS}"
+          if [[ ! -s "${PLATFORMS}" ]]; then
+            echo "::error::${REF} is not a multi-platform index"
+            exit 1
+          fi
+          cat "${PLATFORMS}"
+
+          echo "REF=${REF}" >> "$GITHUB_OUTPUT"
+          echo "REPO=${REPO}" >> "$GITHUB_OUTPUT"
+          echo "DIGEST=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "PLATFORMS=${PLATFORMS}" >> "$GITHUB_OUTPUT"
+
+      # Everything is signed and attested twice: as Sigstore bundles via OCI referrers (cosign v3
+      # default), and in the legacy .sig/.att tag format that cosign v2 clients, existing admission
+      # policies and tag-only mirrors read. Drop LEGACY_FORMAT once consumers have moved to bundles.
+      - name: Sign image and platform images with cosign (keyless)
         shell: bash
         env:
           REF: ${{ steps.digest.outputs.REF }}
+          LEGACY_FORMAT: --new-bundle-format=false --use-signing-config=false
         run: |
           set -euo pipefail
-          cosign sign --yes "${REF}"
+          cosign sign --yes --recursive "${REF}"
+          cosign sign --yes --recursive ${LEGACY_FORMAT} "${REF}"
 
       - name: Generate SLSA v1 provenance predicate
         shell: bash
@@ -121,13 +148,38 @@ runs:
           print(json.dumps(predicate, indent=2))
           PY
 
+      # `cosign attest` has no --recursive, so each platform image is attested on its own.
+      # The loops read the list on fd 3 so cosign and trivy can't consume it from stdin.
       - name: Attest SLSA provenance with cosign
         shell: bash
         env:
           REF: ${{ steps.digest.outputs.REF }}
+          REPO: ${{ steps.digest.outputs.REPO }}
+          PLATFORMS: ${{ steps.digest.outputs.PLATFORMS }}
+          LEGACY_FORMAT: --new-bundle-format=false --use-signing-config=false
         run: |
           set -euo pipefail
-          cosign attest --yes \
-            --predicate predicate.json \
-            --type slsaprovenance1 \
-            "${REF}"
+          attest() {
+            cosign attest --yes --predicate predicate.json --type slsaprovenance1 "$1"
+            cosign attest --yes --predicate predicate.json --type slsaprovenance1 ${LEGACY_FORMAT} "$1"
+          }
+          attest "${REF}"
+          while read -r -u 3 _ digest; do
+            attest "${REPO}@${digest}"
+          done 3< "${PLATFORMS}"
+
+      - name: Attest per-platform CycloneDX SBOMs with cosign
+        shell: bash
+        env:
+          REF: ${{ steps.digest.outputs.REF }}
+          REPO: ${{ steps.digest.outputs.REPO }}
+          PLATFORMS: ${{ steps.digest.outputs.PLATFORMS }}
+          LEGACY_FORMAT: --new-bundle-format=false --use-signing-config=false
+        run: |
+          set -euo pipefail
+          while read -r -u 3 platform digest; do
+            sbom="${RUNNER_TEMP}/sbom-${digest#sha256:}.cdx.json"
+            trivy image --quiet --platform "${platform}" --format cyclonedx --output "${sbom}" "${REF}"
+            cosign attest --yes --predicate "${sbom}" --type cyclonedx "${REPO}@${digest}"
+            cosign attest --yes --predicate "${sbom}" --type cyclonedx ${LEGACY_FORMAT} "${REPO}@${digest}"
+          done 3< "${PLATFORMS}"
