@@ -34,11 +34,9 @@ func (k podKey) String() string {
 
 func newPodKey(cluster, namespace, pod string) podKey {
 	return podKey{
-		namespaceKey: namespaceKey{
-			Cluster:   cluster,
-			Namespace: namespace,
-		},
-		Pod: pod,
+		Cluster:   cluster,
+		Namespace: namespace,
+		Pod:       pod,
 	}
 }
 

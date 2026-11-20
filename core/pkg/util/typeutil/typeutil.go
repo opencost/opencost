@@ -9,14 +9,14 @@ import (
 
 // TypeOf is a utility that can covert a T type to a package + type name for generic types.
 func TypeOf[T any]() string {
-	var prefix string
+	var prefix strings.Builder
 
 	t := reflect.TypeFor[T]()
 
 	// pointer types do not carry the adequate type information, so we need to extract the
 	// underlying types until we reach the non-pointer type, we prepend a * each depth
 	for t != nil && t.Kind() == reflect.Pointer {
-		prefix += "*"
+		prefix.WriteString("*")
 		t = t.Elem()
 	}
 
@@ -34,11 +34,11 @@ func TypeOf[T any]() string {
 
 	// no package path, do not use a / separator
 	if t.PkgPath() == "" {
-		return prefix + name
+		return prefix.String() + name
 	}
 
 	// combine the prefix, package path, and the type name
-	return fmt.Sprintf("%s%s/%s", prefix, t.PkgPath(), name)
+	return fmt.Sprintf("%s%s/%s", prefix.String(), t.PkgPath(), name)
 }
 
 // TypeFor uses type inferencing to accept a value and returns the fully qualified package

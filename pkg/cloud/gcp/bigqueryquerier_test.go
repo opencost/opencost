@@ -50,35 +50,29 @@ func TestBigQueryQuerier_GetStatus(t *testing.T) {
 
 func TestBigQueryQuerier_Equals(t *testing.T) {
 	config1 := &BigQueryQuerier{
-		BigQueryConfiguration: BigQueryConfiguration{
-			ProjectID: "project1",
-			Dataset:   "dataset1",
-			Table:     "table1",
-			Authorizer: &ServiceAccountKey{
-				Key: map[string]string{"type": "service_account"},
-			},
+		ProjectID: "project1",
+		Dataset:   "dataset1",
+		Table:     "table1",
+		Authorizer: &ServiceAccountKey{
+			Key: map[string]string{"type": "service_account"},
 		},
 	}
 
 	config2 := &BigQueryQuerier{
-		BigQueryConfiguration: BigQueryConfiguration{
-			ProjectID: "project1",
-			Dataset:   "dataset1",
-			Table:     "table1",
-			Authorizer: &ServiceAccountKey{
-				Key: map[string]string{"type": "service_account"},
-			},
+		ProjectID: "project1",
+		Dataset:   "dataset1",
+		Table:     "table1",
+		Authorizer: &ServiceAccountKey{
+			Key: map[string]string{"type": "service_account"},
 		},
 	}
 
 	config3 := &BigQueryQuerier{
-		BigQueryConfiguration: BigQueryConfiguration{
-			ProjectID: "project2",
-			Dataset:   "dataset1",
-			Table:     "table1",
-			Authorizer: &ServiceAccountKey{
-				Key: map[string]string{"type": "service_account"},
-			},
+		ProjectID: "project2",
+		Dataset:   "dataset1",
+		Table:     "table1",
+		Authorizer: &ServiceAccountKey{
+			Key: map[string]string{"type": "service_account"},
 		},
 	}
 
@@ -124,13 +118,11 @@ func TestBigQueryQuerier_Equals(t *testing.T) {
 
 func TestBigQueryQuerier_Query_ValidationError(t *testing.T) {
 	bqq := &BigQueryQuerier{
-		BigQueryConfiguration: BigQueryConfiguration{
-			// Missing required fields to trigger validation error
-			ProjectID:  "",
-			Dataset:    "",
-			Table:      "",
-			Authorizer: nil,
-		},
+		// Missing required fields to trigger validation error
+		ProjectID:  "",
+		Dataset:    "",
+		Table:      "",
+		Authorizer: nil,
 	}
 
 	ctx := context.Background()
@@ -144,16 +136,14 @@ func TestBigQueryQuerier_Query_ValidationError(t *testing.T) {
 
 func TestBigQueryQuerier_Query_ClientCreationError(t *testing.T) {
 	bqq := &BigQueryQuerier{
-		BigQueryConfiguration: BigQueryConfiguration{
-			ProjectID: "project1",
-			Dataset:   "dataset1",
-			Table:     "table1",
-			Authorizer: &ServiceAccountKey{
-				Key: map[string]string{
-					"type": "service_account",
-					// Invalid key to trigger client creation error
-					"private_key": "invalid-key",
-				},
+		ProjectID: "project1",
+		Dataset:   "dataset1",
+		Table:     "table1",
+		Authorizer: &ServiceAccountKey{
+			Key: map[string]string{
+				"type": "service_account",
+				// Invalid key to trigger client creation error
+				"private_key": "invalid-key",
 			},
 		},
 	}
@@ -195,12 +185,10 @@ func TestBigQueryQuerier_Query_Success(t *testing.T) {
 
 func TestBigQueryQuerier_Query_EmptyResult(t *testing.T) {
 	bqq := &BigQueryQuerier{
-		BigQueryConfiguration: BigQueryConfiguration{
-			ProjectID:  "project1",
-			Dataset:    "dataset1",
-			Table:      "table1",
-			Authorizer: &WorkloadIdentity{},
-		},
+		ProjectID:        "project1",
+		Dataset:          "dataset1",
+		Table:            "table1",
+		Authorizer:       &WorkloadIdentity{},
 		ConnectionStatus: cloud.InitialStatus,
 	}
 

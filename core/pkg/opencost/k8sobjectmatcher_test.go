@@ -22,39 +22,35 @@ func TestK8sObjectMatcher(t *testing.T) {
 		{
 			filter: `namespace:"kubecost"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "kubecost",
-				},
+				Namespace: "kubecost",
 			},
 			expected: true,
 		},
 		{
 			filter: `namespace:"kubecost"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "kube-system",
-				},
+				Namespace: "kube-system",
 			},
 			expected: false,
 		},
 		{
 			filter: `pod:"foo"`,
 			o: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Name: "foo",
 			},
 			expected: true,
 		},
 		{
 			filter: `pod:"foo"`,
 			o: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{Name: "bar"},
+				Name: "bar",
 			},
 			expected: false,
 		},
 		{
 			filter: `pod:"foo"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Name: "foo",
 			},
 			expected: false,
 		},
@@ -66,7 +62,7 @@ func TestK8sObjectMatcher(t *testing.T) {
 		{
 			filter: `controllerName:"foo"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Name: "foo",
 			},
 			expected: true,
 		},
@@ -78,7 +74,7 @@ func TestK8sObjectMatcher(t *testing.T) {
 		{
 			filter: `controllerName:"foo"`,
 			o: &appsv1.StatefulSet{
-				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Name: "foo",
 			},
 			expected: true,
 		},
@@ -90,7 +86,7 @@ func TestK8sObjectMatcher(t *testing.T) {
 		{
 			filter: `controllerName:"foo"`,
 			o: &appsv1.DaemonSet{
-				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Name: "foo",
 			},
 			expected: true,
 		},
@@ -102,7 +98,7 @@ func TestK8sObjectMatcher(t *testing.T) {
 		{
 			filter: `controllerName:"foo"`,
 			o: &batchv1.CronJob{
-				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Name: "foo",
 			},
 			expected: true,
 		},
@@ -114,10 +110,8 @@ func TestK8sObjectMatcher(t *testing.T) {
 		{
 			filter: `controllerKind:"pod"`,
 			o: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					OwnerReferences: []metav1.OwnerReference{
-						{}, // Having an owner reference makes this Pod "controlled"
-					},
+				OwnerReferences: []metav1.OwnerReference{
+					{}, // Having an owner reference makes this Pod "controlled"
 				},
 			},
 			expected: false,
@@ -125,72 +119,56 @@ func TestK8sObjectMatcher(t *testing.T) {
 		{
 			filter: `label[app]:"foo"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{"app": "foo"},
-				},
+				Labels: map[string]string{"app": "foo"},
 			},
 			expected: true,
 		},
 		{
 			filter: `label[app]:"foo"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{"app": "bar"},
-				},
+				Labels: map[string]string{"app": "bar"},
 			},
 			expected: false,
 		},
 		{
 			filter: `label[app]:"foo"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{},
-				},
+				Labels: map[string]string{},
 			},
 			expected: false,
 		},
 		{
 			filter: `label[app]:"foo"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: nil,
-				},
+				Labels: nil,
 			},
 			expected: false,
 		},
 		{
 			filter: `annotation[app]:"foo"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{"app": "foo"},
-				},
+				Annotations: map[string]string{"app": "foo"},
 			},
 			expected: true,
 		},
 		{
 			filter: `annotation[app]:"foo"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{"app": "bar"},
-				},
+				Annotations: map[string]string{"app": "bar"},
 			},
 			expected: false,
 		},
 		{
 			filter: `annotation[app]:"foo"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{},
-				},
+				Annotations: map[string]string{},
 			},
 			expected: false,
 		},
 		{
 			filter: `annotation[app]:"foo"`,
 			o: &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: nil,
-				},
+				Annotations: nil,
 			},
 			expected: false,
 		},

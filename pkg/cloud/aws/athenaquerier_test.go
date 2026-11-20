@@ -18,15 +18,13 @@ func TestAthenaQuerier_GetColumns(t *testing.T) {
 
 	// Create mock querier with valid configuration
 	querier := &AthenaQuerier{
-		AthenaConfiguration: AthenaConfiguration{
-			Bucket:     "test-bucket",
-			Region:     "us-east-1",
-			Database:   "test-db",
-			Table:      "test-table",
-			Account:    "123456789012",
-			Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-		},
-		client: mockClient,
+		Bucket:     "test-bucket",
+		Region:     "us-east-1",
+		Database:   "test-db",
+		Table:      "test-table",
+		Account:    "123456789012",
+		Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
+		client:     mockClient,
 	}
 
 	// Test successful column retrieval
@@ -113,15 +111,13 @@ func TestAthenaQuerier_Query(t *testing.T) {
 
 	// Create mock querier with valid configuration
 	querier := &AthenaQuerier{
-		AthenaConfiguration: AthenaConfiguration{
-			Bucket:     "test-bucket",
-			Region:     "us-east-1",
-			Database:   "test-db",
-			Table:      "test-table",
-			Account:    "123456789012",
-			Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-		},
-		client: mockClient,
+		Bucket:     "test-bucket",
+		Region:     "us-east-1",
+		Database:   "test-db",
+		Table:      "test-table",
+		Account:    "123456789012",
+		Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
+		client:     mockClient,
 	}
 
 	// Test successful query
@@ -177,11 +173,9 @@ func TestAthenaQuerier_Query(t *testing.T) {
 	// Test invalid configuration
 	t.Run("invalid_configuration", func(t *testing.T) {
 		invalidQuerier := &AthenaQuerier{
-			AthenaConfiguration: AthenaConfiguration{
-				// Missing required fields
-				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-			},
-			client: mockClient,
+			// Missing required fields
+			Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
+			client:     mockClient,
 		}
 
 		err := invalidQuerier.Query(context.Background(), "SELECT * FROM test", GetAthenaQueryFunc(func(row types.Row) {}))
@@ -243,14 +237,12 @@ func TestAthenaQuerier_GetAthenaClient(t *testing.T) {
 	// Test successful client creation
 	t.Run("successful_client_creation", func(t *testing.T) {
 		querier := &AthenaQuerier{
-			AthenaConfiguration: AthenaConfiguration{
-				Bucket:     "test-bucket",
-				Region:     "us-east-1",
-				Database:   "test-db",
-				Table:      "test-table",
-				Account:    "123456789012",
-				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-			},
+			Bucket:     "test-bucket",
+			Region:     "us-east-1",
+			Database:   "test-db",
+			Table:      "test-table",
+			Account:    "123456789012",
+			Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
 		}
 
 		client, err := querier.GetAthenaClient()
@@ -266,14 +258,12 @@ func TestAthenaQuerier_GetAthenaClient(t *testing.T) {
 	// Test client creation with service account authorizer
 	t.Run("service_account_authorizer", func(t *testing.T) {
 		querier := &AthenaQuerier{
-			AthenaConfiguration: AthenaConfiguration{
-				Bucket:     "test-bucket",
-				Region:     "us-east-1",
-				Database:   "test-db",
-				Table:      "test-table",
-				Account:    "123456789012",
-				Authorizer: &ServiceAccount{},
-			},
+			Bucket:     "test-bucket",
+			Region:     "us-east-1",
+			Database:   "test-db",
+			Table:      "test-table",
+			Account:    "123456789012",
+			Authorizer: &ServiceAccount{},
 		}
 
 		client, err := querier.GetAthenaClient()
@@ -289,16 +279,14 @@ func TestAthenaQuerier_GetAthenaClient(t *testing.T) {
 	// Test client creation with assume role authorizer
 	t.Run("assume_role_authorizer", func(t *testing.T) {
 		querier := &AthenaQuerier{
-			AthenaConfiguration: AthenaConfiguration{
-				Bucket:   "test-bucket",
-				Region:   "us-east-1",
-				Database: "test-db",
-				Table:    "test-table",
-				Account:  "123456789012",
-				Authorizer: &AssumeRole{
-					Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-					RoleARN:    "arn:aws:iam::123456789012:role/test-role",
-				},
+			Bucket:   "test-bucket",
+			Region:   "us-east-1",
+			Database: "test-db",
+			Table:    "test-table",
+			Account:  "123456789012",
+			Authorizer: &AssumeRole{
+				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
+				RoleARN:    "arn:aws:iam::123456789012:role/test-role",
 			},
 		}
 
@@ -341,14 +329,12 @@ func TestAthenaQuerier_GetAthenaClient(t *testing.T) {
 
 		for _, region := range regions {
 			querier := &AthenaQuerier{
-				AthenaConfiguration: AthenaConfiguration{
-					Bucket:     "test-bucket",
-					Region:     region,
-					Database:   "test-db",
-					Table:      "test-table",
-					Account:    "123456789012",
-					Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-				},
+				Bucket:     "test-bucket",
+				Region:     region,
+				Database:   "test-db",
+				Table:      "test-table",
+				Account:    "123456789012",
+				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
 			}
 
 			client, err := querier.GetAthenaClient()
@@ -369,15 +355,13 @@ func TestAthenaQuerier_queryAthenaPaginated(t *testing.T) {
 
 	// Create mock querier with valid configuration
 	querier := &AthenaQuerier{
-		AthenaConfiguration: AthenaConfiguration{
-			Bucket:     "test-bucket",
-			Region:     "us-east-1",
-			Database:   "test-db",
-			Table:      "test-table",
-			Account:    "123456789012",
-			Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-		},
-		client: mockClient,
+		Bucket:     "test-bucket",
+		Region:     "us-east-1",
+		Database:   "test-db",
+		Table:      "test-table",
+		Account:    "123456789012",
+		Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
+		client:     mockClient,
 	}
 
 	// Test successful paginated query
@@ -437,16 +421,14 @@ func TestAthenaQuerier_queryAthenaPaginated(t *testing.T) {
 	// Test query with catalog
 	t.Run("query_with_catalog", func(t *testing.T) {
 		querierWithCatalog := &AthenaQuerier{
-			AthenaConfiguration: AthenaConfiguration{
-				Bucket:     "test-bucket",
-				Region:     "us-east-1",
-				Database:   "test-db",
-				Catalog:    "test-catalog",
-				Table:      "test-table",
-				Account:    "123456789012",
-				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-			},
-			client: mockClient,
+			Bucket:     "test-bucket",
+			Region:     "us-east-1",
+			Database:   "test-db",
+			Catalog:    "test-catalog",
+			Table:      "test-table",
+			Account:    "123456789012",
+			Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
+			client:     mockClient,
 		}
 
 		catalogSet := false
@@ -472,16 +454,14 @@ func TestAthenaQuerier_queryAthenaPaginated(t *testing.T) {
 	// Test query with workgroup
 	t.Run("query_with_workgroup", func(t *testing.T) {
 		querierWithWorkgroup := &AthenaQuerier{
-			AthenaConfiguration: AthenaConfiguration{
-				Bucket:     "test-bucket",
-				Region:     "us-east-1",
-				Database:   "test-db",
-				Table:      "test-table",
-				Workgroup:  "test-workgroup",
-				Account:    "123456789012",
-				Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
-			},
-			client: mockClient,
+			Bucket:     "test-bucket",
+			Region:     "us-east-1",
+			Database:   "test-db",
+			Table:      "test-table",
+			Workgroup:  "test-workgroup",
+			Account:    "123456789012",
+			Authorizer: &AccessKey{ID: "test-key", Secret: "test-secret"},
+			client:     mockClient,
 		}
 
 		workgroupSet := false
@@ -779,7 +759,7 @@ func TestGetAthenaRowValue(t *testing.T) {
 	// Test with valid data
 	row := types.Row{
 		Data: []types.Datum{
-			{VarCharValue: stringPtr("test-value")},
+			{VarCharValue: new("test-value")},
 		},
 	}
 
@@ -815,7 +795,7 @@ func TestGetAthenaRowValueFloat(t *testing.T) {
 	// Test with valid data
 	row := types.Row{
 		Data: []types.Datum{
-			{VarCharValue: stringPtr("3.14159")},
+			{VarCharValue: new("3.14159")},
 		},
 	}
 
@@ -853,7 +833,7 @@ func TestGetAthenaRowValueFloat(t *testing.T) {
 	// Test with invalid float
 	rowWithInvalid := types.Row{
 		Data: []types.Datum{
-			{VarCharValue: stringPtr("not-a-number")},
+			{VarCharValue: new("not-a-number")},
 		},
 	}
 

@@ -14,8 +14,8 @@ type ReplicaSet struct {
 	Owners       []Owner           `json:"owners"`
 	Labels       map[string]string `json:"labels,omitempty"`
 	Annotations  map[string]string `json:"annotations,omitempty"`
-	Start        time.Time         `json:"start,omitempty"`
-	End          time.Time         `json:"end,omitempty"`
+	Start        time.Time         `json:"start"`
+	End          time.Time         `json:"end"`
 }
 
 func (r *ReplicaSet) ValidateReplicaSet(window Window) error {

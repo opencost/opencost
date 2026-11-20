@@ -97,7 +97,7 @@ func TestComputeKubeModelSet(t *testing.T) {
 					{UID: "pod-1", First: start, Last: end},
 				})
 				ds.Querier.SetOverride(source.QueryContainerUptime, []*source.ContainerUptimeResult{
-					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "app"},
+					{UID: "pod-1", First: start, Last: end, Container: "app"},
 				})
 				ds.Querier.SetOverride(source.QueryDeploymentInfo, []*source.DeploymentInfoResult{
 					{UID: "dep-1", Deployment: "my-dep", NamespaceUID: "ns-1"},

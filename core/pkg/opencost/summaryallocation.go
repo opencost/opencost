@@ -3,6 +3,7 @@ package opencost
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -545,13 +546,9 @@ func (sas *SummaryAllocationSet) Clone() *SummaryAllocationSet {
 	defer sas.RUnlock()
 
 	externalKeys := make(map[string]bool, len(sas.externalKeys))
-	for k, v := range sas.externalKeys {
-		externalKeys[k] = v
-	}
+	maps.Copy(externalKeys, sas.externalKeys)
 	idleKeys := make(map[string]bool, len(sas.idleKeys))
-	for k, v := range sas.idleKeys {
-		idleKeys[k] = v
-	}
+	maps.Copy(idleKeys, sas.idleKeys)
 	summaryAllocations := make(map[string]*SummaryAllocation, len(sas.SummaryAllocations))
 	for k, v := range sas.SummaryAllocations {
 		summaryAllocations[k] = v.Clone()

@@ -27,9 +27,7 @@ func GetIntegrationFromConfig(kc cloud.KeyedConfig) CloudCostIntegration {
 	// AthenaIntegration
 	case *aws.AthenaConfiguration:
 		return &aws.AthenaIntegration{
-			AthenaQuerier: aws.AthenaQuerier{
-				AthenaConfiguration: *keyedConfig,
-			},
+			AthenaConfiguration: *keyedConfig,
 		}
 	case *aws.AthenaQuerier:
 		return &aws.AthenaIntegration{
@@ -40,9 +38,7 @@ func GetIntegrationFromConfig(kc cloud.KeyedConfig) CloudCostIntegration {
 	// BigQueryIntegration
 	case *gcp.BigQueryConfiguration:
 		return &gcp.BigQueryIntegration{
-			BigQueryQuerier: gcp.BigQueryQuerier{
-				BigQueryConfiguration: *keyedConfig,
-			},
+			BigQueryConfiguration: *keyedConfig,
 		}
 	case *gcp.BigQueryQuerier:
 		return &gcp.BigQueryIntegration{
@@ -53,46 +49,28 @@ func GetIntegrationFromConfig(kc cloud.KeyedConfig) CloudCostIntegration {
 	// AzureStorageIntegration
 	case *azure.StorageConfiguration:
 		return &azure.AzureStorageIntegration{
-			AzureStorageBillingParser: azure.AzureStorageBillingParser{
-				StorageConnection: azure.StorageConnection{
-					StorageConfiguration: *keyedConfig},
-			},
+			StorageConfiguration: *keyedConfig,
 		}
 	case *azure.StorageConnection:
 		return &azure.AzureStorageIntegration{
-			AzureStorageBillingParser: azure.AzureStorageBillingParser{
-				StorageConnection: azure.StorageConnection{
-					StorageConfiguration: keyedConfig.StorageConfiguration},
-			},
+			StorageConfiguration: keyedConfig.StorageConfiguration,
 		}
 	case *azure.AzureStorageBillingParser:
 		return &azure.AzureStorageIntegration{
-			AzureStorageBillingParser: azure.AzureStorageBillingParser{
-				StorageConnection: azure.StorageConnection{
-					StorageConfiguration: keyedConfig.StorageConfiguration},
-			},
+			StorageConfiguration: keyedConfig.StorageConfiguration,
 		}
 	case *azure.AzureStorageIntegration:
 		return &azure.AzureStorageIntegration{
-			AzureStorageBillingParser: azure.AzureStorageBillingParser{
-				StorageConnection: azure.StorageConnection{
-					StorageConfiguration: keyedConfig.StorageConfiguration},
-			},
+			StorageConfiguration: keyedConfig.StorageConfiguration,
 		}
 	// S3SelectIntegration
 	case *aws.S3Configuration:
 		return &aws.S3SelectIntegration{
-			S3SelectQuerier: aws.S3SelectQuerier{
-				S3Connection: aws.S3Connection{
-					S3Configuration: *keyedConfig,
-				},
-			},
+			S3Configuration: *keyedConfig,
 		}
 	case *aws.S3Connection:
 		return &aws.S3SelectIntegration{
-			S3SelectQuerier: aws.S3SelectQuerier{
-				S3Connection: *keyedConfig,
-			},
+			S3Connection: *keyedConfig,
 		}
 	case *aws.S3SelectQuerier:
 		return &aws.S3SelectIntegration{

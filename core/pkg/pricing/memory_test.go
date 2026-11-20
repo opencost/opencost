@@ -142,7 +142,7 @@ func TestMemoryConcurrentAccess(t *testing.T) {
 	mps := NewMemoryPricingStore()
 
 	var wg sync.WaitGroup
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()

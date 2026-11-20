@@ -279,7 +279,7 @@ func writeBenchJSONL(tb testing.TB, path string, n int) {
 
 	w := bufio.NewWriter(f)
 	enc := json.NewEncoder(w) // Encode appends a newline after each value.
-	for i := 0; i < n; i++ {
+	for i := range n {
 		rec := benchRecord{
 			ID:     uuid.NewString(),
 			Name:   fmt.Sprintf("name-%d", i),

@@ -34,11 +34,7 @@ func TestS3Integration_GetCloudCost(t *testing.T) {
 		// No CUR data is expected within 2 days of now
 		"too_recent_window": {
 			integration: &S3SelectIntegration{
-				S3SelectQuerier: S3SelectQuerier{
-					S3Connection: S3Connection{
-						S3Configuration: s3Config,
-					},
-				},
+				S3Configuration: s3Config,
 			},
 			end:      time.Now(),
 			start:    time.Now().Add(-timeutil.Day),
@@ -47,11 +43,7 @@ func TestS3Integration_GetCloudCost(t *testing.T) {
 		// CUR data should be available
 		"last week window": {
 			integration: &S3SelectIntegration{
-				S3SelectQuerier: S3SelectQuerier{
-					S3Connection: S3Connection{
-						S3Configuration: s3Config,
-					},
-				},
+				S3Configuration: s3Config,
 			},
 			end:      time.Now().Add(-7 * timeutil.Day),
 			start:    time.Now().Add(-8 * timeutil.Day),

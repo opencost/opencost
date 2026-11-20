@@ -65,14 +65,14 @@ func TestSelectAuthorizerByType(t *testing.T) {
 func TestAccessKey_MarshalJSON(t *testing.T) {
 	testCases := map[string]struct {
 		accessKey      AccessKey
-		expectedFields map[string]interface{}
+		expectedFields map[string]any
 	}{
 		"complete AccessKey": {
 			accessKey: AccessKey{
 				AccessKeyID:     "test-id",
 				AccessKeySecret: "test-secret",
 			},
-			expectedFields: map[string]interface{}{
+			expectedFields: map[string]any{
 				cloud.AuthorizerTypeProperty: AccessKeyAuthorizerType,
 				"accessKeyID":                "test-id",
 				"accessKeySecret":            "test-secret",
@@ -80,7 +80,7 @@ func TestAccessKey_MarshalJSON(t *testing.T) {
 		},
 		"empty AccessKey": {
 			accessKey: AccessKey{},
-			expectedFields: map[string]interface{}{
+			expectedFields: map[string]any{
 				cloud.AuthorizerTypeProperty: AccessKeyAuthorizerType,
 				"accessKeyID":                "",
 				"accessKeySecret":            "",
@@ -95,7 +95,7 @@ func TestAccessKey_MarshalJSON(t *testing.T) {
 				t.Errorf("unexpected error: %v", err)
 			}
 
-			var result map[string]interface{}
+			var result map[string]any
 			err = json.Unmarshal(data, &result)
 			if err != nil {
 				t.Errorf("failed to unmarshal JSON: %v", err)

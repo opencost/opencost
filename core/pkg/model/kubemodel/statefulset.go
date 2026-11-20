@@ -14,8 +14,8 @@ type StatefulSet struct {
 	Labels       map[string]string `json:"labels,omitempty"`
 	Annotations  map[string]string `json:"annotations,omitempty"`
 	MatchLabels  map[string]string `json:"matchLabels,omitempty"`
-	Start        time.Time         `json:"start,omitempty"`
-	End          time.Time         `json:"end,omitempty"`
+	Start        time.Time         `json:"start"`
+	End          time.Time         `json:"end"`
 }
 
 func (s *StatefulSet) ValidateStatefulSet(window Window) error {

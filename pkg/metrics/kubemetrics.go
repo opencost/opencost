@@ -275,6 +275,3 @@ func boolFloat64(b bool) float64 {
 	}
 	return 0
 }
-
-// toStringPtr is used to create a new string pointer from iteration vars
-func toStringPtr(s string) *string { return &s }

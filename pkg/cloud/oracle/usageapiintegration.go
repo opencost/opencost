@@ -34,16 +34,14 @@ func (uai *UsageApiIntegration) GetCloudCost(start time.Time, end time.Time) (*o
 func (uai *UsageApiIntegration) getCloudCost(ctx context.Context, client usageAPIClient, start time.Time, end time.Time) (*opencost.CloudCostSetRange, error) {
 
 	req := usageapi.RequestSummarizedUsagesRequest{
-		RequestSummarizedUsagesDetails: usageapi.RequestSummarizedUsagesDetails{
-			Granularity:       usageapi.RequestSummarizedUsagesDetailsGranularityDaily,
-			GroupBy:           []string{"resourceId", "service", "subscriptionId", "tenantName"},
-			IsAggregateByTime: common.Bool(false),
-			TimeUsageStarted:  &common.SDKTime{Time: start},
-			TimeUsageEnded:    &common.SDKTime{Time: end},
-			QueryType:         usageapi.RequestSummarizedUsagesDetailsQueryTypeCost,
-			TenantId:          common.String(uai.TenancyID),
-		},
-		Limit: common.Int(500),
+		Granularity:       usageapi.RequestSummarizedUsagesDetailsGranularityDaily,
+		GroupBy:           []string{"resourceId", "service", "subscriptionId", "tenantName"},
+		IsAggregateByTime: new(false),
+		TimeUsageStarted:  &common.SDKTime{Time: start},
+		TimeUsageEnded:    &common.SDKTime{Time: end},
+		QueryType:         usageapi.RequestSummarizedUsagesDetailsQueryTypeCost,
+		TenantId:          new(uai.TenancyID),
+		Limit:             new(500),
 	}
 
 	ccsr, err := opencost.NewCloudCostSetRange(start, end, opencost.AccumulateOptionDay, uai.Key())

@@ -35,9 +35,7 @@ func TestAthenaIntegration_GetCloudCost(t *testing.T) {
 		// No CUR data is expected within 2 days of now
 		"too_recent_window": {
 			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: athenaConfig,
-				},
+				AthenaConfiguration: athenaConfig,
 			},
 			end:      time.Now(),
 			start:    time.Now().Add(-timeutil.Day),
@@ -46,9 +44,7 @@ func TestAthenaIntegration_GetCloudCost(t *testing.T) {
 		// CUR data should be available
 		"last week window": {
 			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: athenaConfig,
-				},
+				AthenaConfiguration: athenaConfig,
 			},
 			end:      time.Now().Add(-7 * timeutil.Day),
 			start:    time.Now().Add(-8 * timeutil.Day),
@@ -482,17 +478,13 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 	}{
 		"CUR 1.0 single month": {
 			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: AthenaConfiguration{
-						Bucket:     "bucket",
-						Region:     "region",
-						Database:   "database",
-						Table:      "table",
-						Workgroup:  "workgroup",
-						Account:    "account",
-						Authorizer: &ServiceAccount{},
-					},
-				},
+				Bucket:     "bucket",
+				Region:     "region",
+				Database:   "database",
+				Table:      "table",
+				Workgroup:  "workgroup",
+				Account:    "account",
+				Authorizer: &ServiceAccount{},
 			},
 			start:              time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
 			end:                time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC),
@@ -501,17 +493,13 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 		},
 		"CUR 2.0 single month": {
 			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: AthenaConfiguration{
-						Bucket:     "bucket",
-						Region:     "region",
-						Database:   "database",
-						Table:      "table",
-						Workgroup:  "workgroup",
-						Account:    "account",
-						Authorizer: &ServiceAccount{},
-					},
-				},
+				Bucket:     "bucket",
+				Region:     "region",
+				Database:   "database",
+				Table:      "table",
+				Workgroup:  "workgroup",
+				Account:    "account",
+				Authorizer: &ServiceAccount{},
 			},
 			start:              time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
 			end:                time.Date(2024, 1, 25, 0, 0, 0, 0, time.UTC),
@@ -520,17 +508,13 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 		},
 		"CUR 1.0 multiple months": {
 			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: AthenaConfiguration{
-						Bucket:     "bucket",
-						Region:     "region",
-						Database:   "database",
-						Table:      "table",
-						Workgroup:  "workgroup",
-						Account:    "account",
-						Authorizer: &ServiceAccount{},
-					},
-				},
+				Bucket:     "bucket",
+				Region:     "region",
+				Database:   "database",
+				Table:      "table",
+				Workgroup:  "workgroup",
+				Account:    "account",
+				Authorizer: &ServiceAccount{},
 			},
 			start:              time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
 			end:                time.Date(2024, 3, 10, 0, 0, 0, 0, time.UTC),
@@ -539,17 +523,13 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 		},
 		"CUR 2.0 multiple months": {
 			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: AthenaConfiguration{
-						Bucket:     "bucket",
-						Region:     "region",
-						Database:   "database",
-						Table:      "table",
-						Workgroup:  "workgroup",
-						Account:    "account",
-						Authorizer: &ServiceAccount{},
-					},
-				},
+				Bucket:     "bucket",
+				Region:     "region",
+				Database:   "database",
+				Table:      "table",
+				Workgroup:  "workgroup",
+				Account:    "account",
+				Authorizer: &ServiceAccount{},
 			},
 			start:              time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
 			end:                time.Date(2024, 3, 10, 0, 0, 0, 0, time.UTC),
@@ -558,17 +538,13 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 		},
 		"CUR 2.0 across year boundary": {
 			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: AthenaConfiguration{
-						Bucket:     "bucket",
-						Region:     "region",
-						Database:   "database",
-						Table:      "table",
-						Workgroup:  "workgroup",
-						Account:    "account",
-						Authorizer: &ServiceAccount{},
-					},
-				},
+				Bucket:     "bucket",
+				Region:     "region",
+				Database:   "database",
+				Table:      "table",
+				Workgroup:  "workgroup",
+				Account:    "account",
+				Authorizer: &ServiceAccount{},
 			},
 			start:              time.Date(2023, 12, 15, 0, 0, 0, 0, time.UTC),
 			end:                time.Date(2024, 2, 10, 0, 0, 0, 0, time.UTC),
@@ -577,17 +553,13 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 		},
 		"CUR 1.0 across year boundary": {
 			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: AthenaConfiguration{
-						Bucket:     "bucket",
-						Region:     "region",
-						Database:   "database",
-						Table:      "table",
-						Workgroup:  "workgroup",
-						Account:    "account",
-						Authorizer: &ServiceAccount{},
-					},
-				},
+				Bucket:     "bucket",
+				Region:     "region",
+				Database:   "database",
+				Table:      "table",
+				Workgroup:  "workgroup",
+				Account:    "account",
+				Authorizer: &ServiceAccount{},
 			},
 			start:              time.Date(2023, 12, 15, 0, 0, 0, 0, time.UTC),
 			end:                time.Date(2024, 2, 10, 0, 0, 0, 0, time.UTC),

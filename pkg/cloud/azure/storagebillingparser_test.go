@@ -516,7 +516,7 @@ func TestDecompressIfGzipped_LargeFile(t *testing.T) {
 	// Create a larger CSV content (1000 rows)
 	var contentBuilder strings.Builder
 	contentBuilder.WriteString("col1,col2,col3,col4\n")
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		contentBuilder.WriteString("value1,value2,value3,value4\n")
 	}
 	content := contentBuilder.String()

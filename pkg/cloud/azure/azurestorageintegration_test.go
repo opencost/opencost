@@ -32,11 +32,7 @@ func GetCloudCost_Test(t *testing.T) {
 		// No CUR data is expected within 2 days of now
 		"too_recent_window": {
 			integration: &AzureStorageIntegration{
-				AzureStorageBillingParser: AzureStorageBillingParser{
-					StorageConnection: StorageConnection{
-						StorageConfiguration: azureConfig,
-					},
-				},
+				StorageConfiguration: azureConfig,
 			},
 			end:      time.Now(),
 			start:    time.Now().Add(-timeutil.Day),
@@ -45,11 +41,7 @@ func GetCloudCost_Test(t *testing.T) {
 		// CUR data should be available
 		"last week window": {
 			integration: &AzureStorageIntegration{
-				AzureStorageBillingParser: AzureStorageBillingParser{
-					StorageConnection: StorageConnection{
-						StorageConfiguration: azureConfig,
-					},
-				},
+				StorageConfiguration: azureConfig,
 			},
 			end:      time.Now().Add(-7 * timeutil.Day),
 			start:    time.Now().Add(-8 * timeutil.Day),

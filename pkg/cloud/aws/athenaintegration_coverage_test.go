@@ -320,44 +320,38 @@ func TestAthenaQuerier_GetStatus(t *testing.T) {
 
 func TestAthenaQuerier_Equals(t *testing.T) {
 	aq1 := &AthenaQuerier{
-		AthenaConfiguration: AthenaConfiguration{
-			Bucket:   "bucket1",
-			Region:   "region1",
-			Database: "database1",
-			Table:    "table1",
-			Account:  "account1",
-			Authorizer: &AccessKey{
-				ID:     "id1",
-				Secret: "secret1",
-			},
+		Bucket:   "bucket1",
+		Region:   "region1",
+		Database: "database1",
+		Table:    "table1",
+		Account:  "account1",
+		Authorizer: &AccessKey{
+			ID:     "id1",
+			Secret: "secret1",
 		},
 	}
 
 	aq2 := &AthenaQuerier{
-		AthenaConfiguration: AthenaConfiguration{
-			Bucket:   "bucket1",
-			Region:   "region1",
-			Database: "database1",
-			Table:    "table1",
-			Account:  "account1",
-			Authorizer: &AccessKey{
-				ID:     "id1",
-				Secret: "secret1",
-			},
+		Bucket:   "bucket1",
+		Region:   "region1",
+		Database: "database1",
+		Table:    "table1",
+		Account:  "account1",
+		Authorizer: &AccessKey{
+			ID:     "id1",
+			Secret: "secret1",
 		},
 	}
 
 	aq3 := &AthenaQuerier{
-		AthenaConfiguration: AthenaConfiguration{
-			Bucket:   "bucket2", // Different bucket
-			Region:   "region1",
-			Database: "database1",
-			Table:    "table1",
-			Account:  "account1",
-			Authorizer: &AccessKey{
-				ID:     "id1",
-				Secret: "secret1",
-			},
+		Bucket:   "bucket2", // Different bucket
+		Region:   "region1",
+		Database: "database1",
+		Table:    "table1",
+		Account:  "account1",
+		Authorizer: &AccessKey{
+			ID:     "id1",
+			Secret: "secret1",
 		},
 	}
 

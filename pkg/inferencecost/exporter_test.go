@@ -1,6 +1,7 @@
 package inferencecost
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -82,13 +83,7 @@ func TestExporter_MetricNames(t *testing.T) {
 		"llm_cache_savings_fraction",
 	}
 	for _, want := range required {
-		found := false
-		for _, got := range names {
-			if got == want {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(names, want)
 		if !found {
 			t.Errorf("metric %q not found; registered names: %v", want, names)
 		}

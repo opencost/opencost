@@ -2,6 +2,7 @@ package customcost
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -272,19 +273,15 @@ func (ing *CustomCostIngestor) Stop() {
 	var wg sync.WaitGroup
 
 	if ing.exitBuildCh != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			ing.exitBuildCh <- msg
-		}()
+		})
 	}
 
 	if ing.exitRunCh != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			ing.exitRunCh <- msg
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -326,9 +323,7 @@ func (ing *CustomCostIngestor) copyCoverage() map[string]opencost.Window {
 	ing.coverageLock.Lock()
 	defer ing.coverageLock.Unlock()
 	coverage := make(map[string]opencost.Window, len(ing.coverage))
-	for plugin, window := range ing.coverage {
-		coverage[plugin] = window
-	}
+	maps.Copy(coverage, ing.coverage)
 	return coverage
 }
 

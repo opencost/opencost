@@ -33,13 +33,13 @@ func TestIngestor_Status_ConcurrentWithCoverageWrite(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 2000; i++ {
+		for range 2000 {
 			ing.expandCoverage(window)
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 2000; i++ {
+		for range 2000 {
 			_ = ing.Status()
 		}
 	}()

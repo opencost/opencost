@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/pkg/cloud"
@@ -202,9 +201,7 @@ func (s *StorageConnectionStringCredential) GetBlobClient(serviceURL string) (*a
 		return nil, fmt.Errorf("error creating transport: %w", err)
 	}
 	options := &azblob.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Transport: &http.Client{Transport: dt},
-		},
+		Transport: &http.Client{Transport: dt},
 	}
 	client, err := azblob.NewClientFromConnectionString(s.StorageConnectionString, options)
 	return client, err

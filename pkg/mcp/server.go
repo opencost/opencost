@@ -49,7 +49,7 @@ type MCPRequest struct {
 
 // MCPResponse is the response from the OpenCost MCP server for a single turn.
 type MCPResponse struct {
-	Data      interface{}   `json:"data"`
+	Data      any           `json:"data"`
 	QueryInfo QueryMetadata `json:"queryInfo"`
 }
 
@@ -389,7 +389,7 @@ func (s *MCPServer) ProcessMCPRequest(ctx context.Context, request *MCPRequest) 
 	}
 
 	// 2. Query Dispatching
-	var data interface{}
+	var data any
 	var err error
 
 	queryStart := time.Now()
@@ -459,13 +459,13 @@ func sanitizeNonFiniteFloats(v any) (out any) {
 
 func sanitizeFloatsValue(v reflect.Value) {
 	switch v.Kind() {
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Pointer, reflect.Interface:
 		if !v.IsNil() {
 			sanitizeFloatsValue(v.Elem())
 		}
 	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			sanitizeFloatsValue(v.Field(i))
+		for _, field := range v.Fields() {
+			sanitizeFloatsValue(field)
 		}
 	case reflect.Slice, reflect.Array:
 		for i := 0; i < v.Len(); i++ {
@@ -478,7 +478,7 @@ func sanitizeFloatsValue(v reflect.Value) {
 			// values are mutated in place by recursing; value-type elements
 			// (e.g. a float or struct) must be rebuilt and reassigned.
 			switch elem.Kind() {
-			case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map:
+			case reflect.Pointer, reflect.Interface, reflect.Slice, reflect.Map:
 				sanitizeFloatsValue(elem)
 			default:
 				tmp := reflect.New(elem.Type()).Elem()

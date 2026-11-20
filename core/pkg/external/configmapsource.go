@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -126,7 +127,7 @@ func validateDNSSubdomain(s string) error {
 	if len(s) > 253 {
 		return fmt.Errorf("DNS subdomain %q exceeds 253 characters", s)
 	}
-	for _, label := range strings.Split(s, ".") {
+	for label := range strings.SplitSeq(s, ".") {
 		if label == "" {
 			return fmt.Errorf("DNS subdomain %q contains an empty label (consecutive or trailing dots)", s)
 		}
@@ -218,10 +219,8 @@ func parse(yamlData string, routeStr string) (map[string]string, error) {
 
 	// when there are empty segments error out
 	// Eg: external..labels
-	for _, r := range routes {
-		if r == "" {
-			return nil, fmt.Errorf("invalid route %q: empty segment found", routeStr)
-		}
+	if slices.Contains(routes, "") {
+		return nil, fmt.Errorf("invalid route %q: empty segment found", routeStr)
 	}
 
 	// parse with routes

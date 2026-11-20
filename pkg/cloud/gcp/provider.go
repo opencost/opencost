@@ -260,7 +260,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			c.AwsServiceKeySecret = a.ServiceKeySecret
 			c.AthenaProjectID = a.AccountID
 		} else {
-			a := make(map[string]interface{})
+			a := make(map[string]any)
 			err := json.NewDecoder(r).Decode(&a)
 			if err != nil {
 				return err
@@ -795,7 +795,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 
 				for _, candidateKey := range candidateKeys {
 					instanceType = strings.Split(candidateKey, ",")[1] // we may have overridden this while generating candidate keys
-					region := strings.Split(candidateKey, ",")[0]
+					region, _, _ := strings.Cut(candidateKey, ",")
 					candidateKeyGPU := candidateKey + ",gpu"
 					gcp.ValidPricingKeys[candidateKey] = true
 					gcp.ValidPricingKeys[candidateKeyGPU] = true
@@ -1633,7 +1633,7 @@ func (gcp *GCP) RefreshCustomPricing() error {
 }
 
 // AllNodePricing returns the GCP pricing objects stored
-func (gcp *GCP) AllNodePricing() (interface{}, error) {
+func (gcp *GCP) AllNodePricing() (any, error) {
 	gcp.DownloadPricingDataLock.RLock()
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	return gcp.Pricing, nil
@@ -1717,7 +1717,7 @@ func (gcp *GCP) PricingSourceStatus() map[string]*models.PricingSource {
 }
 
 func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
-	class := strings.Split(instanceType, "-")[0]
+	class, _, _ := strings.Cut(instanceType, "-")
 	return 1.0 - ((1.0 - sustainedUseDiscount(class, defaultDiscount, isPreemptible)) * (1.0 - negotiatedDiscount))
 }
 
@@ -1773,6 +1773,6 @@ func getUsageType(labels map[string]string) string {
 // PricingSourceSummary returns the pricing source summary for the provider.
 // The summary represents what was _parsed_ from the pricing source, not
 // everything that was _available_ in the pricing source.
-func (gcp *GCP) PricingSourceSummary() interface{} {
+func (gcp *GCP) PricingSourceSummary() any {
 	return gcp.Pricing
 }

@@ -1,5 +1,7 @@
 package httputil
 
+import "maps"
+
 import "net/http"
 
 type userAgentTransport struct {
@@ -22,9 +24,7 @@ func (t userAgentTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	r2 := new(http.Request)
 	*r2 = *r
 	r2.Header = make(http.Header)
-	for k, s := range r.Header {
-		r2.Header[k] = s
-	}
+	maps.Copy(r2.Header, r.Header)
 	r2.Header.Set("User-Agent", t.userAgent)
 	r = r2
 	return t.base.RoundTrip(r)

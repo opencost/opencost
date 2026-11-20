@@ -1503,7 +1503,7 @@ func (aws *AWS) RefreshCustomPricing() error {
 }
 
 // AllNodePricing returns all the billing data fetched.
-func (aws *AWS) AllNodePricing() (interface{}, error) {
+func (aws *AWS) AllNodePricing() (any, error) {
 	aws.DownloadPricingDataLock.RLock()
 	defer aws.DownloadPricingDataLock.RUnlock()
 	return aws.Pricing, nil
@@ -1960,8 +1960,7 @@ func (aws *AWS) getAllAddresses() ([]*ec2Types.Address, error) {
 			// Query for first page of volume results
 			resp, err := aws.getAddressesForRegion(context.TODO(), region)
 			if err != nil {
-				var awsErr smithy.APIError
-				if errors.As(err, &awsErr) {
+				if awsErr, ok := errors.AsType[smithy.APIError](err); ok {
 					switch awsErr.ErrorCode() {
 					case "AuthFailure", "InvalidClientTokenId", "UnauthorizedOperation":
 						log.DedupedInfof(5, "Unable to get addresses for region %s due to AWS permissions, error message: %s", region, awsErr.ErrorMessage())
@@ -2073,8 +2072,7 @@ func (aws *AWS) getAllDisks() ([]*ec2Types.Volume, error) {
 			// Query for first page of volume results
 			resp, err := aws.getDisksForRegion(context.TODO(), region, 1000, nil)
 			if err != nil {
-				var awsErr smithy.APIError
-				if errors.As(err, &awsErr) {
+				if awsErr, ok := errors.AsType[smithy.APIError](err); ok {
 					switch awsErr.ErrorCode() {
 					case "AuthFailure", "InvalidClientTokenId", "UnauthorizedOperation":
 						log.DedupedInfof(5, "Unable to get disks for region %s due to AWS permissions, error message: %s", region, awsErr.ErrorMessage())
@@ -2799,7 +2797,7 @@ func (aws *AWS) Regions() []string {
 // PricingSourceSummary returns the pricing source summary for the provider.
 // The summary represents what was _parsed_ from the pricing source, not
 // everything that was _available_ in the pricing source.
-func (aws *AWS) PricingSourceSummary() interface{} {
+func (aws *AWS) PricingSourceSummary() any {
 	// encode the pricing source summary as a JSON string
 	return aws.Pricing
 }

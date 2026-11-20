@@ -452,11 +452,9 @@ func (c *Controller) broadcastRemoveConfig(key string) {
 	var wg sync.WaitGroup
 	for _, obs := range c.observers {
 		observer := obs
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			observer.DeleteConfig(key)
-		}()
+		})
 	}
 	wg.Wait()
 }
@@ -466,11 +464,9 @@ func (c *Controller) broadcastAddConfig(conf cloud.KeyedConfig) {
 	var wg sync.WaitGroup
 	for _, obs := range c.observers {
 		observer := obs
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			observer.PutConfig(conf)
-		}()
+		})
 	}
 	wg.Wait()
 }

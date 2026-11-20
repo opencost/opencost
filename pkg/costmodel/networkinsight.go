@@ -28,10 +28,7 @@ func (cm *CostModel) ComputeNetworkInsights(start, end time.Time) (*opencost.Net
 	totalNis := opencost.NewNetworkInsightSet(start, end)
 
 	for e.Before(end) {
-		duration := end.Sub(e)
-		if duration > cm.BatchDuration {
-			duration = cm.BatchDuration
-		}
+		duration := min(end.Sub(e), cm.BatchDuration)
 		e = s.Add(duration)
 		nis, err := cm.GetNetworkInsightSet(start, end)
 		if err != nil {

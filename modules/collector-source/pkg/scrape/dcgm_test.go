@@ -1,6 +1,7 @@
 package scrape
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
@@ -195,9 +196,7 @@ func cloneLabels(labels map[string]string) map[string]string {
 		return nil
 	}
 	clone := make(map[string]string, len(labels))
-	for k, v := range labels {
-		clone[k] = v
-	}
+	maps.Copy(clone, labels)
 	return clone
 }
 

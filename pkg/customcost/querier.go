@@ -3,6 +3,7 @@ package customcost
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -76,21 +77,9 @@ var allSteppedAccumulateOptions = []opencost.AccumulateOption{
 }
 
 func hasHourly(opts []opencost.AccumulateOption) bool {
-	for _, opt := range opts {
-		if opt == opencost.AccumulateOptionHour {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(opts, opencost.AccumulateOptionHour)
 }
 
 func hasDaily(opts []opencost.AccumulateOption) bool {
-	for _, opt := range opts {
-		if opt == opencost.AccumulateOptionDay {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(opts, opencost.AccumulateOptionDay)
 }

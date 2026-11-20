@@ -21,7 +21,7 @@ func (vtrs ViewTableRows) Equal(that ViewTableRows) bool {
 		return false
 	}
 
-	for i := 0; i < len(vtrs); i++ {
+	for i := range vtrs {
 		if !vtrs[i].Equal(that[i]) {
 			return false
 		}
@@ -76,7 +76,7 @@ func (vgd ViewGraphData) Equal(that ViewGraphData) bool {
 		return false
 	}
 
-	for i := 0; i < len(vgd); i++ {
+	for i := range vgd {
 		if !vgd[i].Equal(that[i]) {
 			return false
 		}

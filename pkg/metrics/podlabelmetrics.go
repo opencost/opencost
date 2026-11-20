@@ -21,9 +21,7 @@ type KubePodLabelsCollector struct {
 
 func (kpmc *KubePodLabelsCollector) SetLabelsWhiteList() {
 	kpmc.labelsWhitelist = make(map[string]bool)
-	for k, v := range kpmc.metricsConfig.LabelsWhitelist {
-		kpmc.labelsWhitelist[k] = v
-	}
+	maps.Copy(kpmc.labelsWhitelist, kpmc.metricsConfig.LabelsWhitelist)
 }
 
 // Describe sends the super-set of all possible descriptors of pod labels only

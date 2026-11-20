@@ -111,13 +111,13 @@ func (sc *StorageConfiguration) Provider() string {
 }
 
 func (sc *StorageConfiguration) UnmarshalJSON(b []byte) error {
-	var f interface{}
+	var f any
 	err := json.Unmarshal(b, &f)
 	if err != nil {
 		return err
 	}
 
-	fmap := f.(map[string]interface{})
+	fmap := f.(map[string]any)
 
 	subscriptionID, err := cloud.GetInterfaceValue[string](fmap, "subscriptionID")
 	if err != nil {

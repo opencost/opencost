@@ -114,21 +114,17 @@ func TestUsageAPIIntegrationGetCloudCostLoadsEachDailyItem(t *testing.T) {
 	client := &fakeUsageAPIClient{
 		responses: []usageapi.RequestSummarizedUsagesResponse{
 			{
-				UsageAggregation: usageapi.UsageAggregation{
-					Items: []usageapi.UsageSummary{
-						testUsageSummary(start, "resource-1", 1),
-						testUsageSummary(start.AddDate(0, 0, 1), "resource-2", 2),
-						testUsageSummary(start.AddDate(0, 0, 2), "resource-3", 3),
-					},
+				Items: []usageapi.UsageSummary{
+					testUsageSummary(start, "resource-1", 1),
+					testUsageSummary(start.AddDate(0, 0, 1), "resource-2", 2),
+					testUsageSummary(start.AddDate(0, 0, 2), "resource-3", 3),
 				},
 			},
 		},
 	}
 	integration := &UsageApiIntegration{
-		UsageApiConfiguration: UsageApiConfiguration{
-			TenancyID: "tenancy-id",
-			Region:    "region",
-		},
+		TenancyID: "tenancy-id",
+		Region:    "region",
 	}
 
 	ccsr, err := integration.getCloudCost(context.Background(), client, start, start.AddDate(0, 0, 3))
@@ -163,21 +159,17 @@ func TestUsageAPIIntegrationGetCloudCostFollowsPagination(t *testing.T) {
 	client := &fakeUsageAPIClient{
 		responses: []usageapi.RequestSummarizedUsagesResponse{
 			{
-				UsageAggregation: usageapi.UsageAggregation{Items: firstPageItems},
-				OpcNextPage:      common.String("next-page"),
+				Items:       firstPageItems,
+				OpcNextPage: new("next-page"),
 			},
 			{
-				UsageAggregation: usageapi.UsageAggregation{
-					Items: []usageapi.UsageSummary{testUsageSummary(start, "resource-500", 1)},
-				},
+				Items: []usageapi.UsageSummary{testUsageSummary(start, "resource-500", 1)},
 			},
 		},
 	}
 	integration := &UsageApiIntegration{
-		UsageApiConfiguration: UsageApiConfiguration{
-			TenancyID: "tenancy-id",
-			Region:    "region",
-		},
+		TenancyID: "tenancy-id",
+		Region:    "region",
 	}
 
 	ccsr, err := integration.getCloudCost(context.Background(), client, start, start.AddDate(0, 0, 1))
@@ -210,15 +202,13 @@ func TestUsageAPIIntegrationGetCloudCostSkipsUsageSummaryWithoutTimeWindow(t *te
 	client := &fakeUsageAPIClient{
 		responses: []usageapi.RequestSummarizedUsagesResponse{
 			{
-				UsageAggregation: usageapi.UsageAggregation{Items: []usageapi.UsageSummary{item}},
+				Items: []usageapi.UsageSummary{item},
 			},
 		},
 	}
 	integration := &UsageApiIntegration{
-		UsageApiConfiguration: UsageApiConfiguration{
-			TenancyID: "tenancy-id",
-			Region:    "region",
-		},
+		TenancyID: "tenancy-id",
+		Region:    "region",
 	}
 
 	ccsr, err := integration.getCloudCost(context.Background(), client, start, start.AddDate(0, 0, 1))
@@ -235,20 +225,18 @@ func TestUsageAPIIntegrationGetCloudCostRejectsRepeatedPageToken(t *testing.T) {
 	client := &fakeUsageAPIClient{
 		responses: []usageapi.RequestSummarizedUsagesResponse{
 			{
-				UsageAggregation: usageapi.UsageAggregation{Items: []usageapi.UsageSummary{testUsageSummary(start, "resource-1", 1)}},
-				OpcNextPage:      common.String("page-token"),
+				Items:       []usageapi.UsageSummary{testUsageSummary(start, "resource-1", 1)},
+				OpcNextPage: new("page-token"),
 			},
 			{
-				UsageAggregation: usageapi.UsageAggregation{Items: []usageapi.UsageSummary{testUsageSummary(start, "resource-2", 1)}},
-				OpcNextPage:      common.String("page-token"),
+				Items:       []usageapi.UsageSummary{testUsageSummary(start, "resource-2", 1)},
+				OpcNextPage: new("page-token"),
 			},
 		},
 	}
 	integration := &UsageApiIntegration{
-		UsageApiConfiguration: UsageApiConfiguration{
-			TenancyID: "tenancy-id",
-			Region:    "region",
-		},
+		TenancyID: "tenancy-id",
+		Region:    "region",
 	}
 
 	_, err := integration.getCloudCost(context.Background(), client, start, start.AddDate(0, 0, 1))
@@ -269,10 +257,8 @@ func TestUsageSummaryToCloudCostUsesOCIUsageWindow(t *testing.T) {
 	item := testUsageSummary(start, "resource-1", 1)
 	item.TimeUsageEnded = &common.SDKTime{Time: end}
 	integration := &UsageApiIntegration{
-		UsageApiConfiguration: UsageApiConfiguration{
-			TenancyID: "tenancy-id",
-			Region:    "region",
-		},
+		TenancyID: "tenancy-id",
+		Region:    "region",
 	}
 
 	cloudCost, err := integration.usageSummaryToCloudCost(item)
@@ -288,9 +274,9 @@ func testUsageSummary(start time.Time, resourceID string, computedAmount float32
 	return usageapi.UsageSummary{
 		TimeUsageStarted: &common.SDKTime{Time: start},
 		TimeUsageEnded:   &common.SDKTime{Time: start.AddDate(0, 0, 1)},
-		ResourceId:       common.String(resourceID),
-		Service:          common.String("Compute"),
-		ComputedAmount:   common.Float32(computedAmount),
-		AttributedCost:   common.String(fmt.Sprintf("%v", computedAmount)),
+		ResourceId:       new(resourceID),
+		Service:          new("Compute"),
+		ComputedAmount:   new(computedAmount),
+		AttributedCost:   new(fmt.Sprintf("%v", computedAmount)),
 	}
 }

@@ -13,8 +13,8 @@ type Job struct {
 	Name         string            `json:"name"`
 	Labels       map[string]string `json:"labels,omitempty"`
 	Annotations  map[string]string `json:"annotations,omitempty"`
-	Start        time.Time         `json:"start,omitempty"`
-	End          time.Time         `json:"end,omitempty"`
+	Start        time.Time         `json:"start"`
+	End          time.Time         `json:"end"`
 }
 
 func (j *Job) ValidateJob(window Window) error {

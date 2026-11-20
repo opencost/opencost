@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash/fnv"
+	"maps"
 	"slices"
 	"time"
 )
@@ -185,9 +186,7 @@ func clonePrices(src Prices) Prices {
 	}
 
 	dst := make(Prices, len(src))
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 
 	return dst
 }
@@ -199,9 +198,7 @@ func cloneLabels(src map[string]string) map[string]string {
 	}
 
 	dst := make(map[string]string, len(src))
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 
 	return dst
 }

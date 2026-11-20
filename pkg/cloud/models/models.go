@@ -283,7 +283,7 @@ type Provider interface {
 	PVPricing(PVKey) (*PV, error)
 	NetworkPricing() (*Network, error)           // TODO: add key interface arg for dynamic price fetching
 	LoadBalancerPricing() (*LoadBalancer, error) // TODO: add key interface arg for dynamic price fetching
-	AllNodePricing() (interface{}, error)
+	AllNodePricing() (any, error)
 	DownloadPricingData() error
 	// RefreshCustomPricing reloads custom pricing and discount config into memory
 	// without triggering a full DownloadPricingData (no k8s or cloud API calls).
@@ -300,7 +300,7 @@ type Provider interface {
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	Regions() []string
-	PricingSourceSummary() interface{}
+	PricingSourceSummary() any
 }
 
 // ProviderConfig describes config storage common to all providers.

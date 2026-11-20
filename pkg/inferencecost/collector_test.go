@@ -242,10 +242,6 @@ func makeAllocationWithUtilisation(
 	return a
 }
 
-// gpuUsage is a helper that returns a pointer to a float64, for use in
-// makeAllocationWithUtilisation calls.
-func gpuUsage(v float64) *float64 { return &v }
-
 // TestCollector_UsageCost_ScalesResourcesByUtilisation verifies that when
 // utilisation metrics are present, extractAllocationResults scales GPU, CPU,
 // and RAM costs proportionally to their actual consumption.
@@ -263,11 +259,11 @@ func TestCollector_UsageCost_ScalesResourcesByUtilisation(t *testing.T) {
 	now := time.Now()
 	alloc := makeAllocationWithUtilisation(
 		"llama-3",
-		6.0,           // gpuCost
-		4.0,           // cpuCost
-		2.0,           // ramCost
-		gpuUsage(0.5), // gpuUsageAverage: 50%
-		4.0, 1.0,      // cpuCoreRequest=4, cpuCoreUsage=1 → 25%
+		6.0,      // gpuCost
+		4.0,      // cpuCost
+		2.0,      // ramCost
+		new(0.5), // gpuUsageAverage: 50%
+		4.0, 1.0, // cpuCoreRequest=4, cpuCoreUsage=1 → 25%
 		100.0, 10.0, // ramBytesRequest=100, ramBytesUsage=10 → 10%
 		"llm-prod",
 	)
@@ -346,11 +342,11 @@ func TestCollector_UsageCost_ZeroGPUUsage(t *testing.T) {
 	now := time.Now()
 	alloc := makeAllocationWithUtilisation(
 		"llama-3",
-		6.0,           // gpuCost
-		4.0,           // cpuCost
-		2.0,           // ramCost
-		gpuUsage(0.0), // GPUUsageAverage = 0: completely idle GPU
-		0, 0,          // no CPU scaling
+		6.0,      // gpuCost
+		4.0,      // cpuCost
+		2.0,      // ramCost
+		new(0.0), // GPUUsageAverage = 0: completely idle GPU
+		0, 0,     // no CPU scaling
 		0, 0, // no RAM scaling
 		"llm-prod",
 	)
@@ -397,7 +393,7 @@ func TestCollector_UsageCost_OutOfRangeGPUUsageClamped(t *testing.T) {
 			alloc := makeAllocationWithUtilisation(
 				"llama-3",
 				6.0, 4.0, 2.0,
-				gpuUsage(tc.gpuUsageAvg),
+				new(tc.gpuUsageAvg),
 				0, 0,
 				0, 0,
 				"llm-prod",
@@ -442,8 +438,8 @@ func TestCollector_UsageCost_GPUOnlyScaling(t *testing.T) {
 	alloc := makeAllocationWithUtilisation(
 		"llama-3",
 		6.0, 4.0, 2.0,
-		gpuUsage(0.75), // GPU 75%
-		0, 0,           // no CPU utilisation metrics
+		new(0.75), // GPU 75%
+		0, 0,      // no CPU utilisation metrics
 		0, 0, // no RAM utilisation metrics
 		"llm-prod",
 	)
@@ -754,7 +750,7 @@ func TestCollector_UsageCost_TwoModelsIndependent(t *testing.T) {
 	modelA := makeAllocationWithUtilisation(
 		"llama-3",
 		6.0, 4.0, 2.0,
-		gpuUsage(0.5),
+		new(0.5),
 		0, 0,
 		0, 0,
 		"llm-prod",
@@ -763,7 +759,7 @@ func TestCollector_UsageCost_TwoModelsIndependent(t *testing.T) {
 	modelB := makeAllocationWithUtilisation(
 		"mistral-7b",
 		3.0, 2.0, 1.0,
-		gpuUsage(0.2),
+		new(0.2),
 		0, 0,
 		0, 0,
 		"llm-prod",

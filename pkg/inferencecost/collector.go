@@ -3,6 +3,7 @@ package inferencecost
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -618,20 +619,18 @@ func modelNamespaceKey(modelName, namespace string) string {
 }
 
 func parseKey(key string) (modelName, namespace string) {
-	idx := strings.IndexByte(key, ':')
-	if idx < 0 {
+	before, after, ok := strings.Cut(key, ":")
+	if !ok {
 		return key, "unknown"
 	}
-	return key[:idx], key[idx+1:]
+	return before, after
 }
 
 // mergeTokenResults merges multiple InferenceTokensResult into a single map
 func mergeTokenResults(results []*source.InferenceTokensResult) map[string]float64 {
 	merged := make(map[string]float64)
 	for _, result := range results {
-		for k, v := range result.Values {
-			merged[k] = v
-		}
+		maps.Copy(merged, result.Values)
 	}
 	return merged
 }
@@ -640,9 +639,7 @@ func mergeTokenResults(results []*source.InferenceTokensResult) map[string]float
 func mergeProcessingTimeResults(results []*source.InferenceProcessingTimeResult) map[string]float64 {
 	merged := make(map[string]float64)
 	for _, result := range results {
-		for k, v := range result.Values {
-			merged[k] = v
-		}
+		maps.Copy(merged, result.Values)
 	}
 	return merged
 }

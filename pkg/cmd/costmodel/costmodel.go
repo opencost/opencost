@@ -253,7 +253,7 @@ func startMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 	}, nil)
 
 	// Define tool handlers
-	handleAllocationCosts := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args AllocationArgs) (*mcp_sdk.CallToolResult, interface{}, error) {
+	handleAllocationCosts := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args AllocationArgs) (*mcp_sdk.CallToolResult, any, error) {
 		var step time.Duration
 		if args.Step != "" {
 			var err error
@@ -295,7 +295,7 @@ func startMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 		return nil, mcpResp, nil
 	}
 
-	handleAssetCosts := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args AssetArgs) (*mcp_sdk.CallToolResult, interface{}, error) {
+	handleAssetCosts := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args AssetArgs) (*mcp_sdk.CallToolResult, any, error) {
 		queryRequest := &opencost_mcp.OpenCostQueryRequest{
 			QueryType:   opencost_mcp.AssetQueryType,
 			Window:      args.Window,
@@ -314,7 +314,7 @@ func startMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 		return nil, mcpResp, nil
 	}
 
-	handleCloudCosts := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args CloudCostArgs) (*mcp_sdk.CallToolResult, interface{}, error) {
+	handleCloudCosts := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args CloudCostArgs) (*mcp_sdk.CallToolResult, any, error) {
 		queryRequest := &opencost_mcp.OpenCostQueryRequest{
 			QueryType: opencost_mcp.CloudCostQueryType,
 			Window:    args.Window,
@@ -342,7 +342,7 @@ func startMCPServer(ctx context.Context, accesses *costmodel.Accesses, cloudCost
 		return nil, mcpResp, nil
 	}
 
-	handleEfficiency := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args EfficiencyArgs) (*mcp_sdk.CallToolResult, interface{}, error) {
+	handleEfficiency := func(ctx context.Context, req *mcp_sdk.CallToolRequest, args EfficiencyArgs) (*mcp_sdk.CallToolResult, any, error) {
 		var step time.Duration
 		if args.Step != "" {
 			var err error
