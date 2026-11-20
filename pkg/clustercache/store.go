@@ -95,16 +95,15 @@ func (s *GenericStore[Input, Output]) GetAll() []Output {
 
 // Replace replaces the current list of items in the store.
 func (s *GenericStore[Input, Output]) Replace(list []any, _ string) error {
-	s.mutex.Lock()
-	s.items = make(map[types.UID]Output, len(list))
-	s.mutex.Unlock()
-
+	newItems := make(map[types.UID]Output, len(list))
 	for _, o := range list {
-		err := s.Add(o)
-		if err != nil {
-			return err
-		}
+		item := o.(Input)
+		newItems[item.GetUID()] = s.transformFunc(item)
 	}
+
+	s.mutex.Lock()
+	s.items = newItems
+	s.mutex.Unlock()
 
 	// call onInit after the initial list has been processed
 	if s.onInit != nil {

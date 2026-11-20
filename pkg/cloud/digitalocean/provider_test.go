@@ -8,7 +8,10 @@ import (
 	"testing"
 
 	"github.com/digitalocean/godo"
+	"github.com/opencost/opencost/core/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func newTestProviderWithFile(t *testing.T, filename string) (*DOKS, func() int) {
@@ -921,5 +924,38 @@ func TestFetchPricingData_Pagination(t *testing.T) {
 	// Verify cache timestamp was updated
 	if provider.Cache.lastUpdate.IsZero() {
 		t.Error("expected cache to have a non-zero timestamp")
+	}
+}
+
+func TestDOKS_GetKey_DoesNotMutateInputLabels(t *testing.T) {
+	doks := &DOKS{}
+	labels := map[string]string{
+		"node.kubernetes.io/instance-type": "s-2vcpu-4gb",
+	}
+	node := &clustercache.Node{
+		Name:           "do-node-1",
+		SpecProviderID: "digitalocean://123456",
+		Status: v1.NodeStatus{
+			Capacity: v1.ResourceList{
+				v1.ResourceCPU:    resource.MustParse("2"),
+				v1.ResourceMemory: resource.MustParse("4Gi"),
+			},
+		},
+	}
+
+	key := doks.GetKey(labels, node)
+	if key == nil {
+		t.Fatal("expected non-nil key")
+	}
+
+	// Verify input labels map was NOT mutated
+	if _, ok := labels["providerID"]; ok {
+		t.Errorf("expected labels to not contain providerID, but it was mutated: %v", labels)
+	}
+	if _, ok := labels["node.opencost.io/cpu"]; ok {
+		t.Errorf("expected labels to not contain node.opencost.io/cpu, but it was mutated: %v", labels)
+	}
+	if _, ok := labels["node.opencost.io/ram"]; ok {
+		t.Errorf("expected labels to not contain node.opencost.io/ram, but it was mutated: %v", labels)
 	}
 }
