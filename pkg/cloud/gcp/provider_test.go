@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/api/compute/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestParseGCPInstanceTypeLabel(t *testing.T) {
@@ -42,7 +44,7 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		},
 		{
 			input:    "custom-n1-standard-2",
-			expected: "custom",
+			expected: "n1custom",
 		},
 		{
 			input:    "n2d-highmem-8",
@@ -71,6 +73,38 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		{
 			input:    "c4-highmem-32-lssd",
 			expected: "c4standard",
+		},
+		{
+			input:    "c2d-highcpu-8",
+			expected: "c2dstandard",
+		},
+		{
+			input:    "c3-highmem-8",
+			expected: "c3standard",
+		},
+		{
+			input:    "c3d-highcpu-16",
+			expected: "c3dstandard",
+		},
+		{
+			input:    "c4a-highmem-8",
+			expected: "c4astandard",
+		},
+		{
+			input:    "c4d-highcpu-16",
+			expected: "c4dstandard",
+		},
+		{
+			input:    "n4a-highcpu-8",
+			expected: "n4astandard",
+		},
+		{
+			input:    "n4d-highmem-8",
+			expected: "n4dstandard",
+		},
+		{
+			input:    "n2d-custom-8-16384",
+			expected: "n2dcustom",
 		},
 	}
 
@@ -323,7 +357,7 @@ func TestParsePage(t *testing.T) {
 								UsageUnit:                "h",
 								UsageUnitDescription:     "hour",
 								BaseUnit:                 "s",
-								BaseUnitConversionFactor: 0,
+								BaseUnitConversionFactor: 3600,
 								DisplayQuantity:          1,
 								TieredRates: []*TieredRates{
 									{
@@ -1089,6 +1123,27 @@ func TestSustainedUseDiscount(t *testing.T) {
 			isPreemptible:   false,
 			expected:        0.30,
 		},
+		{
+			name:            "C2 instance",
+			class:           "c2",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.2,
+		},
+		{
+			name:            "C4D instance",
+			class:           "c4d",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
+		{
+			name:            "N4A instance",
+			class:           "n4a",
+			defaultDiscount: 0.30,
+			isPreemptible:   false,
+			expected:        0.0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1476,4 +1531,135 @@ func TestCombinedDiscountForC4Node(t *testing.T) {
 	assert.InDelta(t, 0.1, gcp.CombinedDiscountForNode("c4-standard-8", false, 0.30, 0.1), 1e-9)
 	// N1 still gets the default sustained use discount on top of the negotiated one.
 	assert.InDelta(t, 1-(1-0.30)*(1-0.1), gcp.CombinedDiscountForNode("n1-standard-8", false, 0.30, 0.1), 1e-9)
+}
+
+// gibPerGB is how many decimal GB make one GiB.
+const gibPerGB = 1024 * 1024 * 1024 / 1e9
+
+// TestParsePage_MachineFamilies prices one node of each family in test/skus_families.json,
+// whose SKUs are copied from the Cloud Billing Catalog API.
+func TestParsePage_MachineFamilies(t *testing.T) {
+	fileBytes, err := os.ReadFile("./test/skus_families.json")
+	if err != nil {
+		t.Fatalf("failed to open file: %s", err)
+	}
+	cases := []struct {
+		instanceType string
+		spot         bool
+		vcpu, ram    float64
+	}{
+		{"c2d-highcpu-8", false, 0.029563, 0.003959},
+		{"c3-highmem-8", false, 0.03465, 0.003938},
+		{"c3d-highcpu-16", false, 0.029563, 0.003959},
+		{"c4a-highmem-8", false, 0.03086, 0.00351},
+		{"c4d-highcpu-16", false, 0.0327035, 0.003495578 * gibPerGB}, // C4D RAM is priced per GB
+		{"c4d-highcpu-16", true, 0.01376, 0.001472 * gibPerGB},
+		{"n4a-highcpu-8", false, 0.02646, 0.00301},
+		{"n4d-highmem-8", false, 0.02911, 0.00331},
+		{"custom-4-8192", false, 0.03319155, 0.004446},
+		{"n2d-custom-8-16384", false, 0.0288771, 0.0038703},
+		{"e2-custom-4-8192", false, 0.02290217, 0.003069707},
+		{"e2-standard-4", false, 0.02181159, 0.00292353},
+	}
+	keyOf := func(instanceType string, spot bool) *gcpKey {
+		labels := map[string]string{"node.kubernetes.io/instance-type": instanceType, "topology.kubernetes.io/region": "us-central1"}
+		if spot {
+			labels["cloud.google.com/gke-spot"] = "true"
+		}
+		return &gcpKey{Labels: labels}
+	}
+	inputKeys := map[string]models.Key{}
+	for _, c := range cases {
+		k := keyOf(c.instanceType, c.spot)
+		inputKeys[k.Features()] = k
+	}
+	for _, it := range []string{"n2-standard-4", "n2d-standard-4"} {
+		k := &gcpKey{Labels: map[string]string{"node.kubernetes.io/instance-type": it, "topology.kubernetes.io/region": "us-west3"}}
+		inputKeys[k.Features()] = k
+	}
+
+	prices, _, err := (&GCP{}).parsePage(bytes.NewReader(fileBytes), inputKeys, nil)
+	if err != nil {
+		t.Fatalf("parsing page: %v", err)
+	}
+	rate := func(key string, ram bool) float64 {
+		p, ok := prices[key]
+		if !ok || p.Node == nil {
+			t.Fatalf("%s: no pricing parsed", key)
+		}
+		v := p.Node.VCPUCost
+		if ram {
+			v = p.Node.RAMCost
+		}
+		f, _ := strconv.ParseFloat(v, 64)
+		return f
+	}
+	for _, c := range cases {
+		key := keyOf(c.instanceType, c.spot).Features()
+		assert.InDelta(t, c.vcpu, rate(key, false), 1e-12, "%s vCPU", key)
+		assert.InDelta(t, c.ram, rate(key, true), 1e-12, "%s RAM", key)
+	}
+	// C3 and C3D share a prefix but not a price
+	assert.NotEqual(t, rate("us-central1,c3standard,ondemand", false), rate("us-central1,c3dstandard,ondemand", false))
+	// the Extended RAM SKU, listed after the base one, is kept on its own key
+	assert.InDelta(t, 0.008309, rate("us-central1,n2dcustom,ondemand,extended", true), 1e-12)
+	// Sole Tenancy SKUs neither replace the base N2 price nor price N2D on their own
+	assert.InDelta(t, 0.03797, rate("us-west3,n2standard,ondemand", false), 1e-12)
+	assert.InDelta(t, 0.005089, rate("us-west3,n2standard,ondemand", true), 1e-12)
+	assert.NotContains(t, prices, "us-west3,n2dstandard,ondemand")
+}
+
+func TestWithExtendedMemory(t *testing.T) {
+	const base, ext = 0.004, 0.008
+	g := &GCP{Pricing: map[string]*GCPPricing{
+		"us-central1,n2custom,ondemand,extended": {Node: &models.Node{RAMCost: "0.008"}},
+		"us-central1,n1custom,ondemand,extended": {Node: &models.Node{RAMCost: "0.008"}},
+	}}
+	keyFor := func(instanceType, capacity string, extra map[string]string) *gcpKey {
+		labels := map[string]string{"node.kubernetes.io/instance-type": instanceType, "topology.kubernetes.io/region": "us-central1"}
+		for k, v := range extra {
+			labels[k] = v
+		}
+		var n *clustercache.Node
+		if capacity != "" {
+			n = &clustercache.Node{Status: v1.NodeStatus{Capacity: v1.ResourceList{v1.ResourceMemory: resource.MustParse(capacity)}}}
+		}
+		return g.GetKey(labels, n).(*gcpKey)
+	}
+	rate := func(n *models.Node) float64 {
+		f, _ := strconv.ParseFloat(n.RAMCost, 64)
+		return f
+	}
+	baseNode := &models.Node{VCPUCost: "0.03", RAMCost: "0.004"}
+
+	// 96 GiB on 8 vCPUs: 64 GiB at the base rate, 32 GiB extended, spread over the reported 94 GiB
+	got := g.withExtendedMemory(keyFor("n2-custom-8-98304-ext", "94Gi", nil), baseNode)
+	assert.InDelta(t, 64*base+32*ext, rate(got)*94, 1e-12)
+	assert.Equal(t, "0.03", got.VCPUCost)
+	assert.Equal(t, "0.004", baseNode.RAMCost, "cached pricing must not change")
+
+	// N1 has no family prefix and a 6.5 GiB cap; a GPU node's key ends in ",gpu"
+	gpuNode := keyFor("custom-4-32768-ext", "", map[string]string{GKE_GPU_TAG: "nvidia-tesla-t4"})
+	assert.InDelta(t, (26*base+6*ext)/32, rate(g.withExtendedMemory(gpuNode, baseNode)), 1e-12)
+
+	// within the cap, or no Extended price: unchanged
+	assert.Same(t, baseNode, g.withExtendedMemory(keyFor("n2-custom-8-49152-ext", "", nil), baseNode))
+	assert.Same(t, baseNode, g.withExtendedMemory(keyFor("n4d-custom-8-98304-ext", "", nil), baseNode))
+
+	// shapes without extended memory
+	assert.Nil(t, keyFor("n2-custom-8-16384", "", nil).ext)
+	assert.Nil(t, keyFor("e2-custom-4-32768-ext", "", nil).ext)
+}
+
+func TestRamRatePerGiB(t *testing.T) {
+	pricing := func(unit, baseUnit string, factor float64) *GCPPricing {
+		return &GCPPricing{PricingInfo: []*PricingInfo{{PricingExpression: &PricingExpression{
+			UsageUnit: unit, BaseUnit: baseUnit, BaseUnitConversionFactor: factor,
+		}}}}
+	}
+	assert.Equal(t, 0.004, ramRatePerGiB(pricing("GiBy.h", "By.s", 3865470566400), 0.004))
+	assert.InDelta(t, 0.004*gibPerGB, ramRatePerGiB(pricing("GBy.h", "By.s", 3600000000000), 0.004), 1e-15)
+	assert.InDelta(t, 0.000004*1000*gibPerGB, ramRatePerGiB(pricing("MBy.h", "By.s", 3600000000), 0.000004), 1e-15)
+	assert.Equal(t, 0.03, ramRatePerGiB(pricing("h", "s", 3600), 0.03), "not a byte unit")
+	assert.Equal(t, 0.03, ramRatePerGiB(&GCPPricing{}, 0.03), "no pricing info")
 }
