@@ -2,6 +2,7 @@ package gcp
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/opencost/opencost/pkg/cloud"
@@ -168,6 +169,12 @@ func TestBigQueryQuerier_Query_ClientCreationError(t *testing.T) {
 }
 
 func TestBigQueryQuerier_Query_Success(t *testing.T) {
+	// WorkloadIdentity makes the client use Application Default Credentials.
+	// Point them at a file that doesn't exist, so the client fails the same way
+	// on every machine instead of using local gcloud credentials or retrying a
+	// metadata server that doesn't answer.
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", filepath.Join(t.TempDir(), "missing-credentials.json"))
+
 	// This test would require mocking the BigQuery client
 	// For now, we'll test the validation path
 	bqq := &BigQueryQuerier{
@@ -184,7 +191,7 @@ func TestBigQueryQuerier_Query_Success(t *testing.T) {
 	// This will likely fail due to missing credentials, but we can test the validation
 	_, err := bqq.Query(ctx, "SELECT * FROM table")
 
-	// The actual result depends on the environment, but we can verify the status is set
+	// The credentials file doesn't exist, so Query returns a credentials error.
 	if err == nil {
 		assert.Equal(t, cloud.SuccessfulConnection, bqq.ConnectionStatus)
 	} else {
@@ -194,6 +201,9 @@ func TestBigQueryQuerier_Query_Success(t *testing.T) {
 }
 
 func TestBigQueryQuerier_Query_EmptyResult(t *testing.T) {
+	// See TestBigQueryQuerier_Query_Success.
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", filepath.Join(t.TempDir(), "missing-credentials.json"))
+
 	bqq := &BigQueryQuerier{
 		BigQueryConfiguration: BigQueryConfiguration{
 			ProjectID:  "project1",
