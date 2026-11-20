@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/opencost/opencost/core/pkg/opencost"
@@ -67,6 +68,32 @@ func TestAthenaIntegration_GetCloudCost(t *testing.T) {
 	}
 }
 
+var aqiCur20 = AthenaQueryIndexes{
+	ColumnIndexes: map[string]int{
+		"ListCostColumn":                   0,
+		"NetCostColumn":                    1,
+		"AmortizedNetCostColumn":           2,
+		"AmortizedCostColumn":              3,
+		"IsK8sColumn":                      4,
+		AthenaDateTruncColumn:              5,
+		"line_item_resource_id":            6,
+		"bill_payer_account_id":            7,
+		"line_item_usage_account_id":       8,
+		"line_item_product_code":           9,
+		"line_item_usage_type":             10,
+		"product_region_code":              11,
+		"line_item_availability_zone":      12,
+		AthenaResourceTagsCastToJsonColumn: 13,
+	},
+	TagColumns:             []string{},
+	AWSTagColumns:          []string{},
+	ListCostColumn:         "ListCostColumn",
+	NetCostColumn:          "NetCostColumn",
+	AmortizedNetCostColumn: "AmortizedNetCostColumn",
+	AmortizedCostColumn:    "AmortizedCostColumn",
+	IsK8sColumn:            "IsK8sColumn",
+}
+
 func Test_athenaRowToCloudCost(t *testing.T) {
 	aqiCur10 := AthenaQueryIndexes{
 		ColumnIndexes: map[string]int{
@@ -88,32 +115,6 @@ func Test_athenaRowToCloudCost(t *testing.T) {
 		},
 		TagColumns:             []string{"resource_tags_user_test"},
 		AWSTagColumns:          []string{"resource_tags_aws_test"},
-		ListCostColumn:         "ListCostColumn",
-		NetCostColumn:          "NetCostColumn",
-		AmortizedNetCostColumn: "AmortizedNetCostColumn",
-		AmortizedCostColumn:    "AmortizedCostColumn",
-		IsK8sColumn:            "IsK8sColumn",
-	}
-
-	aqiCur20 := AthenaQueryIndexes{
-		ColumnIndexes: map[string]int{
-			"ListCostColumn":                   0,
-			"NetCostColumn":                    1,
-			"AmortizedNetCostColumn":           2,
-			"AmortizedCostColumn":              3,
-			"IsK8sColumn":                      4,
-			AthenaDateTruncColumn:              5,
-			"line_item_resource_id":            6,
-			"bill_payer_account_id":            7,
-			"line_item_usage_account_id":       8,
-			"line_item_product_code":           9,
-			"line_item_usage_type":             10,
-			"product_region_code":              11,
-			"line_item_availability_zone":      12,
-			AthenaResourceTagsCastToJsonColumn: 13,
-		},
-		TagColumns:             []string{},
-		AWSTagColumns:          []string{},
 		ListCostColumn:         "ListCostColumn",
 		NetCostColumn:          "NetCostColumn",
 		AmortizedNetCostColumn: "AmortizedNetCostColumn",
@@ -604,4 +605,24 @@ func TestAthenaIntegration_GetPartitionWhere(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_athenaRowToCloudCost_BanksPerRowStrings(t *testing.T) {
+	row := func() types.Row {
+		return stringsToRow([]string{"1", "2", "3", "4", "true", "2024-09-01 00:00:00.000", "arn:aws:eks:us-east-1:123:pod/a", "payer", "usage", "AmazonEKS", "Fargate-vCPU-Hours:perCPU", "us-east-1", "", `{"user_team":"payments","aws_eks_cluster_name":"prod"}`, ""})
+	}
+	a, errA := athenaRowToCloudCost(row(), aqiCur20)
+	b, errB := athenaRowToCloudCost(row(), aqiCur20)
+	if errA != nil || errB != nil {
+		t.Fatalf("athenaRowToCloudCost: %v, %v", errA, errB)
+	}
+
+	same := func(name, x, y string) {
+		if x != y || unsafe.StringData(x) != unsafe.StringData(y) {
+			t.Errorf("%s not banked: %q and %q have separate allocations", name, x, y)
+		}
+	}
+	same("EKS provider ID", a.Properties.ProviderID, b.Properties.ProviderID)
+	same("user tag value", a.Properties.Labels["team"], b.Properties.Labels["team"])
+	same("aws tag value", a.Properties.Labels["aws_eks_cluster_name"], b.Properties.Labels["aws_eks_cluster_name"])
 }

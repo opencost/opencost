@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigquery"
+	"github.com/opencost/bingen/pkg/util/stringutil"
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/json"
@@ -119,7 +120,7 @@ func (ccl *CloudCostLoader) Load(values []bigquery.Value, schema bigquery.Schema
 			for _, pair := range labelList {
 				key := pair["key"]
 				value := pair["value"]
-				labels[key] = value
+				labels[stringutil.Bank(key)] = stringutil.Bank(value)
 			}
 			properties.Labels = labels
 		case ResourceNameColumnName:
