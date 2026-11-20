@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2020-09-01/commerce/mgmt/commerce"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
@@ -52,7 +53,16 @@ func (d *PriceSheetDownloader) GetPricing(ctx context.Context) (map[string]*Azur
 }
 
 func (d *PriceSheetDownloader) getDownloadURL(ctx context.Context) (string, error) {
-	cred, err := azidentity.NewClientSecretCredential(d.TenantID, d.ClientID, d.ClientSecret, nil)
+	var cred azcore.TokenCredential
+	var err error
+	if d.ClientID != "" && d.ClientSecret != "" && d.TenantID != "" {
+		cred, err = azidentity.NewClientSecretCredential(d.TenantID, d.ClientID, d.ClientSecret, nil)
+	} else {
+		// Keyless: resolves workload identity, managed identity, and CLI
+		// credentials via the standard chain, matching the CloudCost
+		// integration's AzureDefaultCredential authorizer.
+		cred, err = azidentity.NewDefaultAzureCredential(nil)
+	}
 	if err != nil {
 		return "", fmt.Errorf("creating credential: %w", err)
 	}
