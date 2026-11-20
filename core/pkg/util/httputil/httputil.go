@@ -147,18 +147,16 @@ func IsRateLimited(resp *http.Response, body []byte) bool {
 	return IsRateLimitedResponse(resp) || IsRateLimitedBody(resp, body)
 }
 
-// RateLimitedRetryFor returns the parsed Retry-After header relative to the
-// current time. If the Retry-After header does not exist, the defaultWait parameter
-// is returned.
+// RateLimitedRetryFor returns how long to wait before retrying a rate limited
+// response. A usable Retry-After header is honored, relative to the current time.
+// When the response has no usable Retry-After header, an exponential backoff of
+// the defaultWait parameter is returned, based on the current retry count.
 func RateLimitedRetryFor(resp *http.Response, defaultWait time.Duration, retry int) time.Duration {
-	if resp.Header == nil {
-		return ExponentialBackoffWaitFor(defaultWait, retry)
-	}
-
-	// Retry-After is either the number of seconds to wait or a target datetime (RFC1123)
+	// Retry-After is either the number of seconds to wait or a target datetime (RFC1123).
+	// Get is safe to call on a nil Header.
 	value := resp.Header.Get("Retry-After")
 	if value == "" {
-		return defaultWait
+		return ExponentialBackoffWaitFor(defaultWait, retry)
 	}
 
 	seconds, err := strconv.ParseInt(value, 10, 64)
@@ -177,8 +175,8 @@ func RateLimitedRetryFor(resp *http.Response, defaultWait time.Duration, retry i
 		return result
 	}
 
-	// failed to parse datetime, return default
-	return defaultWait
+	// failed to parse datetime, back off exponentially from the default
+	return ExponentialBackoffWaitFor(defaultWait, retry)
 }
 
 // ExpontentialBackoffWatiFor accepts a default wait duration and the current retry count
