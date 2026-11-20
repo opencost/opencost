@@ -457,7 +457,7 @@ func TestGetUnmountedPodForCluster(t *testing.T) {
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			actual := getUnmountedPodForCluster(testCase.window, testCase.podMap, testCase.cluster)
+			actual := getUnmountedPodForCluster(testCase.window, testCase.podMap, testCase.cluster, observedInterval{})
 			if !actual.equal(testCase.expected) {
 				t.Errorf("Unmounted pod does not match expectation")
 			}
