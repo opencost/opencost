@@ -1,7 +1,6 @@
 package costmodel
 
 import (
-	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -1657,7 +1656,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 	// Idle is required for proportional asset costs
 	if includeProportionalAssetResourceCosts {
 		if !includeIdle {
-			return nil, errors.New("bad request - includeIdle must be set true if includeProportionalAssetResourceCosts is true")
+			return nil, fmt.Errorf("%w - includeIdle must be set true if includeProportionalAssetResourceCosts is true", ErrBadRequest)
 		}
 		totalsStore = opencost.NewMemoryTotalsStore()
 	}
@@ -1726,12 +1725,12 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 		parser := allocation.NewAllocationFilterParser()
 		filterNode, err := parser.Parse(filterString)
 		if err != nil {
-			return nil, fmt.Errorf("invalid filter: %w", err)
+			return nil, fmt.Errorf("%w - invalid filter: %w", ErrBadRequest, err)
 		}
 		compiler := opencost.NewAllocationMatchCompiler(nil)
 		matcher, err := compiler.Compile(filterNode)
 		if err != nil {
-			return nil, fmt.Errorf("failed to compile filter: %w", err)
+			return nil, fmt.Errorf("%w - failed to compile filter: %w", ErrBadRequest, err)
 		}
 		filteredASR := opencost.NewAllocationSetRange()
 		for _, as := range asr.Allocations {
