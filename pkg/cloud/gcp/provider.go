@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -123,6 +124,7 @@ type GCP struct {
 	ClusterAccountID        string
 	ClusterProjectID        string
 	clusterProvisioner      string
+	computeService          *compute.Service
 }
 
 type gcpAllocation struct {
@@ -368,35 +370,67 @@ func (gcp *GCP) isAddressOrphaned(address *compute.Address) bool {
 	return len(address.Users) == 0
 }
 
-func (gcp *GCP) getAllDisks() (*compute.DiskAggregatedList, error) {
-	projID, err := gcp.MetadataClient.ProjectID()
+func (gcp *GCP) diskService(ctx context.Context) (*compute.Service, error) {
+	if gcp.computeService != nil {
+		return gcp.computeService, nil
+	}
+
+	client, err := google.DefaultClient(ctx, compute.ComputeReadonlyScope)
+	if err != nil {
+		return nil, err
+	}
+	return compute.New(client)
+}
+
+func (gcp *GCP) getAllDisks(ctx context.Context) (*compute.DiskAggregatedList, error) {
+	projID, err := gcp.MetadataClient.ProjectIDWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := google.DefaultClient(context.TODO(),
-		"https://www.googleapis.com/auth/compute.readonly")
+	svc, err := gcp.diskService(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	svc, err := compute.New(client)
+	// A scope can span pages, so its disks are accumulated rather than replaced.
+	var res *compute.DiskAggregatedList
+	items := map[string]compute.DisksScopedList{}
+	var unreachables []string
+	err = svc.Disks.AggregatedList(projID).Pages(ctx, func(page *compute.DiskAggregatedList) error {
+		for scope, scoped := range page.Items {
+			if prev, ok := items[scope]; ok {
+				scoped.Disks = append(prev.Disks, scoped.Disks...)
+			}
+			if len(scoped.Disks) > 0 && scoped.Warning != nil && scoped.Warning.Code == "NO_RESULTS_ON_PAGE" {
+				scoped.Warning = nil
+			}
+			items[scope] = scoped
+		}
+		unreachables = append(unreachables, page.Unreachables...)
+		if page.Warning == nil && res != nil {
+			page.Warning = res.Warning
+		}
+		res = page
+		return nil
+	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("listing GCP disks: %w", err)
 	}
 
-	res, err := svc.Disks.AggregatedList(projID).Do()
-
-	if err != nil {
-		return nil, err
-	}
-
+	slices.Sort(unreachables)
+	res.Items = items
+	res.Unreachables = slices.Compact(unreachables)
+	res.NextPageToken = ""
 	return res, nil
 }
 
 // GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
 func (gcp *GCP) GetDisks() ([]byte, error) {
-	res, err := gcp.getAllDisks()
+	ctx, cancel := context.WithTimeout(context.Background(), env.GetDiskListingTimeout())
+	defer cancel()
+
+	res, err := gcp.getAllDisks(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +460,10 @@ func (gcp *GCP) isDiskOrphaned(disk *compute.Disk) (bool, error) {
 }
 
 func (gcp *GCP) GetOrphanedResources() ([]models.OrphanedResource, error) {
-	disks, err := gcp.getAllDisks()
+	ctx, cancel := context.WithTimeout(context.Background(), env.GetDiskListingTimeout())
+	defer cancel()
+
+	disks, err := gcp.getAllDisks(ctx)
 	if err != nil {
 		return nil, err
 	}
