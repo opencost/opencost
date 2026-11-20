@@ -708,6 +708,60 @@ func TestParse_Window(t *testing.T) {
 		t.Fatalf(`expect: window end to be %s; actual: %s`, expectedEnd, win.end)
 	}
 }
+
+// Every unit accepted by the offset part of a "<duration> offset <offset>"
+// window must shift the end of the window back by exactly that much time.
+func TestParse_WindowDurationOffset(t *testing.T) {
+	now := time.Date(2024, time.May, 3, 8, 1, 4, 6, time.UTC)
+
+	testCases := []struct {
+		window        string
+		expectedStart time.Time
+		expectedEnd   time.Time
+	}{
+		{
+			window:        "1d offset 30m",
+			expectedStart: now.Add(-24*time.Hour - 30*time.Minute),
+			expectedEnd:   now.Add(-30 * time.Minute),
+		},
+		{
+			window:        "1d offset 2h",
+			expectedStart: now.Add(-24*time.Hour - 2*time.Hour),
+			expectedEnd:   now.Add(-2 * time.Hour),
+		},
+		{
+			window:        "1d offset 3d",
+			expectedStart: now.Add(-24*time.Hour - 3*24*time.Hour),
+			expectedEnd:   now.Add(-3 * 24 * time.Hour),
+		},
+		{
+			window:        "1d offset 1w",
+			expectedStart: now.Add(-24*time.Hour - 7*24*time.Hour),
+			expectedEnd:   now.Add(-7 * 24 * time.Hour),
+		},
+		{
+			window:        "1w offset 2w",
+			expectedStart: now.Add(-7*24*time.Hour - 14*24*time.Hour),
+			expectedEnd:   now.Add(-14 * 24 * time.Hour),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.window, func(t *testing.T) {
+			win, err := parseWindow(tc.window, now)
+			if err != nil {
+				t.Fatalf(`unexpected error parsing "%s": %s`, tc.window, err)
+			}
+			if !win.start.Equal(tc.expectedStart) {
+				t.Errorf(`expect: window start to be %s; actual: %s`, tc.expectedStart, win.start)
+			}
+			if !win.end.Equal(tc.expectedEnd) {
+				t.Errorf(`expect: window end to be %s; actual: %s`, tc.expectedEnd, win.end)
+			}
+		})
+	}
+}
+
 func TestWindow_Duration(t *testing.T) {
 	// Set-up and tear-down
 	thanosEnabled := env.GetBool(ThanosEnabledEnvVarName, false)
