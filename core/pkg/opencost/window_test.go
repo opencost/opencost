@@ -762,6 +762,69 @@ func TestParse_WindowDurationOffset(t *testing.T) {
 	}
 }
 
+// A "<RFC3339>,<RFC3339>" window must be rejected when either timestamp is not
+// a real date or when anything other than the two timestamps is present. It
+// must never turn into a window that starts at the zero time.
+func TestParse_WindowRFC3339Pair(t *testing.T) {
+	now := time.Date(2024, time.May, 3, 8, 1, 4, 6, time.UTC)
+
+	validCases := []struct {
+		window        string
+		expectedStart time.Time
+		expectedEnd   time.Time
+	}{
+		{
+			window:        "2020-04-01T00:00:00Z,2020-04-03T00:00:00Z",
+			expectedStart: time.Date(2020, time.April, 1, 0, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2020, time.April, 3, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			window:        "2020-02-29T00:00:00Z,2020-03-01T12:30:45Z",
+			expectedStart: time.Date(2020, time.February, 29, 0, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2020, time.March, 1, 12, 30, 45, 0, time.UTC),
+		},
+	}
+
+	for _, tc := range validCases {
+		t.Run(tc.window, func(t *testing.T) {
+			win, err := parseWindow(tc.window, now)
+			if err != nil {
+				t.Fatalf(`unexpected error parsing "%s": %s`, tc.window, err)
+			}
+			if !win.start.Equal(tc.expectedStart) {
+				t.Errorf(`expect: window start to be %s; actual: %s`, tc.expectedStart, win.start)
+			}
+			if !win.end.Equal(tc.expectedEnd) {
+				t.Errorf(`expect: window end to be %s; actual: %s`, tc.expectedEnd, win.end)
+			}
+		})
+	}
+
+	invalidCases := []string{
+		// not real dates
+		"2020-13-01T00:00:00Z,2020-04-03T00:00:00Z",
+		"2020-04-01T00:00:00Z,2020-02-30T00:00:00Z",
+		"2021-02-29T00:00:00Z,2021-03-01T00:00:00Z",
+		"2020-04-01T24:00:00Z,2020-04-03T00:00:00Z",
+		// text around or after the pair
+		"junk2020-04-01T00:00:00Z,2020-04-03T00:00:00Z",
+		"2020-04-01T00:00:00Z,2020-04-03T00:00:00Zjunk",
+		"2020-04-01T00:00:00Z,2020-04-03T00:00:00Z,2020-04-05T00:00:00Z",
+	}
+
+	for _, window := range invalidCases {
+		t.Run(window, func(t *testing.T) {
+			win, err := parseWindow(window, now)
+			if err == nil {
+				t.Fatalf(`expect: error parsing "%s"; actual: window %s`, window, win)
+			}
+			if win.start != nil || win.end != nil {
+				t.Errorf(`expect: empty window when parsing "%s" fails; actual: %s`, window, win)
+			}
+		})
+	}
+}
+
 func TestWindow_Duration(t *testing.T) {
 	// Set-up and tear-down
 	thanosEnabled := env.GetBool(ThanosEnabledEnvVarName, false)
