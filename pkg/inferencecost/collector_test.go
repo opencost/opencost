@@ -557,8 +557,8 @@ func TestCollector_UsageCost_RAMOnlyScaling(t *testing.T) {
 }
 
 // TestCollector_UsageCost_CPUUsageEqualsRequest verifies that when CPU usage
-// exactly equals the request (utilisation == 100%), the guard condition
-// (usage < request) prevents scaling and the full CPU cost is retained.
+// exactly equals the request (utilisation == 100%), the clamped ratio is 1.0
+// and the full CPU cost is retained.
 // This also confirms no double-counting from the subtraction/addition path.
 func TestCollector_UsageCost_CPUUsageEqualsRequest(t *testing.T) {
 	cfg := baseConfig()
@@ -569,7 +569,7 @@ func TestCollector_UsageCost_CPUUsageEqualsRequest(t *testing.T) {
 		"llama-3",
 		0, 4.0, 0,
 		nil,      // no GPU
-		4.0, 4.0, // usage == request → guard (usage < request) is false → no scaling
+		4.0, 4.0, // usage == request → ratio 1.0 → full cost charged
 		0, 0,
 		"llm-prod",
 	)
@@ -594,7 +594,7 @@ func TestCollector_UsageCost_CPUUsageEqualsRequest(t *testing.T) {
 	}
 }
 
-// TestCollector_UsageCost_RAMUsageEqualsRequest verifies the same guard for RAM:
+// TestCollector_UsageCost_RAMUsageEqualsRequest verifies the same clamp for RAM:
 // when RAM usage exactly equals the request, no scaling fires and full cost is kept.
 func TestCollector_UsageCost_RAMUsageEqualsRequest(t *testing.T) {
 	cfg := baseConfig()
@@ -631,8 +631,8 @@ func TestCollector_UsageCost_RAMUsageEqualsRequest(t *testing.T) {
 }
 
 // TestCollector_UsageCost_CPUOvercommit verifies that when CPU usage exceeds
-// the request (overcommit), the guard (usage < request) prevents scaling and
-// the full CPU cost is retained — overcommit situations should not produce
+// the request (overcommit), the utilisation ratio clamps to 1.0
+// and the full CPU cost is charged — overcommit situations should not produce
 // sub-reservation costs.
 func TestCollector_UsageCost_CPUOvercommit(t *testing.T) {
 	cfg := baseConfig()
@@ -668,7 +668,8 @@ func TestCollector_UsageCost_CPUOvercommit(t *testing.T) {
 	}
 }
 
-// TestCollector_UsageCost_RAMOvercommit verifies the same overcommit guard for RAM.
+// TestCollector_UsageCost_RAMOvercommit verifies the same overcommit clamp for RAM:
+// usage exceeding request clamps to 1.0 rather than reducing cost.
 func TestCollector_UsageCost_RAMOvercommit(t *testing.T) {
 	cfg := baseConfig()
 	c := &Collector{config: cfg}
@@ -739,6 +740,106 @@ func TestCollector_UsageCost_NilGPUAllocationStruct(t *testing.T) {
 	want := 12.0
 	if !floatEq(r.usageTotalCost, want) {
 		t.Errorf("usageTotalCost want %.2f got %.4f (nil GPUAllocation should not panic or scale)", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_ZeroCPUUsage verifies that CPUCoreUsageAverage==0
+// (CPU completely idle) scales CPU cost to $0, not left at full reservation.
+// This is the regression test for the original `usage > 0` guard, which
+// excluded the scaling block whenever usage was exactly zero and silently
+// fell through to charging the full, unscaled reservation cost.
+func TestCollector_UsageCost_ZeroCPUUsage(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		0, 4.0, 0,
+		nil,
+		4.0, 0.0, // request=4, usage=0 → completely idle CPU
+		0, 0,
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// CPU $4 × 0.0 = $0. Prior to the fix this asserted 4.0 (the bug).
+	want := 0.0
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f (zero CPU usage should zero CPU cost, not retain full reservation)", want, r.usageTotalCost)
+	}
+}
+
+// TestCollector_UsageCost_ZeroRAMUsage verifies the same zero-usage for RAM.
+func TestCollector_UsageCost_ZeroRAMUsage(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	alloc := makeAllocationWithUtilisation(
+		"llama-3",
+		0, 0, 2.0,
+		nil,
+		0, 0,
+		100.0, 0.0, // request=100, usage=0 → completely idle RAM
+		"llm-prod",
+	)
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	results, err := c.extractAllocationResults(as, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	r, ok := results[key]
+	if !ok {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// RAM $2 × 0.0 = $0. Prior to the fix this asserted 2.0 (the bug).
+	want := 0.0
+	if !floatEq(r.usageTotalCost, want) {
+		t.Errorf("usageTotalCost want %.2f got %.4f (zero RAM usage should zero RAM cost, not retain full reservation)", want, r.usageTotalCost)
+	}
+}
+
+// TestClampRatio verifies the shared clamp helper used by the GPU, CPU, and
+// RAM utilisation scaling paths: in-range ratios pass through unchanged,
+// negative ratios clamp to 0, and ratios above 1 (overcommit) clamp to 1.
+func TestClampRatio(t *testing.T) {
+	tests := []struct {
+		name  string
+		ratio float64
+		want  float64
+	}{
+		{"zero", 0.0, 0.0},
+		{"mid_range", 0.5, 0.5},
+		{"exactly_one", 1.0, 1.0},
+		{"negative", -0.5, 0.0},
+		{"above_one", 1.5, 1.0},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := clampRatio(tc.ratio)
+			if !floatEq(got, tc.want) {
+				t.Errorf("clampRatio(%.2f) want %.2f got %.4f", tc.ratio, tc.want, got)
+			}
+		})
 	}
 }
 
