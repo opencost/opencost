@@ -16,6 +16,7 @@ const (
 	ProviderOTC          Provider = "OTC"
 	ProviderOVH          Provider = "OVH"
 	ProviderSTACKIT      Provider = "STACKIT"
+	ProviderHuawei       Provider = "Huawei"
 	ProviderCustom       Provider = "Custom"
 	ProviderCSV          Provider = "CSV"
 )
@@ -44,6 +45,8 @@ func ParseProvider(provider string) Provider {
 		return ProviderOVH
 	case "stackit", "ske":
 		return ProviderSTACKIT
+	case "huawei", "huaweicloud":
+		return ProviderHuawei
 	case "custom":
 		return ProviderCustom
 	case "csv":

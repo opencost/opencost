@@ -3158,6 +3158,17 @@ Copyright 2018 The Go Authors. All rights reserved.
 --------------------------------- (separator) ----------------------------------
 
 == Dependency
+github.com/goccy/go-yaml
+
+== License Type
+SPDX:MIT
+
+== Copyright
+Copyright (c) 2019 Masaaki Goshima
+
+--------------------------------- (separator) ----------------------------------
+
+== Dependency
 github.com/gofrs/uuid
 
 == License Type
@@ -3438,6 +3449,28 @@ SPDX:MPL-2.0
 
 == Copyright
 (no copyright notices found)
+
+--------------------------------- (separator) ----------------------------------
+
+== Dependency
+github.com/huaweicloud/huaweicloud-sdk-go-obs
+
+== License Type
+SPDX:Apache-2.0
+
+== Copyright
+Copyright 2019 Huawei Technologies Co.,Ltd.
+
+--------------------------------- (separator) ----------------------------------
+
+== Dependency
+github.com/huaweicloud/huaweicloud-sdk-go-v3
+
+== License Type
+SPDX:Apache-2.0
+
+== Copyright
+Copyright (c) Huawei Technologies Co., Ltd. 2020-present. All rights reserved.
 
 --------------------------------- (separator) ----------------------------------
 
@@ -4881,6 +4914,17 @@ Copyright (c) 2013 Alif Rachmawadi
 --------------------------------- (separator) ----------------------------------
 
 == Dependency
+github.com/tjfoc/gmsm
+
+== License Type
+SPDX:Apache-2.0
+
+== Copyright
+(no copyright notices found)
+
+--------------------------------- (separator) ----------------------------------
+
+== Dependency
 github.com/zeebo/xxh3
 
 == License Type
@@ -4900,6 +4944,17 @@ SPDX:MIT
 
 == Copyright
 Copyright (c) 2013 Ben Johnson
+
+--------------------------------- (separator) ----------------------------------
+
+== Dependency
+go.mongodb.org/mongo-driver
+
+== License Type
+SPDX:Apache-2.0
+
+== Copyright
+Copyright (C) MongoDB, Inc. 2017-present.
 
 --------------------------------- (separator) ----------------------------------
 
