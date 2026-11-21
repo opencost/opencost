@@ -2,9 +2,10 @@ module github.com/opencost/opencost/modules/pricing/basic
 
 replace github.com/opencost/opencost/core => ../../../core
 
-require github.com/opencost/opencost/core v0.0.0 // return to v1.120.2-0.20260514205745-aa41c03dc67a
-
-require github.com/stretchr/testify v1.11.1
+require (
+	github.com/opencost/opencost/core v0.0.0 // return to v1.120.2-0.20260514205745-aa41c03dc67a
+	github.com/stretchr/testify v1.11.1
+)
 
 require (
 	cel.dev/expr v0.25.1 // indirect
@@ -46,7 +47,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
