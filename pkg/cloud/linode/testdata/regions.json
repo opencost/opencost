@@ -1,0 +1,25 @@
+{
+  "data": [
+    {
+      "id": "br-gru",
+      "label": "Sao Paulo, BR",
+      "country": "br",
+      "status": "ok"
+    },
+    {
+      "id": "eu-west",
+      "label": "London, UK",
+      "country": "gb",
+      "status": "ok"
+    },
+    {
+      "id": "us-east",
+      "label": "Newark, NJ",
+      "country": "us",
+      "status": "ok"
+    }
+  ],
+  "page": 1,
+  "pages": 1,
+  "results": 3
+}

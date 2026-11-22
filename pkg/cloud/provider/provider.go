@@ -16,6 +16,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/digitalocean"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/linode"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/oracle"
 	"github.com/opencost/opencost/pkg/cloud/otc"
@@ -115,6 +116,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			cp.configFileName = "otc.json"
 		case opencost.OVHProvider:
 			cp.configFileName = "ovh.json"
+		case opencost.LinodeProvider:
+			cp.configFileName = "linode.json"
 		case opencost.STACKITProvider:
 			cp.configFileName = "stackit.json"
 		case opencost.CSVProvider:
@@ -219,6 +222,15 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			ClusterAccountID: cp.accountID,
 			Config:           NewProviderConfig(config, cp.configFileName),
 		}, nil
+	case opencost.LinodeProvider:
+		log.Info("Found ProviderID starting with \"linode\", using Linode Provider")
+		return &linode.Linode{
+			Clientset:        cache,
+			ClusterRegion:    cp.region,
+			ClusterAccountID: cp.accountID,
+			LKEClusterID:     linode.ParseLKEClusterID(nodes[0].Name),
+			Config:           NewProviderConfig(config, cp.configFileName),
+		}, nil
 	case opencost.STACKITProvider:
 		log.Info("Found STACKIT provider, using STACKIT Provider")
 		return &stackit.STACKIT{
@@ -315,6 +327,13 @@ func getClusterProperties(node *clustercache.Node) clusterProperties {
 		log.Debug("using OVH provider")
 		cp.provider = opencost.OVHProvider
 		cp.configFileName = "ovh.json"
+	} else if strings.HasPrefix(providerID, "linode") { // the linode provider ID looks like linode://<instance_id>
+		log.Debug("using Linode provider")
+		cp.provider = opencost.LinodeProvider
+		cp.configFileName = "linode.json"
+		if cp.region == "" {
+			cp.region = node.Labels[linode.RegionLabel]
+		}
 	} else if strings.HasPrefix(providerID, "digitalocean") {
 		log.Debug("using DigitalOcean provider")
 		cp.provider = opencost.DigitalOceanProvider

@@ -15,6 +15,7 @@ const (
 	ProviderScaleway     Provider = "Scaleway"
 	ProviderOTC          Provider = "OTC"
 	ProviderOVH          Provider = "OVH"
+	ProviderLinode       Provider = "Linode"
 	ProviderSTACKIT      Provider = "STACKIT"
 	ProviderCustom       Provider = "Custom"
 	ProviderCSV          Provider = "CSV"
@@ -42,6 +43,8 @@ func ParseProvider(provider string) Provider {
 		return ProviderOTC
 	case "ovh", "ovhcloud", "ovh-mks":
 		return ProviderOVH
+	case "linode", "lke", "akamai":
+		return ProviderLinode
 	case "stackit", "ske":
 		return ProviderSTACKIT
 	case "custom":

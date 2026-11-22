@@ -19,6 +19,7 @@ func TestParseProvider(t *testing.T) {
 		{"Scaleway", ProviderScaleway},
 		{"OTC", ProviderOTC},
 		{"OVH", ProviderOVH},
+		{"Linode", ProviderLinode},
 		{"STACKIT", ProviderSTACKIT},
 		// Case-insensitive
 		{"aws", ProviderAWS},
@@ -30,6 +31,7 @@ func TestParseProvider(t *testing.T) {
 		{"scaleway", ProviderScaleway},
 		{"otc", ProviderOTC},
 		{"ovh", ProviderOVH},
+		{"linode", ProviderLinode},
 		{"stackit", ProviderSTACKIT},
 		{"AWS", ProviderAWS},
 		{"AZURE", ProviderAzure},
@@ -50,6 +52,8 @@ func TestParseProvider(t *testing.T) {
 		{"kapsule", ProviderScaleway},
 		{"ovhcloud", ProviderOVH},
 		{"ovh-mks", ProviderOVH},
+		{"lke", ProviderLinode},
+		{"akamai", ProviderLinode},
 		{"ske", ProviderSTACKIT},
 		// Unknown input returns Custom
 		{"", ProviderCustom},

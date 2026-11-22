@@ -1,0 +1,28 @@
+{
+  "data": [
+    {
+      "id": "volume",
+      "label": "Storage Volume",
+      "price": {
+        "hourly": 0.00015,
+        "monthly": 0.1
+      },
+      "region_prices": [
+        {
+          "id": "id-cgk",
+          "hourly": 0.00018,
+          "monthly": 0.12
+        },
+        {
+          "id": "br-gru",
+          "hourly": 0.00021,
+          "monthly": 0.14
+        }
+      ],
+      "transfer": 0
+    }
+  ],
+  "page": 1,
+  "pages": 1,
+  "results": 1
+}

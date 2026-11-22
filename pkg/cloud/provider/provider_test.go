@@ -5,6 +5,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/clustercache"
 	coreenv "github.com/opencost/opencost/core/pkg/env"
+	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/storage"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/config"
@@ -350,5 +351,26 @@ func TestCSVProviderRefreshCustomPricing(t *testing.T) {
 	c := &CSVProvider{}
 	if err := c.RefreshCustomPricing(); err != nil {
 		t.Fatalf("CSVProvider.RefreshCustomPricing() unexpected error: %v", err)
+	}
+}
+
+func TestGetClusterPropertiesDetectsLinode(t *testing.T) {
+	node := &clustercache.Node{
+		Name:           "lke12345-67890-0a1b2c3d4e",
+		SpecProviderID: "linode://45678901",
+		Labels: map[string]string{
+			"topology.linode.com/region": "us-east",
+		},
+	}
+
+	cp := getClusterProperties(node)
+	if cp.provider != opencost.LinodeProvider {
+		t.Errorf("provider: got %q, want %q", cp.provider, opencost.LinodeProvider)
+	}
+	if cp.configFileName != "linode.json" {
+		t.Errorf("configFileName: got %q, want linode.json", cp.configFileName)
+	}
+	if cp.region != "us-east" {
+		t.Errorf("region: got %q, want us-east", cp.region)
 	}
 }

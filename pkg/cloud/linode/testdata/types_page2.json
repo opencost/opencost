@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "id": "g1-gpu-rtx6000-1",
+      "label": "Dedicated 32GB + RTX6000 GPU x1",
+      "price": {
+        "hourly": 1.5,
+        "monthly": null
+      },
+      "region_prices": [],
+      "memory": 32768,
+      "disk": 655360,
+      "transfer": 16000,
+      "vcpus": 8,
+      "gpus": 1,
+      "network_out": 10000,
+      "class": "gpu"
+    }
+  ],
+  "page": 2,
+  "pages": 2,
+  "results": 3
+}
