@@ -193,7 +193,7 @@ func applyPodResults(window opencost.Window, resolution time.Duration, podMap ma
 
 // addUnsampledPods adds finished pods that ran entirely between two samples of the running
 // series, so the sampled query never returned them (e.g. a 15s Job pod at 1m resolution).
-// Their start and end come from the exact timestamps, paired by UID.
+// Their start and end come from the exact timestamps.
 //
 // Only short runs qualify: a pod that ran for more than two resolution steps without a single
 // sample is not a sampling gap, and a crash-looping pod's earliest start and latest completion
@@ -204,17 +204,13 @@ func addUnsampledPods(window opencost.Window, resolution time.Duration, podMap m
 		return
 	}
 
-	seen := make(map[podKey]map[string]bool, len(resPods))
+	seen := make(map[podKey]bool, len(resPods))
 	for _, res := range resPods {
 		cluster := res.Cluster
 		if cluster == "" {
 			cluster = coreenv.GetClusterID()
 		}
-		key := newPodKey(cluster, res.Namespace, res.Pod)
-		if seen[key] == nil {
-			seen[key] = map[string]bool{}
-		}
-		seen[key][res.UID] = true
+		seen[newPodKey(cluster, res.Namespace, res.Pod)] = true
 	}
 
 	// add reports whether the pod was added.
@@ -239,40 +235,28 @@ func addUnsampledPods(window opencost.Window, resolution time.Duration, podMap m
 	for key, ends := range exact.ends {
 		starts := exact.starts[key]
 
-		if !ingestPodUID {
-			// Without UIDs the pod name is the key, so only an unambiguous single instance
-			// the running query did not return can be added.
-			if seen[key] != nil || len(ends) != 1 || len(starts) != 1 {
-				continue
-			}
-			if ends[0].uid != "" && starts[0].uid != "" && ends[0].uid != starts[0].uid {
-				continue
-			}
-			add(key, starts[0].ts, ends[0].ts)
+		// Only a name's single instance in this window, which the running query did not
+		// return, can be added: the other apply* functions match metrics to pods by name
+		// (through podUIDKeyMap with UID ingestion), so a second instance of the name would
+		// receive the first one's containers and charges.
+		if seen[key] || len(ends) != 1 || len(starts) != 1 {
+			continue
+		}
+		start, end := starts[0], ends[0]
+		if start.uid != end.uid && start.uid != "" && end.uid != "" {
 			continue
 		}
 
-		// A running result without a UID (see buildPodMap's fallback) may be any instance.
-		if seen[key][""] {
+		if !ingestPodUID {
+			add(key, start.ts, end.ts)
 			continue
 		}
-		for _, end := range ends {
-			if end.uid == "" || seen[key][end.uid] {
-				continue
-			}
-			var start podTimestamp
-			for _, st := range starts {
-				if st.uid == end.uid {
-					start = st
-				}
-			}
-			if start.ts.IsZero() {
-				continue
-			}
-			uidKey := newPodKey(key.Cluster, key.Namespace, key.Pod+" "+end.uid)
-			if add(uidKey, start.ts, end.ts) {
-				podUIDKeyMap[key] = append(podUIDKeyMap[key], uidKey)
-			}
+		if end.uid == "" {
+			continue
+		}
+		uidKey := newPodKey(key.Cluster, key.Namespace, key.Pod+" "+end.uid)
+		if add(uidKey, start.ts, end.ts) {
+			podUIDKeyMap[key] = append(podUIDKeyMap[key], uidKey)
 		}
 	}
 }
@@ -2419,6 +2403,11 @@ func applyPVCsToPods(window opencost.Window, podMap map[podKey]*pod, podPVCMap m
 					pvcPodWindowMap[thisPVCKey] = make(map[podKey]opencost.Window)
 				}
 
+				// An exact pod end can fall before the PVC's first sample. An empty or inverted
+				// overlap would leave the pod "active" in the interval sweep, so it is skipped.
+				if !e.After(s) {
+					continue
+				}
 				pvcPodWindowMap[thisPVCKey][thisPodKey] = opencost.NewWindow(&s, &e)
 			}
 		}

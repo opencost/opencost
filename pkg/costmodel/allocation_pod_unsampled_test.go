@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,38 +125,33 @@ func TestAddUnsampledPods(t *testing.T) {
 	}
 }
 
-// With UIDs, two unsampled instances of one name are both added, each with its own times.
-func TestAddUnsampledPodsReusedNameWithUIDs(t *testing.T) {
+// Two unsampled instances of one name are not added, with or without UIDs: metrics are
+// matched to pods by name, so each would receive the other's containers and charges.
+func TestAddUnsampledPodsReusedName(t *testing.T) {
 	h := 10 * time.Hour
 	exact := newPodExactTimes(
 		[]*source.PodTimestampResult{ts("worker-0", "uid-a", at(h)), ts("worker-0", "uid-b", at(h+5*time.Minute))},
 		[]*source.PodTimestampResult{ts("worker-0", "uid-a", at(h+10*time.Second)), ts("worker-0", "uid-b", at(h+5*time.Minute+30*time.Second))},
 	)
-	podMap := map[podKey]*pod{}
-	uidMap := map[podKey][]podKey{}
-	addUnsampledPods(window, time.Minute, podMap, nil, true, uidMap, exact)
-
-	a, b := podMap[newPodKey("cluster1", "ns", "worker-0 uid-a")], podMap[newPodKey("cluster1", "ns", "worker-0 uid-b")]
-	if a == nil || b == nil {
-		t.Fatalf("expected both instances, got %v", podMap)
-	}
-	if a.End.Sub(a.Start) != 10*time.Second || b.End.Sub(b.Start) != 30*time.Second {
-		t.Errorf("got %v and %v", a.End.Sub(a.Start), b.End.Sub(b.Start))
-	}
-	if got := uidMap[newPodKey("cluster1", "ns", "worker-0")]; len(got) != 2 {
-		t.Errorf("podUIDKeyMap: got %v", got)
+	for _, uid := range []bool{false, true} {
+		podMap := map[podKey]*pod{}
+		uidMap := map[podKey][]podKey{}
+		addUnsampledPods(window, time.Minute, podMap, nil, uid, uidMap, exact)
+		if len(podMap) != 0 || len(uidMap) != 0 {
+			t.Errorf("uid=%v: expected nothing added, got %v %v", uid, podMap, uidMap)
+		}
 	}
 }
 
-// With UID ingestion, a sampled instance is not added again, and a running result without a
-// UID (buildPodMap's fallback) may be any instance, so nothing of that name is added.
+// With UID ingestion, nothing is added for a name the running query returned, whether its
+// result had the same UID, another UID (a reused name) or none (buildPodMap's fallback).
 func TestAddUnsampledPodsUIDSeen(t *testing.T) {
 	h := 10 * time.Hour
 	exact := newPodExactTimes(
 		[]*source.PodTimestampResult{ts("short", "uid-1", at(h+5*time.Second))},
 		[]*source.PodTimestampResult{ts("short", "uid-1", at(h+20*time.Second))},
 	)
-	for name, uid := range map[string]string{"same UID": "uid-1", "no UID": ""} {
+	for name, uid := range map[string]string{"same UID": "uid-1", "other UID": "uid-2", "no UID": ""} {
 		sampled := []*source.PodsResult{{Cluster: "cluster1", Namespace: "ns", Pod: "short", UID: uid, Data: samplesAt(at(h))}}
 		podMap := map[podKey]*pod{}
 		uidMap := map[podKey][]podKey{}
@@ -273,5 +269,79 @@ func TestComputeAllocationUnsampledPod(t *testing.T) {
 	}
 	if job1.Properties.Node != "node-a" {
 		t.Errorf("node: got %q", job1.Properties.Node)
+	}
+}
+
+// End to end with UID ingestion: a sampled instance that requests CPU and an unsampled instance
+// of the same name. Only the sampled one is charged, and only for its own request.
+func TestComputeAllocationReusedNameWithUID(t *testing.T) {
+	t.Setenv("INGEST_POD_UID", "true")
+	h := 10 * time.Hour
+	start, end := at(h), at(h+time.Hour)
+
+	ds := source.NewMockOpenCostDataSource()
+	ds.ResolutionValue = time.Minute
+	ds.Querier.SetOverride(source.QueryPodsUID, []*source.PodsResult{{
+		Cluster: "cluster1", Namespace: "ns", Pod: "worker-0", UID: "uid-a",
+		Data: samplesAt(at(h+30*time.Minute), at(h+40*time.Minute)),
+	}})
+	ds.Querier.SetOverride(source.QueryPodContainerStartTime, []*source.PodTimestampResult{
+		ts("worker-0", "uid-a", at(h+29*time.Minute+30*time.Second)), ts("worker-0", "uid-b", at(h+10*time.Minute)),
+	})
+	ds.Querier.SetOverride(source.QueryPodCompletionTime, []*source.PodTimestampResult{
+		ts("worker-0", "uid-a", at(h+40*time.Minute+30*time.Second)), ts("worker-0", "uid-b", at(h+10*time.Minute+14*time.Second)),
+	})
+	ds.Querier.SetOverride(source.QueryCPURequests, []*source.CPURequestsResult{{
+		Cluster: "cluster1", Namespace: "ns", Pod: "worker-0", UID: "uid-a", Container: "main", Node: "node-a",
+		Data: []*util.Vector{{Timestamp: float64(end.Unix()), Value: 1}},
+	}})
+
+	confMan := config.NewConfigFileManager(storage.NewFileStorage("../../"))
+	prov := &provider.CustomProvider{Config: provider.NewProviderConfig(confMan, "../../configs/default.json")}
+	cm := &CostModel{DataSource: ds, Provider: prov, BatchDuration: 24 * time.Hour}
+	set, _, err := cm.computeAllocation(start, end)
+	if err != nil {
+		t.Fatalf("computeAllocation: %v", err)
+	}
+
+	var total float64
+	for _, a := range set.Allocations {
+		if strings.Contains(a.Properties.Pod, "uid-b") {
+			t.Errorf("unsampled instance of a reused name was charged: %v", a.Name)
+		}
+		total += a.CPUCoreHours
+	}
+	if want := 1.0 * 11.0 / 60.0; math.Abs(total-want) > 1e-9 {
+		t.Errorf("CPUCoreHours: got %v, want %v (uid-a only)", total, want)
+	}
+}
+
+// A pod whose exact end is before the PVC's first sample shares no time with it, and must not
+// stay "active" in the interval sweep and halve another pod's share.
+func TestApplyPVCsToPodsSkipsEmptyOverlap(t *testing.T) {
+	h := 10 * time.Hour
+	vol := &pv{Cluster: "cluster1", Name: "pv-1", Bytes: 1024 * 1024 * 1024, CostPerGiBHour: 1}
+	claim := &pvc{Cluster: "cluster1", Namespace: "ns", Name: "data", Bytes: 1024 * 1024 * 1024, Volume: vol,
+		Start: at(h + time.Minute), End: at(h + time.Hour)}
+
+	newPod := func(name string, s, e time.Time) *pod {
+		p := &pod{Window: window.Clone(), Start: s, End: e, Key: newPodKey("cluster1", "ns", name), Allocations: map[string]*opencost.Allocation{}}
+		p.appendContainer("main")
+		return p
+	}
+	cost := func(withShort bool) float64 {
+		long := newPod("long", at(h), at(h+time.Hour))
+		podMap := map[podKey]*pod{long.Key: long}
+		podPVCMap := map[podKey][]*pvc{long.Key: {claim}}
+		if withShort {
+			short := newPod("short", at(h), at(h+55*time.Second))
+			podMap[short.Key] = short
+			podPVCMap[short.Key] = []*pvc{claim}
+		}
+		applyPVCsToPods(window, podMap, podPVCMap, map[pvcKey]*pvc{claim.key(): claim})
+		return long.Allocations["main"].PVs[opencost.PVKey{Cluster: "cluster1", Name: "pv-1"}].Cost
+	}
+	if alone, shared := cost(false), cost(true); math.Abs(alone-shared) > 1e-9 {
+		t.Errorf("long pod's PV cost changed from %v to %v by a pod that ended before the PVC started", alone, shared)
 	}
 }
