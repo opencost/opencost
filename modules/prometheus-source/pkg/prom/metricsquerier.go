@@ -789,20 +789,36 @@ func (pds *PrometheusMetricsQuerier) QueryPodCompletionTime(start, end time.Time
 	return pds.queryPodTimestamp("QueryPodCompletionTime", queryFmt, start, end)
 }
 
-// queryPodTimestamp runs a per-pod timestamp query over the whole window.
+// queryPodTimestamp runs a per-pod timestamp query over the whole window, plus up to two
+// resolution steps after it: a pod that ends just before the window end is often first
+// scraped as completed just after it. The callers validate and clamp every timestamp.
 func (pds *PrometheusMetricsQuerier) queryPodTimestamp(queryName, queryFmt string, start, end time.Time) *source.Future[source.PodTimestampResult] {
 	cfg := pds.promConfig
 
-	durStr := timeutil.DurationString(end.Sub(start))
+	queryEnd := podTimestampQueryEnd(end, cfg.DataResolution, time.Now().UTC())
+
+	durStr := timeutil.DurationString(queryEnd.Sub(start))
 	if durStr == "" {
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
 	query := fmt.Sprintf(queryFmt, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
-	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), query)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, queryEnd.Unix(), query)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodePodTimestampResult, ctx.QueryAtTime(query, end))
+	return source.NewFuture(source.DecodePodTimestampResult, ctx.QueryAtTime(query, queryEnd))
+}
+
+// podTimestampQueryEnd extends end by two resolution steps, but not past now (nor before end).
+func podTimestampQueryEnd(end time.Time, resolution time.Duration, now time.Time) time.Time {
+	queryEnd := end.Add(2 * resolution)
+	if queryEnd.After(now) {
+		queryEnd = now
+	}
+	if queryEnd.Before(end) {
+		queryEnd = end
+	}
+	return queryEnd
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodInfo(start, end time.Time) *source.Future[source.PodInfoResult] {

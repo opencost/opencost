@@ -114,6 +114,7 @@ func (cm *CostModel) buildPodMap(window opencost.Window, podMap map[podKey]*pod,
 	exact := newPodExactTimes(resStartTimes, resCompletionTimes)
 
 	applyPodResults(window, resolution, podMap, resPods, ingestPodUID, podUIDKeyMap, exact)
+	addUnsampledPods(window, resolution, podMap, resPods, ingestPodUID, podUIDKeyMap, exact)
 
 	return nil
 }
@@ -185,6 +186,92 @@ func applyPodResults(window opencost.Window, resolution time.Duration, podMap ma
 				End:         allocEnd,
 				Key:         key,
 				Allocations: map[string]*opencost.Allocation{},
+			}
+		}
+	}
+}
+
+// addUnsampledPods adds finished pods that ran entirely between two samples of the running
+// series, so the sampled query never returned them (e.g. a 15s Job pod at 1m resolution).
+// Their start and end come from the exact timestamps, paired by UID.
+//
+// Only short runs qualify: a pod that ran for more than two resolution steps without a single
+// sample is not a sampling gap, and a crash-looping pod's earliest start and latest completion
+// can be far apart, so both are left out. A pod the running query returned is never added
+// again, even if applyPodResults skipped it as belonging to the adjacent window.
+func addUnsampledPods(window opencost.Window, resolution time.Duration, podMap map[podKey]*pod, resPods []*source.PodsResult, ingestPodUID bool, podUIDKeyMap map[podKey][]podKey, exact *podExactTimes) {
+	if exact == nil {
+		return
+	}
+
+	seen := make(map[podKey]map[string]bool, len(resPods))
+	for _, res := range resPods {
+		cluster := res.Cluster
+		if cluster == "" {
+			cluster = coreenv.GetClusterID()
+		}
+		key := newPodKey(cluster, res.Namespace, res.Pod)
+		if seen[key] == nil {
+			seen[key] = map[string]bool{}
+		}
+		seen[key][res.UID] = true
+	}
+
+	// add reports whether the pod was added.
+	add := func(key podKey, start, end time.Time) bool {
+		if !end.After(start) || end.Sub(start) > 2*resolution {
+			return false
+		}
+		s, e := clampStartAndEnd(start, end, window)
+		if !e.After(s) {
+			return false
+		}
+		podMap[key] = &pod{
+			Window:      window.Clone(),
+			Start:       s,
+			End:         e,
+			Key:         key,
+			Allocations: map[string]*opencost.Allocation{},
+		}
+		return true
+	}
+
+	for key, ends := range exact.ends {
+		starts := exact.starts[key]
+
+		if !ingestPodUID {
+			// Without UIDs the pod name is the key, so only an unambiguous single instance
+			// the running query did not return can be added.
+			if seen[key] != nil || len(ends) != 1 || len(starts) != 1 {
+				continue
+			}
+			if ends[0].uid != "" && starts[0].uid != "" && ends[0].uid != starts[0].uid {
+				continue
+			}
+			add(key, starts[0].ts, ends[0].ts)
+			continue
+		}
+
+		// A running result without a UID (see buildPodMap's fallback) may be any instance.
+		if seen[key][""] {
+			continue
+		}
+		for _, end := range ends {
+			if end.uid == "" || seen[key][end.uid] {
+				continue
+			}
+			var start podTimestamp
+			for _, st := range starts {
+				if st.uid == end.uid {
+					start = st
+				}
+			}
+			if start.ts.IsZero() {
+				continue
+			}
+			uidKey := newPodKey(key.Cluster, key.Namespace, key.Pod+" "+end.uid)
+			if add(uidKey, start.ts, end.ts) {
+				podUIDKeyMap[key] = append(podUIDKeyMap[key], uidKey)
 			}
 		}
 	}
