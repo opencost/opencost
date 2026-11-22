@@ -7,6 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -122,6 +125,8 @@ func TestQueryLogs(t *testing.T) {
 		"QueryClusterManagementPricePerHr":              func(s, e time.Time) { querier.QueryClusterManagementPricePerHr(s, e) },
 		"QueryPods":                                     func(s, e time.Time) { querier.QueryPods(s, e) },
 		"QueryPodsUID":                                  func(s, e time.Time) { querier.QueryPodsUID(s, e) },
+		"QueryPodContainerStartTime":                    func(s, e time.Time) { querier.QueryPodContainerStartTime(s, e) },
+		"QueryPodCompletionTime":                        func(s, e time.Time) { querier.QueryPodCompletionTime(s, e) },
 		"QueryRAMBytesAllocated":                        func(s, e time.Time) { querier.QueryRAMBytesAllocated(s, e) },
 		"QueryRAMRequests":                              func(s, e time.Time) { querier.QueryRAMRequests(s, e) },
 		"QueryRAMLimits":                                func(s, e time.Time) { querier.QueryRAMLimits(s, e) },
@@ -222,5 +227,67 @@ func checkQueryLog(t *testing.T, logWriter *SingleLogWriter, query func(time.Tim
 	if actual != expectedHeader {
 		t.Errorf("Expected log header '%s', but got '%s'", expectedHeader, actual)
 		return
+	}
+}
+
+func TestPodTimestampQueryEnd(t *testing.T) {
+	end := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	cases := map[string]struct {
+		now  time.Time
+		want time.Time
+	}{
+		"historical window gets two resolution steps": {end.Add(time.Hour), end.Add(2 * time.Minute)},
+		"capped at now":    {end.Add(30 * time.Second), end.Add(30 * time.Second)},
+		"never before end": {end.Add(-time.Minute), end},
+	}
+	for name, tc := range cases {
+		if got := podTimestampQueryEnd(end, time.Minute, tc.now); !got.Equal(tc.want) {
+			t.Errorf("%s: got %v, want %v", name, got, tc.want)
+		}
+	}
+}
+
+// paramsRecordingPromClient records the query parameters of every request.
+type paramsRecordingPromClient struct {
+	NoOpPromClient
+	mu     sync.Mutex
+	params []url.Values
+}
+
+func (c *paramsRecordingPromClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+	c.mu.Lock()
+	c.params = append(c.params, req.URL.Query())
+	c.mu.Unlock()
+	return c.NoOpPromClient.Do(ctx, req)
+}
+
+// For a past window, both timestamp queries are evaluated two resolution steps after the
+// window end, over a range that still starts at the window start.
+func TestPodTimestampQueriesReadPastWindowEnd(t *testing.T) {
+	t.Setenv("PROMETHEUS_SERVER_ENDPOINT", "nowhere")
+	t.Setenv("PROMETHEUS_QUERY_RESOLUTION_SECONDS", "60")
+	config, err := NewOpenCostPrometheusConfigFromEnv()
+	if err != nil {
+		t.Fatalf("config: %v", err)
+	}
+
+	end := time.Now().UTC().Truncate(time.Hour).Add(-24 * time.Hour)
+	start := end.Add(-time.Hour)
+	for name, run := range map[string]func(*PrometheusMetricsQuerier){
+		"QueryPodContainerStartTime": func(q *PrometheusMetricsQuerier) { _, _ = q.QueryPodContainerStartTime(start, end).Await() },
+		"QueryPodCompletionTime":     func(q *PrometheusMetricsQuerier) { _, _ = q.QueryPodCompletionTime(start, end).Await() },
+	} {
+		client := new(paramsRecordingPromClient)
+		run(newPrometheusMetricsQuerier(config, client, NewContextFactory(client, config)))
+		if len(client.params) != 1 {
+			t.Fatalf("%s: expected 1 request, got %d", name, len(client.params))
+		}
+		p := client.params[0]
+		if want := strconv.FormatInt(end.Add(2*time.Minute).Unix(), 10); p.Get("time") != want {
+			t.Errorf("%s: evaluated at %s, want %s (end + 2m)", name, p.Get("time"), want)
+		}
+		if !strings.Contains(p.Get("query"), "[62m]") {
+			t.Errorf("%s: expected a 62m range, got %q", name, p.Get("query"))
+		}
 	}
 }

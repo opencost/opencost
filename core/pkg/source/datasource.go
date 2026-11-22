@@ -55,6 +55,8 @@ const (
 	QueryPodPVCVolumes          = "QueryPodPVCVolumes"
 	QueryPodNetworkEgressBytes  = "QueryPodNetworkEgressBytes"
 	QueryPodNetworkIngressBytes = "QueryPodNetworkIngressBytes"
+	QueryPodContainerStartTime  = "QueryPodContainerStartTime"
+	QueryPodCompletionTime      = "QueryPodCompletionTime"
 
 	// Container
 	QueryContainerUptime           = "QueryContainerUptime"
@@ -277,6 +279,13 @@ type MetricsQuerier interface {
 	QueryPodPVCVolumes(start, end time.Time) *Future[PodPVCVolumeResult]
 	QueryPodNetworkEgressBytes(start, end time.Time) *Future[PodNetworkBytesResult]
 	QueryPodNetworkIngressBytes(start, end time.Time) *Future[PodNetworkBytesResult]
+
+	// QueryPodContainerStartTime returns, per pod, the earliest container start time seen in the
+	// window. A source may also read a short time past the window end; callers validate the times.
+	QueryPodContainerStartTime(start, end time.Time) *Future[PodTimestampResult]
+	// QueryPodCompletionTime returns, per pod, the time its last container finished, as seen in the
+	// window (a source may also read a short time past its end).
+	QueryPodCompletionTime(start, end time.Time) *Future[PodTimestampResult]
 
 	// Container
 	QueryContainerUptime(start, end time.Time) *Future[ContainerUptimeResult]

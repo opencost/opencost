@@ -171,6 +171,14 @@ func (m *NoOpMetricsQuerier) QueryPodNetworkIngressBytes(start, end time.Time) *
 	return newEmptyResult(DecodePodNetworkBytesResult)
 }
 
+func (m *NoOpMetricsQuerier) QueryPodContainerStartTime(start, end time.Time) *Future[PodTimestampResult] {
+	return newEmptyResult(DecodePodTimestampResult)
+}
+
+func (m *NoOpMetricsQuerier) QueryPodCompletionTime(start, end time.Time) *Future[PodTimestampResult] {
+	return newEmptyResult(DecodePodTimestampResult)
+}
+
 // Container
 
 func (m *NoOpMetricsQuerier) QueryContainerUptime(start, end time.Time) *Future[ContainerUptimeResult] {

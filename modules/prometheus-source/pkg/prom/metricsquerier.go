@@ -776,6 +776,51 @@ func (pds *PrometheusMetricsQuerier) QueryPodsUID(start, end time.Time) *source.
 	return source.NewFuture(source.DecodePodsResult, ctx.QueryAtTime(queryPodsUID, end))
 }
 
+// QueryPodContainerStartTime reads kube-state-metrics' container start timestamps, which
+// are exact to the second, so short-lived pods are not limited to the query resolution.
+func (pds *PrometheusMetricsQuerier) QueryPodContainerStartTime(start, end time.Time) *source.Future[source.PodTimestampResult] {
+	const queryFmt = `min(min_over_time(kube_pod_container_state_started{%s}[%s])) by (pod, namespace, uid, %s)`
+	return pds.queryPodTimestamp("QueryPodContainerStartTime", queryFmt, start, end)
+}
+
+// QueryPodCompletionTime reads kube-state-metrics' pod completion timestamps (exact to the second).
+func (pds *PrometheusMetricsQuerier) QueryPodCompletionTime(start, end time.Time) *source.Future[source.PodTimestampResult] {
+	const queryFmt = `max(max_over_time(kube_pod_completion_time{%s}[%s])) by (pod, namespace, uid, %s)`
+	return pds.queryPodTimestamp("QueryPodCompletionTime", queryFmt, start, end)
+}
+
+// queryPodTimestamp runs a per-pod timestamp query over the whole window, plus up to two
+// resolution steps after it: a pod that ends just before the window end is often first
+// scraped as completed just after it. The callers validate and clamp every timestamp.
+func (pds *PrometheusMetricsQuerier) queryPodTimestamp(queryName, queryFmt string, start, end time.Time) *source.Future[source.PodTimestampResult] {
+	cfg := pds.promConfig
+
+	queryEnd := podTimestampQueryEnd(end, cfg.DataResolution, time.Now().UTC())
+
+	durStr := timeutil.DurationString(queryEnd.Sub(start))
+	if durStr == "" {
+		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
+	}
+
+	query := fmt.Sprintf(queryFmt, cfg.ClusterFilter, durStr, cfg.ClusterLabel)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, queryEnd.Unix(), query)
+
+	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
+	return source.NewFuture(source.DecodePodTimestampResult, ctx.QueryAtTime(query, queryEnd))
+}
+
+// podTimestampQueryEnd extends end by two resolution steps, but not past now (nor before end).
+func podTimestampQueryEnd(end time.Time, resolution time.Duration, now time.Time) time.Time {
+	queryEnd := end.Add(2 * resolution)
+	if queryEnd.After(now) {
+		queryEnd = now
+	}
+	if queryEnd.Before(end) {
+		queryEnd = end
+	}
+	return queryEnd
+}
+
 func (pds *PrometheusMetricsQuerier) QueryPodInfo(start, end time.Time) *source.Future[source.PodInfoResult] {
 	const queryName = "QueryPodInfo"
 	const queryFmtPodInfo = `avg(avg_over_time(pod_info{%s}[%s])) by (%s, pod, uid, namespace_uid, node_uid)`
