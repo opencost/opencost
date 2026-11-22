@@ -40,6 +40,8 @@ const (
 
 	DigitalOceanAccessTokenEnvVar = "DIGITALOCEAN_ACCESS_TOKEN"
 
+	LinodeTokenEnvVar = "LINODE_TOKEN"
+
 	// Azure rate card filter environment variables
 
 	// Currently being used for OCI and DigitalOcean
@@ -382,6 +384,16 @@ func GetDOKSPricingURL() string {
 func GetDigitalOceanAccessToken() string {
 	// Try DIGITALOCEAN_ACCESS_TOKEN first, then fall back to CLOUD_PROVIDER_API_KEY
 	token := env.Get(DigitalOceanAccessTokenEnvVar, "")
+	if token == "" {
+		token = env.Get(CloudProviderAPIKeyEnvVar, "")
+	}
+	return token
+}
+
+// GetLinodeToken returns the optional Linode API token used to look up the LKE
+// control plane type. Linode prices are public and need no token.
+func GetLinodeToken() string {
+	token := env.Get(LinodeTokenEnvVar, "")
 	if token == "" {
 		token = env.Get(CloudProviderAPIKeyEnvVar, "")
 	}

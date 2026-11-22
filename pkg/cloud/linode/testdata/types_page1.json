@@ -1,0 +1,61 @@
+{
+  "data": [
+    {
+      "id": "g6-standard-2",
+      "label": "Linode 4GB",
+      "price": {
+        "hourly": 0.036,
+        "monthly": 24
+      },
+      "region_prices": [
+        {
+          "id": "id-cgk",
+          "hourly": 0.043,
+          "monthly": 28.8
+        },
+        {
+          "id": "br-gru",
+          "hourly": 0.05,
+          "monthly": 33.6
+        }
+      ],
+      "memory": 4096,
+      "disk": 81920,
+      "transfer": 4000,
+      "vcpus": 2,
+      "gpus": 0,
+      "network_out": 4000,
+      "class": "standard"
+    },
+    {
+      "id": "g6-dedicated-4",
+      "label": "Dedicated 8GB",
+      "price": {
+        "hourly": 0.108,
+        "monthly": 72
+      },
+      "region_prices": [
+        {
+          "id": "id-cgk",
+          "hourly": 0.13,
+          "monthly": 86.4
+        },
+        {
+          "id": "br-gru",
+          "hourly": 0.151,
+          "monthly": 100.8
+        }
+      ],
+      "memory": 8192,
+      "disk": 163840,
+      "transfer": 5000,
+      "vcpus": 4,
+      "gpus": 0,
+      "network_out": 5000,
+      "class": "dedicated"
+    }
+  ],
+  "page": 1,
+  "pages": 2,
+  "results": 3
+}

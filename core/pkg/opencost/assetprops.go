@@ -193,6 +193,9 @@ const OTCProvider = "OTC"
 // DigitalOceanProvider describes the provider DigitalOcean
 const DigitalOceanProvider = "DigitalOcean"
 
+// LinodeProvider describes the provider Linode
+const LinodeProvider = "Linode"
+
 // OVHProvider describes the provider OVH
 const OVHProvider = "OVH"
 
@@ -226,6 +229,8 @@ func ParseProvider(str string) string {
 		return DigitalOceanProvider
 	case "ovh", "ovhcloud", "ovh-mks":
 		return OVHProvider
+	case "linode", "lke", "akamai":
+		return LinodeProvider
 	case "stackit", "ske":
 		return STACKITProvider
 	default:
