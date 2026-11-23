@@ -28,6 +28,7 @@ const (
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 	AWSPricingURL            = "AWS_PRICING_URL"
 	AWSECSPricingURLOverride = "AWS_ECS_PRICING_URL"
+	AWSPricingAPIEnabled     = "AWS_PRICING_API_ENABLED"
 	AWSPricingAPIRegion      = "AWS_PRICING_API_REGION"
 
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
@@ -182,6 +183,12 @@ func GetAWSPricingURL() string {
 // GetAWSECSPricingURLOverride returns an optional alternative URL to fetch AmazonECS pricing data from; for use in airgapped environments
 func GetAWSECSPricingURLOverride() string {
 	return env.Get(AWSECSPricingURLOverride, "")
+}
+
+// IsAWSPricingAPIEnabled returns true if AWS prices should be read from the Price List Query API (pricing:GetProducts)
+// instead of the public offer files.
+func IsAWSPricingAPIEnabled() bool {
+	return env.GetBool(AWSPricingAPIEnabled, false)
 }
 
 // GetAWSPricingAPIRegion returns the region of the AWS Price List Query API endpoint to call, e.g. the region of a

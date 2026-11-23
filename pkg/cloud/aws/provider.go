@@ -1028,7 +1028,7 @@ func (aws *AWS) DownloadPricingData() error {
 	ctx, cancel := context.WithTimeout(context.Background(), pricingAPITimeout)
 	defer cancel()
 	var priceListAPI *pricing.Client
-	if env.GetAWSPricingURL() == "" || env.GetAWSECSPricingURLOverride() == "" {
+	if env.IsAWSPricingAPIEnabled() && (env.GetAWSPricingURL() == "" || env.GetAWSECSPricingURLOverride() == "") {
 		priceListAPI, err = aws.newPricingAPIClient(regions)
 		if err != nil {
 			log.Warnf("Unable to create an AWS Price List API client, using the offer files: %v", err)
