@@ -2772,7 +2772,7 @@ type AssetSet struct {
 	Window            Window
 	Warnings          []string
 	Errors            []string
-	labelAliases      AssetLabels // @bingen:field[version=22]
+	labelAliases      map[string]string // @bingen:field[version=22]
 	// Resolved external label values by asset key and aggregation dimension.
 	groupedLabelValues map[string]AssetLabels // @bingen:field[version=22]
 }

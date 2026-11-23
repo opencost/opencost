@@ -1,6 +1,7 @@
 package opencost
 
 import (
+	"encoding/base64"
 	"testing"
 	"time"
 )
@@ -311,4 +312,49 @@ func TestAssetSetRange_RekeysTeamAliases(t *testing.T) {
 		}
 		assertAssetSetKeyCost(t, dst, "clusters/cluster1/infra", 30)
 	})
+}
+
+func TestAssetSet_DecodeLegacyBinaryClearsGrouping(t *testing.T) {
+	// Version 21 binary for one node grouped by cluster and team with a custom alias.
+	legacy, err := base64.StdEncoding.DecodeString(`
+QkdTVAoAAAAHAGNsdXN0ZXIEAHRlYW0XAGNsdXN0ZXJzL2NsdXN0ZXIxL2luZnJhBwBDb21wdXRl
+AAAKAEt1YmVybmV0ZXMRAGNsdXN0ZXJzL2NsdXN0ZXIxBQBub2RlMQcAbXlfdGVhbQUAaW5mcmEV
+AQIAAAAAAAAAAQAAAAEBAAAAAgAAAAE0ACpnaXRodWIuY29tL29wZW5jb3N0L29wZW5jb3N0L2Nv
+cmUvcGtnL29wZW5jb3N0Lk5vZGUAAAAAFQEAAAAAFQMAAAAEAAAABAAAAAQAAAAFAAAABgAAAAcA
+AAAHAAAAAQEAAAAIAAAACQAAAA8AAAABAAAADuIoDIAAAAAA//8PAAAAAQAAAA7iKV4AAAAAAP//
+AAAAABIBDwAAAAEAAAAO4igMgAAAAAD//wEPAAAAAQAAAA7iKV4AAAAAAP//AAAAAAAAAAAEAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAABAAAAABUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACRAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAABIBDwAAAAEAAAAO4igM
+gAAAAAD//wEPAAAAAQAAAA7iKV4AAAAAAP//AAA=
+`)
+	if err != nil {
+		t.Fatalf("decode v21 fixture: %v", err)
+	}
+	source := &AssetSet{}
+	if err := source.UnmarshalBinary(legacy); err != nil {
+		t.Fatalf("decode legacy fixture: %v", err)
+	}
+	source.labelAliases = map[string]string{"team": "my_team"}
+	source.groupedLabelValues = map[string]AssetLabels{
+		"clusters/cluster1/infra": {"team": "infra"},
+	}
+	data, err := source.MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode current binary: %v", err)
+	}
+	as := &AssetSet{}
+	if err := as.UnmarshalBinary(data); err != nil {
+		t.Fatalf("decode current binary: %v", err)
+	}
+	if as.labelAliases["team"] != "my_team" || as.groupedLabelValues["clusters/cluster1/infra"]["team"] != "infra" {
+		t.Fatalf("current binary lost grouping metadata")
+	}
+	if err := as.UnmarshalBinary(legacy); err != nil {
+		t.Fatalf("UnmarshalBinary: %v", err)
+	}
+	assertAssetSetKeyCost(t, as, "clusters/cluster1/infra", 10)
+	if as.labelAliases != nil || as.groupedLabelValues != nil {
+		t.Fatalf("legacy binary left stale grouping metadata: aliases %v, values %v", as.labelAliases, as.groupedLabelValues)
+	}
 }
