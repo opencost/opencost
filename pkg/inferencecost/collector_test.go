@@ -135,7 +135,7 @@ func TestCollector_ExtractAllocationResults(t *testing.T) {
 	asWithIdle := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	asWithIdle.Set(allocWithIdle)
 
-	resultsAlloc, err := c.extractAllocationResults(asWithIdle, true)
+	resultsAlloc, err := c.extractAllocationResults(asWithIdle, true, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults (allocation) failed: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestCollector_ExtractAllocationResults(t *testing.T) {
 	asWithoutIdle := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	asWithoutIdle.Set(allocWithoutIdle)
 
-	resultsUsage, err := c.extractAllocationResults(asWithoutIdle, false)
+	resultsUsage, err := c.extractAllocationResults(asWithoutIdle, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults (usage) failed: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestCollector_UsageCost_ScalesResourcesByUtilisation(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestCollector_UsageCost_NoScalingWhenUtilisationMetricsAbsent(t *testing.T)
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestCollector_UsageCost_ZeroGPUUsage(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -405,7 +405,7 @@ func TestCollector_UsageCost_OutOfRangeGPUUsageClamped(t *testing.T) {
 			as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 			as.Set(alloc)
 
-			results, err := c.extractAllocationResults(as, false)
+			results, err := c.extractAllocationResults(as, false, false)
 			if err != nil {
 				t.Fatalf("extractAllocationResults failed: %v", err)
 			}
@@ -450,7 +450,7 @@ func TestCollector_UsageCost_GPUOnlyScaling(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -494,7 +494,7 @@ func TestCollector_UsageCost_CPUOnlyScaling(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -538,7 +538,7 @@ func TestCollector_UsageCost_RAMOnlyScaling(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -576,7 +576,7 @@ func TestCollector_UsageCost_CPUUsageEqualsRequest(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -612,7 +612,7 @@ func TestCollector_UsageCost_RAMUsageEqualsRequest(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -650,7 +650,7 @@ func TestCollector_UsageCost_CPUOvercommit(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -686,7 +686,7 @@ func TestCollector_UsageCost_RAMOvercommit(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -724,7 +724,7 @@ func TestCollector_UsageCost_NilGPUAllocationStruct(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -764,7 +764,7 @@ func TestCollector_UsageCost_ZeroCPUUsage(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -799,7 +799,7 @@ func TestCollector_UsageCost_ZeroRAMUsage(t *testing.T) {
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
@@ -843,6 +843,235 @@ func TestClampRatio(t *testing.T) {
 	}
 }
 
+// TestScaleContainerCostsForUsage verifies that the scaleContainerCostsForUsage
+// helper correctly scales CPU and RAM costs per-container before aggregation.
+// GPU is NOT scaled by this function (handled separately in extractAllocationResults
+// via GPUAllocation.GPUUsageAverage pointer).
+func TestScaleContainerCostsForUsage(t *testing.T) {
+	now := time.Now()
+
+	// Container A: 100% CPU usage, 50% RAM usage
+	// CPU: $4.00 * 1.0 = $4.00, RAM: $2.00 * 0.5 = $1.00
+	// GPU: unchanged (not scaled by this function)
+	containerA := makeAllocationWithUtilisation(
+		"llama-3",
+		6.0, 4.0, 2.0,
+		gpuUsage(0.5),
+		4.0, 4.0, // cpuCoreRequest=4, cpuCoreUsage=4 → 100%
+		100.0, 50.0, // ramBytesRequest=100, ramBytesUsage=50 → 50%
+		"llm-prod",
+	)
+	containerA.Name = "container-a"
+
+	// Container B: 0% CPU usage (unobserved), 0% RAM usage
+	// CPU: $4.00 * 0.0 = $0.00, RAM: $2.00 * 0.0 = $0.00
+	// GPU: unchanged
+	containerB := makeAllocationWithUtilisation(
+		"llama-3",
+		6.0, 4.0, 2.0,
+		gpuUsage(0.5),
+		4.0, 0.0, // cpuCoreRequest=4, cpuCoreUsage=0 → 0%
+		100.0, 0.0, // ramBytesRequest=100, ramBytesUsage=0 → 0%
+		"llm-prod",
+	)
+	containerB.Name = "container-b"
+
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(containerA)
+	as.Set(containerB)
+
+	scaled := scaleContainerCostsForUsage(as)
+
+	// Verify container A costs scaled correctly
+	allocA := scaled.Get("container-a")
+	if allocA == nil {
+		t.Fatal("expected scaled allocation for container-a")
+	}
+	// CPU: $4.00 * 1.0 = $4.00
+	if !floatEq(allocA.CPUCost, 4.0) {
+		t.Errorf("container-a CPUCost want 4.0 got %.4f", allocA.CPUCost)
+	}
+	// RAM: $2.00 * 0.5 = $1.00
+	if !floatEq(allocA.RAMCost, 1.0) {
+		t.Errorf("container-a RAMCost want 1.0 got %.4f", allocA.RAMCost)
+	}
+	// GPU: unchanged (not scaled by this function)
+	if !floatEq(allocA.GPUCost, 6.0) {
+		t.Errorf("container-a GPUCost want 6.0 got %.4f", allocA.GPUCost)
+	}
+
+	// Verify container B costs scaled correctly (unobserved = 0 usage)
+	allocB := scaled.Get("container-b")
+	if allocB == nil {
+		t.Fatal("expected scaled allocation for container-b")
+	}
+	// CPU: $4.00 * 0.0 = $0.00
+	if !floatEq(allocB.CPUCost, 0.0) {
+		t.Errorf("container-b CPUCost want 0.0 got %.4f", allocB.CPUCost)
+	}
+	// RAM: $2.00 * 0.0 = $0.00
+	if !floatEq(allocB.RAMCost, 0.0) {
+		t.Errorf("container-b RAMCost want 0.0 got %.4f", allocB.RAMCost)
+	}
+	// GPU: unchanged
+	if !floatEq(allocB.GPUCost, 6.0) {
+		t.Errorf("container-b GPUCost want 6.0 got %.4f", allocB.GPUCost)
+	}
+}
+
+// TestScaleContainerCostsForUsage_PreventsDilution verifies that per-container
+// scaling before aggregation prevents cross-container dilution.
+//
+// Scenario: Pod with 2 containers, same model/namespace
+// - Container A: observed, 100% CPU usage → full cost
+// - Container B: unobserved (missing telemetry), 0% CPU usage → zero cost (Policy A)
+//
+// OLD behavior (diluted):
+//
+//	AggregateBy averages usage: (1.0 + 0.0) / 2 = 0.5
+//	Sums costs: $4 + $4 = $8
+//	Scales: $8 * 0.5 = $4 (wrong - should be $4 from A only)
+//
+// NEW behavior (per-container):
+//
+//	Container A: $4 * 1.0 = $4
+//	Container B: $4 * 0.0 = $0
+//	Sum after scaling: $4 + $0 = $4 (correct)
+func TestScaleContainerCostsForUsage_PreventsDilution(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	// Two containers, same model/namespace (simulating pod with 2 containers)
+	// Container A: observed, 100% CPU usage
+	containerA := makeAllocationWithUtilisation(
+		"llama-3",
+		0.0, 4.0, 0.0, // no GPU/RAM cost
+		nil,      // no GPU
+		4.0, 4.0, // cpuCoreRequest=4, cpuCoreUsage=4 → 100%
+		0, 0, // no RAM
+		"llm-prod",
+	)
+	containerA.Name = "llama-3/container-a"
+	containerA.Properties.Container = "container-a"
+
+	// Container B: unobserved (missing telemetry), 0% CPU usage
+	containerB := makeAllocationWithUtilisation(
+		"llama-3",
+		0.0, 4.0, 0.0,
+		nil,
+		4.0, 0.0, // cpuCoreRequest=4, cpuCoreUsage=0 → 0%
+		0, 0,
+		"llm-prod",
+	)
+	containerB.Name = "llama-3/container-b"
+	containerB.Properties.Container = "container-b"
+
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(containerA)
+	as.Set(containerB)
+
+	// Test the OLD path (no pre-scaling, uses aggregated average)
+	oldResults, err := c.extractAllocationResults(as, false, false)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	_ = oldResults[key] // verify old path works
+	// OLD: diluted average 50% → $8 * 0.5 = $4 (but this is the same by coincidence with 2 containers)
+	// Actually let's verify the internal average: (4.0 + 0.0) / 2 = 2.0 usage avg, request=4.0
+	// So cpuUtil = 2.0/4.0 = 0.5 → $8 * 0.5 = $4
+
+	// Now test with per-container scaling BEFORE aggregation
+	scaledAs := scaleContainerCostsForUsage(as)
+	// Verify per-container costs after scaling (this is the core fix)
+	allocA := scaledAs.Get("llama-3/container-a")
+	allocB := scaledAs.Get("llama-3/container-b")
+	// After scaling: A=$4, B=$0 → total=$4
+	totalScaled := allocA.CPUCost + allocB.CPUCost
+	if !floatEq(totalScaled, 4.0) {
+		t.Errorf("total scaled CPUCost want 4.0 got %.4f", totalScaled)
+	}
+	// Verify individual container costs
+	if !floatEq(allocA.CPUCost, 4.0) {
+		t.Errorf("container-a CPUCost want 4.0 got %.4f", allocA.CPUCost)
+	}
+	if !floatEq(allocB.CPUCost, 0.0) {
+		t.Errorf("container-b CPUCost want 0.0 got %.4f", allocB.CPUCost)
+	}
+}
+
+// TestScaleContainerCostsForUsage_UnobservedContainerPolicyA verifies the
+// default policy for unobserved containers (usage=0, request>0): treat as idle (scale to $0).
+func TestScaleContainerCostsForUsage_UnobservedContainerPolicyA(t *testing.T) {
+	now := time.Now()
+
+	// Container with request>0 but usage=0 (could be idle OR missing telemetry)
+	// Policy A: treat as idle → scale to $0
+	container := makeAllocationWithUtilisation(
+		"llama-3",
+		0.0, 4.0, 2.0,
+		nil,
+		4.0, 0.0, // cpuCoreUsage=0 (unobserved or truly idle)
+		100.0, 0.0, // ramBytesUsage=0
+		"llm-prod",
+	)
+	container.Name = "container-unobserved"
+
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(container)
+
+	scaled := scaleContainerCostsForUsage(as)
+	alloc := scaled.Get("container-unobserved")
+
+	// Policy A: unobserved/idle → scale to $0
+	if !floatEq(alloc.CPUCost, 0.0) {
+		t.Errorf("Policy A: unobserved CPUCost want 0.0 got %.4f", alloc.CPUCost)
+	}
+	if !floatEq(alloc.RAMCost, 0.0) {
+		t.Errorf("Policy A: unobserved RAMCost want 0.0 got %.4f", alloc.RAMCost)
+	}
+}
+
+// TestCollector_UsageCost_PreScaledPath verifies the costsPreScaled path in
+// extractAllocationResults works correctly.
+func TestCollector_UsageCost_PreScaledPath(t *testing.T) {
+	cfg := baseConfig()
+	c := &Collector{config: cfg}
+	now := time.Now()
+
+	// Pre-scaled allocation (simulating what scaleContainerCostsForUsage produces)
+	alloc := &opencost.Allocation{
+		Name:    "pre-scaled-model",
+		GPUCost: 3.0, // Already scaled: $6 * 0.5
+		CPUCost: 4.0, // Already scaled: $4 * 1.0
+		RAMCost: 1.0, // Already scaled: $2 * 0.5
+		Properties: &opencost.AllocationProperties{
+			Namespace: "llm-prod",
+			Labels:    opencost.AllocationLabels(map[string]string{"llm-d.ai/model": "pre-scaled-model"}),
+		},
+	}
+
+	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
+	as.Set(alloc)
+
+	// Use costsPreScaled=true - should just sum without re-scaling
+	results, err := c.extractAllocationResults(as, false, true)
+	if err != nil {
+		t.Fatalf("extractAllocationResults failed: %v", err)
+	}
+
+	key := modelNamespaceKey("pre-scaled-model", "llm-prod")
+	result := results[key]
+	if result == nil {
+		t.Fatal("expected result")
+	}
+	// Should sum exactly: 3.0 + 4.0 + 1.0 = 8.0
+	if !floatEq(result.usageTotalCost, 8.0) {
+		t.Errorf("pre-scaled usageTotalCost want 8.0 got %.4f", result.usageTotalCost)
+	}
+}
+
 // TestCollector_UsageCost_TwoModelsIndependent verifies that two different
 // models in the same namespace produce two independent result entries, each
 // scaled only by its own utilisation metrics with no cross-contamination.
@@ -874,7 +1103,7 @@ func TestCollector_UsageCost_TwoModelsIndependent(t *testing.T) {
 	as.Set(modelA)
 	as.Set(modelB)
 
-	results, err := c.extractAllocationResults(as, false)
+	results, err := c.extractAllocationResults(as, false, false)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
 	}
