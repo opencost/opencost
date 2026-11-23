@@ -1037,6 +1037,11 @@ func (aws *AWS) DownloadPricingData() error {
 
 	aws.refreshFargatePricing(ctx, priceListAPI, regions, nodeList)
 
+	// Keep the last good pricing when every source fails, so cached node, volume and load balancer rates survive.
+	lastPricing, lastValidKeys, lastAPIKeys := aws.Pricing, aws.ValidPricingKeys, aws.pricingAPIKeys
+	restore := func() {
+		aws.Pricing, aws.ValidPricingKeys, aws.pricingAPIKeys = lastPricing, lastValidKeys, lastAPIKeys
+	}
 	aws.ValidPricingKeys = make(map[string]bool)
 	aws.pricingAPIKeys = nil
 	if priceListAPI != nil && env.GetAWSPricingURL() == "" {
@@ -1051,11 +1056,13 @@ func (aws *AWS) DownloadPricingData() error {
 	if aws.pricingAPIKeys == nil {
 		resp, pricingURL, err := aws.getRegionPricing(nodeList)
 		if err != nil {
+			restore()
 			return err
 		}
 		defer resp.Body.Close()
 		err = aws.populatePricing(resp, inputkeys)
 		if err != nil {
+			restore()
 			return err
 		}
 		log.Infof("Finished downloading \"%s\"", pricingURL)
@@ -1788,41 +1795,48 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 	}
 	if ok {
 		return aws.createNode(terms, usageType, k)
-	} else if awsKey, ok := k.(*awsKey); ok && awsKey.isFargateNode() {
-		// Since Fargate pricing is listed at AmazonECS and is different from AmazonEC2, we handle it separately here
-		return aws.createFargateNode(awsKey, usageType)
-	} else if _, ok := aws.ValidPricingKeys[key]; ok || (aws.pricingAPIKeys != nil && !aws.pricingAPIKeys[key]) {
-		// The Price List API only loads the node keys present at the last load, so a new key needs a reload too.
+	}
+
+	_, valid := aws.ValidPricingKeys[key]
+	// The Price List API only loads the node keys present at the last load, so a new key needs a reload too.
+	reload := valid || (aws.pricingAPIKeys != nil && !aws.pricingAPIKeys[key])
+	var err error
+	if reload {
 		aws.DownloadPricingDataLock.RUnlock()
-		err := aws.DownloadPricingData()
+		err = aws.DownloadPricingData()
 		aws.DownloadPricingDataLock.RLock()
-		if err != nil {
-			return &models.Node{
-				Cost:             aws.BaseCPUPrice,
-				BaseCPUPrice:     aws.BaseCPUPrice,
-				BaseRAMPrice:     aws.BaseRAMPrice,
-				BaseGPUPrice:     aws.BaseGPUPrice,
-				UsageType:        usageType,
-				UsesBaseCPUPrice: true,
-			}, meta, err
-		}
-		terms, termsOk := aws.Pricing[key]
-		if !termsOk {
-			return &models.Node{
-				Cost:             aws.BaseCPUPrice,
-				BaseCPUPrice:     aws.BaseCPUPrice,
-				BaseRAMPrice:     aws.BaseRAMPrice,
-				BaseGPUPrice:     aws.BaseGPUPrice,
-				UsageType:        usageType,
-				UsesBaseCPUPrice: true,
-			}, meta, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
-		}
-		return aws.createNode(terms, usageType, k)
-	} else { // Fall back to base pricing if we can't find the key. Base pricing is handled at the costmodel level.
-		// we seem to have an issue where this error gets thrown during app start.
-		// somehow the ValidPricingKeys map is being accessed before all the pricing data has been downloaded
+	}
+
+	if awsKey, ok := k.(*awsKey); ok && awsKey.isFargateNode() {
+		// Fargate is priced from AmazonECS, which the reload refreshes before EC2, so an EC2 failure doesn't matter here.
+		return aws.createFargateNode(awsKey, usageType)
+	}
+	if !reload {
+		// Fall back to base pricing if we can't find the key. Base pricing is handled at the costmodel level.
 		return nil, meta, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
 	}
+	if err != nil {
+		return &models.Node{
+			Cost:             aws.BaseCPUPrice,
+			BaseCPUPrice:     aws.BaseCPUPrice,
+			BaseRAMPrice:     aws.BaseRAMPrice,
+			BaseGPUPrice:     aws.BaseGPUPrice,
+			UsageType:        usageType,
+			UsesBaseCPUPrice: true,
+		}, meta, err
+	}
+	terms, ok = aws.Pricing[key]
+	if !ok {
+		return &models.Node{
+			Cost:             aws.BaseCPUPrice,
+			BaseCPUPrice:     aws.BaseCPUPrice,
+			BaseRAMPrice:     aws.BaseRAMPrice,
+			BaseGPUPrice:     aws.BaseGPUPrice,
+			UsageType:        usageType,
+			UsesBaseCPUPrice: true,
+		}, meta, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
+	}
+	return aws.createNode(terms, usageType, k)
 }
 
 // ClusterInfo returns an object that represents the cluster. TODO: actually return the name of the cluster. Blocked on cluster federation.

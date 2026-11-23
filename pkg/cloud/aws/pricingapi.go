@@ -99,39 +99,11 @@ func getProducts(ctx context.Context, client pricing.GetProductsAPIClient, servi
 // populatePricingFromAPI fills aws.Pricing the way populatePricing does from the offer file, but only queries the
 // instance types in inputkeys plus each region's EBS and NLB prices.
 func (aws *AWS) populatePricingFromAPI(ctx context.Context, client pricing.GetProductsAPIClient, regions []string, inputkeys map[string]bool) error {
-	instanceTypes := make(map[string][]string)
-	for key := range inputkeys {
-		parts := strings.Split(key, ",")
-		if len(parts) >= 2 && parts[1] != "" && !slices.Contains(instanceTypes[parts[0]], parts[1]) {
-			instanceTypes[parts[0]] = append(instanceTypes[parts[0]], parts[1])
-		}
-	}
-
+	instanceTypes := instanceTypesByRegion(inputkeys)
 	aws.Pricing = make(map[string]*AWSProductTerms)
 	skuToPricingKeyMap := make(map[string]string)
 	for _, region := range regions {
-		queries := [][]types.Filter{
-			{pricingFilter(types.FilterTypeContains, "usagetype", "EBS:Volume")},
-			{
-				pricingFilter(types.FilterTypeTermMatch, "operation", "LoadBalancing:Network"),
-				pricingFilter(types.FilterTypeContains, "usagetype", "LoadBalancerUsage"),
-			},
-		}
-		for chunk := range slices.Chunk(instanceTypes[region], pricingAPIInstanceTypesPerQuery) {
-			queries = append(queries, []types.Filter{
-				pricingFilter(types.FilterTypeAnyOf, "instanceType", strings.Join(chunk, ",")),
-				pricingFilter(types.FilterTypeAnyOf, "operatingSystem", "Linux,Windows"),
-				// Windows also lists BYOL and "License Included - Infrastructure" SKUs under the same pricing key; the
-				// standard license-included Windows SKU is labelled "No License required", like Linux.
-				pricingFilter(types.FilterTypeTermMatch, "licenseModel", "No License required"),
-				pricingFilter(types.FilterTypeTermMatch, "tenancy", "Shared"),
-				pricingFilter(types.FilterTypeTermMatch, "preInstalledSw", "NA"),
-				pricingFilter(types.FilterTypeTermMatch, "capacitystatus", "Used"),
-				pricingFilter(types.FilterTypeTermMatch, "marketoption", "OnDemand"),
-			})
-		}
-
-		for _, filters := range queries {
+		for _, filters := range ec2PricingQueries(instanceTypes[region]) {
 			products, err := getProducts(ctx, client, "AmazonEC2", append(filters, pricingFilter(types.FilterTypeTermMatch, "regionCode", region))...)
 			if err != nil {
 				return err
@@ -149,14 +121,52 @@ func (aws *AWS) populatePricingFromAPI(ctx context.Context, client pricing.GetPr
 	return nil
 }
 
+// instanceTypesByRegion groups the instance types of "<region>,<instanceType>,..." node keys by region.
+func instanceTypesByRegion(inputkeys map[string]bool) map[string][]string {
+	instanceTypes := make(map[string][]string)
+	for key := range inputkeys {
+		parts := strings.Split(key, ",")
+		if len(parts) >= 2 && parts[1] != "" && !slices.Contains(instanceTypes[parts[0]], parts[1]) {
+			instanceTypes[parts[0]] = append(instanceTypes[parts[0]], parts[1])
+		}
+	}
+	return instanceTypes
+}
+
+// ec2PricingQueries returns the AmazonEC2 filters for a region's EBS and NLB prices and its instance types.
+func ec2PricingQueries(instanceTypes []string) [][]types.Filter {
+	queries := [][]types.Filter{
+		{pricingFilter(types.FilterTypeContains, "usagetype", "EBS:Volume")},
+		{
+			pricingFilter(types.FilterTypeTermMatch, "operation", "LoadBalancing:Network"),
+			pricingFilter(types.FilterTypeContains, "usagetype", "LoadBalancerUsage"),
+		},
+	}
+	for chunk := range slices.Chunk(instanceTypes, pricingAPIInstanceTypesPerQuery) {
+		queries = append(queries, []types.Filter{
+			pricingFilter(types.FilterTypeAnyOf, "instanceType", strings.Join(chunk, ",")),
+			pricingFilter(types.FilterTypeAnyOf, "operatingSystem", "Linux,Windows"),
+			// Windows also lists BYOL and "License Included - Infrastructure" SKUs under the same pricing key; the
+			// standard license-included Windows SKU is labelled "No License required", like Linux.
+			pricingFilter(types.FilterTypeTermMatch, "licenseModel", "No License required"),
+			pricingFilter(types.FilterTypeTermMatch, "tenancy", "Shared"),
+			pricingFilter(types.FilterTypeTermMatch, "preInstalledSw", "NA"),
+			pricingFilter(types.FilterTypeTermMatch, "capacitystatus", "Used"),
+			pricingFilter(types.FilterTypeTermMatch, "marketoption", "OnDemand"),
+		})
+	}
+	return queries
+}
+
 // refreshFargatePricing loads Fargate prices once, preferring the Price List API over the AmazonECS offer file. With the
 // API, regions that appear later are added on each refresh, keeping the prices already loaded.
 func (aws *AWS) refreshFargatePricing(ctx context.Context, client *pricing.Client, regions []string, nodeList []*clustercache.Node) {
 	useAPI := client != nil && env.GetAWSECSPricingURLOverride() == ""
 	if aws.FargatePricing != nil {
 		if missing := aws.FargatePricing.missingRegions(regions); useAPI && len(missing) > 0 {
-			if err := aws.FargatePricing.populatePricingFromAPI(ctx, client, missing); err != nil {
-				log.Warnf("Failed to load Fargate pricing for %v: %v", missing, err)
+			aws.FargatePricingError = aws.FargatePricing.populatePricingFromAPI(ctx, client, missing)
+			if aws.FargatePricingError != nil {
+				log.Warnf("Failed to load Fargate pricing for %v: %v", missing, aws.FargatePricingError)
 			}
 		}
 		return
