@@ -171,7 +171,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 					oldPrice := nodeclasspricing[classKey]
 					oldCount := nodeclasscount[classKey]
 					newPrice := ((oldPrice * oldCount) + cost) / (oldCount + 1.0)
-					nodeclasscount[classKey] = newPrice
+					nodeclasspricing[classKey] = newPrice
 					nodeclasscount[classKey]++
 				} else {
 					nodeclasspricing[classKey] = cost

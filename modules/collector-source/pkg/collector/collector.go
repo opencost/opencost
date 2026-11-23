@@ -2474,6 +2474,8 @@ func NewStatefulSetMatchLabelsMetricCollector() *metric.MetricCollector {
 		metric.StatefulSetMatchLabelsID,
 		metric.StatefulSetMatchLabels,
 		[]string{
+			source.NamespaceLabel,
+			source.StatefulSetLabel,
 			source.UIDLabel,
 		},
 		aggregator.Info,
