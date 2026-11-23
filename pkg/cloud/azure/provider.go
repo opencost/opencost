@@ -2126,6 +2126,10 @@ func (*Azure) ClusterManagementPricing() (string, float64, error) {
 }
 
 func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
+	// Spot nodes are already priced at the spot rate; only the negotiated discount applies.
+	if isPreemptible {
+		defaultDiscount = 0
+	}
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }
 

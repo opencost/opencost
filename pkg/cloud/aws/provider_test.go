@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -1612,4 +1613,29 @@ func TestAWS_createNode_nilOnDemandTerm(t *testing.T) {
 			t.Fatalf("Expected an error for a product without OnDemand term, got node %+v", node)
 		}
 	})
+}
+
+func TestAWS_CombinedDiscountForNode(t *testing.T) {
+	aws := &AWS{}
+
+	tests := []struct {
+		name               string
+		isPreemptible      bool
+		defaultDiscount    float64
+		negotiatedDiscount float64
+		expected           float64
+	}{
+		{"on-demand gets both discounts", false, 0.30, 0.20, 0.44},
+		{"spot gets only the negotiated discount", true, 0.30, 0.20, 0.20},
+		{"spot without negotiated discount", true, 0.30, 0, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := aws.CombinedDiscountForNode("", tt.isPreemptible, tt.defaultDiscount, tt.negotiatedDiscount)
+			if math.Abs(got-tt.expected) > 1e-9 {
+				t.Errorf("CombinedDiscountForNode() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
 }
