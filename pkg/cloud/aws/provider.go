@@ -41,6 +41,7 @@ import (
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/pricing"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
@@ -215,26 +216,28 @@ type AWS struct {
 	FargatePricing              *FargatePricing
 	FargatePricingError         error
 	ValidPricingKeys            map[string]bool
-	Clientset                   clustercache.ClusterCache
-	BaseCPUPrice                string
-	BaseRAMPrice                string
-	BaseGPUPrice                string
-	BaseSpotCPUPrice            string
-	BaseSpotRAMPrice            string
-	BaseSpotGPUPrice            string
-	SpotLabelName               string
-	SpotLabelValue              string
-	SpotDataRegion              string
-	SpotDataBucket              string
-	SpotDataPrefix              string
-	ProjectID                   string
-	DownloadPricingDataLock     sync.RWMutex
-	Config                      models.ProviderConfig
-	ServiceAccountChecks        *models.ServiceAccountChecks
-	clusterManagementPrice      float64
-	ClusterRegion               string
-	ClusterAccountID            string
-	clusterProvisioner          string
+	// pricingAPIKeys holds the node keys the last Price List API load covered; nil when pricing came from the offer file.
+	pricingAPIKeys          map[string]bool
+	Clientset               clustercache.ClusterCache
+	BaseCPUPrice            string
+	BaseRAMPrice            string
+	BaseGPUPrice            string
+	BaseSpotCPUPrice        string
+	BaseSpotRAMPrice        string
+	BaseSpotGPUPrice        string
+	SpotLabelName           string
+	SpotLabelValue          string
+	SpotDataRegion          string
+	SpotDataBucket          string
+	SpotDataPrefix          string
+	ProjectID               string
+	DownloadPricingDataLock sync.RWMutex
+	Config                  models.ProviderConfig
+	ServiceAccountChecks    *models.ServiceAccountChecks
+	clusterManagementPrice  float64
+	ClusterRegion           string
+	ClusterAccountID        string
+	clusterProvisioner      string
 }
 
 // AWSAccessKey holds AWS credentials and fulfils the awsV2.CredentialsProvider interface
@@ -1021,26 +1024,47 @@ func (aws *AWS) DownloadPricingData() error {
 		}
 	}
 
-	// Initialize fargate pricing if it's not initialized yet
+	regions := pricingRegions(maps.Keys(inputkeys), maps.Keys(pvkeys))
+	ctx, cancel := context.WithTimeout(context.Background(), pricingAPITimeout)
+	defer cancel()
+	var priceListAPI *pricing.Client
+	if env.GetAWSPricingURL() == "" || env.GetAWSECSPricingURLOverride() == "" {
+		priceListAPI, err = aws.newPricingAPIClient(regions)
+		if err != nil {
+			log.Warnf("Unable to create an AWS Price List API client, using the offer files: %v", err)
+		}
+	}
+
 	if aws.FargatePricing == nil {
-		aws.FargatePricing = NewFargatePricing()
-		aws.FargatePricingError = aws.FargatePricing.Initialize(nodeList)
+		aws.FargatePricing, aws.FargatePricingError = loadFargatePricing(ctx, priceListAPI, regions, nodeList)
 		if aws.FargatePricingError != nil {
 			log.Errorf("Failed to initialize fargate pricing: %s", aws.FargatePricingError.Error())
 		}
 	}
 
 	aws.ValidPricingKeys = make(map[string]bool)
-
-	resp, pricingURL, err := aws.getRegionPricing(nodeList)
-	if err != nil {
-		return err
+	aws.pricingAPIKeys = nil
+	if priceListAPI != nil && env.GetAWSPricingURL() == "" {
+		if err := aws.populatePricingFromAPI(ctx, priceListAPI, regions, inputkeys); err != nil {
+			log.Warnf("Falling back to the EC2 offer file: %v", err)
+			aws.ValidPricingKeys = make(map[string]bool)
+		} else {
+			aws.pricingAPIKeys = inputkeys
+			log.Infof("Loaded pricing for %d node keys in %v from the AWS Price List API", len(inputkeys), regions)
+		}
 	}
-	err = aws.populatePricing(resp, inputkeys)
-	if err != nil {
-		return err
+	if aws.pricingAPIKeys == nil {
+		resp, pricingURL, err := aws.getRegionPricing(nodeList)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		err = aws.populatePricing(resp, inputkeys)
+		if err != nil {
+			return err
+		}
+		log.Infof("Finished downloading \"%s\"", pricingURL)
 	}
-	log.Infof("Finished downloading \"%s\"", pricingURL)
 
 	// Initialize a spot price history cache if not already initialized.
 	// Reset error to allow retrying on subsequent DownloadPricingData calls.
@@ -1769,7 +1793,8 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 	}
 	if ok {
 		return aws.createNode(terms, usageType, k)
-	} else if _, ok := aws.ValidPricingKeys[key]; ok {
+	} else if _, ok := aws.ValidPricingKeys[key]; ok || (aws.pricingAPIKeys != nil && !aws.pricingAPIKeys[key]) {
+		// The Price List API only loads the node keys present at the last load, so a new key needs a reload too.
 		aws.DownloadPricingDataLock.RUnlock()
 		err := aws.DownloadPricingData()
 		aws.DownloadPricingDataLock.RLock()
