@@ -554,6 +554,12 @@ func (dfp *defaultFilterParser) Parse(filter string) (FilterNode, error) {
 	}
 
 	parsedFilter, err := p.filter(0)
+	// filter returns as soon as the tokens stop being "comparison (op comparison)*",
+	// so a token that is still left here was never parsed. Reject it instead of
+	// silently dropping part of the filter.
+	if err == nil && !p.atEnd() {
+		err = multierror.Append(nil, parseError(p.peek(), "expected '+', '|' or end of filter"))
+	}
 	if err != nil {
 		return nil, fmt.Errorf("parsing filter: %w", err)
 	}

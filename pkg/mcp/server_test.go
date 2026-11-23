@@ -566,7 +566,7 @@ func TestBuildCloudCostQueryRequest_FilterString(t *testing.T) {
 	s := &MCPServer{}
 	req := cloudcost.QueryRequest{}
 	params := &CloudCostQuery{
-		Filter: `provider:"gcp" and service:"Compute Engine"`,
+		Filter: `provider:"gcp"+service:"Compute Engine"`,
 	}
 	out := s.buildCloudCostQueryRequest(req, params)
 	assert.NotNil(t, out.Filter)
@@ -588,6 +588,31 @@ func TestBuildFilterFromParams_SupportedFieldsOnly(t *testing.T) {
 	}
 	f := s.buildFilterFromParams(params)
 	assert.NotNil(t, f)
+}
+
+// TestBuildFilterFromParams_AllFieldsMustMatch checks that every parameter ends
+// up in the filter, not only the first one.
+func TestBuildFilterFromParams_AllFieldsMustMatch(t *testing.T) {
+	s := &MCPServer{}
+	params := &CloudCostQuery{
+		Provider: "gcp",
+		Service:  "Compute Engine",
+	}
+	f := s.buildFilterFromParams(params)
+	require.NotNil(t, f)
+
+	m, err := opencost.NewCloudCostMatchCompiler().Compile(f)
+	require.NoError(t, err)
+
+	cloudCost := func(provider, service string) *opencost.CloudCost {
+		return &opencost.CloudCost{Properties: &opencost.CloudCostProperties{
+			Provider: provider,
+			Service:  service,
+		}}
+	}
+	assert.True(t, m.Matches(cloudCost("gcp", "Compute Engine")))
+	assert.False(t, m.Matches(cloudCost("gcp", "Cloud Storage")), "service must match too")
+	assert.False(t, m.Matches(cloudCost("aws", "Compute Engine")), "provider must match too")
 }
 
 func TestBuildFilterFromParams_LabelOnly(t *testing.T) {

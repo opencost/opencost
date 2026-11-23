@@ -971,8 +971,9 @@ func (s *MCPServer) buildFilterFromParams(params *CloudCostQuery) filter.Filter 
 		return nil
 	}
 
-	// Combine all filter parts with AND logic (parser expects 'and')
-	filterString := strings.Join(filterParts, " and ")
+	// Combine all filter parts with AND logic. The filter language uses '+'
+	// for AND and '|' for OR; there is no 'and' keyword.
+	filterString := strings.Join(filterParts, "+")
 
 	// Parse the combined filter string
 	parser := cloudcostfilter.NewCloudCostFilterParser()
