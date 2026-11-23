@@ -121,8 +121,9 @@ func (aws *AWS) populatePricingFromAPI(ctx context.Context, client pricing.GetPr
 			queries = append(queries, []types.Filter{
 				pricingFilter(types.FilterTypeAnyOf, "instanceType", strings.Join(chunk, ",")),
 				pricingFilter(types.FilterTypeAnyOf, "operatingSystem", "Linux,Windows"),
-				// Nodes never run BYOL Windows; it shares the key of the license-included SKU.
-				pricingFilter(types.FilterTypeNoneOf, "licenseModel", "Bring your own license"),
+				// Windows also lists BYOL and "License Included - Infrastructure" SKUs under the same pricing key; the
+				// standard license-included Windows SKU is labelled "No License required", like Linux.
+				pricingFilter(types.FilterTypeTermMatch, "licenseModel", "No License required"),
 				pricingFilter(types.FilterTypeTermMatch, "tenancy", "Shared"),
 				pricingFilter(types.FilterTypeTermMatch, "preInstalledSw", "NA"),
 				pricingFilter(types.FilterTypeTermMatch, "capacitystatus", "Used"),
@@ -148,18 +149,39 @@ func (aws *AWS) populatePricingFromAPI(ctx context.Context, client pricing.GetPr
 	return nil
 }
 
-// loadFargatePricing reads Fargate prices from the Price List API, falling back to the AmazonECS offer file.
-func loadFargatePricing(ctx context.Context, client *pricing.Client, regions []string, nodeList []*clustercache.Node) (*FargatePricing, error) {
-	if client != nil && env.GetAWSECSPricingURLOverride() == "" {
-		f := NewFargatePricing()
-		err := f.populatePricingFromAPI(ctx, client, regions)
-		if err == nil {
-			return f, nil
+// refreshFargatePricing loads Fargate prices once, preferring the Price List API over the AmazonECS offer file. With the
+// API, regions that appear later are added on each refresh, keeping the prices already loaded.
+func (aws *AWS) refreshFargatePricing(ctx context.Context, client *pricing.Client, regions []string, nodeList []*clustercache.Node) {
+	useAPI := client != nil && env.GetAWSECSPricingURLOverride() == ""
+	if aws.FargatePricing != nil {
+		if missing := aws.FargatePricing.missingRegions(regions); useAPI && len(missing) > 0 {
+			if err := aws.FargatePricing.populatePricingFromAPI(ctx, client, missing); err != nil {
+				log.Warnf("Failed to load Fargate pricing for %v: %v", missing, err)
+			}
 		}
-		log.Warnf("Falling back to the Fargate offer file: %v", err)
+		return
 	}
-	f := NewFargatePricing()
-	return f, f.Initialize(nodeList)
+
+	aws.FargatePricing = NewFargatePricing()
+	if useAPI {
+		aws.FargatePricingError = aws.FargatePricing.populatePricingFromAPI(ctx, client, regions)
+		if aws.FargatePricingError == nil {
+			return
+		}
+		log.Warnf("Falling back to the Fargate offer file: %v", aws.FargatePricingError)
+		aws.FargatePricing = NewFargatePricing()
+	}
+	aws.FargatePricingError = aws.FargatePricing.Initialize(nodeList)
+	if aws.FargatePricingError != nil {
+		log.Errorf("Failed to initialize fargate pricing: %s", aws.FargatePricingError.Error())
+	}
+}
+
+func (f *FargatePricing) missingRegions(regions []string) []string {
+	return slices.DeleteFunc(slices.Clone(regions), func(region string) bool {
+		_, ok := f.regions[region]
+		return ok
+	})
 }
 
 func (f *FargatePricing) populatePricingFromAPI(ctx context.Context, client pricing.GetProductsAPIClient, regions []string) error {
@@ -173,6 +195,9 @@ func (f *FargatePricing) populatePricingFromAPI(ctx context.Context, client pric
 		}
 		if err := f.populatePricing(products); err != nil {
 			return err
+		}
+		if _, ok := f.regions[region]; !ok {
+			return fmt.Errorf("no Fargate prices returned for %s", region)
 		}
 	}
 	return nil

@@ -1035,12 +1035,7 @@ func (aws *AWS) DownloadPricingData() error {
 		}
 	}
 
-	if aws.FargatePricing == nil {
-		aws.FargatePricing, aws.FargatePricingError = loadFargatePricing(ctx, priceListAPI, regions, nodeList)
-		if aws.FargatePricingError != nil {
-			log.Errorf("Failed to initialize fargate pricing: %s", aws.FargatePricingError.Error())
-		}
-	}
+	aws.refreshFargatePricing(ctx, priceListAPI, regions, nodeList)
 
 	aws.ValidPricingKeys = make(map[string]bool)
 	aws.pricingAPIKeys = nil
@@ -1793,6 +1788,9 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 	}
 	if ok {
 		return aws.createNode(terms, usageType, k)
+	} else if awsKey, ok := k.(*awsKey); ok && awsKey.isFargateNode() {
+		// Since Fargate pricing is listed at AmazonECS and is different from AmazonEC2, we handle it separately here
+		return aws.createFargateNode(awsKey, usageType)
 	} else if _, ok := aws.ValidPricingKeys[key]; ok || (aws.pricingAPIKeys != nil && !aws.pricingAPIKeys[key]) {
 		// The Price List API only loads the node keys present at the last load, so a new key needs a reload too.
 		aws.DownloadPricingDataLock.RUnlock()
@@ -1820,9 +1818,6 @@ func (aws *AWS) NodePricing(k models.Key) (*models.Node, models.PricingMetadata,
 			}, meta, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
 		}
 		return aws.createNode(terms, usageType, k)
-	} else if awsKey, ok := k.(*awsKey); ok && awsKey.isFargateNode() {
-		// Since Fargate pricing is listed at AmazonECS and is different from AmazonEC2, we handle it separately here
-		return aws.createFargateNode(awsKey, usageType)
 	} else { // Fall back to base pricing if we can't find the key. Base pricing is handled at the costmodel level.
 		// we seem to have an issue where this error gets thrown during app start.
 		// somehow the ValidPricingKeys map is being accessed before all the pricing data has been downloaded

@@ -15,6 +15,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/pricing"
 	"github.com/aws/aws-sdk-go-v2/service/pricing/types"
+	v1 "k8s.io/api/core/v1"
 )
 
 // fakePriceList serves an offer file fixture through GetProducts, one product per page.
@@ -133,7 +134,7 @@ func TestPopulatePricingFromAPIMatchesOfferFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The fixture's p3.8xlarge is BYOL Windows, which the API query excludes on purpose.
+	// The fixture's p3.8xlarge is BYOL Windows, which the API query excludes on purpose (see TestPricingFromAPINodePrices).
 	for _, key := range []string{"us-east-2,p3.8xlarge,windows", "us-east-2,p3.8xlarge,windows,preemptible"} {
 		if _, ok := fromAPI.Pricing[key]; ok {
 			t.Errorf("API pricing has BYOL key %q", key)
@@ -144,6 +145,48 @@ func TestPopulatePricingFromAPIMatchesOfferFile(t *testing.T) {
 		got, _ := json.Marshal(fromAPI.Pricing)
 		want, _ := json.Marshal(fromFile.Pricing)
 		t.Errorf("API pricing differs from offer file pricing\n got: %s\nwant: %s", got, want)
+	}
+}
+
+func TestPricingFromAPINodePrices(t *testing.T) {
+	// Real us-east-1 m5.large SKUs, including the BYOL and "License Included - Infrastructure" Windows variants that
+	// share the Windows pricing key.
+	inputkeys := map[string]bool{
+		"us-east-1,m5.large,linux":   true,
+		"us-east-1,m5.large,windows": true,
+	}
+	a := &AWS{ValidPricingKeys: map[string]bool{}, pricingAPIKeys: inputkeys}
+	err := a.populatePricingFromAPI(context.Background(), newFakePriceList(t, "AmazonEC2", "testdata/pricing-us-east-1-m5.json"), []string{"us-east-1"}, inputkeys)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for os, want := range map[string]string{"linux": "0.0960000000", "windows": "0.1880000000"} {
+		node, _, err := a.NodePricing(&awsKey{
+			ProviderID: "aws:///us-east-1a/i-0123456789abcdef0",
+			Labels: map[string]string{
+				v1.LabelTopologyRegion:     "us-east-1",
+				v1.LabelInstanceTypeStable: "m5.large",
+				v1.LabelOSStable:           os,
+			},
+		})
+		if err != nil {
+			t.Fatalf("%s: %v", os, err)
+		}
+		if node.Cost != want {
+			t.Errorf("%s m5.large cost = %s, want %s", os, node.Cost, want)
+		}
+	}
+}
+
+func TestFargatePricingFromAPIMissingRegion(t *testing.T) {
+	f := NewFargatePricing()
+	err := f.populatePricingFromAPI(context.Background(), newFakePriceList(t, "AmazonECS", "testdata/ecs-pricing-us-east-1.json"), []string{"us-east-1", "eu-west-1"})
+	if err == nil {
+		t.Fatal("expected an error for a region without Fargate prices")
+	}
+	if got := f.missingRegions([]string{"us-east-1", "eu-west-1"}); !reflect.DeepEqual(got, []string{"eu-west-1"}) {
+		t.Errorf("missingRegions() = %v, want [eu-west-1]", got)
 	}
 }
 
