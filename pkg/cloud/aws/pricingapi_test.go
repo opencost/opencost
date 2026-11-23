@@ -190,6 +190,22 @@ func TestFargatePricingFromAPIMissingRegion(t *testing.T) {
 	}
 }
 
+func TestFargatePricingFromAPIFailedRegionIsRetried(t *testing.T) {
+	attrs := map[string]string{"regionCode": "us-east-1", "usagetype": "USE1-Fargate-GB-Hours"}
+	fake := &fakePriceList{
+		serviceCode: "AmazonECS",
+		entries:     []string{`{"product":{"sku":"NOTERMS","attributes":{"regionCode":"us-east-1","usagetype":"USE1-Fargate-GB-Hours"}},"terms":{"OnDemand":{}}}`},
+		attributes:  []map[string]string{attrs},
+	}
+	f := NewFargatePricing()
+	if err := f.populatePricingFromAPI(context.Background(), fake, []string{"us-east-1"}); err == nil {
+		t.Fatal("expected an error for a SKU without an on-demand term")
+	}
+	if got := f.missingRegions([]string{"us-east-1"}); !reflect.DeepEqual(got, []string{"us-east-1"}) {
+		t.Errorf("missingRegions() = %v, want the failed region to be retried", got)
+	}
+}
+
 func TestFargatePricingFromAPI(t *testing.T) {
 	f := NewFargatePricing()
 	err := f.populatePricingFromAPI(context.Background(), newFakePriceList(t, "AmazonECS", "testdata/ecs-pricing-us-east-1.json"), []string{"us-east-1"})

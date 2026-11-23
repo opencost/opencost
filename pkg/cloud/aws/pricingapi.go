@@ -203,12 +203,17 @@ func (f *FargatePricing) populatePricingFromAPI(ctx context.Context, client pric
 		if err != nil {
 			return err
 		}
-		if err := f.populatePricing(products); err != nil {
+		// populatePricing creates a region before pricing its SKUs, so load into a scratch cache to never keep a
+		// half-loaded region that missingRegions would then skip.
+		loaded := NewFargatePricing()
+		if err := loaded.populatePricing(products); err != nil {
 			return err
 		}
-		if _, ok := f.regions[region]; !ok {
+		prices, ok := loaded.regions[region]
+		if !ok {
 			return fmt.Errorf("no Fargate prices returned for %s", region)
 		}
+		f.regions[region] = prices
 	}
 	return nil
 }
