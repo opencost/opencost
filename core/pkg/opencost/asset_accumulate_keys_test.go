@@ -218,3 +218,97 @@ func assertAssetSetKeyCost(t *testing.T, as *AssetSet, key string, wantCost floa
 		t.Fatalf("cost = %v, want %v", got, wantCost)
 	}
 }
+
+func TestAssetSetRange_RekeysTeamAliases(t *testing.T) {
+	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	window := NewClosedWindow(start, end)
+	labelConfig := NewLabelConfig()
+	labelConfig.TeamExternalLabel = "my_team,other_team"
+	opts := &AssetAggregationOptions{LabelConfig: labelConfig}
+
+	mkNode := func(name, label string, cost float64) *Node {
+		node := NewNode(name, "clusters/cluster1", name, start, end, window)
+		node.SetLabels(AssetLabels{label: "infra"})
+		node.CPUCost = cost
+		return node
+	}
+	aggregate := func(t *testing.T, as *AssetSet, keys ...string) {
+		t.Helper()
+		if err := as.AggregateBy(keys, opts); err != nil {
+			t.Fatalf("AggregateBy: %v", err)
+		}
+	}
+	roundTrip := func(t *testing.T, as *AssetSet) *AssetSet {
+		t.Helper()
+		data, err := as.MarshalBinary()
+		if err != nil {
+			t.Fatalf("MarshalBinary: %v", err)
+		}
+		decoded := &AssetSet{}
+		if err := decoded.UnmarshalBinary(data); err != nil {
+			t.Fatalf("UnmarshalBinary: %v", err)
+		}
+		return decoded
+	}
+
+	t.Run("use destination aliases after a binary round trip", func(t *testing.T) {
+		dst := NewAssetSet(start, end, mkNode("node1", "my_team", 10))
+		aggregate(t, dst, "cluster", "team")
+		dst = roundTrip(t, dst)
+		src := NewAssetSet(start, end, mkNode("node2", "other_team", 20))
+
+		got, err := NewAssetSetRange(dst, src).AccumulateToAssetSet()
+		if err != nil {
+			t.Fatalf("AccumulateToAssetSet: %v", err)
+		}
+		assertAssetSetKeyCost(t, got, "clusters/cluster1/infra", 30)
+	})
+
+	for _, binaryRoundTrip := range []bool{false, true} {
+		name := "use source group after merging different aliases"
+		if binaryRoundTrip {
+			name += " and a binary round trip"
+		}
+		t.Run(name, func(t *testing.T) {
+			dst := NewAssetSet(start, end, mkNode("node1", "my_team", 10))
+			aggregate(t, dst, "cluster", "team")
+			src := NewAssetSet(start, end,
+				mkNode("node2", "my_team", 20),
+				mkNode("node3", "other_team", 30),
+			)
+			aggregate(t, src, "team", "cluster")
+			assertAssetSetKeyCost(t, src, "infra/clusters/cluster1", 50)
+			if len(src.Assets["infra/clusters/cluster1"].GetLabels()) != 0 {
+				t.Fatal("merged node should have no shared labels")
+			}
+			if binaryRoundTrip {
+				src = roundTrip(t, src)
+			}
+
+			if err := NewAssetSetRange(dst).InsertRange(NewAssetSetRange(src)); err != nil {
+				t.Fatalf("InsertRange: %v", err)
+			}
+			assertAssetSetKeyCost(t, dst, "clusters/cluster1/infra", 60)
+		})
+	}
+
+	t.Run("use destination alias precedence", func(t *testing.T) {
+		dst := NewAssetSet(start, end, mkNode("node1", "my_team", 10))
+		dstConfig := NewLabelConfig()
+		dstConfig.TeamExternalLabel = "other_team,my_team"
+		if err := dst.AggregateBy([]string{"cluster", "team"}, &AssetAggregationOptions{LabelConfig: dstConfig}); err != nil {
+			t.Fatalf("AggregateBy: %v", err)
+		}
+		node := mkNode("node2", "my_team", 20)
+		node.SetLabels(AssetLabels{"my_team": "platform", "other_team": "infra"})
+		src := NewAssetSet(start, end, node)
+		aggregate(t, src, "team", "cluster")
+		assertAssetSetKeyCost(t, src, "platform/clusters/cluster1", 20)
+
+		if err := NewAssetSetRange(dst).InsertRange(NewAssetSetRange(src)); err != nil {
+			t.Fatalf("InsertRange: %v", err)
+		}
+		assertAssetSetKeyCost(t, dst, "clusters/cluster1/infra", 30)
+	})
+}

@@ -3,6 +3,7 @@ package opencost
 import (
 	"encoding"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -89,10 +90,18 @@ type Asset interface {
 // Valid values of `aggregateBy` elements are strings which are an `AssetProperty`, and strings prefixed
 // with `"label:"`.
 func key(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error) {
-	var buffer strings.Builder
+	k, _, err := keyWithLabelValues(a, aggregateBy, assetLabelAliases(labelConfig), nil, false)
+	return k, err
+}
 
-	if labelConfig == nil {
-		labelConfig = NewLabelConfig()
+// keyWithLabelValues can reuse resolved grouping values from an already aggregated
+// asset. These values may no longer be recoverable from its common labels.
+func keyWithLabelValues(a Asset, aggregateBy []string, labelAliases, knownLabels AssetLabels, recordLabels bool) (string, AssetLabels, error) {
+	var buffer strings.Builder
+	var resolvedLabels AssetLabels
+
+	if labelAliases == nil {
+		labelAliases = defaultAssetLabelAliases
 	}
 
 	if aggregateBy == nil {
@@ -130,16 +139,6 @@ func key(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error
 			key = a.GetProperties().ProviderID
 		case s == string(AssetNameProp):
 			key = a.GetProperties().Name
-		case s == string(AssetDepartmentProp):
-			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.DepartmentExternalLabel)
-		case s == string(AssetEnvironmentProp):
-			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.EnvironmentExternalLabel)
-		case s == string(AssetOwnerProp):
-			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.OwnerExternalLabel)
-		case s == string(AssetProductProp):
-			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.ProductExternalLabel)
-		case s == string(AssetTeamProp):
-			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.TeamExternalLabel)
 		case strings.HasPrefix(s, "label:"):
 			if labelKey := strings.TrimPrefix(s, "label:"); labelKey != "" {
 				labelVal := a.GetLabels()[labelKey]
@@ -150,10 +149,27 @@ func key(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error
 				}
 			} else {
 				// Don't allow aggregating on label ""
-				return "", fmt.Errorf("attempted to aggregate on invalid key: %s", s)
+				return "", nil, fmt.Errorf("attempted to aggregate on invalid key: %s", s)
 			}
 		default:
-			return "", fmt.Errorf("attempted to aggregate on invalid key: %s", s)
+			aliases, ok := labelAliases[s]
+			if !ok {
+				return "", nil, fmt.Errorf("attempted to aggregate on invalid key: %s", s)
+			}
+			if value, ok := knownLabels[s]; ok {
+				key = value
+			} else {
+				key = getKeyFromLabelAliases(a.GetLabels(), aliases)
+			}
+			if key == "" {
+				key = UndefinedKey
+			}
+			if recordLabels {
+				if resolvedLabels == nil {
+					resolvedLabels = make(AssetLabels)
+				}
+				resolvedLabels[s] = key
+			}
 		}
 
 		if key != "" {
@@ -165,25 +181,68 @@ func key(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error
 			buffer.WriteString("/")
 		}
 	}
-	return buffer.String(), nil
+	return buffer.String(), resolvedLabels, nil
 }
 
-func getKeyFromLabelConfig(a Asset, labelConfig *LabelConfig, label string) string {
-	labels := a.GetLabels()
-	if labels == nil {
-		return UnallocatedSuffix
-	} else {
-		key := UnallocatedSuffix
-		labelNames := strings.Split(label, ",")
-		for _, labelName := range labelNames {
-			name := labelConfig.Sanitize(labelName)
-			if labelValue, ok := labels[name]; ok {
-				key = labelValue
-				break
+var defaultAssetLabelAliases = assetLabelAliases(NewLabelConfig())
+
+func assetLabelAliases(config *LabelConfig) AssetLabels {
+	if config == nil {
+		return nil
+	}
+	return AssetLabels{
+		string(AssetDepartmentProp):  config.DepartmentExternalLabel,
+		string(AssetEnvironmentProp): config.EnvironmentExternalLabel,
+		string(AssetOwnerProp):       config.OwnerExternalLabel,
+		string(AssetProductProp):     config.ProductExternalLabel,
+		string(AssetTeamProp):        config.TeamExternalLabel,
+	}
+}
+
+// compatibleAssetLabelValues preserves only values resolved with the same ordered
+// aliases as the destination. Each dimension can have its own alias configuration.
+func compatibleAssetLabelValues(values, source, destination AssetLabels) AssetLabels {
+	if len(values) == 0 {
+		return nil
+	}
+	if source == nil {
+		source = defaultAssetLabelAliases
+	}
+	if destination == nil {
+		destination = defaultAssetLabelAliases
+	}
+
+	compatible := values
+	for dimension := range values {
+		src, dst := source[dimension], destination[dimension]
+		if src != dst && !slices.Equal(assetLabelNames(src), assetLabelNames(dst)) {
+			if len(compatible) == len(values) {
+				compatible = maps.Clone(values)
+			}
+			delete(compatible, dimension)
+		}
+	}
+	return compatible
+}
+
+func assetLabelNames(aliases string) []string {
+	var config LabelConfig
+	names := strings.Split(aliases, ",")
+	for i, name := range names {
+		names[i] = config.Sanitize(name)
+	}
+	return names
+}
+
+func getKeyFromLabelAliases(labels AssetLabels, aliases string) string {
+	if len(labels) > 0 {
+		for _, name := range assetLabelNames(aliases) {
+			if value, ok := labels[name]; ok {
+				return value
 			}
 		}
-		return key
 	}
+	return UnallocatedSuffix
 }
 
 func GetAssetKey(a Asset, aggregateBy []string) (string, error) {
@@ -2713,7 +2772,9 @@ type AssetSet struct {
 	Window            Window
 	Warnings          []string
 	Errors            []string
-	labelConfig       *LabelConfig //@bingen:field[ignore]
+	labelAliases      AssetLabels // @bingen:field[version=22]
+	// Resolved external label values by asset key and aggregation dimension.
+	groupedLabelValues map[string]AssetLabels // @bingen:field[version=22]
 }
 
 // This methid is executed before marshalling the AssetSet binary.
@@ -2728,7 +2789,6 @@ func preProcessAssetSet(assetSet *AssetSet) {
 
 // This method is executed after unmarshalling the AssetSet binary.
 func postProcessAssetSet(assetSet *AssetSet) {
-	assetSet.labelConfig = nil
 	for key, as := range assetSet.Assets {
 		addToConcreteMap(assetSet, key, as)
 	}
@@ -2842,16 +2902,13 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 	}
 
 	// Keep the same label aliases available when later merges need to recompute a key.
-	labelConfig := opts.LabelConfig
-	if labelConfig != nil {
-		config := *labelConfig
-		labelConfig = &config
-	}
+	labelAliases := assetLabelAliases(opts.LabelConfig)
 
 	if as.IsEmpty() && len(opts.SharedHourlyCosts) == 0 {
 		if as != nil {
 			as.AggregationKeys = aggregateBy
-			as.labelConfig = labelConfig
+			as.labelAliases = labelAliases
+			as.groupedLabelValues = nil
 		}
 		return nil
 	}
@@ -2873,6 +2930,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 
 	aggSet := NewAssetSet(as.Start(), as.End())
 	aggSet.AggregationKeys = aggregateBy
+	aggSet.labelAliases = labelAliases
 
 	// Compute hours of the given AssetSet, and if it ends in the future,
 	// adjust the hours accordingly
@@ -2889,7 +2947,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 
 		// Insert shared asset if it passes filter
 		if filter.Matches(sa) {
-			err := aggSet.Insert(sa, labelConfig)
+			err := aggSet.insert(sa, labelAliases, nil)
 			if err != nil {
 				return err
 			}
@@ -2905,8 +2963,9 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 
 	// Insert each asset into the new set, which will be keyed by the `aggregateBy`
 	// on aggSet, resulting in aggregation.
-	for _, asset := range as.Assets {
-		err := aggSet.Insert(asset, labelConfig)
+	for k, asset := range as.Assets {
+		knownLabels := compatibleAssetLabelValues(as.groupedLabelValues[k], as.labelAliases, labelAliases)
+		err := aggSet.insert(asset, labelAliases, knownLabels)
 		if err != nil {
 			return err
 		}
@@ -2915,7 +2974,8 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 	// Assign the aggregated values back to the original set
 	as.Assets = aggSet.Assets
 	as.AggregationKeys = aggregateBy
-	as.labelConfig = labelConfig
+	as.labelAliases = labelAliases
+	as.groupedLabelValues = aggSet.groupedLabelValues
 
 	return nil
 }
@@ -2984,20 +3044,21 @@ func (as *AssetSet) Clone() *AssetSet {
 	}
 
 	assetSet := &AssetSet{
-		Window:            NewWindow(&s, &e),
-		AggregationKeys:   aggregateBy,
-		Assets:            make(map[string]Asset, len(as.Assets)),
-		Any:               anyMap,
-		Cloud:             cloudMap,
-		ClusterManagement: clusterManagementMap,
-		Disks:             disksMap,
-		Network:           networkMap,
-		Nodes:             nodesMap,
-		LoadBalancers:     loadBalancersMap,
-		SharedAssets:      sharedAssetsMap,
-		Errors:            errors,
-		Warnings:          warnings,
-		labelConfig:       as.labelConfig,
+		Window:             NewWindow(&s, &e),
+		AggregationKeys:    aggregateBy,
+		Assets:             make(map[string]Asset, len(as.Assets)),
+		Any:                anyMap,
+		Cloud:              cloudMap,
+		ClusterManagement:  clusterManagementMap,
+		Disks:              disksMap,
+		Network:            networkMap,
+		Nodes:              nodesMap,
+		LoadBalancers:      loadBalancersMap,
+		SharedAssets:       sharedAssetsMap,
+		Errors:             errors,
+		Warnings:           warnings,
+		labelAliases:       as.labelAliases,
+		groupedLabelValues: maps.Clone(as.groupedLabelValues),
 	}
 
 	for k, v := range as.Assets {
@@ -3046,30 +3107,39 @@ func (as *AssetSet) Get(key string) (Asset, bool) {
 // configured Properties to determine the key under which the Asset will
 // be inserted.
 func (as *AssetSet) Insert(asset Asset, labelConfig *LabelConfig) error {
+	return as.insert(asset, assetLabelAliases(labelConfig), nil)
+}
+
+func (as *AssetSet) insert(asset Asset, labelAliases, knownLabels AssetLabels) error {
 	if as == nil {
 		return fmt.Errorf("cannot Insert into nil AssetSet")
 	}
 
-	if as.Assets == nil {
-		as.Assets = map[string]Asset{}
-	}
-
-	// need a label config
-
 	// Determine key into which to Insert the Asset.
-	k, err := key(asset, as.AggregationKeys, labelConfig)
+	k, values, err := keyWithLabelValues(asset, as.AggregationKeys, labelAliases, knownLabels, true)
 	if err != nil {
 		return err
 	}
 
-	as.insertKeyed(k, asset)
+	as.insertKeyed(k, asset, compatibleAssetLabelValues(values, labelAliases, as.labelAliases))
 
 	return nil
 }
 
+func (as *AssetSet) setGroupedLabelValues(k string, values AssetLabels) {
+	if len(values) == 0 {
+		delete(as.groupedLabelValues, k)
+		return
+	}
+	if as.groupedLabelValues == nil {
+		as.groupedLabelValues = make(map[string]AssetLabels)
+	}
+	as.groupedLabelValues[k] = values
+}
+
 // insertKeyed adds the asset under a key that is already known, merging into the entry there.
 // Reusing a key preserves any label aliases the original set used to compute it.
-func (as *AssetSet) insertKeyed(k string, asset Asset) {
+func (as *AssetSet) insertKeyed(k string, asset Asset, values AssetLabels) {
 	if as.Assets == nil {
 		as.Assets = map[string]Asset{}
 	}
@@ -3091,7 +3161,16 @@ func (as *AssetSet) insertKeyed(k string, asset Asset) {
 		// asset to the concrete type mappings
 		as.Assets[k] = newAsset
 		addToConcreteMap(as, k, newAsset)
+
+		// Different component values can produce the same slash-delimited key.
+		// Only retain values that describe both assets.
+		if previous, ok := as.groupedLabelValues[k]; ok && len(values) > 0 {
+			values = previous.Merge(values)
+		} else {
+			values = nil
+		}
 	}
+	as.setGroupedLabelValues(k, values)
 	// Expand the window, just to be safe. It's possible that the asset will
 	// be set into the map without expanding it to the AssetSet's window.
 	as.Assets[k].ExpandWindow(as.Window)
@@ -3104,11 +3183,12 @@ func (as *AssetSet) insertFrom(that *AssetSet) error {
 	sameDefaults := (as.AggregationKeys == nil) == (that.AggregationKeys == nil)
 	sameKeys := sameDefaults && slices.Equal(as.AggregationKeys, that.AggregationKeys)
 	for k, asset := range that.Assets {
+		knownLabels := compatibleAssetLabelValues(that.groupedLabelValues[k], that.labelAliases, as.labelAliases)
 		if sameKeys {
-			as.insertKeyed(k, asset)
+			as.insertKeyed(k, asset, knownLabels)
 			continue
 		}
-		if err := as.Insert(asset, as.labelConfig); err != nil {
+		if err := as.insert(asset, as.labelAliases, knownLabels); err != nil {
 			return err
 		}
 	}
@@ -3145,13 +3225,16 @@ func (as *AssetSet) Set(asset Asset, aggregateBy []string, labelConfig *LabelCon
 
 	// Expand the window to match the AssetSet, then set it
 	asset.ExpandWindow(as.Window)
-	k, err := key(asset, aggregateBy, labelConfig)
+	recordLabels := slices.Equal(aggregateBy, as.AggregationKeys)
+	labelAliases := assetLabelAliases(labelConfig)
+	k, values, err := keyWithLabelValues(asset, aggregateBy, labelAliases, nil, recordLabels)
 	if err != nil {
 		return err
 	}
 
 	as.Assets[k] = asset
 	addToConcreteMap(as, k, asset)
+	as.setGroupedLabelValues(k, compatibleAssetLabelValues(values, labelAliases, as.labelAliases))
 
 	return nil
 }
@@ -3203,7 +3286,7 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	}
 	acc := NewAssetSet(start, end)
 	acc.AggregationKeys = grouping.AggregationKeys
-	acc.labelConfig = grouping.labelConfig
+	acc.labelAliases = grouping.labelAliases
 
 	if err := acc.insertFrom(as); err != nil {
 		return nil, err

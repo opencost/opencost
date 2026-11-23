@@ -34,7 +34,7 @@ const (
 	AllocationCodecVersion uint8 = 25
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 21
+	AssetsCodecVersion uint8 = 22
 
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
 	CloudCostCodecVersion uint8 = 3
@@ -3177,6 +3177,82 @@ func (target *AssetSet) MarshalBinaryWithContext(ctx *EncodingContext) (err erro
 
 	}
 
+	// --- [begin][write][alias](AssetLabels) ---
+	if map[string]string(target.labelAliases) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(map[string]string(target.labelAliases))) // map length
+		for vv, zz := range map[string]string(target.labelAliases) {
+			if ctx.IsStringTable() {
+				h := ctx.Table.AddOrGet(vv)
+				buff.WriteInt(h) // write table index
+			} else {
+				buff.WriteString(vv) // write string
+			}
+
+			if ctx.IsStringTable() {
+				l := ctx.Table.AddOrGet(zz)
+				buff.WriteInt(l) // write table index
+			} else {
+				buff.WriteString(zz) // write string
+			}
+
+		}
+		// --- [end][write][map](map[string]string) ---
+
+	}
+	// --- [end][write][alias](AssetLabels) ---
+	if target.groupedLabelValues == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]AssetLabels) ---
+		buff.WriteInt(len(target.groupedLabelValues)) // map length
+		for vvv, zzz := range target.groupedLabelValues {
+			if ctx.IsStringTable() {
+				m := ctx.Table.AddOrGet(vvv)
+				buff.WriteInt(m) // write table index
+			} else {
+				buff.WriteString(vvv) // write string
+			}
+
+			// --- [begin][write][alias](AssetLabels) ---
+			if map[string]string(zzz) == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][map](map[string]string) ---
+				buff.WriteInt(len(map[string]string(zzz))) // map length
+				for vvvv, zzzz := range map[string]string(zzz) {
+					if ctx.IsStringTable() {
+						n := ctx.Table.AddOrGet(vvvv)
+						buff.WriteInt(n) // write table index
+					} else {
+						buff.WriteString(vvvv) // write string
+					}
+
+					if ctx.IsStringTable() {
+						o := ctx.Table.AddOrGet(zzzz)
+						buff.WriteInt(o) // write table index
+					} else {
+						buff.WriteString(zzzz) // write string
+					}
+
+				}
+				// --- [end][write][map](map[string]string) ---
+
+			}
+			// --- [end][write][alias](AssetLabels) ---
+		}
+		// --- [end][write][map](map[string]AssetLabels) ---
+
+	}
+
 	return nil
 }
 
@@ -3374,6 +3450,122 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 		target.Errors = dd
 		// --- [end][read][slice]([]string) ---
 
+	}
+
+	// field version check
+	if uint8(22) <= version {
+		// --- [begin][read][alias](AssetLabels) ---
+		var mm map[string]string
+		if buff.ReadUInt8() == uint8(0) {
+			mm = nil
+		} else {
+			// --- [begin][read][map](map[string]string) ---
+			oo := buff.ReadInt() // map len
+			nn := make(map[string]string, oo)
+			for range oo {
+				var vv string
+				var qq string
+				if ctx.IsStringTable() {
+					rr := buff.ReadInt() // read string index
+					qq = ctx.Table.At(rr)
+				} else {
+					qq = buff.ReadString() // read string
+				}
+				pp := qq
+				vv = pp
+
+				var zz string
+				var tt string
+				if ctx.IsStringTable() {
+					uu := buff.ReadInt() // read string index
+					tt = ctx.Table.At(uu)
+				} else {
+					tt = buff.ReadString() // read string
+				}
+				ss := tt
+				zz = ss
+
+				nn[vv] = zz
+			}
+			mm = nn
+			// --- [end][read][map](map[string]string) ---
+
+		}
+
+		target.labelAliases = AssetLabels(mm)
+		// --- [end][read][alias](AssetLabels) ---
+
+	} else {
+	}
+	// field version check
+	if uint8(22) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.groupedLabelValues = nil
+		} else {
+			// --- [begin][read][map](map[string]AssetLabels) ---
+			xx := buff.ReadInt() // map len
+			ww := make(map[string]AssetLabels, xx)
+			for range xx {
+				var vvv string
+				var aaa string
+				if ctx.IsStringTable() {
+					bbb := buff.ReadInt() // read string index
+					aaa = ctx.Table.At(bbb)
+				} else {
+					aaa = buff.ReadString() // read string
+				}
+				yy := aaa
+				vvv = yy
+
+				// --- [begin][read][alias](AssetLabels) ---
+				var ccc map[string]string
+				if buff.ReadUInt8() == uint8(0) {
+					ccc = nil
+				} else {
+					// --- [begin][read][map](map[string]string) ---
+					eee := buff.ReadInt() // map len
+					ddd := make(map[string]string, eee)
+					for range eee {
+						var vvvv string
+						var ggg string
+						if ctx.IsStringTable() {
+							hhh := buff.ReadInt() // read string index
+							ggg = ctx.Table.At(hhh)
+						} else {
+							ggg = buff.ReadString() // read string
+						}
+						fff := ggg
+						vvvv = fff
+
+						var zzzz string
+						var mmm string
+						if ctx.IsStringTable() {
+							nnn := buff.ReadInt() // read string index
+							mmm = ctx.Table.At(nnn)
+						} else {
+							mmm = buff.ReadString() // read string
+						}
+						lll := mmm
+						zzzz = lll
+
+						ddd[vvvv] = zzzz
+					}
+					ccc = ddd
+					// --- [end][read][map](map[string]string) ---
+
+				}
+
+				zzz := AssetLabels(ccc)
+				// --- [end][read][alias](AssetLabels) ---
+				ww[vvv] = zzz
+			}
+			target.groupedLabelValues = ww
+			// --- [end][read][map](map[string]AssetLabels) ---
+
+		}
+
+	} else {
+		target.groupedLabelValues = nil
 	}
 
 	// execute post-processing func
@@ -3632,6 +3824,132 @@ func (stream *AssetSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *bstre
 
 		}
 
+		fi = bstream.BingenFieldInfo{
+			Type: reflect.TypeFor[AssetLabels](),
+			Name: "labelAliases",
+		}
+		// field version check
+		if uint8(22) <= version {
+
+			// --- [begin][read][streaming-alias](AssetLabels) ---
+			// --- [begin][read][streaming-map](map[string]string) ---
+			hh := buff.ReadInt() // map len
+			for range hh {
+				var vv string
+				var mm string
+				if ctx.IsStringTable() {
+					nn := buff.ReadInt() // read string index
+					mm = ctx.Table.At(nn)
+				} else {
+					mm = buff.ReadString() // read string
+				}
+				ll := mm
+				vv = ll
+
+				var zz string
+				var pp string
+				if ctx.IsStringTable() {
+					qq := buff.ReadInt() // read string index
+					pp = ctx.Table.At(qq)
+				} else {
+					pp = buff.ReadString() // read string
+				}
+				oo := pp
+				zz = oo
+
+				if !yield(fi, bstream.PairV(vv, zz)) {
+					return
+				}
+			}
+			// --- [end][read][streaming-map](map[string]string) ---
+
+			// --- [end][read][streaming-alias](AssetLabels) ---
+
+		} else {
+
+		}
+
+		fi = bstream.BingenFieldInfo{
+			Type: reflect.TypeFor[map[string]AssetLabels](),
+			Name: "groupedLabelValues",
+		}
+		// field version check
+		if uint8(22) <= version {
+
+			if buff.ReadUInt8() == uint8(0) {
+				if !yield(fi, nil) {
+					return
+				}
+			} else {
+				// --- [begin][read][streaming-map](map[string]AssetLabels) ---
+				rr := buff.ReadInt() // map len
+				for range rr {
+					var vvv string
+					var tt string
+					if ctx.IsStringTable() {
+						uu := buff.ReadInt() // read string index
+						tt = ctx.Table.At(uu)
+					} else {
+						tt = buff.ReadString() // read string
+					}
+					ss := tt
+					vvv = ss
+
+					// --- [begin][read][alias](AssetLabels) ---
+					var ww map[string]string
+					if buff.ReadUInt8() == uint8(0) {
+						ww = nil
+					} else {
+						// --- [begin][read][map](map[string]string) ---
+						yy := buff.ReadInt() // map len
+						xx := make(map[string]string, yy)
+						for range yy {
+							var vvvv string
+							var bbb string
+							if ctx.IsStringTable() {
+								ccc := buff.ReadInt() // read string index
+								bbb = ctx.Table.At(ccc)
+							} else {
+								bbb = buff.ReadString() // read string
+							}
+							aaa := bbb
+							vvvv = aaa
+
+							var zzzz string
+							var eee string
+							if ctx.IsStringTable() {
+								fff := buff.ReadInt() // read string index
+								eee = ctx.Table.At(fff)
+							} else {
+								eee = buff.ReadString() // read string
+							}
+							ddd := eee
+							zzzz = ddd
+
+							xx[vvvv] = zzzz
+						}
+						ww = xx
+						// --- [end][read][map](map[string]string) ---
+
+					}
+
+					zzz := AssetLabels(ww)
+					// --- [end][read][alias](AssetLabels) ---
+
+					if !yield(fi, bstream.PairV(vvv, zzz)) {
+						return
+					}
+				}
+				// --- [end][read][streaming-map](map[string]AssetLabels) ---
+
+			}
+
+		} else {
+
+			if !yield(fi, nil) {
+				return
+			}
+		}
 	}
 }
 
