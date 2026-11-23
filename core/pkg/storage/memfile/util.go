@@ -28,7 +28,7 @@ func Split(path string) ([]string, string) {
 func CreateSubdirectory(d *MemoryDirectory, paths []string) *MemoryDirectory {
 	currentDir := d
 
-	for i := 0; i < len(paths); i++ {
+	for i := range paths {
 		dirName := paths[i]
 		if _, ok := currentDir.dirs[dirName]; !ok {
 			currentDir.AddDirectory(NewMemoryDirectory(dirName))
@@ -45,7 +45,7 @@ func CreateSubdirectory(d *MemoryDirectory, paths []string) *MemoryDirectory {
 func FindSubdirectory(d *MemoryDirectory, paths []string) (*MemoryDirectory, error) {
 	currentDir := d
 
-	for i := 0; i < len(paths); i++ {
+	for i := range paths {
 		dirName := paths[i]
 		if _, ok := currentDir.dirs[dirName]; !ok {
 			return nil, fmt.Errorf("directory %s not found", filepath.Join(paths[:i+1]...))

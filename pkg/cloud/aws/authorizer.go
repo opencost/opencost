@@ -164,13 +164,13 @@ func (ara *AssumeRole) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON is required for AssumeRole because it needs to unmarshal an Authorizer interface
 func (ara *AssumeRole) UnmarshalJSON(b []byte) error {
-	var f interface{}
+	var f any
 	err := json.Unmarshal(b, &f)
 	if err != nil {
 		return err
 	}
 
-	fmap := f.(map[string]interface{})
+	fmap := f.(map[string]any)
 
 	roleARN, err := cloud.GetInterfaceValue[string](fmap, "roleARN")
 	if err != nil {
@@ -278,13 +278,13 @@ func (wea *WebIdentity) MarshalJSON() ([]byte, error) {
 }
 
 func (wea *WebIdentity) UnmarshalJSON(b []byte) error {
-	var f interface{}
+	var f any
 	err := json.Unmarshal(b, &f)
 	if err != nil {
 		return err
 	}
 
-	fmap := f.(map[string]interface{})
+	fmap := f.(map[string]any)
 
 	roleARN, err := cloud.GetInterfaceValue[string](fmap, "roleARN")
 	if err != nil {
@@ -298,9 +298,9 @@ func (wea *WebIdentity) UnmarshalJSON(b []byte) error {
 	}
 	wea.IdentityProvider = idp
 
-	var tr interface{}
+	var tr any
 
-	tr, err = cloud.GetInterfaceValue[interface{}](fmap, "tokenRetriever")
+	tr, err = cloud.GetInterfaceValue[any](fmap, "tokenRetriever")
 	if err != nil {
 		return fmt.Errorf("WebIdentity: UnmarshalJSON: %s", err.Error())
 	}

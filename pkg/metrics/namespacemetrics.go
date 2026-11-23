@@ -104,11 +104,11 @@ func (nam NamespaceAnnotationsMetric) Write(m *dto.Metric) error {
 	}
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &nam.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &nam.uid,
 		})
 	m.Label = labels
@@ -209,11 +209,11 @@ func (nam KubeNamespaceLabelsMetric) Write(m *dto.Metric) error {
 	}
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("namespace"),
+			Name:  new("namespace"),
 			Value: &nam.namespace,
 		},
 		&dto.LabelPair{
-			Name:  toStringPtr("uid"),
+			Name:  new("uid"),
 			Value: &nam.uid,
 		})
 	m.Label = labels

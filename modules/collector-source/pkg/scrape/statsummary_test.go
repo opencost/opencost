@@ -64,11 +64,9 @@ func TestStatScraper_Scrape(t *testing.T) {
 								UID:       "uid1",
 							},
 							Network: &stats.NetworkStats{
-								Time: metav1.Time{Time: start1},
-								InterfaceStats: stats.InterfaceStats{
-									RxBytes: nil,
-									TxBytes: nil,
-								},
+								Time:    metav1.Time{Time: start1},
+								RxBytes: nil,
+								TxBytes: nil,
 							},
 							VolumeStats: []stats.VolumeStats{
 								{
@@ -77,10 +75,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 										Namespace: "namespace1",
 										Name:      "pvc1",
 									},
-									FsStats: stats.FsStats{
-										Time:      metav1.Time{Time: start1},
-										UsedBytes: nil,
-									},
+									Time:      metav1.Time{Time: start1},
+									UsedBytes: nil,
 								},
 							},
 							Containers: []stats.ContainerStats{
@@ -145,11 +141,11 @@ func TestStatScraper_Scrape(t *testing.T) {
 						NodeName: "node1",
 						CPU: &stats.CPUStats{
 							Time:                 metav1.Time{Time: start1},
-							UsageCoreNanoSeconds: util.Ptr(uint64(2000000000)),
+							UsageCoreNanoSeconds: new(uint64(2000000000)),
 						},
 						Fs: &stats.FsStats{
 							Time:          metav1.Time{Time: start1},
-							CapacityBytes: util.Ptr(uint64(2 * util.GB)),
+							CapacityBytes: new(uint64(2 * util.GB)),
 						},
 					},
 					Pods: []stats.PodStats{
@@ -160,19 +156,15 @@ func TestStatScraper_Scrape(t *testing.T) {
 								UID:       "uid1",
 							},
 							Network: &stats.NetworkStats{
-								Time: metav1.Time{Time: start1},
-								InterfaceStats: stats.InterfaceStats{
-									RxBytes: util.Ptr(uint64(1 * util.MB)),
-									TxBytes: util.Ptr(uint64(2 * util.MB)),
-								},
+								Time:    metav1.Time{Time: start1},
+								RxBytes: new(uint64(1 * util.MB)),
+								TxBytes: new(uint64(2 * util.MB)),
 							},
 							VolumeStats: []stats.VolumeStats{
 								{
-									Name: "ignoreVol1",
-									FsStats: stats.FsStats{
-										Time:      metav1.Time{Time: start1},
-										UsedBytes: util.Ptr(uint64(1 * util.GB)),
-									},
+									Name:      "ignoreVol1",
+									Time:      metav1.Time{Time: start1},
+									UsedBytes: new(uint64(1 * util.GB)),
 								},
 								{
 									Name: "vol1",
@@ -180,10 +172,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 										Namespace: "namespace1",
 										Name:      "pvc1",
 									},
-									FsStats: stats.FsStats{
-										Time:      metav1.Time{Time: start1},
-										UsedBytes: util.Ptr(uint64(1 * util.GB)),
-									},
+									Time:      metav1.Time{Time: start1},
+									UsedBytes: new(uint64(1 * util.GB)),
 								},
 							},
 							Containers: []stats.ContainerStats{
@@ -191,15 +181,15 @@ func TestStatScraper_Scrape(t *testing.T) {
 									Name: "container1",
 									CPU: &stats.CPUStats{
 										Time:                 metav1.Time{Time: start1},
-										UsageCoreNanoSeconds: util.Ptr(uint64(1000000000)),
+										UsageCoreNanoSeconds: new(uint64(1000000000)),
 									},
 									Memory: &stats.MemoryStats{
 										Time:            metav1.Time{Time: start1},
-										WorkingSetBytes: util.Ptr(uint64(5 * util.MB)),
+										WorkingSetBytes: new(uint64(5 * util.MB)),
 									},
 									Rootfs: &stats.FsStats{
 										Time:      metav1.Time{Time: start1},
-										UsedBytes: util.Ptr(uint64(1 * util.GB)),
+										UsedBytes: new(uint64(1 * util.GB)),
 									},
 								},
 							},
@@ -304,11 +294,11 @@ func TestStatScraper_Scrape(t *testing.T) {
 						NodeName: "node1",
 						CPU: &stats.CPUStats{
 							Time:                 metav1.Time{Time: start1},
-							UsageCoreNanoSeconds: util.Ptr(uint64(2000000000)),
+							UsageCoreNanoSeconds: new(uint64(2000000000)),
 						},
 						Fs: &stats.FsStats{
 							Time:          metav1.Time{Time: start1},
-							CapacityBytes: util.Ptr(uint64(2 * util.GB)),
+							CapacityBytes: new(uint64(2 * util.GB)),
 						},
 					},
 					Pods: []stats.PodStats{
@@ -319,19 +309,15 @@ func TestStatScraper_Scrape(t *testing.T) {
 								UID:       "uid1",
 							},
 							Network: &stats.NetworkStats{
-								Time: metav1.Time{Time: start1},
-								InterfaceStats: stats.InterfaceStats{
-									RxBytes: util.Ptr(uint64(1 * util.MB)),
-									TxBytes: util.Ptr(uint64(2 * util.MB)),
-								},
+								Time:    metav1.Time{Time: start1},
+								RxBytes: new(uint64(1 * util.MB)),
+								TxBytes: new(uint64(2 * util.MB)),
 							},
 							VolumeStats: []stats.VolumeStats{
 								{
-									Name: "ignoreVol1",
-									FsStats: stats.FsStats{
-										Time:      metav1.Time{Time: start1},
-										UsedBytes: util.Ptr(uint64(1 * util.GB)),
-									},
+									Name:      "ignoreVol1",
+									Time:      metav1.Time{Time: start1},
+									UsedBytes: new(uint64(1 * util.GB)),
 								},
 								{
 									Name: "vol1",
@@ -339,10 +325,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 										Namespace: "namespace1",
 										Name:      "pvc1",
 									},
-									FsStats: stats.FsStats{
-										Time:      metav1.Time{Time: start1},
-										UsedBytes: util.Ptr(uint64(1 * util.GB)),
-									},
+									Time:      metav1.Time{Time: start1},
+									UsedBytes: new(uint64(1 * util.GB)),
 								},
 							},
 							Containers: []stats.ContainerStats{
@@ -350,15 +334,15 @@ func TestStatScraper_Scrape(t *testing.T) {
 									Name: "container1",
 									CPU: &stats.CPUStats{
 										Time:                 metav1.Time{Time: start1},
-										UsageCoreNanoSeconds: util.Ptr(uint64(1000000000)),
+										UsageCoreNanoSeconds: new(uint64(1000000000)),
 									},
 									Memory: &stats.MemoryStats{
 										Time:            metav1.Time{Time: start1},
-										WorkingSetBytes: util.Ptr(uint64(5 * util.MB)),
+										WorkingSetBytes: new(uint64(5 * util.MB)),
 									},
 									Rootfs: &stats.FsStats{
 										Time:      metav1.Time{Time: start1},
-										UsedBytes: util.Ptr(uint64(1 * util.GB)),
+										UsedBytes: new(uint64(1 * util.GB)),
 									},
 								},
 							},
@@ -477,10 +461,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 										Namespace: "namespace1",
 										Name:      "pvc1",
 									},
-									FsStats: stats.FsStats{
-										Time:      metav1.Time{Time: start1},
-										UsedBytes: util.Ptr(uint64(1 * util.GB)),
-									},
+									Time:      metav1.Time{Time: start1},
+									UsedBytes: new(uint64(1 * util.GB)),
 								},
 							},
 						},
@@ -497,10 +479,8 @@ func TestStatScraper_Scrape(t *testing.T) {
 										Namespace: "namespace1",
 										Name:      "pvc1",
 									},
-									FsStats: stats.FsStats{
-										Time:      metav1.Time{Time: start1},
-										UsedBytes: util.Ptr(uint64(1 * util.GB)),
-									},
+									Time:      metav1.Time{Time: start1},
+									UsedBytes: new(uint64(1 * util.GB)),
 								},
 							},
 						},

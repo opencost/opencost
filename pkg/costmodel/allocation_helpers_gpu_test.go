@@ -34,8 +34,9 @@ func gpuTestData(value float64) []*util.Vector {
 	return []*util.Vector{{Timestamp: endFloat, Value: value}}
 }
 
+//go:fix inline
 func gpuTestPtr[T any](v T) *T {
-	return &v
+	return new(v)
 }
 
 func assertFloatPtr(t *testing.T, name string, got *float64, want float64) {
@@ -175,8 +176,8 @@ func TestApplyGPUUsageAvg(t *testing.T) {
 		thisPod.appendContainer("container1")
 		thisPod.Allocations["container1"].GPUAllocation = &opencost.GPUAllocation{
 			GPUUUID:           "GPU-1",
-			IsGPUShared:       gpuTestPtr(false),
-			GPURequestAverage: gpuTestPtr(1.0),
+			IsGPUShared:       new(false),
+			GPURequestAverage: new(1.0),
 		}
 		podMap := map[podKey]*pod{podKey1: thisPod}
 
@@ -249,8 +250,8 @@ func TestApplyGPUUsageShared(t *testing.T) {
 		value    float64
 		want     *bool
 	}{
-		"shared resource":                {resource: "nvidia_com_gpu_shared", value: 1, want: gpuTestPtr(true)},
-		"exclusive resource":             {resource: "nvidia_com_gpu", value: 1, want: gpuTestPtr(false)},
+		"shared resource":                {resource: "nvidia_com_gpu_shared", value: 1, want: new(true)},
+		"exclusive resource":             {resource: "nvidia_com_gpu", value: 1, want: new(false)},
 		"shared resource, zero value":    {resource: "nvidia_com_gpu_shared", value: 0, want: nil},
 		"exclusive resource, zero value": {resource: "nvidia_com_gpu", value: 0, want: nil},
 		"other resource":                 {resource: "cpu", value: 1, want: nil},
@@ -284,7 +285,7 @@ func TestApplyGPUUsageShared(t *testing.T) {
 		thisPod := newGPUTestPod(podKey1, 24*time.Hour)
 		thisPod.appendContainer("container1")
 		thisPod.Allocations["container1"].GPUAllocation = &opencost.GPUAllocation{
-			GPUUsageAverage: gpuTestPtr(0.5),
+			GPUUsageAverage: new(0.5),
 		}
 		podMap := map[podKey]*pod{podKey1: thisPod}
 
@@ -332,9 +333,9 @@ func TestApplyGPUInfo(t *testing.T) {
 		thisPod := newGPUTestPod(podKey1, 24*time.Hour)
 		thisPod.appendContainer("container1")
 		thisPod.Allocations["container1"].GPUAllocation = &opencost.GPUAllocation{
-			IsGPUShared:       gpuTestPtr(false),
-			GPUUsageAverage:   gpuTestPtr(0.5),
-			GPURequestAverage: gpuTestPtr(1.0),
+			IsGPUShared:       new(false),
+			GPUUsageAverage:   new(0.5),
+			GPURequestAverage: new(1.0),
 		}
 		podMap := map[podKey]*pod{podKey1: thisPod}
 
@@ -346,9 +347,9 @@ func TestApplyGPUInfo(t *testing.T) {
 			GPUDevice:         "nvidia",
 			GPUModel:          "Tesla T4",
 			GPUUUID:           "GPU-1",
-			IsGPUShared:       gpuTestPtr(false),
-			GPUUsageAverage:   gpuTestPtr(0.5),
-			GPURequestAverage: gpuTestPtr(1.0),
+			IsGPUShared:       new(false),
+			GPUUsageAverage:   new(0.5),
+			GPURequestAverage: new(1.0),
 		}
 		if got := podMap[podKey1].Allocations["container1"].GPUAllocation; !got.Equal(want) {
 			t.Errorf("expected %+v, got %+v", want, got)
@@ -420,7 +421,7 @@ func TestApplyGPUsAllocated(t *testing.T) {
 		thisPod.appendContainer("container1")
 		thisPod.Allocations["container1"].GPUAllocation = &opencost.GPUAllocation{
 			GPUUUID:         "GPU-1",
-			GPUUsageAverage: gpuTestPtr(0.5),
+			GPUUsageAverage: new(0.5),
 		}
 		podMap := map[podKey]*pod{podKey1: thisPod}
 

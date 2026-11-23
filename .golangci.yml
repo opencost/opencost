@@ -1,0 +1,9 @@
+version: "2"
+
+linters:
+  exclusions:
+    # bingen-generated *_codecs.go files use a non-standard header
+    # (ASCII-art "DO NOT MODIFY" banner) that golangci-lint does not
+    # recognize as generated, so exclude them from linting explicitly.
+    paths:
+      - "_codecs\\.go$"

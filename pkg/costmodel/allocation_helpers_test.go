@@ -26,41 +26,31 @@ var startFloat = float64(windowStart.Unix())
 var endFloat = float64(windowEnd.Unix())
 
 var podKey1 = podKey{
-	namespaceKey: namespaceKey{
-		Cluster:   "cluster1",
-		Namespace: "namespace1",
-	},
-	Pod: "pod1",
+	Cluster:   "cluster1",
+	Namespace: "namespace1",
+	Pod:       "pod1",
 }
 var podKey2 = podKey{
-	namespaceKey: namespaceKey{
-		Cluster:   "cluster1",
-		Namespace: "namespace1",
-	},
-	Pod: "pod2",
+	Cluster:   "cluster1",
+	Namespace: "namespace1",
+	Pod:       "pod2",
 }
 var podKey3 = podKey{
-	namespaceKey: namespaceKey{
-		Cluster:   "cluster2",
-		Namespace: "namespace2",
-	},
-	Pod: "pod3",
+	Cluster:   "cluster2",
+	Namespace: "namespace2",
+	Pod:       "pod3",
 }
 
 var podKey4 = podKey{
-	namespaceKey: namespaceKey{
-		Cluster:   "cluster2",
-		Namespace: "namespace2",
-	},
-	Pod: "pod4",
+	Cluster:   "cluster2",
+	Namespace: "namespace2",
+	Pod:       "pod4",
 }
 
 var podKeyUnmounted = podKey{
-	namespaceKey: namespaceKey{
-		Cluster:   "cluster2",
-		Namespace: opencost.UnmountedSuffix,
-	},
-	Pod: opencost.UnmountedSuffix,
+	Cluster:   "cluster2",
+	Namespace: opencost.UnmountedSuffix,
+	Pod:       opencost.UnmountedSuffix,
 }
 
 var kcPVKey1 = opencost.PVKey{
@@ -222,7 +212,7 @@ func TestBuildPVMap(t *testing.T) {
 			resolution: time.Hour * 6,
 			resultsPVCostPerGiBHour: []*source.QueryResult{
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id": "cluster1",
 						"volumename": "pv1",
 					},
@@ -234,7 +224,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id": "cluster1",
 						"volumename": "pv2",
 					},
@@ -246,7 +236,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id": "cluster2",
 						"volumename": "pv3",
 					},
@@ -258,7 +248,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id": "cluster2",
 						"volumename": "pv4",
 					},
@@ -272,7 +262,7 @@ func TestBuildPVMap(t *testing.T) {
 			},
 			resultsActiveMinutes: []*source.QueryResult{
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":       "cluster1",
 						"persistentvolume": "pv1",
 					},
@@ -293,7 +283,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":       "cluster1",
 						"persistentvolume": "pv2",
 					},
@@ -317,7 +307,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":       "cluster2",
 						"persistentvolume": "pv3",
 					},
@@ -335,7 +325,7 @@ func TestBuildPVMap(t *testing.T) {
 					source.DefaultResultKeys(),
 				),
 				source.NewQueryResult(
-					map[string]interface{}{
+					map[string]any{
 						"cluster_id":       "cluster2",
 						"persistentvolume": "pv4",
 					},

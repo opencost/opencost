@@ -2,6 +2,7 @@ package kubemodel
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/exporter"
@@ -91,9 +92,9 @@ func (q *querier) readWindow(formatter pathing.StoragePathFormatter[opencost.Win
 // divides evenly.
 func snapResolution(window opencost.Window) time.Duration {
 	dur := window.Duration()
-	for i := len(supportedResolutions) - 1; i >= 0; i-- {
-		if dur%supportedResolutions[i] == 0 {
-			return supportedResolutions[i]
+	for _, supportedResolution := range slices.Backward(supportedResolutions) {
+		if dur%supportedResolution == 0 {
+			return supportedResolution
 		}
 	}
 	return supportedResolutions[0]

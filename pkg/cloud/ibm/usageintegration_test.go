@@ -396,7 +396,6 @@ func TestKubernetesPercentMatchesBillingExportProducer(t *testing.T) {
 	asOf := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			item := instanceUsageRecord{
 				AccountID:          "acct",

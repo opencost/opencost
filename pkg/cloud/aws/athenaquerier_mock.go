@@ -50,6 +50,7 @@ func (m *MockAthenaClient) GetQueryResults(ctx context.Context, params *athena.G
 	}, nil
 }
 
+//go:fix inline
 func stringPtr(s string) *string {
-	return &s
+	return new(s)
 }

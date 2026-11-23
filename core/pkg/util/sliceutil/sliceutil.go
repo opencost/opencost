@@ -9,7 +9,7 @@ import (
 // slice, which are inserted into a new slice of type U.
 func Map[T any, U any](s []T, transform func(T) U) []U {
 	result := make([]U, len(s))
-	for i := 0; i < len(s); i++ {
+	for i := range s {
 		result[i] = transform(s[i])
 	}
 	return result

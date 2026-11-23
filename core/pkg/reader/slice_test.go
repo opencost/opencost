@@ -117,7 +117,7 @@ func TestSliceReader_ReadAfterExhaustion(t *testing.T) {
 	}
 
 	// Subsequent reads keep reporting io.EOF with no data.
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		n, err := r.Read(context.Background(), dst)
 		if n != 0 || !errors.Is(err, io.EOF) {
 			t.Errorf("read after exhaustion %d: got (%d, %v), want (0, io.EOF)", i, n, err)
@@ -218,7 +218,7 @@ func TestSliceReader_Close(t *testing.T) {
 // TestSliceReader_PointerElements exercises the generic reader with a pointer
 // element type, matching how the pricing readers use it.
 func TestSliceReader_PointerElements(t *testing.T) {
-	items := []*int{ptr(1), ptr(2), ptr(3)}
+	items := []*int{new(1), new(2), new(3)}
 	r := NewSliceReader(items)
 	dst := make([]*int, 3)
 
@@ -241,5 +241,3 @@ func seq(n int) []int {
 	}
 	return s
 }
-
-func ptr[T any](v T) *T { return &v }

@@ -235,7 +235,7 @@ func cloudCostsFromInstance(item instanceUsageRecord, start, end, asOf time.Time
 	// window. The repository replaces whole day-sets, so a partial rewrite leaves the rest of the
 	// month holding a rate computed at a different asOf and the stored month sums to neither total.
 	// getCloudCost widens its range to the months covered here so all of these days are persisted.
-	for d := 0; d < days; d++ {
+	for d := range days {
 		dayStart := monthStart.AddDate(0, 0, d)
 		dayEnd := dayStart.AddDate(0, 0, 1)
 		ds := dayStart

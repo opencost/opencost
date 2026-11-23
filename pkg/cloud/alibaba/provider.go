@@ -515,7 +515,7 @@ func (alibaba *Alibaba) RefreshCustomPricing() error {
 }
 
 // AllNodePricing returns all the pricing data for all nodes and pvs
-func (alibaba *Alibaba) AllNodePricing() (interface{}, error) {
+func (alibaba *Alibaba) AllNodePricing() (any, error) {
 	alibaba.DownloadPricingDataLock.RLock()
 	defer alibaba.DownloadPricingDataLock.RUnlock()
 	return alibaba.Pricing, nil
@@ -742,7 +742,7 @@ func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*models.Cu
 			return fmt.Errorf("UpdateConfig for Alibaba Provider doesn't support updateType %s at this time", updateType)
 
 		} else {
-			a := make(map[string]interface{})
+			a := make(map[string]any)
 			err := json.NewDecoder(r).Decode(&a)
 			if err != nil {
 				return err
@@ -980,7 +980,7 @@ func (alibabaPVKey *AlibabaPVKey) GetStorageClass() string {
 // When supporting different new type of instances like Compute Optimized, Memory Optimized etc make sure you add the instance type
 // in unit test and check if it works or not to create the ack request and processDescribePriceAndCreateAlibabaPricing function
 // else more parameters need to be pulled from kubernetes node response or gather information from elsewhere and function modified.
-func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, error) {
+func createDescribePriceACSRequest(i any) (*requests.CommonRequest, error) {
 	request := requests.NewCommonRequest()
 	request.Method = requests.GET
 	request.Product = ALIBABA_ECS_PRODUCT_CODE
@@ -1051,7 +1051,7 @@ func createDescribeDisksACSRequest(instanceID, regionID, diskType string) (*requ
 
 // determineKeyForPricing generate a unique key from SlimK8sNode object that is constructed from v1.Node object and
 // SlimK8sDisk that is constructed from v1.PersistentVolume.
-func determineKeyForPricing(i interface{}) (string, error) {
+func determineKeyForPricing(i any) (string, error) {
 	if i == nil {
 		return "", fmt.Errorf("nil component passed to determine key")
 	}
@@ -1099,7 +1099,7 @@ type DescribePriceResponse struct {
 }
 
 // processDescribePriceAndCreateAlibabaPricing processes the DescribePrice API and generates the pricing information for alibaba node resource and alibaba pv resource that's backed by cloud disk.
-func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface{}, signer *signers.AccessKeySigner, custom *models.CustomPricing) (pricing *AlibabaPricing, err error) {
+func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i any, signer *signers.AccessKeySigner, custom *models.CustomPricing) (pricing *AlibabaPricing, err error) {
 	pricing = &AlibabaPricing{}
 	var response DescribePriceResponse
 
@@ -1484,6 +1484,6 @@ func determinePVRegion(pv *clustercache.PersistentVolume) string {
 // PricingSourceSummary returns the pricing source summary for the provider.
 // The summary represents what was _parsed_ from the pricing source, not
 // everything that was _available_ in the pricing source.
-func (a *Alibaba) PricingSourceSummary() interface{} {
+func (a *Alibaba) PricingSourceSummary() any {
 	return a.Pricing
 }

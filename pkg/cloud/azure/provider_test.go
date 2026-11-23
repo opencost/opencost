@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"testing"
 
@@ -220,9 +221,7 @@ func TestConvertMeterToPricings_PremiumSSDIgnoresDiskMount(t *testing.T) {
 	for _, meter := range meters {
 		pricings, err := convertMeterToPricings(meter, regions, baseCPUPrice)
 		require.NoError(t, err)
-		for key, pricing := range pricings {
-			result[key] = pricing
-		}
+		maps.Copy(result, pricings)
 	}
 
 	pricing := result["centralus,premium_ssd,LRS,P4"]

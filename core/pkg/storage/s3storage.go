@@ -148,11 +148,9 @@ func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 		}
 	} else if config.AccessKey != "" {
 		chain = []credentials.Provider{wrapCredentialsProvider(&credentials.Static{
-			Value: credentials.Value{
-				AccessKeyID:     config.AccessKey,
-				SecretAccessKey: config.SecretKey,
-				SignerType:      credentials.SignatureV4,
-			},
+			AccessKeyID:     config.AccessKey,
+			SecretAccessKey: config.SecretKey,
+			SignerType:      credentials.SignatureV4,
 		})}
 	} else {
 		chain = []credentials.Provider{

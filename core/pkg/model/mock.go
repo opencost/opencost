@@ -42,7 +42,7 @@ func createCustomCost(postfix string) *pb.CustomCost {
 func GenerateMockCustomCostSet(start, end time.Time) *pb.CustomCostResponse {
 	costs := []*pb.CustomCost{}
 
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		costs = append(costs, createCustomCost(fmt.Sprintf("%d", i)))
 	}
 

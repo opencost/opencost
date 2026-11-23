@@ -123,7 +123,6 @@ func (c KubeModelCollector) Collect(ch chan<- prometheus.Metric) {
 
 	results := make(chan []kubeModelMetric, len(fns))
 	for _, fn := range fns {
-		fn := fn
 		go func() { results <- fn() }()
 	}
 	for range fns {
@@ -168,8 +167,8 @@ func (m kubeModelMetric) Write(pb *dto.Metric) error {
 	pairs := make([]*dto.LabelPair, 0, len(m.labels))
 	for k, v := range m.labels {
 		pairs = append(pairs, &dto.LabelPair{
-			Name:  toStringPtr(k),
-			Value: toStringPtr(v),
+			Name:  new(k),
+			Value: new(v),
 		})
 	}
 	pb.Label = pairs

@@ -9,13 +9,9 @@ import (
 
 func TestBigQueryIntegration_GetCloudCost(t *testing.T) {
 	bqi := &BigQueryIntegration{
-		BigQueryQuerier: BigQueryQuerier{
-			BigQueryConfiguration: BigQueryConfiguration{
-				ProjectID: "test-project",
-				Dataset:   "test-dataset",
-				Table:     "test-table",
-			},
-		},
+		ProjectID: "test-project",
+		Dataset:   "test-dataset",
+		Table:     "test-table",
 	}
 
 	start := time.Now().Add(-24 * time.Hour)
@@ -40,13 +36,9 @@ func TestBigQueryIntegration_GetWhereConjuncts(t *testing.T) {
 
 func TestBigQueryIntegration_GetFlexibleCUDRates(t *testing.T) {
 	bqi := &BigQueryIntegration{
-		BigQueryQuerier: BigQueryQuerier{
-			BigQueryConfiguration: BigQueryConfiguration{
-				ProjectID: "test-project",
-				Dataset:   "test-dataset",
-				Table:     "test-table",
-			},
-		},
+		ProjectID: "test-project",
+		Dataset:   "test-dataset",
+		Table:     "test-table",
 	}
 
 	start := time.Now().Add(-24 * time.Hour)
@@ -59,13 +51,9 @@ func TestBigQueryIntegration_GetFlexibleCUDRates(t *testing.T) {
 
 func TestBigQueryIntegration_queryFlexibleCUDTotalCosts(t *testing.T) {
 	bqi := &BigQueryIntegration{
-		BigQueryQuerier: BigQueryQuerier{
-			BigQueryConfiguration: BigQueryConfiguration{
-				ProjectID: "test-project",
-				Dataset:   "test-dataset",
-				Table:     "test-table",
-			},
-		},
+		ProjectID: "test-project",
+		Dataset:   "test-dataset",
+		Table:     "test-table",
 	}
 
 	start := time.Now().Add(-24 * time.Hour)
@@ -78,13 +66,9 @@ func TestBigQueryIntegration_queryFlexibleCUDTotalCosts(t *testing.T) {
 
 func TestBigQueryIntegration_queryFlexibleCUDTotalCredits(t *testing.T) {
 	bqi := &BigQueryIntegration{
-		BigQueryQuerier: BigQueryQuerier{
-			BigQueryConfiguration: BigQueryConfiguration{
-				ProjectID: "test-project",
-				Dataset:   "test-dataset",
-				Table:     "test-table",
-			},
-		},
+		ProjectID: "test-project",
+		Dataset:   "test-dataset",
+		Table:     "test-table",
 	}
 
 	start := time.Now().Add(-24 * time.Hour)

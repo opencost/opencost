@@ -130,7 +130,7 @@ func TestAuthorizerJSON_Encode(t *testing.T) {
 				t.Errorf("Failed to Marshal Authorizer: %s", err)
 			}
 
-			var f interface{}
+			var f any
 			err = json.Unmarshal(b, &f)
 			if err != nil {
 				t.Errorf("Failed to Unmarshal Authorizer: %s", err)

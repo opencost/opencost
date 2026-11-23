@@ -3,7 +3,9 @@ package opencost
 import (
 	"encoding"
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -173,8 +175,8 @@ func getKeyFromLabelConfig(a Asset, labelConfig *LabelConfig, label string) stri
 		return UnallocatedSuffix
 	} else {
 		key := UnallocatedSuffix
-		labelNames := strings.Split(label, ",")
-		for _, labelName := range labelNames {
+		labelNames := strings.SplitSeq(label, ",")
+		for labelName := range labelNames {
 			name := labelConfig.Sanitize(labelName)
 			if labelValue, ok := labels[name]; ok {
 				key = labelValue
@@ -207,9 +209,7 @@ type AssetLabels map[string]string
 func (al AssetLabels) Clone() AssetLabels {
 	clone := make(AssetLabels, len(al))
 
-	for label, value := range al {
-		clone[label] = value
-	}
+	maps.Copy(clone, al)
 
 	return clone
 }
@@ -3848,12 +3848,7 @@ func sameContents(a, b []string) bool {
 }
 
 func contains(slice []string, item string) bool {
-	for _, element := range slice {
-		if element == item {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, item)
 }
 
 func GetNodePoolName(provider string, labels map[string]string) string {

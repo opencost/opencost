@@ -33,7 +33,7 @@ func cmp[T comparable](t *testing.T, result, expected T) {
 	}
 }
 
-type InterfaceType interface{}
+type InterfaceType any
 
 var packageScoped = typeutil.CurrentPackage()
 
@@ -48,7 +48,7 @@ func TestTypeOf(t *testing.T) {
 	cmp(t, typeutil.TypeOf[int](), "int")
 	cmp(t, typeutil.TypeOf[int8](), "int8")
 	cmp(t, typeutil.TypeOf[any](), "interface {}")
-	cmp(t, typeutil.TypeOf[interface{}](), "interface {}")
+	cmp(t, typeutil.TypeOf[any](), "interface {}")
 	cmp(t, typeutil.TypeOf[struct{}](), "struct {}")
 
 	// Specific Types

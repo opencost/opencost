@@ -106,15 +106,15 @@ func (s ServiceSelectorLabelsMetric) Write(m *dto.Metric) error {
 		})
 	}
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("namespace"),
+		Name:  new("namespace"),
 		Value: &s.namespace,
 	})
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("service"),
+		Name:  new("service"),
 		Value: &s.serviceName,
 	})
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("uid"),
+		Name:  new("uid"),
 		Value: &s.uid,
 	})
 	m.Label = labels

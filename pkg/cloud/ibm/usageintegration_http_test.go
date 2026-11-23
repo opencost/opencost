@@ -210,7 +210,7 @@ func newUsageReportsTestIntegration(t *testing.T, serviceURL string) *UsageInteg
 	}
 
 	return &UsageIntegration{
-		UsageConfiguration: UsageConfiguration{AccountID: "a/" + usageReportsTestAccountID},
+		AccountID: "a/" + usageReportsTestAccountID,
 		clientFactory: func() (*usagereportsv4.UsageReportsV4, error) {
 			return client, nil
 		},

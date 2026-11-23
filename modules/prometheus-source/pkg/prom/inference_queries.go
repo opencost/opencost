@@ -230,10 +230,7 @@ func queryCounterDelta(ctx *Context, metric string, start, end time.Time) (map[s
 	// lookback guarantees we find the last sample that existed anywhere in
 	// the window, while the @ pin ensures we don't extrapolate past end.
 	windowDuration := effectiveEnd.Sub(start)
-	windowMinutes := int(windowDuration.Minutes())
-	if windowMinutes < 2 {
-		windowMinutes = 2
-	}
+	windowMinutes := max(int(windowDuration.Minutes()), 2)
 
 	// Query counter value at the end of the window.
 	endQuery := fmt.Sprintf(`sum by (model_name, namespace) (last_over_time(%s[%dm] @ %d))`, metric, windowMinutes, endUnix)

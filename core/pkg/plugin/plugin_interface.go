@@ -30,6 +30,6 @@ func (p *CustomCostPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server)
 // this method is called for as part of the reference plugin implementation
 // see https://github.com/hashicorp/go-plugin/blob/main/examples/basic/shared/greeter_interface.go#L63
 // for context and details
-func (CustomCostPlugin) GRPCClient(context context.Context, b *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+func (CustomCostPlugin) GRPCClient(context context.Context, b *plugin.GRPCBroker, c *grpc.ClientConn) (any, error) {
 	return &GRPCClient{client: pb.NewCustomCostsSourceClient(c)}, nil
 }

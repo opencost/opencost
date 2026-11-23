@@ -72,7 +72,7 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*clusters.ClusterInf
 	var offset string = ""
 
 	// Execute Query
-	tryQuery := func() (interface{}, error) {
+	tryQuery := func() (any, error) {
 		ctx := pcm.contextFactory.NewNamedContext(ClusterMapContextName)
 		resCh := ctx.QueryAtTime(clusterInfoQuery(offset), time.Now())
 		r, e := resCh.Await()

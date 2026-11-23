@@ -27,7 +27,7 @@ type promSample struct {
 func promInstantJSON(samples []promSample) string {
 	type result struct {
 		Metric map[string]string `json:"metric"`
-		Value  [2]interface{}    `json:"value"`
+		Value  [2]any            `json:"value"`
 	}
 	results := make([]result, 0, len(samples))
 	for _, s := range samples {
@@ -36,12 +36,12 @@ func promInstantJSON(samples []promSample) string {
 				"model_name": s.modelName,
 				"namespace":  s.namespace,
 			},
-			Value: [2]interface{}{1.0, fmt.Sprintf("%f", s.value)},
+			Value: [2]any{1.0, fmt.Sprintf("%f", s.value)},
 		})
 	}
-	data := map[string]interface{}{
+	data := map[string]any{
 		"status": "success",
-		"data": map[string]interface{}{
+		"data": map[string]any{
 			"resultType": "vector",
 			"result":     results,
 		},

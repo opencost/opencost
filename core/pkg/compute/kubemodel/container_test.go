@@ -30,7 +30,7 @@ func TestComputeContainers(t *testing.T) {
 			name: "basic container uptime",
 			overrides: map[string]any{
 				source.QueryContainerUptime: []*source.ContainerUptimeResult{
-					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "main"},
+					{UID: "pod-1", First: start, Last: end, Container: "main"},
 				},
 			},
 			want: map[string]*kubemodel.Container{
@@ -48,8 +48,8 @@ func TestComputeContainers(t *testing.T) {
 			name: "multiple containers on same pod",
 			overrides: map[string]any{
 				source.QueryContainerUptime: []*source.ContainerUptimeResult{
-					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "main"},
-					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "sidecar"},
+					{UID: "pod-1", First: start, Last: end, Container: "main"},
+					{UID: "pod-1", First: start, Last: end, Container: "sidecar"},
 				},
 			},
 			want: map[string]*kubemodel.Container{
@@ -75,15 +75,15 @@ func TestComputeContainers(t *testing.T) {
 			name: "resource requests and limits are populated",
 			overrides: map[string]any{
 				source.QueryContainerUptime: []*source.ContainerUptimeResult{
-					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "main"},
+					{UID: "pod-1", First: start, Last: end, Container: "main"},
 				},
 				source.QueryContainerResourceRequests: []*source.ContainerResourceResult{
-					{ResourceResult: source.ResourceResult{UID: "pod-1", Resource: "cpu", Unit: "cores", Value: 0.5}, Container: "main"},
-					{ResourceResult: source.ResourceResult{UID: "pod-1", Resource: "memory", Unit: "bytes", Value: 512 * 1024 * 1024}, Container: "main"},
+					{UID: "pod-1", Resource: "cpu", Unit: "cores", Value: 0.5, Container: "main"},
+					{UID: "pod-1", Resource: "memory", Unit: "bytes", Value: 512 * 1024 * 1024, Container: "main"},
 				},
 				source.QueryContainerResourceLimits: []*source.ContainerResourceResult{
-					{ResourceResult: source.ResourceResult{UID: "pod-1", Resource: "cpu", Unit: "cores", Value: 1.0}, Container: "main"},
-					{ResourceResult: source.ResourceResult{UID: "pod-1", Resource: "memory", Unit: "bytes", Value: 1024 * 1024 * 1024}, Container: "main"},
+					{UID: "pod-1", Resource: "cpu", Unit: "cores", Value: 1.0, Container: "main"},
+					{UID: "pod-1", Resource: "memory", Unit: "bytes", Value: 1024 * 1024 * 1024, Container: "main"},
 				},
 			},
 			want: map[string]*kubemodel.Container{
@@ -123,7 +123,7 @@ func TestComputeContainers(t *testing.T) {
 			name: "cpu and ram allocation and usage are populated",
 			overrides: map[string]any{
 				source.QueryContainerUptime: []*source.ContainerUptimeResult{
-					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "main"},
+					{UID: "pod-1", First: start, Last: end, Container: "main"},
 				},
 				source.QueryCPUCoresAllocated: []*source.CPUCoresAllocatedResult{
 					{UID: "pod-1", Container: "main", Data: []*util.Vector{{Value: 0.25}}},
@@ -165,7 +165,7 @@ func TestComputeContainers(t *testing.T) {
 			name: "device usage avg and max are populated",
 			overrides: map[string]any{
 				source.QueryContainerUptime: []*source.ContainerUptimeResult{
-					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "training"},
+					{UID: "pod-1", First: start, Last: end, Container: "training"},
 				},
 				source.QueryDCGMContainerUsageAvg: []*source.DCGMDeviceContainerUsageResult{
 					{UUID: "GPU-abc123", PodUID: "pod-1", Container: "training", Value: 0.75},
@@ -192,7 +192,7 @@ func TestComputeContainers(t *testing.T) {
 			name: "device usage with empty pod uid or container is ignored",
 			overrides: map[string]any{
 				source.QueryContainerUptime: []*source.ContainerUptimeResult{
-					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "training"},
+					{UID: "pod-1", First: start, Last: end, Container: "training"},
 				},
 				source.QueryDCGMContainerUsageAvg: []*source.DCGMDeviceContainerUsageResult{
 					{UUID: "GPU-abc123", PodUID: "", Container: "training", Value: 0.5},
@@ -214,7 +214,7 @@ func TestComputeContainers(t *testing.T) {
 			name: "device usage for unknown container is ignored",
 			overrides: map[string]any{
 				source.QueryContainerUptime: []*source.ContainerUptimeResult{
-					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "main"},
+					{UID: "pod-1", First: start, Last: end, Container: "main"},
 				},
 				source.QueryDCGMContainerUsageAvg: []*source.DCGMDeviceContainerUsageResult{
 					{UUID: "GPU-abc123", PodUID: "pod-1", Container: "training", Value: 0.75},
@@ -235,10 +235,10 @@ func TestComputeContainers(t *testing.T) {
 			name: "resource requests for unknown container are ignored",
 			overrides: map[string]any{
 				source.QueryContainerUptime: []*source.ContainerUptimeResult{
-					{UptimeResult: source.UptimeResult{UID: "pod-1", First: start, Last: end}, Container: "main"},
+					{UID: "pod-1", First: start, Last: end, Container: "main"},
 				},
 				source.QueryContainerResourceRequests: []*source.ContainerResourceResult{
-					{ResourceResult: source.ResourceResult{UID: "pod-1", Resource: "cpu", Unit: "cores", Value: 0.5}, Container: "unknown-container"},
+					{UID: "pod-1", Resource: "cpu", Unit: "cores", Value: 0.5, Container: "unknown-container"},
 				},
 			},
 			want: map[string]*kubemodel.Container{
