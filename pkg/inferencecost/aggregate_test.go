@@ -43,6 +43,58 @@ func makeICR(modelName, ns string, totalCost, promptTokens, genTokens, inputCost
 	}
 }
 
+// TestAggregate_ByModelAndTenant_ClearsNamespaceAcrossNamespaces pins the
+// A-01 integration scenario: the same (model, tenant) serving traffic from
+// two namespaces (plus one unnamespaced entry) must collapse into a single
+// row whose key and properties carry no namespace.
+func TestAggregate_ByModelAndTenant_ClearsNamespaceAcrossNamespaces(t *testing.T) {
+	win := makeWindow(time.Now().Add(-time.Hour), time.Now())
+	set := newInferenceCostSet(win)
+
+	entries := []struct {
+		key string
+		ic  *InferenceCostResponse
+	}{
+		{"k1", &InferenceCostResponse{
+			Properties: InferenceCostAPIProperties{ModelName: "gemma-4-31B", Namespace: "llm-a-4cost2", TenantID: "acme-corp/engineering"},
+			TotalCost:  10.0, PromptTokens: 100000, GenerationTokens: 10000, TotalTokens: 110000,
+		}},
+		{"k2", &InferenceCostResponse{
+			Properties: InferenceCostAPIProperties{ModelName: "gemma-4-31B", Namespace: "llm-b-4cost2", TenantID: "acme-corp/engineering"},
+			TotalCost:  20.0, PromptTokens: 200000, GenerationTokens: 20000, TotalTokens: 220000,
+		}},
+		{"k3", &InferenceCostResponse{
+			Properties: InferenceCostAPIProperties{ModelName: "gemma-4-31B", Namespace: "", TenantID: "acme-corp/engineering"},
+			TotalCost:  5.0, PromptTokens: 50000, GenerationTokens: 5000, TotalTokens: 55000,
+		}},
+	}
+	for _, e := range entries {
+		set.InferenceCosts[e.key] = e.ic
+	}
+
+	if err := set.aggregate([]string{"model_name", "tenant_id"}); err != nil {
+		t.Fatalf("aggregate error: %v", err)
+	}
+
+	if len(set.InferenceCosts) != 1 {
+		t.Fatalf("expected 1 row for (model, tenant) across 3 namespaces, got %d: %v",
+			len(set.InferenceCosts), set.InferenceCosts)
+	}
+
+	// The "/" in the tenant id is escaped so the key is collision-free
+	// (see TestAggKey_SlashInDimensionValuesCollisionFree and A-02).
+	row, ok := set.InferenceCosts["gemma-4-31B/acme-corp\\/engineering"]
+	if !ok {
+		t.Fatalf("expected key %q, got keys %v", "gemma-4-31B/acme-corp\\/engineering", set.InferenceCosts)
+	}
+	if row.Properties.Namespace != "" {
+		t.Errorf("namespace not cleared from properties: %q", row.Properties.Namespace)
+	}
+	if row.TotalCost != 35.0 || row.TotalTokens != 385000 {
+		t.Errorf("merged totals: want (35.0, 385000), got (%f, %f)", row.TotalCost, row.TotalTokens)
+	}
+}
+
 // --- aggKey ---
 
 func TestAggKey_NoAggregation(t *testing.T) {

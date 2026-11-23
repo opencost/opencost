@@ -3,6 +3,7 @@ package prom
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -283,25 +284,96 @@ func applyProducerDefaults(p *ProducerMapping) {
 	}
 }
 
-func buildDimensionQuery(mapping *ProducerMapping, metric string, windowSeconds, endUnix int64) string {
-	var labels []string
-	addLabel := func(l string) {
-		if l != "" {
-			for _, existing := range labels {
-				if existing == l {
-					return
-				}
-			}
-			labels = append(labels, l)
+// seriesIdentity returns a stable identifier for a Prometheus series built from
+// all of its labels except the metric name. last_over_time may or may not keep
+// __name__ depending on the Prometheus version, so it is excluded.
+func seriesIdentity(metric map[string]interface{}) string {
+	parts := make([]string, 0, len(metric))
+	for k, v := range metric {
+		if k == "__name__" {
+			continue
 		}
+		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
 	}
-	addLabel(mapping.UserLabel)
-	addLabel(mapping.TenantLabel)
-	addLabel(mapping.WorkloadLabel)
-	addLabel(mapping.ModelLabel)
-	addLabel(mapping.NamespaceLabel)
+	sort.Strings(parts)
+	return strings.Join(parts, ",")
+}
 
-	return fmt.Sprintf("sum by (%s) (increase(%s[%ds] @ %d))", strings.Join(labels, ", "), metric, windowSeconds, endUnix)
+// queryDimensionSeriesDeltas returns, for every series of a counter, the exact
+// increase between start and end together with the series' labels.
+//
+// It deliberately does not use increase(metric[Ns]). increase() extrapolates
+// the samples inside the window to the whole window, so a window holding only
+// a couple of scrapes overstates a single step in the counter by up to
+// window/scrape-interval (2x for a 60s window and a 30s scrape). The engine
+// token path (queryCounterDelta) avoids this with last_over_time at the window
+// end minus last_over_time at the window start, and the attribution path must
+// use the same method so the two can be compared exactly.
+//
+// The delta is taken per series, before any grouping, so a counter reset on one
+// replica does not corrupt the others. A series with no sample at the start of
+// the window is treated as new (start value 0). A negative delta is a counter
+// reset and the end value is used, matching queryCounterDelta.
+func queryDimensionSeriesDeltas(ctx *Context, metric string, start, end time.Time) ([]*source.QueryResult, []float64, error) {
+	effectiveEnd := end
+	if now := time.Now(); end.After(now) {
+		effectiveEnd = now
+	}
+	endUnix := effectiveEnd.Unix()
+	startUnix := start.Unix()
+
+	// The end lookback spans the whole window so a series that was active
+	// earlier in the window but is idle at its end is still found.
+	windowSeconds := int64(effectiveEnd.Sub(start).Seconds())
+	if windowSeconds < 120 {
+		windowSeconds = 120
+	}
+
+	endQuery := fmt.Sprintf("last_over_time(%s[%ds] @ %d)", metric, windowSeconds, endUnix)
+	rawEnd, _, err := ctx.query(endQuery, effectiveEnd)
+	if err != nil {
+		return nil, nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
+	}
+	endResults := NewQueryResults(endQuery, rawEnd, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+	if endResults.Error != nil {
+		return nil, nil, endResults.Error
+	}
+
+	// Narrow lookback at the start: we want the value just before the window
+	// opens, not a stale value from much earlier.
+	startQuery := fmt.Sprintf("last_over_time(%s[2m] @ %d)", metric, startUnix)
+	rawStart, _, err := ctx.query(startQuery, effectiveEnd)
+	if err != nil {
+		return nil, nil, fmt.Errorf("start-of-window query for %s: %w", metric, err)
+	}
+	startResults := NewQueryResults(startQuery, rawStart, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
+	if startResults.Error != nil {
+		return nil, nil, startResults.Error
+	}
+
+	startValues := make(map[string]float64, len(startResults.Results))
+	for _, r := range startResults.Results {
+		if len(r.Values) == 0 {
+			continue
+		}
+		startValues[seriesIdentity(r.Metric)] = r.Values[0].Value
+	}
+
+	series := make([]*source.QueryResult, 0, len(endResults.Results))
+	deltas := make([]float64, 0, len(endResults.Results))
+	for _, r := range endResults.Results {
+		if len(r.Values) == 0 {
+			continue
+		}
+		endVal := r.Values[0].Value
+		delta := endVal - startValues[seriesIdentity(r.Metric)]
+		if delta < 0 {
+			delta = endVal
+		}
+		series = append(series, r)
+		deltas = append(deltas, delta)
+	}
+	return series, deltas, nil
 }
 
 func queryDimensionSeries(
@@ -316,29 +388,12 @@ func queryDimensionSeries(
 	if metric == "" {
 		return nil
 	}
-	effectiveEnd := end
-	if now := time.Now(); end.After(now) {
-		effectiveEnd = now
-	}
-	endUnix := effectiveEnd.Unix()
-	windowDuration := effectiveEnd.Sub(start)
-	windowSeconds := int64(windowDuration.Seconds())
-	if windowSeconds < 1 {
-		windowSeconds = 1
-	}
-
-	query := buildDimensionQuery(mapping, metric, windowSeconds, endUnix)
-	raw, _, err := ctx.query(query, effectiveEnd)
+	series, deltas, err := queryDimensionSeriesDeltas(ctx, metric, start, end)
 	if err != nil {
 		return fmt.Errorf("dimension query for %s: %w", metric, err)
 	}
 
-	results := NewQueryResults(query, raw, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
-	if results.Error != nil {
-		return results.Error
-	}
-
-	for _, result := range results.Results {
+	for i, result := range series {
 		tenantID, _ := result.GetString(mapping.TenantLabel)
 		var workloadID string
 		if mapping.WorkloadLabel != "" {
@@ -351,10 +406,7 @@ func queryDimensionSeries(
 		servingModel, _ := result.GetString(mapping.ModelLabel)
 		namespace, _ := result.GetString(mapping.NamespaceLabel)
 
-		var delta float64
-		if len(result.Values) > 0 {
-			delta = result.Values[len(result.Values)-1].Value
-		}
+		delta := deltas[i]
 
 		key := source.InferenceDimensionKey{
 			Producer:     mapping.Name,
