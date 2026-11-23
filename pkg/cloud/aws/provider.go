@@ -2781,6 +2781,10 @@ func (aws *AWS) ServiceAccountStatus() *models.ServiceAccountStatus {
 }
 
 func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
+	// Spot nodes are already priced at the spot rate; only the negotiated discount applies.
+	if isPreemptible {
+		defaultDiscount = 0
+	}
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"testing"
 
@@ -1243,5 +1244,30 @@ func TestAzureRefreshCustomPricingNilNode(t *testing.T) {
 	}
 	if err := az.RefreshCustomPricing(); err != nil {
 		t.Fatalf("RefreshCustomPricing() unexpected error: %v", err)
+	}
+}
+
+func TestAzure_CombinedDiscountForNode(t *testing.T) {
+	az := &Azure{}
+
+	tests := []struct {
+		name               string
+		isPreemptible      bool
+		defaultDiscount    float64
+		negotiatedDiscount float64
+		expected           float64
+	}{
+		{"on-demand gets both discounts", false, 0.30, 0.20, 0.44},
+		{"spot gets only the negotiated discount", true, 0.30, 0.20, 0.20},
+		{"spot without negotiated discount", true, 0.30, 0, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := az.CombinedDiscountForNode("", tt.isPreemptible, tt.defaultDiscount, tt.negotiatedDiscount)
+			if math.Abs(got-tt.expected) > 1e-9 {
+				t.Errorf("CombinedDiscountForNode() = %v, want %v", got, tt.expected)
+			}
+		})
 	}
 }
