@@ -2,6 +2,9 @@ package inferencecost
 
 import (
 	"context"
+	"math"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -1011,13 +1014,16 @@ func TestCollector_CollectMetrics_EmptyMetrics(t *testing.T) {
 
 	end := time.Now()
 	start := end.Add(-5 * time.Minute)
-	results, err := collector.CollectMetrics(ctx, start, end)
+	results, dimTokens, err := collector.CollectMetrics(ctx, start, end)
 	// With empty metrics, CollectMetrics should succeed with empty results
 	if err != nil {
 		t.Errorf("unexpected error with empty metrics: %v", err)
 	}
 	if len(results) != 0 {
 		t.Errorf("expected 0 results with empty metrics, got %d", len(results))
+	}
+	if dimTokens == nil {
+		t.Errorf("expected non-nil dimTokens with empty metrics")
 	}
 }
 
@@ -1052,5 +1058,661 @@ func TestCollector_CombineMetrics_IncludesTimingOnlyKeysInUnion(t *testing.T) {
 	}
 	if !floatEq(m.CachedTokens, 2) {
 		t.Errorf("CachedTokens want 2 got %f", m.CachedTokens)
+	}
+}
+
+func makeTestModelCost(modelName, namespace string, promptTokens, genTokens, allocCost, usageCost, allocInRate, allocOutRate, usageInRate, usageOutRate float64) *InferenceCost {
+	mc := &InferenceCost{
+		Properties: InferenceCostProperties{
+			ModelName:    modelName,
+			Namespace:    namespace,
+			Cluster:      "test-cluster",
+			WorkloadType: "inference",
+		},
+		PromptTokens:               promptTokens,
+		GenerationTokens:           genTokens,
+		TotalTokens:                promptTokens + genTokens,
+		AllocationTotalCost:        allocCost,
+		UsageTotalCost:             usageCost,
+		InputCostPerMillionTokens:  map[CostBasis]float64{CostBasisAllocation: allocInRate, CostBasisUsage: usageInRate},
+		OutputCostPerMillionTokens: map[CostBasis]float64{CostBasisAllocation: allocOutRate, CostBasisUsage: usageOutRate},
+		CostPerMillionTokens:       map[CostBasis]float64{CostBasisAllocation: (allocCost / (promptTokens + genTokens)) * 1e6, CostBasisUsage: (usageCost / (promptTokens + genTokens)) * 1e6},
+		InputCost:                  map[CostBasis]float64{CostBasisAllocation: promptTokens * allocInRate / 1e6, CostBasisUsage: promptTokens * usageInRate / 1e6},
+		OutputCost:                 map[CostBasis]float64{CostBasisAllocation: genTokens * allocOutRate / 1e6, CostBasisUsage: genTokens * usageOutRate / 1e6},
+		AllocationMethod:           AllocationMethodComputeTime,
+	}
+	mc.Window.Start = time.Now().Add(-1 * time.Hour)
+	mc.Window.End = time.Now()
+	return mc
+}
+
+func TestBuildDimensionCosts_JoinFormulaAndRates(t *testing.T) {
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	c := &Collector{config: cfg}
+
+	// Model: prompt 1M, gen 1M. alloc in rate $10/M, alloc out rate $20/M -> model alloc cost $30
+	// usage in rate $5/M, usage out rate $10/M -> model usage cost $15
+	mc := makeTestModelCost("llama-3-70b", "llm-prod", 1000000, 1000000, 30.0, 15.0, 10.0, 20.0, 5.0, 10.0)
+
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+			{
+				Producer:     "default",
+				TenantID:     "tenant-a",
+				WorkloadID:   "workload-1",
+				UserID:       "alice",
+				ServingModel: "llama-3-70b",
+				Namespace:    "llm-prod",
+			}: {
+				PromptTokens:     400000,
+				CompletionTokens: 200000,
+			},
+			{
+				Producer:     "default",
+				TenantID:     "tenant-b",
+				WorkloadID:   "workload-2",
+				UserID:       "bob",
+				ServingModel: "llama-3-70b",
+				Namespace:    "llm-prod",
+			}: {
+				PromptTokens:     600000,
+				CompletionTokens: 800000,
+			},
+		},
+	}
+
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	if len(results) != 3 { // tenant-a, tenant-b, __unmetered__ remainder
+		t.Fatalf("expected 3 dimension entries, got %d", len(results))
+	}
+
+	var tenantA, tenantB, remainder *InferenceCost
+	for _, r := range results {
+		switch r.Properties.TenantID {
+		case "tenant-a":
+			tenantA = r
+		case "tenant-b":
+			tenantB = r
+		case "__unmetered__":
+			remainder = r
+		}
+	}
+
+	if tenantA == nil || tenantB == nil || remainder == nil {
+		t.Fatalf("missing expected entries in results: tenantA=%v tenantB=%v remainder=%v", tenantA, tenantB, remainder)
+	}
+
+	// Tenant A: 400k prompt ($4.00 alloc, $2.00 usage), 200k gen ($4.00 alloc, $2.00 usage) -> total $8.00 alloc, $4.00 usage
+	if math.Abs(tenantA.AllocationTotalCost-8.0) > 1e-6 {
+		t.Errorf("tenantA AllocationTotalCost want 8.0, got %f", tenantA.AllocationTotalCost)
+	}
+	if math.Abs(tenantA.UsageTotalCost-4.0) > 1e-6 {
+		t.Errorf("tenantA UsageTotalCost want 4.0, got %f", tenantA.UsageTotalCost)
+	}
+	if math.Abs(tenantA.CostPerMillionTokens[CostBasisAllocation]-((8.0/600000.0)*1e6)) > 1e-6 {
+		t.Errorf("tenantA blended alloc rate mismatch: got %f", tenantA.CostPerMillionTokens[CostBasisAllocation])
+	}
+	if math.Abs(tenantA.InputCostPerMillionTokens[CostBasisAllocation]-10.0) > 1e-6 {
+		t.Errorf("tenantA alloc in rate want 10.0, got %f", tenantA.InputCostPerMillionTokens[CostBasisAllocation])
+	}
+	if math.Abs(tenantA.OutputCostPerMillionTokens[CostBasisAllocation]-20.0) > 1e-6 {
+		t.Errorf("tenantA alloc out rate want 20.0, got %f", tenantA.OutputCostPerMillionTokens[CostBasisAllocation])
+	}
+
+	// Tenant B: 600k prompt ($6.00 alloc, $3.00 usage), 800k gen ($16.00 alloc, $8.00 usage) -> total $22.00 alloc, $11.00 usage
+	if math.Abs(tenantB.AllocationTotalCost-22.0) > 1e-6 {
+		t.Errorf("tenantB AllocationTotalCost want 22.0, got %f", tenantB.AllocationTotalCost)
+	}
+	if math.Abs(tenantB.UsageTotalCost-11.0) > 1e-6 {
+		t.Errorf("tenantB UsageTotalCost want 11.0, got %f", tenantB.UsageTotalCost)
+	}
+
+	// Remainder: total tokens metered = 1M prompt, 1M gen. Remainder tokens = 0, remainder cost = 0.
+	if math.Abs(remainder.AllocationTotalCost-0.0) > 1e-6 {
+		t.Errorf("remainder AllocationTotalCost want 0.0, got %f", remainder.AllocationTotalCost)
+	}
+	if math.Abs(remainder.PromptTokens-0.0) > 1e-6 || math.Abs(remainder.GenerationTokens-0.0) > 1e-6 {
+		t.Errorf("remainder tokens want 0, got prompt=%f gen=%f", remainder.PromptTokens, remainder.GenerationTokens)
+	}
+
+	// Release gate: tenant rows + remainder = model total
+	totalAlloc := tenantA.AllocationTotalCost + tenantB.AllocationTotalCost + remainder.AllocationTotalCost
+	if math.Abs(totalAlloc-mc.AllocationTotalCost) > 1e-6 {
+		t.Errorf("sum of dimension alloc costs (%f) != model alloc cost (%f)", totalAlloc, mc.AllocationTotalCost)
+	}
+	totalUsage := tenantA.UsageTotalCost + tenantB.UsageTotalCost + remainder.UsageTotalCost
+	if math.Abs(totalUsage-mc.UsageTotalCost) > 1e-6 {
+		t.Errorf("sum of dimension usage costs (%f) != model usage cost (%f)", totalUsage, mc.UsageTotalCost)
+	}
+}
+
+func TestBuildDimensionCosts_ZeroModelCost_NoPanic(t *testing.T) {
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	c := &Collector{config: cfg}
+
+	mc := makeTestModelCost("llama-3-70b", "llm-prod", 0, 0, 0, 0, 0, 0, 0, 0)
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+			{
+				Producer:     "default",
+				TenantID:     "tenant-a",
+				ServingModel: "llama-3-70b",
+				Namespace:    "llm-prod",
+			}: {
+				PromptTokens:     0,
+				CompletionTokens: 0,
+			},
+		},
+	}
+
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	if len(results) == 0 {
+		t.Fatalf("expected results, got 0")
+	}
+	for _, r := range results {
+		if r.CostPerMillionTokens[CostBasisAllocation] != 0 || r.CostPerMillionTokens[CostBasisUsage] != 0 {
+			t.Errorf("expected 0 cost per million tokens, got alloc=%f usage=%f", r.CostPerMillionTokens[CostBasisAllocation], r.CostPerMillionTokens[CostBasisUsage])
+		}
+	}
+}
+
+func TestBuildDimensionCosts_EmptyAttributionResult(t *testing.T) {
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	c := &Collector{config: cfg}
+
+	mc := makeTestModelCost("llama-3-70b", "llm-prod", 100000, 50000, 10.0, 5.0, 50.0, 100.0, 25.0, 50.0)
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{},
+	}
+
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 remainder result, got %d", len(results))
+	}
+	rem := results[0]
+	if rem.Properties.TenantID != "__unmetered__" {
+		t.Errorf("expected __unmetered__ tenant, got %s", rem.Properties.TenantID)
+	}
+	if math.Abs(rem.AllocationTotalCost-10.0) > 1e-6 {
+		t.Errorf("expected full model cost in remainder, got %f", rem.AllocationTotalCost)
+	}
+	if rem.PromptTokens != 100000 || rem.GenerationTokens != 50000 {
+		t.Errorf("expected full engine tokens in remainder, got prompt=%f gen=%f", rem.PromptTokens, rem.GenerationTokens)
+	}
+}
+
+func TestBuildDimensionCosts_UnmatchedKeys_CountedAndLogged(t *testing.T) {
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	c := &Collector{config: cfg}
+
+	mc := makeTestModelCost("llama-3-70b", "llm-prod", 100000, 50000, 10.0, 5.0, 50.0, 100.0, 25.0, 50.0)
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+			{
+				Producer:     "default",
+				TenantID:     "tenant-a",
+				ServingModel: "unknown-model",
+				Namespace:    "llm-prod",
+			}: {
+				PromptTokens:     1000,
+				CompletionTokens: 500,
+			},
+		},
+	}
+
+	results, unmatched := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	// Only remainder for llama-3-70b should be emitted; unknown-model is unmatched
+	if len(results) != 1 || results[0].Properties.TenantID != "__unmetered__" {
+		t.Fatalf("expected only remainder row, got %d results", len(results))
+	}
+
+	if unmatched["default"] != 1 {
+		t.Errorf("expected 1 unmatched key for producer 'default', got %f", unmatched["default"])
+	}
+}
+
+func TestBuildDimensionCosts_MissingIdentityKeptDistinct(t *testing.T) {
+	// Producer A: tenant "none" is a genuine tenant (sentinel is "unattributed")
+	// Producer B: tenant "none" is its sentinel (sentinel is "none")
+	// Verify A's tenant "none" stays "none" and B's sentinel "none" becomes "__unidentified__",
+	// so B's traffic is NOT merged into A or charged to A.
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "attribution.yaml")
+	configYAML := "producers:\n" +
+		"  - name: producer-a\n" +
+		"    inputTokensSeries: prod_a_in\n" +
+		"    outputTokensSeries: prod_a_out\n" +
+		"    tenantLabel: tenant_id\n" +
+		"    workloadLabel: workload_id\n" +
+		"    modelLabel: model_name\n" +
+		"    namespaceLabel: namespace\n" +
+		"    identitySentinel: unattributed\n" +
+		"  - name: producer-b\n" +
+		"    inputTokensSeries: prod_b_in\n" +
+		"    outputTokensSeries: prod_b_out\n" +
+		"    tenantLabel: tenant_id\n" +
+		"    workloadLabel: workload_id\n" +
+		"    modelLabel: model_name\n" +
+		"    namespaceLabel: namespace\n" +
+		"    identitySentinel: none\n"
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	cfg.AttributionConfigPath = configPath
+	c := &Collector{config: cfg}
+
+	mc := makeTestModelCost("llama-3-70b", "llm-prod", 1000000, 1000000, 20.0, 10.0, 10.0, 10.0, 5.0, 5.0)
+
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+			{
+				Producer:     "producer-a",
+				TenantID:     "none", // Real tenant for A
+				WorkloadID:   "w1",
+				ServingModel: "llama-3-70b",
+				Namespace:    "llm-prod",
+			}: {
+				PromptTokens:     100000,
+				CompletionTokens: 100000,
+			},
+			{
+				Producer:     "producer-b",
+				TenantID:     "none", // Sentinel for B
+				WorkloadID:   "w1",
+				ServingModel: "llama-3-70b",
+				Namespace:    "llm-prod",
+			}: {
+				PromptTokens:     200000,
+				CompletionTokens: 200000,
+			},
+		},
+	}
+
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	var realTenantNone, unidentifiedTenant *InferenceCost
+	for _, r := range results {
+		if r.Properties.TenantID == "none" {
+			realTenantNone = r
+		} else if r.Properties.TenantID == "__unidentified__" {
+			unidentifiedTenant = r
+		}
+	}
+
+	if realTenantNone == nil {
+		t.Fatalf("expected real tenant 'none' row")
+	}
+	if unidentifiedTenant == nil {
+		t.Fatalf("expected '__unidentified__' row from producer-b sentinel")
+	}
+
+	if realTenantNone.PromptTokens != 100000 {
+		t.Errorf("real tenant 'none' prompt tokens want 100k, got %f", realTenantNone.PromptTokens)
+	}
+	if unidentifiedTenant.PromptTokens != 200000 {
+		t.Errorf("unidentified tenant prompt tokens want 200k, got %f", unidentifiedTenant.PromptTokens)
+	}
+}
+
+func TestBuildDimensionCosts_OverAttributedRemainder_ClampedAndScaled(t *testing.T) {
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	c := &Collector{config: cfg}
+
+	// Model: 100 prompt tokens, 100 gen tokens. Total cost $10 alloc.
+	mc := makeTestModelCost("llama-3-70b", "llm-prod", 100, 100, 10.0, 5.0, 50000.0, 50000.0, 25000.0, 25000.0)
+
+	// Attributed tokens: 105 prompt tokens, 105 gen tokens (exceeds engine reference)
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+			{
+				Producer:     "default",
+				TenantID:     "tenant-a",
+				WorkloadID:   "w1",
+				ServingModel: "llama-3-70b",
+				Namespace:    "llm-prod",
+			}: {
+				PromptTokens:     105,
+				CompletionTokens: 105,
+			},
+		},
+	}
+
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results (tenant + remainder), got %d", len(results))
+	}
+
+	var tenantA, remainder *InferenceCost
+	for _, r := range results {
+		if r.Properties.TenantID == "tenant-a" {
+			tenantA = r
+		} else if r.Properties.TenantID == "__unmetered__" {
+			remainder = r
+		}
+	}
+
+	if tenantA == nil || remainder == nil {
+		t.Fatalf("missing tenantA or remainder")
+	}
+
+	// Remainder tokens must be clamped to 0, never negative
+	if remainder.PromptTokens != 0 || remainder.GenerationTokens != 0 || remainder.TotalTokens != 0 {
+		t.Errorf("remainder tokens not clamped to 0: prompt=%f gen=%f", remainder.PromptTokens, remainder.GenerationTokens)
+	}
+	if remainder.AllocationTotalCost != 0 {
+		t.Errorf("remainder alloc cost want 0, got %f", remainder.AllocationTotalCost)
+	}
+
+	// Tenant row must be scaled pro rata to exactly equal model cost ($10.00 alloc)
+	if math.Abs(tenantA.AllocationTotalCost-10.0) > 1e-6 {
+		t.Errorf("tenantA scaled AllocationTotalCost want 10.0, got %f", tenantA.AllocationTotalCost)
+	}
+	if !tenantA.Approximate {
+		t.Errorf("expected tenantA to be marked Approximate: true after over-attribution scaling")
+	}
+
+	// Rate must be derived from the scaled cost and tokens:
+	expectedBlendedRate := (10.0 / 210.0) * 1e6
+	if math.Abs(tenantA.CostPerMillionTokens[CostBasisAllocation]-expectedBlendedRate) > 1e-6 {
+		t.Errorf("tenantA blended rate want %f, got %f", expectedBlendedRate, tenantA.CostPerMillionTokens[CostBasisAllocation])
+	}
+}
+
+func TestBuildDimensionCosts_WorkloadLabelDisabled_LiteLLM(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "litellm.yaml")
+	configYAML := "producers:\n" +
+		"  - name: litellm-gateway\n" +
+		"    inputTokensSeries: litellm_input_tokens_metric_total\n" +
+		"    outputTokensSeries: litellm_output_tokens_metric_total\n" +
+		"    tenantLabel: team_alias\n" +
+		"    workloadLabel: \"\"\n" +
+		"    userLabel: user\n" +
+		"    userSentinel: \"None\"\n" +
+		"    modelLabel: model\n" +
+		"    namespaceLabel: deployment_namespace\n" +
+		"    identitySentinel: \"None\"\n"
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	cfg.AttributionConfigPath = configPath
+	c := &Collector{config: cfg}
+
+	mc := makeTestModelCost("llama-3-70b", "llm-prod", 100000, 100000, 10.0, 5.0, 50.0, 50.0, 25.0, 25.0)
+
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+			{
+				Producer:     "litellm-gateway",
+				TenantID:     "team-ml",
+				UserID:       "None", // Sentinel should be normalized to ""
+				ServingModel: "llama-3-70b",
+				Namespace:    "llm-prod",
+			}: {
+				PromptTokens:     50000,
+				CompletionTokens: 50000,
+			},
+		},
+	}
+
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	var teamRow *InferenceCost
+	for _, r := range results {
+		if r.Properties.TenantID == "team-ml" {
+			teamRow = r
+		}
+	}
+	if teamRow == nil {
+		t.Fatalf("missing team-ml row")
+	}
+
+	if teamRow.Properties.UserID != "" {
+		t.Errorf("expected UserID to be empty for userSentinel 'None', got %q", teamRow.Properties.UserID)
+	}
+	if teamRow.Properties.WorkloadID != "" {
+		t.Errorf("expected WorkloadID to be empty when workloadLabel is disabled, got %q", teamRow.Properties.WorkloadID)
+	}
+}
+
+func TestBuildDimensionCosts_SaaSExclusion_Scope(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "scope.yaml")
+	configYAML := "producers:\n" +
+		"  - name: gateway\n" +
+		"    inputTokensSeries: in_tokens\n" +
+		"    outputTokensSeries: out_tokens\n" +
+		"    tenantLabel: tenant_id\n" +
+		"    modelLabel: model_name\n" +
+		"    namespaceLabel: namespace\n" +
+		"    scope:\n" +
+		"      excludeServingModels:\n" +
+		"        - gpt-4o\n" +
+		"        - claude-3-5-sonnet\n"
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	cfg.AttributionConfigPath = configPath
+	c := &Collector{config: cfg}
+
+	mc := makeTestModelCost("llama-3-70b", "llm-prod", 100000, 100000, 10.0, 5.0, 50.0, 50.0, 25.0, 25.0)
+
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+			{
+				Producer:     "gateway",
+				TenantID:     "tenant-a",
+				ServingModel: "gpt-4o", // Excluded SaaS model
+				Namespace:    "llm-prod",
+			}: {
+				PromptTokens:     50000,
+				CompletionTokens: 50000,
+			},
+			{
+				Producer:     "gateway",
+				TenantID:     "tenant-a",
+				ServingModel: "llama-3-70b",
+				Namespace:    "llm-prod",
+			}: {
+				PromptTokens:     50000,
+				CompletionTokens: 50000,
+			},
+		},
+	}
+
+	results, unmatched := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	if len(results) != 2 { // tenant-a on llama-3-70b + remainder on llama-3-70b
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	if unmatched["gateway"] != 0 {
+		t.Errorf("excluded SaaS model should NOT be counted as unmatched, got %f", unmatched["gateway"])
+	}
+}
+
+func TestBuildDimensionCosts_ProportionalSplitAcrossNamespaces(t *testing.T) {
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	c := &Collector{config: cfg}
+
+	// Model deployed in 2 namespaces:
+	// ns-a: 600k prompt, 400k gen (1M total engine tokens). $20 alloc cost ($10/M in, $20/M out)
+	// ns-b: 1500k prompt, 1500k gen (3M total engine tokens). $60 alloc cost ($10/M in, $20/M out)
+	// Total engine tokens = 4M. ns-a share = 25%, ns-b share = 75%.
+	mcA := makeTestModelCost("llama-3-70b", "ns-a", 600000, 400000, 20.0, 10.0, 10.0, 20.0, 5.0, 10.0)
+	mcB := makeTestModelCost("llama-3-70b", "ns-b", 1500000, 1500000, 60.0, 30.0, 10.0, 20.0, 5.0, 10.0)
+
+	// Attribution key with empty namespace
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+			{
+				Producer:     "default",
+				TenantID:     "tenant-a",
+				WorkloadID:   "w1",
+				ServingModel: "llama-3-70b",
+				Namespace:    "", // Missing namespace
+			}: {
+				PromptTokens:     400000,
+				CompletionTokens: 400000,
+			},
+		},
+	}
+
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mcA, mcB}, dimTokens)
+	// Expect: tenant-a in ns-a (100k in, 100k out), remainder in ns-a
+	//         tenant-a in ns-b (300k in, 300k out), remainder in ns-b
+	if len(results) != 4 {
+		t.Fatalf("expected 4 results, got %d", len(results))
+	}
+
+	var rowNsA, rowNsB *InferenceCost
+	for _, r := range results {
+		if r.Properties.TenantID == "tenant-a" {
+			if r.Properties.Namespace == "ns-a" {
+				rowNsA = r
+			} else if r.Properties.Namespace == "ns-b" {
+				rowNsB = r
+			}
+		}
+	}
+
+	if rowNsA == nil || rowNsB == nil {
+		t.Fatalf("missing split rows for tenant-a")
+	}
+
+	if !rowNsA.Approximate || !rowNsB.Approximate {
+		t.Errorf("expected split rows to be marked Approximate: true")
+	}
+
+	if math.Abs(rowNsA.PromptTokens-100000) > 1e-6 || math.Abs(rowNsA.GenerationTokens-100000) > 1e-6 {
+		t.Errorf("rowNsA tokens want 100k, got prompt=%f gen=%f", rowNsA.PromptTokens, rowNsA.GenerationTokens)
+	}
+	if math.Abs(rowNsB.PromptTokens-300000) > 1e-6 || math.Abs(rowNsB.GenerationTokens-300000) > 1e-6 {
+		t.Errorf("rowNsB tokens want 300k, got prompt=%f gen=%f", rowNsB.PromptTokens, rowNsB.GenerationTokens)
+	}
+}
+
+func TestBuildDimensionCosts_CanonicalModelMatching(t *testing.T) {
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	c := &Collector{config: cfg}
+
+	// Model in OpenCost has short name "Llama-3-70B"
+	mc := makeTestModelCost("Llama-3-70B", "llm-prod", 100000, 100000, 10.0, 5.0, 50.0, 50.0, 25.0, 25.0)
+
+	// Producer emits fully-qualified name "meta-llama/Llama-3-70B"
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+			{
+				Producer:     "default",
+				TenantID:     "tenant-a",
+				ServingModel: "meta-llama/Llama-3-70B",
+				Namespace:    "llm-prod",
+			}: {
+				PromptTokens:     50000,
+				CompletionTokens: 50000,
+			},
+		},
+	}
+
+	results, unmatched := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	var tenantA *InferenceCost
+	for _, r := range results {
+		if r.Properties.TenantID == "tenant-a" {
+			tenantA = r
+		}
+	}
+	if tenantA == nil {
+		t.Fatalf("expected tenant-a to match canonical model name")
+	}
+	if tenantA.Properties.ModelName != "Llama-3-70B" {
+		t.Errorf("expected model name to be 'Llama-3-70B', got %s", tenantA.Properties.ModelName)
+	}
+	if unmatched["default"] != 0 {
+		t.Errorf("expected 0 unmatched keys, got %f", unmatched["default"])
+	}
+}
+
+// A namespace-less key from a producer scoped to ns-a must never be resolved
+// or split into ns-b.
+func TestBuildDimensionCosts_NamespaceLessKeyRespectsNamespaceScope(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "scope.yaml")
+	configYAML := "producers:\n" +
+		"  - name: gateway\n" +
+		"    inputTokensSeries: in_tokens\n" +
+		"    outputTokensSeries: out_tokens\n" +
+		"    scope:\n" +
+		"      namespaces:\n" +
+		"        - ns-a\n"
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	cfg.AttributionConfigPath = configPath
+	c := &Collector{config: cfg}
+
+	mcA := makeTestModelCost("llama-3-70b", "ns-a", 600000, 400000, 20.0, 10.0, 10.0, 20.0, 5.0, 10.0)
+	mcB := makeTestModelCost("llama-3-70b", "ns-b", 1500000, 1500000, 60.0, 30.0, 10.0, 20.0, 5.0, 10.0)
+
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+			{Producer: "gateway", TenantID: "tenant-a", ServingModel: "llama-3-70b"}: {
+				PromptTokens:     400000,
+				CompletionTokens: 400000,
+			},
+		},
+	}
+
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mcA, mcB}, dimTokens)
+	for _, r := range results {
+		if r.Properties.TenantID == "tenant-a" && r.Properties.Namespace != "ns-a" {
+			t.Errorf("tenant-a resolved outside producer scope into %q", r.Properties.Namespace)
+		}
+	}
+	var inNsA *InferenceCost
+	for _, r := range results {
+		if r.Properties.TenantID == "tenant-a" && r.Properties.Namespace == "ns-a" {
+			inNsA = r
+		}
+	}
+	if inNsA == nil || math.Abs(inNsA.PromptTokens-400000) > 1e-6 {
+		t.Errorf("expected all tenant-a tokens resolved into ns-a, got %+v", inNsA)
+	}
+}
+
+// With no attribution, the remainder must keep the model's directional rates
+// ($10/M input, $20/M output on 1M tokens each) instead of a token-count split.
+func TestBuildDimensionCosts_RemainderKeepsDirectionalRates(t *testing.T) {
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	c := &Collector{config: cfg}
+
+	mc := makeTestModelCost("llama-3-70b", "llm-prod", 1000000, 1000000, 30.0, 15.0, 10.0, 20.0, 5.0, 10.0)
+
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, &source.InferenceDimensionResult{})
+	if len(results) != 1 {
+		t.Fatalf("expected only the remainder row, got %d", len(results))
+	}
+	rem := results[0]
+	if math.Abs(rem.InputCost[CostBasisAllocation]-10.0) > 1e-9 || math.Abs(rem.OutputCost[CostBasisAllocation]-20.0) > 1e-9 {
+		t.Errorf("allocation remainder want $10/$20, got $%f/$%f", rem.InputCost[CostBasisAllocation], rem.OutputCost[CostBasisAllocation])
+	}
+	if math.Abs(rem.InputCost[CostBasisUsage]-5.0) > 1e-9 || math.Abs(rem.OutputCost[CostBasisUsage]-10.0) > 1e-9 {
+		t.Errorf("usage remainder want $5/$10, got $%f/$%f", rem.InputCost[CostBasisUsage], rem.OutputCost[CostBasisUsage])
 	}
 }

@@ -1,6 +1,7 @@
 package env
 
 import (
+	"os"
 	"strings"
 	"time"
 
@@ -107,6 +108,26 @@ const (
 	InferenceSharedInfraLabelEnvVar      = "INFERENCE_SHARED_INFRA_LABEL"
 	InferenceSharedInfraLabelValueEnvVar = "INFERENCE_SHARED_INFRA_LABEL_VALUE"
 	InferenceCollectionIntervalEnvVar    = "INFERENCE_COLLECTION_INTERVAL"
+
+	// Inference Attribution
+	InferenceAttributionEnabledEnvVar                 = "INFERENCE_ATTRIBUTION_ENABLED"
+	InferenceAttributionConfigPathEnvVar              = "INFERENCE_ATTRIBUTION_CONFIG_PATH"
+	InferenceAttributionInputTokensSeriesEnvVar       = "INFERENCE_ATTRIBUTION_INPUT_TOKENS_SERIES"
+	InferenceAttributionOutputTokensSeriesEnvVar      = "INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_SERIES"
+	InferenceAttributionInputTokensEstimatedSeriesEnv = "INFERENCE_ATTRIBUTION_INPUT_TOKENS_ESTIMATED_SERIES"
+	InferenceAttributionOutputTokensEstimatedSeriesEn = "INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_ESTIMATED_SERIES"
+	InferenceAttributionTenantLabelEnvVar             = "INFERENCE_ATTRIBUTION_TENANT_LABEL"
+	InferenceAttributionWorkloadLabelEnvVar           = "INFERENCE_ATTRIBUTION_WORKLOAD_LABEL"
+	InferenceAttributionUserLabelEnvVar               = "INFERENCE_ATTRIBUTION_USER_LABEL"
+	InferenceAttributionModelLabelEnvVar              = "INFERENCE_ATTRIBUTION_MODEL_LABEL"
+	InferenceAttributionNamespaceLabelEnvVar          = "INFERENCE_ATTRIBUTION_NAMESPACE_LABEL"
+	InferenceAttributionNamespaceMapEnvVar            = "INFERENCE_ATTRIBUTION_NAMESPACE_MAP"
+	InferenceAttributionUserSentinelEnvVar            = "INFERENCE_ATTRIBUTION_USER_SENTINEL"
+	InferenceAttributionIdentitySentinelEnvVar        = "INFERENCE_ATTRIBUTION_IDENTITY_SENTINEL"
+	InferenceAttributionCoverageThresholdEnvVar       = "INFERENCE_ATTRIBUTION_COVERAGE_THRESHOLD"
+	InferenceAttributionOverattributionToleranceEnv   = "INFERENCE_ATTRIBUTION_OVERATTRIBUTION_TOLERANCE"
+	InferenceAttributionReferenceEngineEnvVar         = "INFERENCE_ATTRIBUTION_REFERENCE_ENGINE"
+	InferenceAttributionUserAggregationEnabledEnvVar  = "INFERENCE_ATTRIBUTION_USER_AGGREGATION_ENABLED"
 )
 
 func GetGCPAuthSecretFilePath() string {
@@ -450,4 +471,112 @@ func GetInferenceSharedInfraLabelValue() string {
 // Default is 2 minutes to match the core metrics emitter query window.
 func GetInferenceCollectionInterval() time.Duration {
 	return env.GetDuration(InferenceCollectionIntervalEnvVar, 2*time.Minute)
+}
+
+// IsInferenceAttributionEnabled returns whether inference attribution is enabled.
+func IsInferenceAttributionEnabled() bool {
+	return env.GetBool(InferenceAttributionEnabledEnvVar, false)
+}
+
+// GetInferenceAttributionConfigPath returns the config file path for multi-producer attribution.
+func GetInferenceAttributionConfigPath() string {
+	return env.Get(InferenceAttributionConfigPathEnvVar, "")
+}
+
+// GetInferenceAttributionInputTokensSeries returns the Prometheus input tokens series name.
+func GetInferenceAttributionInputTokensSeries() string {
+	return env.Get(InferenceAttributionInputTokensSeriesEnvVar, "")
+}
+
+// GetInferenceAttributionOutputTokensSeries returns the Prometheus output tokens series name.
+func GetInferenceAttributionOutputTokensSeries() string {
+	return env.Get(InferenceAttributionOutputTokensSeriesEnvVar, "")
+}
+
+// GetInferenceAttributionInputTokensEstimatedSeries returns the estimated input tokens series name.
+func GetInferenceAttributionInputTokensEstimatedSeries() string {
+	return env.Get(InferenceAttributionInputTokensEstimatedSeriesEnv, "")
+}
+
+// GetInferenceAttributionOutputTokensEstimatedSeries returns the estimated output tokens series name.
+func GetInferenceAttributionOutputTokensEstimatedSeries() string {
+	return env.Get(InferenceAttributionOutputTokensEstimatedSeriesEn, "")
+}
+
+// GetInferenceAttributionTenantLabel returns the label for tenant_id.
+func GetInferenceAttributionTenantLabel() string {
+	if val := env.Get(InferenceAttributionTenantLabelEnvVar, "tenant_id"); val != "" {
+		return val
+	}
+	return "tenant_id"
+}
+
+// GetInferenceAttributionWorkloadLabel returns the label for workload_id.
+func GetInferenceAttributionWorkloadLabel() string {
+	if val, ok := os.LookupEnv(InferenceAttributionWorkloadLabelEnvVar); ok {
+		return val
+	}
+	return "workload_id"
+}
+
+// GetInferenceAttributionUserLabel returns the label for user_id.
+func GetInferenceAttributionUserLabel() string {
+	if val, ok := os.LookupEnv(InferenceAttributionUserLabelEnvVar); ok {
+		return val
+	}
+	return "user_id"
+}
+
+// GetInferenceAttributionModelLabel returns the label for serving_model.
+func GetInferenceAttributionModelLabel() string {
+	if val := env.Get(InferenceAttributionModelLabelEnvVar, "serving_model"); val != "" {
+		return val
+	}
+	return "serving_model"
+}
+
+// GetInferenceAttributionNamespaceLabel returns the label for deployment_namespace.
+func GetInferenceAttributionNamespaceLabel() string {
+	if val := env.Get(InferenceAttributionNamespaceLabelEnvVar, "deployment_namespace"); val != "" {
+		return val
+	}
+	return "deployment_namespace"
+}
+
+// GetInferenceAttributionNamespaceMap returns the serving_model=namespace map string.
+func GetInferenceAttributionNamespaceMap() string {
+	return env.Get(InferenceAttributionNamespaceMapEnvVar, "")
+}
+
+// GetInferenceAttributionUserSentinel returns the sentinel value for absent user.
+func GetInferenceAttributionUserSentinel() string {
+	return env.Get(InferenceAttributionUserSentinelEnvVar, "")
+}
+
+// GetInferenceAttributionIdentitySentinel returns the sentinel value for missing identity.
+func GetInferenceAttributionIdentitySentinel() string {
+	if val := env.Get(InferenceAttributionIdentitySentinelEnvVar, "unattributed"); val != "" {
+		return val
+	}
+	return "unattributed"
+}
+
+// GetInferenceAttributionCoverageThreshold returns the threshold for low-coverage warning.
+func GetInferenceAttributionCoverageThreshold() float64 {
+	return env.GetFloat64(InferenceAttributionCoverageThresholdEnvVar, 0.9)
+}
+
+// GetInferenceAttributionOverattributionTolerance returns the tolerance for over-attribution warning.
+func GetInferenceAttributionOverattributionTolerance() float64 {
+	return env.GetFloat64(InferenceAttributionOverattributionToleranceEnv, 0.1)
+}
+
+// GetInferenceAttributionReferenceEngine returns the authoritative engine name for cross-engine disaggregation.
+func GetInferenceAttributionReferenceEngine() string {
+	return env.Get(InferenceAttributionReferenceEngineEnvVar, "")
+}
+
+// IsInferenceAttributionUserAggregationEnabled returns whether user_id aggregation/filter is enabled in API.
+func IsInferenceAttributionUserAggregationEnabled() bool {
+	return env.GetBool(InferenceAttributionUserAggregationEnabledEnvVar, false)
 }

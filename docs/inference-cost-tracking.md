@@ -30,6 +30,24 @@ OpenCost reads `PROMETHEUS_SERVER_ENDPOINT` for both the core metrics and the [v
 | `INFERENCE_SHARED_INFRA_LABEL` | `llm-d.ai/inference-shared` | Pod label key identifying shared infra pods (EPP, gateway). See [Shared infrastructure label](#shared-infrastructure-label) for details. |
 | `INFERENCE_SHARED_INFRA_LABEL_VALUE` | `true` | Label value that marks a pod as shared infra. See [Shared infrastructure label](#shared-infrastructure-label) for details. |
 | `INFERENCE_COLLECTION_INTERVAL` | `2m` | Background collection interval |
+| `INFERENCE_ATTRIBUTION_ENABLED` | `false` | Opt in to querying attribution series and computing dimension costs (`tenant_id`, `workload_id`, `user_id`). |
+| `INFERENCE_ATTRIBUTION_CONFIG_PATH` | none | Path to YAML configuration file for multiple producer mappings. |
+| `INFERENCE_ATTRIBUTION_INPUT_TOKENS_SERIES` | none | Full name of the attributed input-token series (counter or histogram `_sum`). |
+| `INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_SERIES` | none | Full name of the attributed output-token series. |
+| `INFERENCE_ATTRIBUTION_INPUT_TOKENS_ESTIMATED_SERIES` | none | Sibling series holding estimated input tokens. |
+| `INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_ESTIMATED_SERIES` | none | Sibling series holding estimated output tokens. |
+| `INFERENCE_ATTRIBUTION_TENANT_LABEL` | `tenant_id` | Label carrying the tenant identity. |
+| `INFERENCE_ATTRIBUTION_WORKLOAD_LABEL` | `workload_id` | Label carrying the workload identity. Empty disables workload grouping. |
+| `INFERENCE_ATTRIBUTION_USER_LABEL` | `user_id` | Label carrying the user identity. Empty disables user grouping. |
+| `INFERENCE_ATTRIBUTION_MODEL_LABEL` | `serving_model` | Label carrying the served model name. |
+| `INFERENCE_ATTRIBUTION_NAMESPACE_LABEL` | `deployment_namespace` | Label carrying the deployment namespace. |
+| `INFERENCE_ATTRIBUTION_NAMESPACE_MAP` | none | `model=namespace;...` mapping for multi-namespace models without deployment namespace label. |
+| `INFERENCE_ATTRIBUTION_USER_SENTINEL` | none | Value user label holds when no user is set. Rows carrying it receive empty `user_id`. |
+| `INFERENCE_ATTRIBUTION_IDENTITY_SENTINEL` | `unattributed` | Missing-identity sentinel value. Normalized to `__unidentified__`. |
+| `INFERENCE_ATTRIBUTION_COVERAGE_THRESHOLD` | `0.9` | Ratio below which token and identity coverage warnings are logged. |
+| `INFERENCE_ATTRIBUTION_OVERATTRIBUTION_TOLERANCE` | `0.1` | Tolerance above 1.0 at which over-attribution warnings are logged. |
+| `INFERENCE_ATTRIBUTION_REFERENCE_ENGINE` | none | Engine name (`vllm` or `sglang`) authoritative for coverage reference in mixed-engine deployments. |
+| `INFERENCE_ATTRIBUTION_USER_AGGREGATION_ENABLED` | `false` | Allows `aggregate`/`filter` on `user_id` in API when caller is admin (`ADMIN_TOKEN`). |
 
 ### Kubernetes Deployment Example
 
@@ -39,6 +57,39 @@ env:
     value: "true"
   - name: INFERENCE_MODEL_LABEL
     value: "llm-d.ai/model"
+  - name: INFERENCE_ATTRIBUTION_ENABLED
+    value: "true"
+  - name: INFERENCE_ATTRIBUTION_CONFIG_PATH
+    value: "/var/configs/attribution.yaml"
+```
+
+### Multi-Producer Attribution Configuration
+
+When multiple token producers emit attribution metrics (e.g. LiteLLM proxy and llm-d coordinator), provide a YAML configuration file via `INFERENCE_ATTRIBUTION_CONFIG_PATH`:
+
+```yaml
+producers:
+  - name: litellm-prod
+    inputTokensSeries: litellm_proxy_input_tokens_sum
+    outputTokensSeries: litellm_proxy_output_tokens_sum
+    tenantLabel: user
+    workloadLabel: ""
+    userLabel: user_id
+    modelLabel: model
+    namespaceLabel: ""
+    identitySentinel: unattributed
+    scope:
+      servingModels:
+        - llama-3-70b
+        - gemma-4-31B
+  - name: llmd-coordinator
+    inputTokensSeries: llmd_coordinator_input_tokens_total
+    outputTokensSeries: llmd_coordinator_output_tokens_total
+    tenantLabel: tenant_id
+    workloadLabel: workload_id
+    userLabel: user_id
+    modelLabel: serving_model
+    namespaceLabel: deployment_namespace
 ```
 
 ## Cost Bases
@@ -157,6 +208,63 @@ avg_over_time(llm_cache_savings_fraction{model_name="Qwen/Qwen3-32B"}[24h])
 sort_desc(llm_cache_savings_fraction)
 ```
 
+### Dimension Attribution Metrics
+
+When `INFERENCE_ATTRIBUTION_ENABLED=true`, OpenCost registers and emits dimension-level gauge metrics every collection interval.
+
+#### `llm_dimension_hourly_cost`
+
+**Hourly infrastructure cost** attributed to a specific inference request dimension (tenant, workload, user).
+
+**Labels:** `model_name`, `namespace`, `cost_basis`, `tenant_id`, `workload_id`, `user_id`
+
+```promql
+# Hourly cost by tenant
+sum by (tenant_id) (llm_dimension_hourly_cost{cost_basis="allocation"})
+
+# Unmetered infrastructure cost (bypassed gateway or zero-traffic idle)
+llm_dimension_hourly_cost{tenant_id="__unmetered__", cost_basis="allocation"}
+```
+
+#### `llm_dimension_unmatched_keys`
+
+**Count of attributed token series** that could not be joined to any active model entry in OpenCost's allocation layer, per producer mapping.
+
+**Labels:** `producer`
+
+```promql
+# Alert when attribution keys fail to join a model
+llm_dimension_unmatched_keys > 0
+```
+
+#### `llm_dimension_token_coverage`
+
+**Attributed tokens divided by engine reference tokens** (range 0–1+), input and output separately per model and namespace.
+
+**Labels:** `model_name`, `namespace`, `direction` (`input` or `output`)
+
+```promql
+# Detect low token attribution coverage
+llm_dimension_token_coverage < 0.9
+```
+
+#### `llm_dimension_identity_coverage`
+
+**Share of attributed tokens carrying real tenant and workload identities** (non-empty, not missing-identity sentinels), per model and namespace.
+
+**Labels:** `model_name`, `namespace`
+
+```promql
+# Detect unassigned or untracked tenants/workloads
+llm_dimension_identity_coverage < 0.9
+```
+
+#### `llm_dimension_estimated_token_share`
+
+**Share of attributed tokens that are estimated** (e.g. character-based heuristics), per model and namespace.
+
+**Labels:** `model_name`, `namespace`, `direction` (`input` or `output`)
+
 ### Example Alerting Rule
 
 ```yaml
@@ -171,6 +279,14 @@ groups:
     annotations:
       summary: "High inference cost for {{ $labels.model_name }}"
       description: "Model {{ $labels.model_name }} in {{ $labels.namespace }} costs ${{ $value }}/M tokens"
+  - alert: AttributionUnmatchedKeys
+    expr: llm_dimension_unmatched_keys > 0
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Unmatched attribution keys for producer {{ $labels.producer }}"
+      description: "Attribution series cannot be joined to any model in OpenCost allocation"
 ```
 
 ## REST API Endpoints
@@ -187,15 +303,21 @@ Returns a single aggregated `InferenceCostSet` covering the full requested windo
 |-----------|----------|-------------|
 | `window` | Yes | Time window: RFC3339 `start,end` or named range (e.g. `7d`, `24h`, `2025-01-01T00:00:00Z,2025-01-02T00:00:00Z`) |
 | `costBasis` | No | `allocation` (default) or `usage` |
-| `aggregate` | No | Comma-separated dimensions: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type` |
+| `aggregate` | No | Comma-separated dimensions: `model_name`, `model_version`, `namespace`, `cluster`, `pod`, `controller`, `controller_kind`, `container`, `workload_type`, `tenant_id`, `workload_id`, `user_id` |
 | `accumulate` | No | Step size within the window: `hour`, `day`, `week`, `month` (results are then accumulated into one total) |
-| `filter` | No | `prop:value` pairs joined with `+` for AND logic, e.g. `namespace:default+model_name:llama3+workload_type:inference` |
+| `filter` | No | `prop:value` pairs joined with `+` for AND logic, e.g. `namespace:default+model_name:llama3+tenant_id:acme` |
+| `includeApproximate` | No | `true` or `false` (default: `true`). When `false`, rows marked `approximate` (e.g. proportional multi-namespace split or scaled over-attribution) are excluded. |
+
+> **Note on `user_id` authorization:** Aggregating or filtering by `user_id` requires `INFERENCE_ATTRIBUTION_USER_AGGREGATION_ENABLED=true` and an `Authorization: Bearer <ADMIN_TOKEN>` header matching `ADMIN_TOKEN`. Unauthenticated requests will receive `403 Forbidden` if requesting `user_id` explicitly, or have `user_id` merged across users to preserve privacy.
 
 **Example:**
 
 ```bash
 # Total inference costs for the last 7 days, broken down by model
 curl "http://localhost:9003/inferenceCost/total?window=7d&aggregate=model_name&costBasis=allocation"
+
+# Total inference costs broken down by tenant and model
+curl "http://localhost:9003/inferenceCost/total?window=7d&aggregate=tenant_id,model_name&costBasis=allocation"
 ```
 
 **Response shape:**

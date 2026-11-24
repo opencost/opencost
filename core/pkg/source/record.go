@@ -885,6 +885,11 @@ func (m *RecordMetricsQuerier) QueryInferenceCacheConfig(t time.Time) *Future[In
 	return m.Querier.QueryInferenceCacheConfig(t)
 }
 
+func (m *RecordMetricsQuerier) QueryInferenceDimensionTokens(start, end time.Time) *Future[InferenceDimensionResult] {
+	m.recordCall(QueryInferenceDimensionTokens)
+	return m.Querier.QueryInferenceDimensionTokens(start, end)
+}
+
 // Data Coverage Query
 
 func (m *RecordMetricsQuerier) QueryDataCoverage(limitDays int) (time.Time, time.Time, error) {

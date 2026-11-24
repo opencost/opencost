@@ -19,6 +19,19 @@ var supportedAggregateProperties = map[string]bool{
 	"controller_kind": true,
 	"container":       true,
 	"workload_type":   true,
+	"tenant_id":       true,
+	"workload_id":     true,
+	"user_id":         true,
+}
+
+func escapeKeyComponent(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	return strings.ReplaceAll(s, `/`, `\/`)
+}
+
+func escapeColonComponent(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	return strings.ReplaceAll(s, `:`, `\:`)
 }
 
 // aggKey derives the aggregation map key for an InferenceCostResponse given
@@ -26,20 +39,20 @@ var supportedAggregateProperties = map[string]bool{
 // not in supportedAggregateProperties.
 func aggKey(props InferenceCostAPIProperties, aggregateBy []string) (string, error) {
 	if len(aggregateBy) == 0 {
-		// Use "model:namespace" as the natural key. ":" cannot appear in
-		// Kubernetes label values or namespace names, so this is unambiguous
-		// even when the model name contains "/" (e.g. "org/model").
 		ns := props.Namespace
 		if ns == "" {
 			ns = opencost.UnallocatedSuffix
 		}
-		return props.ModelName + ":" + ns, nil
+		if props.TenantID != "" || props.WorkloadID != "" || props.UserID != "" {
+			return escapeColonComponent(props.ModelName) + ":" + escapeColonComponent(ns) + ":" + escapeColonComponent(props.TenantID) + ":" + escapeColonComponent(props.WorkloadID) + ":" + escapeColonComponent(props.UserID), nil
+		}
+		return escapeColonComponent(props.ModelName) + ":" + escapeColonComponent(ns), nil
 	}
 
 	parts := make([]string, 0, len(aggregateBy))
 	for _, dim := range aggregateBy {
 		if !supportedAggregateProperties[dim] {
-			return "", fmt.Errorf("unsupported aggregation dimension %q: supported dimensions are model_name, model_version, namespace, cluster, pod, controller, controller_kind, container, workload_type", dim)
+			return "", fmt.Errorf("unsupported aggregation dimension %q: supported dimensions are model_name, model_version, namespace, cluster, pod, controller, controller_kind, container, workload_type, tenant_id, workload_id, user_id", dim)
 		}
 		var val string
 		switch dim {
@@ -61,13 +74,28 @@ func aggKey(props InferenceCostAPIProperties, aggregateBy []string) (string, err
 			val = props.Container
 		case "workload_type":
 			val = props.WorkloadType
+		case "tenant_id":
+			val = props.TenantID
+		case "workload_id":
+			val = props.WorkloadID
+		case "user_id":
+			val = props.UserID
 		}
 		if val == "" {
 			val = opencost.UnallocatedSuffix
 		}
 		parts = append(parts, val)
 	}
-	return strings.Join(parts, "/"), nil
+
+	if len(parts) == 1 {
+		return parts[0], nil
+	}
+
+	escaped := make([]string, len(parts))
+	for i, p := range parts {
+		escaped[i] = escapeKeyComponent(p)
+	}
+	return strings.Join(escaped, "/"), nil
 }
 
 // addResponse merges src into dst, summing additive fields and recomputing
@@ -105,6 +133,9 @@ func addResponse(dst, src *InferenceCostResponse) {
 	} else {
 		dst.OutputCostPerMillionTokens = 0
 	}
+
+	// Any approximate contribution keeps the merged result marked approximate.
+	dst.Properties.Approximate = dst.Properties.Approximate || src.Properties.Approximate
 
 	// Preserve the allocation method from the first entry; clear it when
 	// methods differ (the merged entry reflects a mixed derivation).
@@ -169,6 +200,15 @@ func (s *InferenceCostSet) aggregate(aggregateBy []string) error {
 			}
 			if !aggDims["workload_type"] {
 				clone.Properties.WorkloadType = ""
+			}
+			if !aggDims["tenant_id"] {
+				clone.Properties.TenantID = ""
+			}
+			if !aggDims["workload_id"] {
+				clone.Properties.WorkloadID = ""
+			}
+			if !aggDims["user_id"] {
+				clone.Properties.UserID = ""
 			}
 			aggMap[key] = &clone
 		}
@@ -255,7 +295,7 @@ func parseFilter(s string) ([]filterSpec, error) {
 		}
 		prop := strings.TrimSpace(term[:idx])
 		if !supportedAggregateProperties[prop] {
-			return nil, fmt.Errorf("unsupported filter property %q: supported properties are model_name, model_version, namespace, cluster, pod, controller, controller_kind, container, workload_type", prop)
+			return nil, fmt.Errorf("unsupported filter property %q: supported properties are model_name, model_version, namespace, cluster, pod, controller, controller_kind, container, workload_type, tenant_id, workload_id, user_id", prop)
 		}
 		val := strings.TrimSpace(term[idx+1:])
 		// Strip surrounding double-quotes.
@@ -291,6 +331,12 @@ func matchesFilter(ic *InferenceCostResponse, specs []filterSpec) bool {
 			actual = ic.Properties.Container
 		case "workload_type":
 			actual = ic.Properties.WorkloadType
+		case "tenant_id":
+			actual = ic.Properties.TenantID
+		case "workload_id":
+			actual = ic.Properties.WorkloadID
+		case "user_id":
+			actual = ic.Properties.UserID
 		}
 		if actual != spec.value {
 			return false

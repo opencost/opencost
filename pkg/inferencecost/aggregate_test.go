@@ -43,6 +43,58 @@ func makeICR(modelName, ns string, totalCost, promptTokens, genTokens, inputCost
 	}
 }
 
+// TestAggregate_ByModelAndTenant_ClearsNamespaceAcrossNamespaces pins the
+// A-01 integration scenario: the same (model, tenant) serving traffic from
+// two namespaces (plus one unnamespaced entry) must collapse into a single
+// row whose key and properties carry no namespace.
+func TestAggregate_ByModelAndTenant_ClearsNamespaceAcrossNamespaces(t *testing.T) {
+	win := makeWindow(time.Now().Add(-time.Hour), time.Now())
+	set := newInferenceCostSet(win)
+
+	entries := []struct {
+		key string
+		ic  *InferenceCostResponse
+	}{
+		{"k1", &InferenceCostResponse{
+			Properties: InferenceCostAPIProperties{ModelName: "gemma-4-31B", Namespace: "llm-a-4cost2", TenantID: "acme-corp/engineering"},
+			TotalCost:  10.0, PromptTokens: 100000, GenerationTokens: 10000, TotalTokens: 110000,
+		}},
+		{"k2", &InferenceCostResponse{
+			Properties: InferenceCostAPIProperties{ModelName: "gemma-4-31B", Namespace: "llm-b-4cost2", TenantID: "acme-corp/engineering"},
+			TotalCost:  20.0, PromptTokens: 200000, GenerationTokens: 20000, TotalTokens: 220000,
+		}},
+		{"k3", &InferenceCostResponse{
+			Properties: InferenceCostAPIProperties{ModelName: "gemma-4-31B", Namespace: "", TenantID: "acme-corp/engineering"},
+			TotalCost:  5.0, PromptTokens: 50000, GenerationTokens: 5000, TotalTokens: 55000,
+		}},
+	}
+	for _, e := range entries {
+		set.InferenceCosts[e.key] = e.ic
+	}
+
+	if err := set.aggregate([]string{"model_name", "tenant_id"}); err != nil {
+		t.Fatalf("aggregate error: %v", err)
+	}
+
+	if len(set.InferenceCosts) != 1 {
+		t.Fatalf("expected 1 row for (model, tenant) across 3 namespaces, got %d: %v",
+			len(set.InferenceCosts), set.InferenceCosts)
+	}
+
+	// The "/" in the tenant id is escaped so the key is collision-free
+	// (see TestAggKey_SlashInDimensionValuesCollisionFree and A-02).
+	row, ok := set.InferenceCosts["gemma-4-31B/acme-corp\\/engineering"]
+	if !ok {
+		t.Fatalf("expected key %q, got keys %v", "gemma-4-31B/acme-corp\\/engineering", set.InferenceCosts)
+	}
+	if row.Properties.Namespace != "" {
+		t.Errorf("namespace not cleared from properties: %q", row.Properties.Namespace)
+	}
+	if row.TotalCost != 35.0 || row.TotalTokens != 385000 {
+		t.Errorf("merged totals: want (35.0, 385000), got (%f, %f)", row.TotalCost, row.TotalTokens)
+	}
+}
+
 // --- aggKey ---
 
 func TestAggKey_NoAggregation(t *testing.T) {
@@ -587,5 +639,172 @@ func TestParseFilter_NewDimensions(t *testing.T) {
 		if specs[i].property != expected.property || specs[i].value != expected.value {
 			t.Errorf("spec[%d] = %+v, want %+v", i, specs[i], expected)
 		}
+	}
+}
+
+func TestAggKey_SlashInDimensionValuesCollisionFree(t *testing.T) {
+	// (acme-corp/engineering, rag) vs (acme-corp, engineering/rag)
+	props1 := InferenceCostAPIProperties{TenantID: "acme-corp/engineering", WorkloadID: "rag"}
+	props2 := InferenceCostAPIProperties{TenantID: "acme-corp", WorkloadID: "engineering/rag"}
+
+	key1, err := aggKey(props1, []string{"tenant_id", "workload_id"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	key2, err := aggKey(props2, []string{"tenant_id", "workload_id"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if key1 == key2 {
+		t.Errorf("expected distinct keys for slash-containing dimension values, got collision: %q", key1)
+	}
+}
+
+func TestAggregate_ByAttributionDimensions(t *testing.T) {
+	win := makeWindow(time.Now().Add(-time.Hour), time.Now())
+	set := newInferenceCostSet(win)
+
+	set.InferenceCosts["k1"] = &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			ModelName:  "llama-3-70b",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-a",
+			WorkloadID: "w1",
+			UserID:     "alice",
+		},
+		TotalCost:        10.0,
+		PromptTokens:     100000,
+		GenerationTokens: 100000,
+		TotalTokens:      200000,
+		InputCost:        5.0,
+		OutputCost:       5.0,
+	}
+	set.InferenceCosts["k2"] = &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			ModelName:  "llama-3-70b",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-a",
+			WorkloadID: "w2",
+			UserID:     "bob",
+		},
+		TotalCost:        20.0,
+		PromptTokens:     200000,
+		GenerationTokens: 200000,
+		TotalTokens:      400000,
+		InputCost:        10.0,
+		OutputCost:       10.0,
+	}
+	set.InferenceCosts["k3"] = &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			ModelName:  "llama-3-70b",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-b",
+			WorkloadID: "w1",
+			UserID:     "charlie",
+		},
+		TotalCost:        30.0,
+		PromptTokens:     300000,
+		GenerationTokens: 300000,
+		TotalTokens:      600000,
+		InputCost:        15.0,
+		OutputCost:       15.0,
+	}
+
+	if err := set.aggregate([]string{"tenant_id"}); err != nil {
+		t.Fatalf("aggregate error: %v", err)
+	}
+
+	if len(set.InferenceCosts) != 2 {
+		t.Fatalf("expected 2 aggregated entries (tenant-a and tenant-b), got %d", len(set.InferenceCosts))
+	}
+
+	tenantA := set.InferenceCosts["tenant-a"]
+	if tenantA == nil {
+		t.Fatalf("missing tenant-a entry")
+	}
+	if tenantA.TotalCost != 30.0 || tenantA.TotalTokens != 600000 {
+		t.Errorf("tenantA totalCost want 30.0 got %f, totalTokens want 600k got %f", tenantA.TotalCost, tenantA.TotalTokens)
+	}
+	// Non-grouped properties should be cleared
+	if tenantA.Properties.ModelName != "" || tenantA.Properties.WorkloadID != "" || tenantA.Properties.UserID != "" {
+		t.Errorf("expected non-grouped properties to be cleared: %+v", tenantA.Properties)
+	}
+}
+
+func TestMergeAcrossUsers(t *testing.T) {
+	win := makeWindow(time.Now().Add(-time.Hour), time.Now())
+	set := newInferenceCostSet(win)
+
+	set.InferenceCosts["k1"] = &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			ModelName:  "llama-3-70b",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-a",
+			WorkloadID: "w1",
+			UserID:     "alice",
+		},
+		TotalCost:        10.0,
+		PromptTokens:     100000,
+		GenerationTokens: 100000,
+		TotalTokens:      200000,
+		InputCost:        5.0,
+		OutputCost:       5.0,
+	}
+	set.InferenceCosts["k2"] = &InferenceCostResponse{
+		Properties: InferenceCostAPIProperties{
+			ModelName:  "llama-3-70b",
+			Namespace:  "llm-prod",
+			TenantID:   "tenant-a",
+			WorkloadID: "w1",
+			UserID:     "bob",
+		},
+		TotalCost:        15.0,
+		PromptTokens:     150000,
+		GenerationTokens: 150000,
+		TotalTokens:      300000,
+		InputCost:        7.5,
+		OutputCost:       7.5,
+	}
+
+	set.mergeAcrossUsers()
+
+	if len(set.InferenceCosts) != 1 {
+		t.Fatalf("expected 1 merged entry across users, got %d", len(set.InferenceCosts))
+	}
+
+	for _, resp := range set.InferenceCosts {
+		if resp.Properties.UserID != "" {
+			t.Errorf("expected UserID to be stripped, got %q", resp.Properties.UserID)
+		}
+		if resp.TotalCost != 25.0 {
+			t.Errorf("expected merged TotalCost 25.0, got %f", resp.TotalCost)
+		}
+		if resp.TotalTokens != 500000 {
+			t.Errorf("expected merged TotalTokens 500k, got %f", resp.TotalTokens)
+		}
+	}
+}
+
+// An approximate contribution must keep the merged response approximate,
+// regardless of the order the responses are merged in.
+func TestAddResponse_PropagatesApproximate(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		dstApprox, srcApprox bool
+	}{
+		{"exact then approximate", false, true},
+		{"approximate then exact", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dst := makeICR("m", "ns", 10, 100, 100, 5, 5)
+			src := makeICR("m", "ns", 10, 100, 100, 5, 5)
+			dst.Properties.Approximate = tc.dstApprox
+			src.Properties.Approximate = tc.srcApprox
+			addResponse(dst, src)
+			if !dst.Properties.Approximate {
+				t.Errorf("merged response lost the approximate flag")
+			}
+		})
 	}
 }

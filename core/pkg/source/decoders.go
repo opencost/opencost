@@ -1,6 +1,7 @@
 package source
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
@@ -2230,6 +2231,67 @@ func DecodeInferenceCacheConfigResult(result *QueryResult) *InferenceCacheConfig
 		Configs: map[string]*InferenceCacheConfig{
 			key: {
 				PrefixCachingEnabled: prefixCachingEnabled > 0,
+			},
+		},
+	}
+}
+
+func DecodeInferenceDimensionResult(result *QueryResult) *InferenceDimensionResult {
+	producer, _ := result.GetString("producer")
+	if producer == "" {
+		producer = "default"
+	}
+	userID, _ := result.GetString("user_id")
+	tenantID, _ := result.GetString("tenant_id")
+	workloadID, _ := result.GetString("workload_id")
+	servingModel, _ := result.GetString("serving_model")
+	namespace, _ := result.GetString("namespace")
+
+	getFloat := func(field string) float64 {
+		if val, ok := result.Metric[field]; ok {
+			switch v := val.(type) {
+			case float64:
+				return v
+			case float32:
+				return float64(v)
+			case int:
+				return float64(v)
+			case int64:
+				return float64(v)
+			case string:
+				if f, err := strconv.ParseFloat(v, 64); err == nil {
+					return f
+				}
+			}
+		}
+		return 0
+	}
+
+	promptTokens := getFloat("prompt_tokens")
+	completionTokens := getFloat("completion_tokens")
+	estPromptTokens := getFloat("estimated_prompt_tokens")
+	estCompletionTokens := getFloat("estimated_completion_tokens")
+
+	if promptTokens == 0 && completionTokens == 0 && len(result.Values) > 0 {
+		promptTokens = result.Values[len(result.Values)-1].Value
+	}
+
+	key := InferenceDimensionKey{
+		Producer:     producer,
+		UserID:       userID,
+		TenantID:     tenantID,
+		WorkloadID:   workloadID,
+		ServingModel: servingModel,
+		Namespace:    namespace,
+	}
+
+	return &InferenceDimensionResult{
+		Values: map[InferenceDimensionKey]*InferenceDimensionTokens{
+			key: {
+				PromptTokens:              promptTokens,
+				CompletionTokens:          completionTokens,
+				EstimatedPromptTokens:     estPromptTokens,
+				EstimatedCompletionTokens: estCompletionTokens,
 			},
 		},
 	}
