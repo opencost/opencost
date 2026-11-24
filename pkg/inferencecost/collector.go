@@ -288,8 +288,9 @@ func scaleContainerCostsForUsage(as *opencost.AllocationSet) *opencost.Allocatio
 }
 
 // extractAllocationResults extracts cost data from an AllocationSet.
-// If costsPreScaled is true, the allocation's CPU/RAM/GPU costs have already been
+// If costsPreScaled is true, the allocation's CPU/RAM costs have already been
 // scaled per-container (before aggregation) and we should not re-scale them.
+// GPU scaling is always applied (GPU is not scaled in scaleContainerCostsForUsage).
 func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAllocationCost bool, costsPreScaled bool) (map[string]*allocationResult, error) {
 	results := make(map[string]*allocationResult)
 	for name, alloc := range as.Allocations {
@@ -342,10 +343,23 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 			// For allocation cost: use TotalCost() which includes idle and shared
 			existing.allocationTotalCost += alloc.TotalCost()
 		} else if costsPreScaled {
-			// Costs already scaled per-container before aggregation; just sum.
+			// CPU/RAM costs already scaled per-container before aggregation; apply only GPU scaling.
 			// This path is used when scaleContainerCostsForUsage was applied
 			// to the raw allocations prior to AggregateBy.
-			existing.usageTotalCost += alloc.TotalCost()
+			cost := alloc.TotalCost()
+
+			// GPU: scale by SM duty cycle (GPUUsageAverage ∈ [0,1]).
+			// GPU is NOT scaled in scaleContainerCostsForUsage (handled via pointer here).
+			if alloc.GPUAllocation != nil && alloc.GPUAllocation.GPUUsageAverage != nil {
+				util := clampRatio(*alloc.GPUAllocation.GPUUsageAverage)
+				scaledGPUCost := alloc.GPUTotalCost() * util
+				cost = cost - alloc.GPUTotalCost() + scaledGPUCost
+				log.Debugf("InferenceCost usage: GPU scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
+					modelName, namespace, alloc.GPUTotalCost(), scaledGPUCost, util*100)
+			}
+
+			// CPU/RAM: already scaled per-container in scaleContainerCostsForUsage; do not re-scale.
+			existing.usageTotalCost += cost
 		} else {
 			// For usage cost: use TotalCost() from the ShareNone query (no idle),
 			// then scale GPU, CPU, and RAM by their actual utilisation when available.

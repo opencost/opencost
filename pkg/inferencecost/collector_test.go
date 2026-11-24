@@ -1001,6 +1001,98 @@ func TestScaleContainerCostsForUsage_PreventsDilution(t *testing.T) {
 	}
 }
 
+// TestCollector_UsageCost_PreventsDilution_EndToEnd verifies the full production
+// query path exercises per-container scaling before aggregation via mockQuerier.
+// This is the key regression test for #4179 dilution fix.
+//
+// Scenario: Pod with 2 containers, same model/namespace, UNEQUAL costs
+// - Container A: observed, 100% CPU usage, cost=$4
+// - Container B: unobserved (missing telemetry), 0% CPU usage, cost=$12
+// Both have equal CPU requests (4 cores)
+//
+// OLD behavior (aggregate-first):
+//
+//	AggregateBy averages usage: (1.0 + 0.0) / 2 = 0.5
+//	Sums costs: $4 + $12 = $16
+//	Scales: $16 * 0.5 = $8  ← WRONG (should be $4 from A only)
+//
+// NEW behavior (per-container scaling before aggregation):
+//
+//	Container A: $4 * 1.0 = $4
+//	Container B: $12 * 0.0 = $0
+//	Sum after scaling: $4 + $0 = $4  ← CORRECT
+func TestCollector_UsageCost_PreventsDilution_EndToEnd(t *testing.T) {
+	cfg := baseConfig()
+	now := time.Now()
+
+	// Two containers, same model/namespace (simulating pod with 2 containers)
+	// Container A: observed, 100% CPU usage, cost=$4
+	containerA := makeAllocationWithUtilisation(
+		"llama-3",
+		0.0, 4.0, 0.0, // no GPU/RAM cost
+		nil,      // no GPU
+		4.0, 4.0, // cpuCoreRequest=4, cpuCoreUsage=4 → 100%
+		0, 0, // no RAM
+		"llm-prod",
+	)
+	containerA.Name = "llama-3/container-a"
+	containerA.Start = now.Add(-5 * time.Minute)
+	containerA.End = now
+	containerA.Properties.Container = "container-a"
+	containerA.Properties.Cluster = "test-cluster"
+	containerA.Properties.Node = "test-node"
+	containerA.Properties.ProviderID = "test-provider"
+	// AggregateBy sanitizes the label key ("llm-d.ai/model" → "llm_d_ai_model"),
+	// so the fixture must use the sanitized form, as production allocations do.
+	containerA.Properties.Labels = opencost.AllocationLabels(map[string]string{"llm_d_ai_model": "llama-3"})
+
+	// Container B: unobserved (missing telemetry), 0% CPU usage, cost=$12
+	containerB := makeAllocationWithUtilisation(
+		"llama-3",
+		0.0, 12.0, 0.0, // cost=$12
+		nil,
+		4.0, 0.0, // cpuCoreRequest=4, cpuCoreUsage=0 → 0%
+		0, 0,
+		"llm-prod",
+	)
+	containerB.Name = "llama-3/container-b"
+	containerB.Start = now.Add(-5 * time.Minute)
+	containerB.End = now
+	containerB.Properties.Container = "container-b"
+	containerB.Properties.Cluster = "test-cluster"
+	containerB.Properties.Node = "test-node"
+	containerB.Properties.ProviderID = "test-provider"
+	containerB.Properties.Labels = opencost.AllocationLabels(map[string]string{"llm_d_ai_model": "llama-3"})
+
+	// Create mock querier that returns our allocation set
+	mock := &mockQuerier{
+		set: opencost.NewAllocationSet(now.Add(-5*time.Minute), now),
+	}
+	mock.set.Set(containerA)
+	mock.set.Set(containerB)
+
+	c := &Collector{config: cfg, allocationQuerier: mock}
+
+	// Call the production usage query path: ComputeAllocation →
+	// scaleContainerCostsForUsage → AggregateBy → extractAllocationResults.
+	results, err := c.queryAllocationCostsWithoutIdle(context.Background(), now.Add(-5*time.Minute), now)
+	if err != nil {
+		t.Fatalf("queryAllocationCostsWithoutIdle failed: %v", err)
+	}
+
+	key := modelNamespaceKey("llama-3", "llm-prod")
+	result := results[key]
+	if result == nil {
+		t.Fatal("expected result for llama-3/llm-prod")
+	}
+
+	// NEW behavior (per-container scaling): should be $4 (only container A's cost)
+	// OLD behavior (aggregate-first): would be $8 ($16 * 0.5)
+	if !floatEq(result.usageTotalCost, 4.0) {
+		t.Errorf("usageTotalCost want 4.0 (per-container scaling) got %.4f (aggregate-first would be 8.0)", result.usageTotalCost)
+	}
+}
+
 // TestScaleContainerCostsForUsage_UnobservedContainerPolicyA verifies the
 // default policy for unobserved containers (usage=0, request>0): treat as idle (scale to $0).
 func TestScaleContainerCostsForUsage_UnobservedContainerPolicyA(t *testing.T) {
@@ -1040,22 +1132,28 @@ func TestCollector_UsageCost_PreScaledPath(t *testing.T) {
 	c := &Collector{config: cfg}
 	now := time.Now()
 
-	// Pre-scaled allocation (simulating what scaleContainerCostsForUsage produces)
-	alloc := &opencost.Allocation{
-		Name:    "pre-scaled-model",
-		GPUCost: 3.0, // Already scaled: $6 * 0.5
-		CPUCost: 4.0, // Already scaled: $4 * 1.0
-		RAMCost: 1.0, // Already scaled: $2 * 0.5
-		Properties: &opencost.AllocationProperties{
-			Namespace: "llm-prod",
-			Labels:    opencost.AllocationLabels(map[string]string{"llm-d.ai/model": "pre-scaled-model"}),
-		},
-	}
+	// Simulate what the production path hands to extractAllocationResults(as, false, true)
+	// after scaleContainerCostsForUsage + AggregateBy:
+	//   - CPU/RAM costs are already scaled per-container, but the utilisation
+	//     averages are still present (scaleContainerCostsForUsage does not clear
+	//     them). If this branch re-scaled CPU/RAM, the costs would be halved/
+	//     quartered again and the assertion below would fail.
+	//   - GPU cost is NOT scaled by scaleContainerCostsForUsage; it retains its
+	//     full reservation cost with a GPUUsageAverage pointer, and this branch
+	//     must apply the GPU scaling. If it didn't, the assertion below would fail.
+	alloc := makeAllocationWithUtilisation(
+		"pre-scaled-model",
+		6.0, 4.0, 1.0, // GPU unscaled $6; CPU pre-scaled $8*0.5=$4; RAM pre-scaled $4*0.25=$1
+		gpuUsage(0.5), // GPU SM duty cycle 50% → this branch must scale $6 → $3
+		4.0, 2.0,      // CPU request=4, usage=2 → 50% util retained; must NOT re-scale $4
+		8.0, 2.0, // RAM request=8, usage=2 → 25% util retained; must NOT re-scale $1
+		"llm-prod",
+	)
 
 	as := opencost.NewAllocationSet(now.Add(-5*time.Minute), now)
 	as.Set(alloc)
 
-	// Use costsPreScaled=true - should just sum without re-scaling
+	// Use costsPreScaled=true: CPU/RAM must be summed as-is, GPU must be scaled.
 	results, err := c.extractAllocationResults(as, false, true)
 	if err != nil {
 		t.Fatalf("extractAllocationResults failed: %v", err)
@@ -1066,7 +1164,9 @@ func TestCollector_UsageCost_PreScaledPath(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected result")
 	}
-	// Should sum exactly: 3.0 + 4.0 + 1.0 = 8.0
+	// GPU $6 × 0.5 = $3, plus pre-scaled CPU $4 and RAM $1 → $8.0.
+	// Double-scaling CPU/RAM would yield $3 + $2 + $0.25 = $5.25;
+	// failing to scale GPU would yield $6 + $4 + $1 = $11.0.
 	if !floatEq(result.usageTotalCost, 8.0) {
 		t.Errorf("pre-scaled usageTotalCost want 8.0 got %.4f", result.usageTotalCost)
 	}
