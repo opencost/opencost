@@ -183,7 +183,7 @@ func (qs *QueryService) computeStep(ctx context.Context, req *QueryRequest, win 
 
 	var entriesToProcess []*InferenceCost
 	if namesAttributionDimension(req) && qs.collector.config.AttributionEnabled {
-		entriesToProcess = qs.collector.BuildDimensionCosts(modelCosts, dimTokens)
+		entriesToProcess, _ = qs.collector.BuildDimensionCosts(modelCosts, dimTokens)
 	} else {
 		entriesToProcess = modelCosts
 	}

@@ -56,11 +56,12 @@ func (r *Runner) runOnce(ctx context.Context) {
 	r.calculator.CalculateCosts(modelCosts)
 
 	var dimCosts []*InferenceCost
+	unmatched := map[string]float64{}
 	if r.collector.config.AttributionEnabled {
-		dimCosts = r.collector.BuildDimensionCosts(modelCosts, dimTokens)
+		dimCosts, unmatched = r.collector.BuildDimensionCosts(modelCosts, dimTokens)
 	}
 
 	r.exporter.Export(modelCosts, dimCosts)
-	r.exporter.ExportUnmatchedKeys(r.collector.GetUnmatchedKeys())
+	r.exporter.ExportUnmatchedKeys(unmatched)
 	log.Debugf("InferenceCost: exported metrics for %d models and %d dimension entries", len(modelCosts), len(dimCosts))
 }

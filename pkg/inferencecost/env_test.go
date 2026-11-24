@@ -60,7 +60,7 @@ func TestEnv_TwoProducerMappings_MergedAndScoped(t *testing.T) {
 	cfg.AttributionEnabled = true
 	cfg.AttributionConfigPath = configPath
 
-	c := &Collector{config: cfg, unmatchedKeys: make(map[string]float64)}
+	c := &Collector{config: cfg}
 
 	mcGemma := makeTestModelCost("gemma-4-31B", "llm-prod", 500000, 500000, 10.0, 5.0, 10.0, 10.0, 5.0, 5.0)
 	mcLlama := makeTestModelCost("llama-3-70b", "llm-prod", 1000000, 1000000, 20.0, 10.0, 10.0, 10.0, 5.0, 5.0)
@@ -100,7 +100,7 @@ func TestEnv_TwoProducerMappings_MergedAndScoped(t *testing.T) {
 		},
 	}
 
-	results := c.BuildDimensionCosts([]*InferenceCost{mcGemma, mcLlama}, dimTokens)
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mcGemma, mcLlama}, dimTokens)
 
 	var acmeGemma, acmeLlama *InferenceCost
 	for _, r := range results {

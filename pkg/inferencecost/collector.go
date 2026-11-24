@@ -6,7 +6,6 @@ import (
 	"math"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/filter/allocation"
@@ -30,8 +29,6 @@ type Collector struct {
 	allocationQuerier AllocationQuerier
 	metricsQuerier    source.MetricsQuerier
 	config            *Config
-	unmatchedKeys     map[string]float64
-	mu                sync.RWMutex
 }
 
 // NewCollector creates a Collector that uses the provided MetricsQuerier for
@@ -41,19 +38,7 @@ func NewCollector(config *Config, querier AllocationQuerier, metricsQuerier sour
 		allocationQuerier: querier,
 		metricsQuerier:    metricsQuerier,
 		config:            config,
-		unmatchedKeys:     make(map[string]float64),
 	}, nil
-}
-
-// GetUnmatchedKeys returns the count of unmatched attribution keys per producer.
-func (c *Collector) GetUnmatchedKeys() map[string]float64 {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	res := make(map[string]float64, len(c.unmatchedKeys))
-	for k, v := range c.unmatchedKeys {
-		res[k] = v
-	}
-	return res
 }
 
 // CollectMetrics queries all data sources and returns one InferenceCost per
@@ -817,19 +802,24 @@ func isModelInScope(model, namespace string, scope ProducerScope) bool {
 			return false
 		}
 	}
-	if len(scope.Namespaces) > 0 && namespace != "" {
-		matched := false
-		for _, ns := range scope.Namespaces {
-			if ns == namespace {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
+	if namespace != "" && !isNamespaceInScope(namespace, scope) {
+		return false
 	}
 	return true
+}
+
+// isNamespaceInScope reports whether namespace is permitted by the scope's
+// namespace list. An empty list permits every namespace.
+func isNamespaceInScope(namespace string, scope ProducerScope) bool {
+	if len(scope.Namespaces) == 0 {
+		return true
+	}
+	for _, ns := range scope.Namespaces {
+		if ns == namespace {
+			return true
+		}
+	}
+	return false
 }
 
 func shortModelName(model string) string {
@@ -841,9 +831,12 @@ func shortModelName(model string) string {
 }
 
 // BuildDimensionCosts attributes model infrastructure costs to tenant/workload/user dimensions.
-func (c *Collector) BuildDimensionCosts(modelCosts []*InferenceCost, dimTokens *source.InferenceDimensionResult) []*InferenceCost {
+// It also returns the number of unmatched attribution keys per producer for this
+// call. The counts are returned rather than stored on the Collector because the
+// Collector is shared with concurrent API queries, which would overwrite them.
+func (c *Collector) BuildDimensionCosts(modelCosts []*InferenceCost, dimTokens *source.InferenceDimensionResult) ([]*InferenceCost, map[string]float64) {
 	if len(modelCosts) == 0 {
-		return nil
+		return nil, map[string]float64{}
 	}
 	if dimTokens == nil {
 		dimTokens = &source.InferenceDimensionResult{
@@ -947,12 +940,20 @@ func (c *Collector) BuildDimensionCosts(modelCosts []*InferenceCost, dimTokens *
 			userID = ""
 		}
 
-		// Missing namespace resolution
+		// Missing namespace resolution. Candidates, mapped namespaces and the
+		// resolved namespace are all restricted to the producer's namespace
+		// scope, so a namespace-less key cannot escape scope.namespaces.
 		ns := dimKey.Namespace
 		if ns == "" {
-			candidates := modelToCostSlice[dimKey.ServingModel]
-			if len(candidates) == 0 {
-				candidates = modelToCostSlice[canonicalModelName(dimKey.ServingModel)]
+			allCandidates := modelToCostSlice[dimKey.ServingModel]
+			if len(allCandidates) == 0 {
+				allCandidates = modelToCostSlice[canonicalModelName(dimKey.ServingModel)]
+			}
+			candidates := make([]*InferenceCost, 0, len(allCandidates))
+			for _, mc := range allCandidates {
+				if isNamespaceInScope(mc.Properties.Namespace, scope) {
+					candidates = append(candidates, mc)
+				}
 			}
 			uniqueNamespaces := make(map[string]bool)
 			for _, mc := range candidates {
@@ -967,6 +968,11 @@ func (c *Collector) BuildDimensionCosts(modelCosts []*InferenceCost, dimTokens *
 					ns = mappedNs
 				} else if mappedNs, ok := nsMap[canonicalModelName(dimKey.ServingModel)]; ok && mappedNs != "" {
 					ns = mappedNs
+				}
+				if ns != "" {
+					if !isNamespaceInScope(ns, scope) {
+						continue
+					}
 				} else {
 					totalEngineTokens := 0.0
 					for _, mc := range candidates {
@@ -1020,10 +1026,6 @@ func (c *Collector) BuildDimensionCosts(modelCosts []*InferenceCost, dimTokens *
 			matchedByProducer[entry.key.Producer]++
 		}
 	}
-
-	c.mu.Lock()
-	c.unmatchedKeys = unmatchedByProducer
-	c.mu.Unlock()
 
 	for _, mapping := range mappings {
 		prod := mapping.Name
@@ -1206,18 +1208,32 @@ func (c *Collector) BuildDimensionCosts(modelCosts []*InferenceCost, dimTokens *
 		remCompTokens := math.Max(0, mc.GenerationTokens-sumCompTokens)
 		remTotalTokens := remPromptTokens + remCompTokens
 
-		var remAllocIn, remAllocOut, remUsageIn, remUsageOut float64
-		if remTotalTokens > 0 {
-			remAllocIn = remainderAlloc * (remPromptTokens / remTotalTokens)
-			remAllocOut = remainderAlloc - remAllocIn
-			remUsageIn = remainderUsage * (remPromptTokens / remTotalTokens)
-			remUsageOut = remainderUsage - remUsageIn
-		} else {
-			remAllocIn = remainderAlloc / 2.0
-			remAllocOut = remainderAlloc - remAllocIn
-			remUsageIn = remainderUsage / 2.0
-			remUsageOut = remainderUsage - remUsageIn
+		// Split each basis' remainder using the model's residual directional
+		// costs (model input/output cost minus what the rows already carry),
+		// so the model's different input and output rates are preserved.
+		// Over-attribution in one direction clamps that residual at zero; the
+		// residuals are then normalised to the (reconciled) total remainder.
+		// With no directional residual, fall back to the remaining token mix.
+		splitRemainder := func(basis CostBasis, remainder float64) (remIn, remOut float64) {
+			var rowsIn, rowsOut float64
+			for _, row := range rows {
+				rowsIn += row.InputCost[basis]
+				rowsOut += row.OutputCost[basis]
+			}
+			resIn := math.Max(0, mc.InputCost[basis]-rowsIn)
+			resOut := math.Max(0, mc.OutputCost[basis]-rowsOut)
+			switch {
+			case resIn+resOut > 0:
+				remIn = remainder * resIn / (resIn + resOut)
+			case remTotalTokens > 0:
+				remIn = remainder * (remPromptTokens / remTotalTokens)
+			default:
+				remIn = remainder / 2.0
+			}
+			return remIn, remainder - remIn
 		}
+		remAllocIn, remAllocOut := splitRemainder(CostBasisAllocation, remainderAlloc)
+		remUsageIn, remUsageOut := splitRemainder(CostBasisUsage, remainderUsage)
 
 		remRow := &InferenceCost{
 			Properties: InferenceCostProperties{
@@ -1292,5 +1308,5 @@ func (c *Collector) BuildDimensionCosts(modelCosts []*InferenceCost, dimTokens *
 		}
 	}
 
-	return finalDimCosts
+	return finalDimCosts, unmatchedByProducer
 }

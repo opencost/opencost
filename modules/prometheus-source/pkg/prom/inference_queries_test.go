@@ -189,8 +189,8 @@ func TestQueryInferenceDimensionTokens_PromQLGeneration(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Each of the 4 series (input, output, est input, est output) needs an
-	// end-of-window and a start-of-window query.
+	// Each of the 4 series (input, output, est input, est output) needs a
+	// raw-sample window query and a start-of-window query.
 	queries := client.recorded()
 	if len(queries) != 8 {
 		t.Fatalf("expected 8 queries (end + start for each of 4 series), got %d: %v", len(queries), queries)
@@ -210,7 +210,7 @@ func TestQueryInferenceDimensionTokens_PromQLGeneration(t *testing.T) {
 			}
 		}
 		if ends != 1 || starts != 1 {
-			t.Errorf("metric %s: expected 1 end and 1 start query, got %d end and %d start: %v", metric, ends, starts, queries)
+			t.Errorf("metric %s: expected 1 window and 1 start query, got %d window and %d start: %v", metric, ends, starts, queries)
 		}
 	}
 
@@ -218,8 +218,10 @@ func TestQueryInferenceDimensionTokens_PromQLGeneration(t *testing.T) {
 		if strings.Contains(q, "increase(") || strings.Contains(q, "rate(") {
 			t.Errorf("query must not extrapolate with increase/rate: %s", q)
 		}
-		if !strings.HasPrefix(q, "last_over_time(") {
-			t.Errorf("query is not an exact last_over_time sample: %s", q)
+		isStart := strings.HasPrefix(q, "last_over_time(") && strings.Contains(q, "[2m] @")
+		isWindow := !strings.Contains(q, "(") && strings.Contains(q, "s] @")
+		if !isStart && !isWindow {
+			t.Errorf("query is neither an exact start sample nor a raw window selector: %s", q)
 		}
 		// The delta is taken per series, so the query must not aggregate.
 		if strings.Contains(q, "sum by") {
@@ -228,10 +230,10 @@ func TestQueryInferenceDimensionTokens_PromQLGeneration(t *testing.T) {
 	}
 }
 
-// seriesPromClient answers last_over_time queries from fixed per-metric samples,
-// keyed by whether the query is the end-of-window or the start-of-window one.
+// seriesPromClient answers queries from fixed samples, keyed by whether the
+// query is the raw window selector or the start-of-window last_over_time one.
 type seriesPromClient struct {
-	end   string // JSON "result" array for end-of-window queries
+	end   string // JSON "result" array for window queries (instant "value" or matrix "values")
 	start string // JSON "result" array for start-of-window queries
 }
 
@@ -408,5 +410,70 @@ func TestQueryInferenceDimensionTokens_UserAndWorkloadDisabledKey(t *testing.T) 
 	}
 	if keys != 1 || total != 15 {
 		t.Errorf("expected 1 key totalling 15, got %d keys totalling %v", keys, total)
+	}
+}
+
+// A reset between two samples inside the window must not be lost: 100 -> 180 ->
+// 0 -> 300 is 80 + 0 + 300 = 380 new tokens, not 300 - 100 = 200.
+func TestQueryInferenceDimensionTokens_MidWindowCounterReset(t *testing.T) {
+	end := `[{"metric":{"end_user":"alice","team_alias":"acme","api_key_alias":"rag","model":"gemma","instance":"a:4000"},"values":[[1,"180"],[2,"0"],[3,"300"]]}]`
+	start := `[{"metric":{"end_user":"alice","team_alias":"acme","api_key_alias":"rag","model":"gemma","instance":"a:4000"},"value":[1,"100"]}]`
+	got := queryDimensionTokensWith(t, end, start)
+
+	if want := 380.0; got["alice/acme/rag/gemma"] != want {
+		t.Errorf("expected reset-aware delta %v, got %v", want, got)
+	}
+}
+
+// Label values containing the join separators must not make two different
+// series share an identity (and therefore a start value).
+func TestSeriesIdentity_NoCollisionOnSeparators(t *testing.T) {
+	a := map[string]interface{}{"tenant_id": "a,user_id=b", "user_id": "c"}
+	b := map[string]interface{}{"tenant_id": "a", "user_id": "b,user_id=c"}
+	if seriesIdentity(a) == seriesIdentity(b) {
+		t.Errorf("distinct label sets share identity %q", seriesIdentity(a))
+	}
+}
+
+// Estimated tokens come from a separate series, so they must count in the
+// totals as well as in the estimated subtotals.
+func TestQueryInferenceDimensionTokens_EstimatedCountsInTotals(t *testing.T) {
+	t.Setenv("INFERENCE_ATTRIBUTION_ENABLED", "true")
+	t.Setenv("INFERENCE_ATTRIBUTION_CONFIG_PATH", "")
+	t.Setenv("INFERENCE_ATTRIBUTION_INPUT_TOKENS_SERIES", "")
+	t.Setenv("INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_SERIES", "out_total")
+	t.Setenv("INFERENCE_ATTRIBUTION_INPUT_TOKENS_ESTIMATED_SERIES", "est_in_total")
+	t.Setenv("INFERENCE_ATTRIBUTION_OUTPUT_TOKENS_ESTIMATED_SERIES", "")
+	t.Setenv("INFERENCE_ATTRIBUTION_TENANT_LABEL", "team_alias")
+	t.Setenv("INFERENCE_ATTRIBUTION_WORKLOAD_LABEL", "")
+	t.Setenv("INFERENCE_ATTRIBUTION_USER_LABEL", "")
+	t.Setenv("INFERENCE_ATTRIBUTION_MODEL_LABEL", "model")
+	t.Setenv("INFERENCE_ATTRIBUTION_NAMESPACE_LABEL", "deployment_namespace")
+
+	client := &seriesPromClient{
+		end:   `[{"metric":{"team_alias":"acme","model":"gemma"},"value":[1,"40"]}]`,
+		start: `[]`,
+	}
+	cfg := &OpenCostPrometheusConfig{ClusterLabel: "cluster_id"}
+	querier := newPrometheusMetricsQuerier(cfg, client, NewContextFactory(client, cfg))
+
+	res, err := querier.QueryInferenceDimensionTokens(time.Now().Add(-60*time.Second), time.Now()).Await()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var found bool
+	for _, r := range res {
+		for _, v := range r.Values {
+			found = true
+			if v.PromptTokens != 40 || v.EstimatedPromptTokens != 40 {
+				t.Errorf("estimated input must be in totals and subtotals, got %+v", v)
+			}
+			if v.CompletionTokens != 40 || v.EstimatedCompletionTokens != 0 {
+				t.Errorf("exact output must not be estimated, got %+v", v)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no dimension result returned")
 	}
 }

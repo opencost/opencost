@@ -285,18 +285,38 @@ func applyProducerDefaults(p *ProducerMapping) {
 }
 
 // seriesIdentity returns a stable identifier for a Prometheus series built from
-// all of its labels except the metric name. last_over_time may or may not keep
-// __name__ depending on the Prometheus version, so it is excluded.
+// all of its labels except the metric name. The metric name may or may not be
+// kept by the query depending on the Prometheus version, so it is excluded.
+// Each label name and value is quoted so that separators inside values cannot
+// make two different label sets produce the same identity.
 func seriesIdentity(metric map[string]interface{}) string {
 	parts := make([]string, 0, len(metric))
 	for k, v := range metric {
 		if k == "__name__" {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+		parts = append(parts, fmt.Sprintf("%q=%q", k, fmt.Sprintf("%v", v)))
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, ",")
+}
+
+// counterIncrease returns the increase of a counter across the ordered samples,
+// starting from the baseline value. Every drop between consecutive samples is
+// a counter reset, after which the new sample value is the post-reset
+// activity, so resets in the middle of the window are not lost.
+func counterIncrease(baseline float64, samples []*util.Vector) float64 {
+	prev := baseline
+	total := 0.0
+	for _, s := range samples {
+		if s.Value >= prev {
+			total += s.Value - prev
+		} else {
+			total += s.Value
+		}
+		prev = s.Value
+	}
+	return total
 }
 
 // queryDimensionSeriesDeltas returns, for every series of a counter, the exact
@@ -305,15 +325,14 @@ func seriesIdentity(metric map[string]interface{}) string {
 // It deliberately does not use increase(metric[Ns]). increase() extrapolates
 // the samples inside the window to the whole window, so a window holding only
 // a couple of scrapes overstates a single step in the counter by up to
-// window/scrape-interval (2x for a 60s window and a 30s scrape). The engine
-// token path (queryCounterDelta) avoids this with last_over_time at the window
-// end minus last_over_time at the window start, and the attribution path must
-// use the same method so the two can be compared exactly.
+// window/scrape-interval (2x for a 60s window and a 30s scrape). Instead the
+// raw samples in the window are fetched and the increase is summed between
+// consecutive samples, starting from last_over_time at the window start, so the
+// result is exact and counter resets anywhere in the window are accounted for.
 //
 // The delta is taken per series, before any grouping, so a counter reset on one
 // replica does not corrupt the others. A series with no sample at the start of
-// the window is treated as new (start value 0). A negative delta is a counter
-// reset and the end value is used, matching queryCounterDelta.
+// the window is treated as new (start value 0).
 func queryDimensionSeriesDeltas(ctx *Context, metric string, start, end time.Time) ([]*source.QueryResult, []float64, error) {
 	effectiveEnd := end
 	if now := time.Now(); end.After(now) {
@@ -322,17 +341,17 @@ func queryDimensionSeriesDeltas(ctx *Context, metric string, start, end time.Tim
 	endUnix := effectiveEnd.Unix()
 	startUnix := start.Unix()
 
-	// The end lookback spans the whole window so a series that was active
-	// earlier in the window but is idle at its end is still found.
+	// Raw samples inside the window, so a series that was active earlier in the
+	// window but is idle at its end is still found and resets are visible.
 	windowSeconds := int64(effectiveEnd.Sub(start).Seconds())
-	if windowSeconds < 120 {
-		windowSeconds = 120
+	if windowSeconds < 1 {
+		windowSeconds = 1
 	}
 
-	endQuery := fmt.Sprintf("last_over_time(%s[%ds] @ %d)", metric, windowSeconds, endUnix)
+	endQuery := fmt.Sprintf("%s[%ds] @ %d", metric, windowSeconds, endUnix)
 	rawEnd, _, err := ctx.query(endQuery, effectiveEnd)
 	if err != nil {
-		return nil, nil, fmt.Errorf("end-of-window query for %s: %w", metric, err)
+		return nil, nil, fmt.Errorf("window query for %s: %w", metric, err)
 	}
 	endResults := NewQueryResults(endQuery, rawEnd, source.ClusterKeyWithDefaults(ctx.config.ClusterLabel))
 	if endResults.Error != nil {
@@ -365,13 +384,8 @@ func queryDimensionSeriesDeltas(ctx *Context, metric string, start, end time.Tim
 		if len(r.Values) == 0 {
 			continue
 		}
-		endVal := r.Values[0].Value
-		delta := endVal - startValues[seriesIdentity(r.Metric)]
-		if delta < 0 {
-			delta = endVal
-		}
 		series = append(series, r)
-		deltas = append(deltas, delta)
+		deltas = append(deltas, counterIncrease(startValues[seriesIdentity(r.Metric)], r.Values))
 	}
 	return series, deltas, nil
 }
@@ -423,17 +437,18 @@ func queryDimensionSeries(
 			values[key] = entry
 		}
 
-		if isEstimated {
-			if isInput {
+		// Estimated tokens are a separate series from exact tokens, so they are
+		// added to the totals as well as to the estimated subtotals (which are
+		// subsets of the totals).
+		if isInput {
+			entry.PromptTokens += delta
+			if isEstimated {
 				entry.EstimatedPromptTokens += delta
-			} else {
-				entry.EstimatedCompletionTokens += delta
 			}
 		} else {
-			if isInput {
-				entry.PromptTokens += delta
-			} else {
-				entry.CompletionTokens += delta
+			entry.CompletionTokens += delta
+			if isEstimated {
+				entry.EstimatedCompletionTokens += delta
 			}
 		}
 	}

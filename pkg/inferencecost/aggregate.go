@@ -134,6 +134,9 @@ func addResponse(dst, src *InferenceCostResponse) {
 		dst.OutputCostPerMillionTokens = 0
 	}
 
+	// Any approximate contribution keeps the merged result marked approximate.
+	dst.Properties.Approximate = dst.Properties.Approximate || src.Properties.Approximate
+
 	// Preserve the allocation method from the first entry; clear it when
 	// methods differ (the merged entry reflects a mixed derivation).
 	if dst.AllocationMethod != src.AllocationMethod {

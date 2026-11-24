@@ -1122,7 +1122,7 @@ func TestBuildDimensionCosts_JoinFormulaAndRates(t *testing.T) {
 		},
 	}
 
-	results := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
 	if len(results) != 3 { // tenant-a, tenant-b, __unmetered__ remainder
 		t.Fatalf("expected 3 dimension entries, got %d", len(results))
 	}
@@ -1207,7 +1207,7 @@ func TestBuildDimensionCosts_ZeroModelCost_NoPanic(t *testing.T) {
 		},
 	}
 
-	results := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
 	if len(results) == 0 {
 		t.Fatalf("expected results, got 0")
 	}
@@ -1228,7 +1228,7 @@ func TestBuildDimensionCosts_EmptyAttributionResult(t *testing.T) {
 		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{},
 	}
 
-	results := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
 	if len(results) != 1 {
 		t.Fatalf("expected 1 remainder result, got %d", len(results))
 	}
@@ -1247,7 +1247,7 @@ func TestBuildDimensionCosts_EmptyAttributionResult(t *testing.T) {
 func TestBuildDimensionCosts_UnmatchedKeys_CountedAndLogged(t *testing.T) {
 	cfg := baseConfig()
 	cfg.AttributionEnabled = true
-	c := &Collector{config: cfg, unmatchedKeys: make(map[string]float64)}
+	c := &Collector{config: cfg}
 
 	mc := makeTestModelCost("llama-3-70b", "llm-prod", 100000, 50000, 10.0, 5.0, 50.0, 100.0, 25.0, 50.0)
 	dimTokens := &source.InferenceDimensionResult{
@@ -1264,13 +1264,12 @@ func TestBuildDimensionCosts_UnmatchedKeys_CountedAndLogged(t *testing.T) {
 		},
 	}
 
-	results := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	results, unmatched := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
 	// Only remainder for llama-3-70b should be emitted; unknown-model is unmatched
 	if len(results) != 1 || results[0].Properties.TenantID != "__unmetered__" {
 		t.Fatalf("expected only remainder row, got %d results", len(results))
 	}
 
-	unmatched := c.GetUnmatchedKeys()
 	if unmatched["default"] != 1 {
 		t.Errorf("expected 1 unmatched key for producer 'default', got %f", unmatched["default"])
 	}
@@ -1307,7 +1306,7 @@ func TestBuildDimensionCosts_MissingIdentityKeptDistinct(t *testing.T) {
 	cfg := baseConfig()
 	cfg.AttributionEnabled = true
 	cfg.AttributionConfigPath = configPath
-	c := &Collector{config: cfg, unmatchedKeys: make(map[string]float64)}
+	c := &Collector{config: cfg}
 
 	mc := makeTestModelCost("llama-3-70b", "llm-prod", 1000000, 1000000, 20.0, 10.0, 10.0, 10.0, 5.0, 5.0)
 
@@ -1336,7 +1335,7 @@ func TestBuildDimensionCosts_MissingIdentityKeptDistinct(t *testing.T) {
 		},
 	}
 
-	results := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
 	var realTenantNone, unidentifiedTenant *InferenceCost
 	for _, r := range results {
 		if r.Properties.TenantID == "none" {
@@ -1364,7 +1363,7 @@ func TestBuildDimensionCosts_MissingIdentityKeptDistinct(t *testing.T) {
 func TestBuildDimensionCosts_OverAttributedRemainder_ClampedAndScaled(t *testing.T) {
 	cfg := baseConfig()
 	cfg.AttributionEnabled = true
-	c := &Collector{config: cfg, unmatchedKeys: make(map[string]float64)}
+	c := &Collector{config: cfg}
 
 	// Model: 100 prompt tokens, 100 gen tokens. Total cost $10 alloc.
 	mc := makeTestModelCost("llama-3-70b", "llm-prod", 100, 100, 10.0, 5.0, 50000.0, 50000.0, 25000.0, 25000.0)
@@ -1385,7 +1384,7 @@ func TestBuildDimensionCosts_OverAttributedRemainder_ClampedAndScaled(t *testing
 		},
 	}
 
-	results := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
 	if len(results) != 2 {
 		t.Fatalf("expected 2 results (tenant + remainder), got %d", len(results))
 	}
@@ -1447,7 +1446,7 @@ func TestBuildDimensionCosts_WorkloadLabelDisabled_LiteLLM(t *testing.T) {
 	cfg := baseConfig()
 	cfg.AttributionEnabled = true
 	cfg.AttributionConfigPath = configPath
-	c := &Collector{config: cfg, unmatchedKeys: make(map[string]float64)}
+	c := &Collector{config: cfg}
 
 	mc := makeTestModelCost("llama-3-70b", "llm-prod", 100000, 100000, 10.0, 5.0, 50.0, 50.0, 25.0, 25.0)
 
@@ -1466,7 +1465,7 @@ func TestBuildDimensionCosts_WorkloadLabelDisabled_LiteLLM(t *testing.T) {
 		},
 	}
 
-	results := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
 	var teamRow *InferenceCost
 	for _, r := range results {
 		if r.Properties.TenantID == "team-ml" {
@@ -1506,7 +1505,7 @@ func TestBuildDimensionCosts_SaaSExclusion_Scope(t *testing.T) {
 	cfg := baseConfig()
 	cfg.AttributionEnabled = true
 	cfg.AttributionConfigPath = configPath
-	c := &Collector{config: cfg, unmatchedKeys: make(map[string]float64)}
+	c := &Collector{config: cfg}
 
 	mc := makeTestModelCost("llama-3-70b", "llm-prod", 100000, 100000, 10.0, 5.0, 50.0, 50.0, 25.0, 25.0)
 
@@ -1533,12 +1532,11 @@ func TestBuildDimensionCosts_SaaSExclusion_Scope(t *testing.T) {
 		},
 	}
 
-	results := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	results, unmatched := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
 	if len(results) != 2 { // tenant-a on llama-3-70b + remainder on llama-3-70b
 		t.Fatalf("expected 2 results, got %d", len(results))
 	}
 
-	unmatched := c.GetUnmatchedKeys()
 	if unmatched["gateway"] != 0 {
 		t.Errorf("excluded SaaS model should NOT be counted as unmatched, got %f", unmatched["gateway"])
 	}
@@ -1547,7 +1545,7 @@ func TestBuildDimensionCosts_SaaSExclusion_Scope(t *testing.T) {
 func TestBuildDimensionCosts_ProportionalSplitAcrossNamespaces(t *testing.T) {
 	cfg := baseConfig()
 	cfg.AttributionEnabled = true
-	c := &Collector{config: cfg, unmatchedKeys: make(map[string]float64)}
+	c := &Collector{config: cfg}
 
 	// Model deployed in 2 namespaces:
 	// ns-a: 600k prompt, 400k gen (1M total engine tokens). $20 alloc cost ($10/M in, $20/M out)
@@ -1572,7 +1570,7 @@ func TestBuildDimensionCosts_ProportionalSplitAcrossNamespaces(t *testing.T) {
 		},
 	}
 
-	results := c.BuildDimensionCosts([]*InferenceCost{mcA, mcB}, dimTokens)
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mcA, mcB}, dimTokens)
 	// Expect: tenant-a in ns-a (100k in, 100k out), remainder in ns-a
 	//         tenant-a in ns-b (300k in, 300k out), remainder in ns-b
 	if len(results) != 4 {
@@ -1609,7 +1607,7 @@ func TestBuildDimensionCosts_ProportionalSplitAcrossNamespaces(t *testing.T) {
 func TestBuildDimensionCosts_CanonicalModelMatching(t *testing.T) {
 	cfg := baseConfig()
 	cfg.AttributionEnabled = true
-	c := &Collector{config: cfg, unmatchedKeys: make(map[string]float64)}
+	c := &Collector{config: cfg}
 
 	// Model in OpenCost has short name "Llama-3-70B"
 	mc := makeTestModelCost("Llama-3-70B", "llm-prod", 100000, 100000, 10.0, 5.0, 50.0, 50.0, 25.0, 25.0)
@@ -1629,7 +1627,7 @@ func TestBuildDimensionCosts_CanonicalModelMatching(t *testing.T) {
 		},
 	}
 
-	results := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
+	results, unmatched := c.BuildDimensionCosts([]*InferenceCost{mc}, dimTokens)
 	var tenantA *InferenceCost
 	for _, r := range results {
 		if r.Properties.TenantID == "tenant-a" {
@@ -1642,7 +1640,79 @@ func TestBuildDimensionCosts_CanonicalModelMatching(t *testing.T) {
 	if tenantA.Properties.ModelName != "Llama-3-70B" {
 		t.Errorf("expected model name to be 'Llama-3-70B', got %s", tenantA.Properties.ModelName)
 	}
-	if c.GetUnmatchedKeys()["default"] != 0 {
-		t.Errorf("expected 0 unmatched keys, got %f", c.GetUnmatchedKeys()["default"])
+	if unmatched["default"] != 0 {
+		t.Errorf("expected 0 unmatched keys, got %f", unmatched["default"])
+	}
+}
+
+// A namespace-less key from a producer scoped to ns-a must never be resolved
+// or split into ns-b.
+func TestBuildDimensionCosts_NamespaceLessKeyRespectsNamespaceScope(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "scope.yaml")
+	configYAML := "producers:\n" +
+		"  - name: gateway\n" +
+		"    inputTokensSeries: in_tokens\n" +
+		"    outputTokensSeries: out_tokens\n" +
+		"    scope:\n" +
+		"      namespaces:\n" +
+		"        - ns-a\n"
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	cfg.AttributionConfigPath = configPath
+	c := &Collector{config: cfg}
+
+	mcA := makeTestModelCost("llama-3-70b", "ns-a", 600000, 400000, 20.0, 10.0, 10.0, 20.0, 5.0, 10.0)
+	mcB := makeTestModelCost("llama-3-70b", "ns-b", 1500000, 1500000, 60.0, 30.0, 10.0, 20.0, 5.0, 10.0)
+
+	dimTokens := &source.InferenceDimensionResult{
+		Values: map[source.InferenceDimensionKey]*source.InferenceDimensionTokens{
+			{Producer: "gateway", TenantID: "tenant-a", ServingModel: "llama-3-70b"}: {
+				PromptTokens:     400000,
+				CompletionTokens: 400000,
+			},
+		},
+	}
+
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mcA, mcB}, dimTokens)
+	for _, r := range results {
+		if r.Properties.TenantID == "tenant-a" && r.Properties.Namespace != "ns-a" {
+			t.Errorf("tenant-a resolved outside producer scope into %q", r.Properties.Namespace)
+		}
+	}
+	var inNsA *InferenceCost
+	for _, r := range results {
+		if r.Properties.TenantID == "tenant-a" && r.Properties.Namespace == "ns-a" {
+			inNsA = r
+		}
+	}
+	if inNsA == nil || math.Abs(inNsA.PromptTokens-400000) > 1e-6 {
+		t.Errorf("expected all tenant-a tokens resolved into ns-a, got %+v", inNsA)
+	}
+}
+
+// With no attribution, the remainder must keep the model's directional rates
+// ($10/M input, $20/M output on 1M tokens each) instead of a token-count split.
+func TestBuildDimensionCosts_RemainderKeepsDirectionalRates(t *testing.T) {
+	cfg := baseConfig()
+	cfg.AttributionEnabled = true
+	c := &Collector{config: cfg}
+
+	mc := makeTestModelCost("llama-3-70b", "llm-prod", 1000000, 1000000, 30.0, 15.0, 10.0, 20.0, 5.0, 10.0)
+
+	results, _ := c.BuildDimensionCosts([]*InferenceCost{mc}, &source.InferenceDimensionResult{})
+	if len(results) != 1 {
+		t.Fatalf("expected only the remainder row, got %d", len(results))
+	}
+	rem := results[0]
+	if math.Abs(rem.InputCost[CostBasisAllocation]-10.0) > 1e-9 || math.Abs(rem.OutputCost[CostBasisAllocation]-20.0) > 1e-9 {
+		t.Errorf("allocation remainder want $10/$20, got $%f/$%f", rem.InputCost[CostBasisAllocation], rem.OutputCost[CostBasisAllocation])
+	}
+	if math.Abs(rem.InputCost[CostBasisUsage]-5.0) > 1e-9 || math.Abs(rem.OutputCost[CostBasisUsage]-10.0) > 1e-9 {
+		t.Errorf("usage remainder want $5/$10, got $%f/$%f", rem.InputCost[CostBasisUsage], rem.OutputCost[CostBasisUsage])
 	}
 }

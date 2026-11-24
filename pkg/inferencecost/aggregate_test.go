@@ -785,3 +785,26 @@ func TestMergeAcrossUsers(t *testing.T) {
 		}
 	}
 }
+
+// An approximate contribution must keep the merged response approximate,
+// regardless of the order the responses are merged in.
+func TestAddResponse_PropagatesApproximate(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		dstApprox, srcApprox bool
+	}{
+		{"exact then approximate", false, true},
+		{"approximate then exact", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dst := makeICR("m", "ns", 10, 100, 100, 5, 5)
+			src := makeICR("m", "ns", 10, 100, 100, 5, 5)
+			dst.Properties.Approximate = tc.dstApprox
+			src.Properties.Approximate = tc.srcApprox
+			addResponse(dst, src)
+			if !dst.Properties.Approximate {
+				t.Errorf("merged response lost the approximate flag")
+			}
+		})
+	}
+}
