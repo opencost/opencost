@@ -3,6 +3,7 @@ package env
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func TestGetExportCSVMaxDays(t *testing.T) {
@@ -99,5 +100,38 @@ func TestIsMCPServerEnabled_True(t *testing.T) {
 	t.Setenv("MCP_SERVER_ENABLED", "true")
 	if got := IsMCPServerEnabled(); !got {
 		t.Fatalf("expected true when env var set to true, got %v", got)
+	}
+}
+
+func TestGetInferenceQueryCacheTTL_DefaultsToOneHour(t *testing.T) {
+	t.Setenv(InferenceQueryCacheTTLEnvVar, "")
+	if got := GetInferenceQueryCacheTTL(); got != time.Hour {
+		t.Fatalf("expected 1h default, got %v", got)
+	}
+}
+
+func TestGetInferenceQueryCacheTTL_Override(t *testing.T) {
+	t.Setenv(InferenceQueryCacheTTLEnvVar, "15m")
+	if got := GetInferenceQueryCacheTTL(); got != 15*time.Minute {
+		t.Fatalf("expected 15m, got %v", got)
+	}
+	t.Setenv(InferenceQueryCacheTTLEnvVar, "0")
+	if got := GetInferenceQueryCacheTTL(); got != 0 {
+		t.Fatalf("expected 0 to disable, got %v", got)
+	}
+}
+
+func TestGetInferenceQueryCacheMaxSizeMB(t *testing.T) {
+	t.Setenv(InferenceQueryCacheMaxSizeMBEnvVar, "")
+	if got := GetInferenceQueryCacheMaxSizeMB(); got != 100 {
+		t.Fatalf("expected 100 default, got %d", got)
+	}
+	t.Setenv(InferenceQueryCacheMaxSizeMBEnvVar, "512")
+	if got := GetInferenceQueryCacheMaxSizeMB(); got != 512 {
+		t.Fatalf("expected 512, got %d", got)
+	}
+	t.Setenv(InferenceQueryCacheMaxSizeMBEnvVar, "0")
+	if got := GetInferenceQueryCacheMaxSizeMB(); got != 0 {
+		t.Fatalf("expected 0 for no bound, got %d", got)
 	}
 }
