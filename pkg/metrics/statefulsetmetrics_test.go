@@ -173,6 +173,93 @@ func TestKubecostStatefulsetCollector_Collect(t *testing.T) {
 	}
 }
 
+// TestKubecostStatefulsetCollector_Collect_MatchExpressions verifies that
+// statefulsets using only matchExpressions are still emitted as
+// statefulSet_match_labels metrics instead of being silently dropped.
+func TestKubecostStatefulsetCollector_Collect_MatchExpressions(t *testing.T) {
+	tests := []struct {
+		name          string
+		statefulsets  []*clustercache.StatefulSet
+		expectedCount int
+	}{
+		{
+			name: "statefulset with only matchExpressions In operator",
+			statefulsets: []*clustercache.StatefulSet{
+				{
+					UID:       types.UID("expr-ss-uid-1"),
+					Name:      "expr-statefulset",
+					Namespace: "default",
+					SpecSelector: &metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "app",
+								Operator: metav1.LabelSelectorOpIn,
+								Values:   []string{"mydb"},
+							},
+						},
+					},
+				},
+			},
+			expectedCount: 1,
+		},
+		{
+			name: "statefulset with matchExpressions multi-value In is skipped",
+			statefulsets: []*clustercache.StatefulSet{
+				{
+					UID:       types.UID("expr-ss-uid-2"),
+					Name:      "multi-val-statefulset",
+					Namespace: "default",
+					SpecSelector: &metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "env",
+								Operator: metav1.LabelSelectorOpIn,
+								Values:   []string{"prod", "staging"},
+							},
+						},
+					},
+				},
+			},
+			expectedCount: 0,
+		},
+		{
+			name: "statefulset with nil SpecSelector emits nothing",
+			statefulsets: []*clustercache.StatefulSet{
+				{
+					UID:          types.UID("expr-ss-uid-3"),
+					Name:         "nil-selector-ss",
+					Namespace:    "default",
+					SpecSelector: nil,
+				},
+			},
+			expectedCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := MetricsConfig{DisabledMetrics: []string{}}
+			sc := KubecostStatefulsetCollector{
+				KubeClusterCache: NewFakeStatefulsetCache(tt.statefulsets),
+				metricsConfig:    mc,
+			}
+
+			ch := make(chan prometheus.Metric, 10)
+			sc.Collect(ch)
+			close(ch)
+
+			count := 0
+			for range ch {
+				count++
+			}
+
+			if count != tt.expectedCount {
+				t.Errorf("Expected %d metrics, got %d", tt.expectedCount, count)
+			}
+		})
+	}
+}
+
 func TestStatefulsetMatchLabelsMetric(t *testing.T) {
 	labelNames := []string{"app", "version"}
 	labelValues := []string{"test-app", "v1.0"}
