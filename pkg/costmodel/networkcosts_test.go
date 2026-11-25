@@ -16,7 +16,7 @@ type mockProvider struct {
 	err     error
 }
 
-func (m *mockProvider) NetworkPricing() (*models.Network, error) {
+func (m *mockProvider) NetworkPricing(key models.NetworkKey) (*models.Network, error) {
 	return m.network, m.err
 }
 
@@ -32,7 +32,7 @@ func (m *mockProvider) NodePricing(models.Key) (*models.Node, models.PricingMeta
 	return nil, models.PricingMetadata{}, nil
 }
 
-func (m *mockProvider) LoadBalancerPricing() (*models.LoadBalancer, error) {
+func (m *mockProvider) LoadBalancerPricing(key models.LBKey) (*models.LoadBalancer, error) {
 	return nil, nil
 }
 
