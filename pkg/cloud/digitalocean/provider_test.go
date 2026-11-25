@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/digitalocean/godo"
@@ -150,8 +152,8 @@ func TestNodePricing_APIMatches(t *testing.T) {
 	}
 
 	assertEqual("Cost", node.Cost, "0.01786")
-	assertEqual("VCPUCost", node.VCPUCost, "0.00595") // 1/3
-	assertEqual("RAMCost", node.RAMCost, "0.01191")   // 2/3
+	assertEqual("VCPUCost", node.VCPUCost, "0.00595") // 0.01786 / (1 + 2) units
+	assertEqual("RAMCost", node.RAMCost, "0.00595")
 	assertEqual("VCPU", node.VCPU, "1")
 	assertEqual("RAM", node.RAM, "2GiB")
 	assertEqual("ArchType", node.ArchType, "amd64")
@@ -192,8 +194,8 @@ func TestNodePricing_S2(t *testing.T) {
 	}
 
 	assertEqual("Cost", node.Cost, "0.03571")
-	assertEqual("VCPUCost", node.VCPUCost, "0.01190")
-	assertEqual("RAMCost", node.RAMCost, "0.02381")
+	assertEqual("VCPUCost", node.VCPUCost, "0.00595") // 0.03571 / (2 + 4) units
+	assertEqual("RAMCost", node.RAMCost, "0.00595")
 	assertEqual("VCPU", node.VCPU, "2")
 	assertEqual("RAM", node.RAM, "4GiB")
 	assertEqual("ArchType", node.ArchType, "amd64")
@@ -688,8 +690,8 @@ func TestNodePricing_GPU(t *testing.T) {
 	}
 
 	assertEqual("Cost", node.Cost, "3.39000")
-	assertEqual("VCPUCost", node.VCPUCost, "0.26077") // 3.39 * 20 / 260 = 0.260769...
-	assertEqual("RAMCost", node.RAMCost, "3.12923")   // 3.39 * 240 / 260 = 3.129230...
+	assertEqual("VCPUCost", node.VCPUCost, "0.01304") // 3.39 / (20 + 240) = 0.0130384...
+	assertEqual("RAMCost", node.RAMCost, "0.01304")
 	assertEqual("VCPU", node.VCPU, "20")
 	assertEqual("RAM", node.RAM, "240GiB")
 	assertEqual("GPU", node.GPU, "1")
@@ -922,4 +924,54 @@ func TestFetchPricingData_Pagination(t *testing.T) {
 	if provider.Cache.lastUpdate.IsZero() {
 		t.Error("expected cache to have a non-zero timestamp")
 	}
+}
+
+// The cost model multiplies VCPUCost by the node's vCPU count and RAMCost by
+// its RAM in GiB, so those two fields have to reconstruct the droplet's hourly
+// price. See MetricsEmitter in pkg/costmodel/metrics.go, which computes
+// cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost.
+func TestNodePricing_UnitRatesReconstructHourlyCost(t *testing.T) {
+	for _, slug := range []string{"s-1vcpu-2gb", "s-2vcpu-4gb"} {
+		t.Run(slug, func(t *testing.T) {
+			provider, _ := newTestProviderWithFile(t, "testdata/do_pricing.json")
+
+			key := &doksKey{
+				Labels: map[string]string{
+					"node.kubernetes.io/instance-type": slug,
+					"kubernetes.io/arch":               "amd64",
+				},
+			}
+
+			node, _, err := provider.NodePricing(key)
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+
+			hourly := mustParse(t, "Cost", node.Cost)
+			vcpuCost := mustParse(t, "VCPUCost", node.VCPUCost)
+			ramCost := mustParse(t, "RAMCost", node.RAMCost)
+			vcpu := mustParse(t, "VCPU", node.VCPU)
+			ramBytes := mustParse(t, "RAMBytes", node.RAMBytes)
+			ramGiB := ramBytes / 1024 / 1024 / 1024
+
+			got := vcpu*vcpuCost + ramGiB*ramCost
+
+			// Each rate is rendered with five decimals, so allow one ulp of
+			// that per unit it gets multiplied by.
+			tolerance := 1e-5 * (vcpu + ramGiB)
+			if diff := math.Abs(got - hourly); diff > tolerance {
+				t.Errorf("%s: vCPU and RAM rates rebuild %.5f/hr, want the droplet price %.5f/hr (vcpu=%.0f at %.5f, ramGiB=%.0f at %.5f)",
+					slug, got, hourly, vcpu, vcpuCost, ramGiB, ramCost)
+			}
+		})
+	}
+}
+
+func mustParse(t *testing.T, name, s string) float64 {
+	t.Helper()
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		t.Fatalf("could not parse %s %q: %v", name, s, err)
+	}
+	return f
 }
