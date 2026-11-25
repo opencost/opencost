@@ -29,6 +29,7 @@ func TestAuthorizerJSON_Sanitize(t *testing.T) {
 		},
 		"Master Payer Access Key": {
 			input: &AssumeRole{
+				ExternalID: "external id",
 				Authorizer: &AccessKey{
 					ID:     "ID",
 					Secret: "Secret",
@@ -36,6 +37,7 @@ func TestAuthorizerJSON_Sanitize(t *testing.T) {
 				RoleARN: "role arn",
 			},
 			expected: &AssumeRole{
+				ExternalID: "external id",
 				Authorizer: &AccessKey{
 					ID:     "ID",
 					Secret: cloud.Redacted,
@@ -45,10 +47,12 @@ func TestAuthorizerJSON_Sanitize(t *testing.T) {
 		},
 		"Master Payer Service Account": {
 			input: &AssumeRole{
+				ExternalID: "external id",
 				Authorizer: &ServiceAccount{},
 				RoleARN:    "role arn",
 			},
 			expected: &AssumeRole{
+				ExternalID: "external id",
 				Authorizer: &ServiceAccount{},
 				RoleARN:    "role arn",
 			},
@@ -99,6 +103,7 @@ func TestAuthorizerJSON_Encode(t *testing.T) {
 		},
 		"Master Payer Access Key": {
 			authorizer: &AssumeRole{
+				ExternalID: "external id",
 				Authorizer: &AccessKey{
 					ID:     "ID",
 					Secret: "Secret",
@@ -108,6 +113,7 @@ func TestAuthorizerJSON_Encode(t *testing.T) {
 		},
 		"Master Payer Service Account": {
 			authorizer: &AssumeRole{
+				ExternalID: "external id",
 				Authorizer: &ServiceAccount{},
 				RoleARN:    "role arn",
 			},
@@ -146,5 +152,29 @@ func TestAuthorizerJSON_Encode(t *testing.T) {
 			}
 
 		})
+	}
+}
+
+func TestAssumeRole_UnmarshalJSON_ExternalIDOptional(t *testing.T) {
+	authorizerJSON := []byte(`{
+		"authorizerType": "AWSAssumeRole",
+		"roleARN": "role arn",
+		"authorizer": {
+			"authorizerType": "AWSServiceAccount"
+		}
+	}`)
+
+	authorizer := &AssumeRole{}
+	err := json.Unmarshal(authorizerJSON, authorizer)
+	if err != nil {
+		t.Fatalf("failed to unmarshal AssumeRole without externalID: %s", err)
+	}
+
+	expected := &AssumeRole{
+		Authorizer: &ServiceAccount{},
+		RoleARN:    "role arn",
+	}
+	if !expected.Equals(authorizer) {
+		t.Error("authorizer without externalID did not unmarshal as expected")
 	}
 }
