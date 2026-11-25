@@ -29,6 +29,12 @@ const (
 	PrometheusHeaderXScopeOrgIdEnvVar = "PROMETHEUS_HEADER_X_SCOPE_ORGID"
 	InsecureSkipVerifyEnvVar          = "INSECURE_SKIP_VERIFY"
 	KubeRbacProxyEnabledEnvVar        = "KUBE_RBAC_PROXY_ENABLED"
+	// PrometheusDisableHTTP2EnvVar disables HTTP/2 on the Prometheus HTTP
+	// client transport. Set to "true" when Prometheus is behind an AWS ALB
+	// (or similar load balancer) configured with HTTP/2 backend target
+	// groups. Without this, Go's HTTP/2 ALPN negotiation can trigger a
+	// protocol mismatch that causes the ALB to return HTTP 464 errors.
+	PrometheusDisableHTTP2EnvVar = "PROMETHEUS_DISABLE_HTTP2"
 
 	DBBasicAuthUsername = "DB_BASIC_AUTH_USERNAME"
 	DBBasicAuthPassword = "DB_BASIC_AUTH_PW"
@@ -103,6 +109,13 @@ func GetJobName() string {
 
 func IsInsecureSkipVerify() bool {
 	return env.GetBool(InsecureSkipVerifyEnvVar, false)
+}
+
+// IsPrometheusDisableHTTP2 returns true when HTTP/2 should be disabled on the
+// Prometheus HTTP client. Enable this when Prometheus is behind an AWS ALB
+// with HTTP/2 backend target groups to avoid "Communication error: 464".
+func IsPrometheusDisableHTTP2() bool {
+	return env.GetBool(PrometheusDisableHTTP2EnvVar, false)
 }
 
 func IsKubeRbacProxyEnabled() bool {

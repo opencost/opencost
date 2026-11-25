@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 //--------------------------------------------------------------------------
@@ -43,7 +44,23 @@ func (kdc KubecostDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 		deploymentNS := deployment.Namespace
 		deploymentUID := string(deployment.UID)
 
-		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(deployment.MatchLabels))
+		// Use MatchLabels when available. If a deployment uses only
+		// matchExpressions, synthesise a flat label map from OpIn expressions
+		// with exactly one value so the deployment is still attributed
+		// correctly instead of falling into __unallocated__.
+		// Note: OpExists is value-less in Kubernetes and cannot be represented
+		// as a flat key=value map, so it is intentionally excluded here.
+		selectorLabels := deployment.MatchLabels
+		if len(selectorLabels) == 0 && deployment.SpecSelector != nil {
+			selectorLabels = make(map[string]string)
+			for _, expr := range deployment.SpecSelector.MatchExpressions {
+				if expr.Operator == metav1.LabelSelectorOpIn && len(expr.Values) == 1 {
+					selectorLabels[expr.Key] = expr.Values[0]
+				}
+			}
+		}
+
+		labels, values := promutil.KubeLabelsToLabels(promutil.SanitizeLabels(selectorLabels))
 		if len(labels) > 0 {
 			m := newDeploymentMatchLabelsMetric(deploymentName, deploymentNS, "deployment_match_labels", labels, values, deploymentUID)
 			ch <- m

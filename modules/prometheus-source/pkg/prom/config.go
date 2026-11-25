@@ -134,6 +134,7 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		QueryConcurrency:      queryConcurrency,
 		QueryLogFile:          "",
 		HeaderXScopeOrgId:     env.GetPrometheusHeaderXScopeOrgId(),
+		DisableHTTP2:          env.IsPrometheusDisableHTTP2(),
 	}
 
 	return &OpenCostPrometheusConfig{
