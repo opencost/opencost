@@ -34,6 +34,7 @@ type OpenCostPrometheusConfig struct {
 	ClusterFilter         string
 	DataResolution        time.Duration
 	DataResolutionMinutes int
+	UseOTelLabels         bool // When true, use OTel label names (k8s_container_name, k8s_pod_name, etc.)
 }
 
 func (ocpc *OpenCostPrometheusConfig) IsRateLimitRetryEnabled() bool {

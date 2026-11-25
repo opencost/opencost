@@ -84,9 +84,9 @@ func newDeploymentMatchLabelsMetric(name, namespace, fqname string, labelNames, 
 // returns the same descriptor throughout the lifetime of the Metric.
 func (dmlm DeploymentMatchLabelsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"deployment": dmlm.deploymentName,
-		"namespace":  dmlm.namespace,
-		"uid":        dmlm.uid,
+		"deployment":        dmlm.deploymentName,
+		GetNamespaceLabel(): dmlm.namespace,
+		"uid":               dmlm.uid,
 	}
 	return prometheus.NewDesc(dmlm.fqName, dmlm.help, dmlm.labelNames, l)
 }
@@ -106,7 +106,7 @@ func (dmlm DeploymentMatchLabelsMetric) Write(m *dto.Metric) error {
 		})
 	}
 	labels = append(labels, &dto.LabelPair{
-		Name:  toStringPtr("namespace"),
+		Name:  toStringPtr(GetNamespaceLabel()),
 		Value: &dmlm.namespace,
 	})
 	labels = append(labels, &dto.LabelPair{
@@ -208,9 +208,9 @@ func newKubeDeploymentReplicasMetric(fqname, deployment, namespace string, repli
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kdr KubeDeploymentReplicasMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"deployment": kdr.deployment,
-		"namespace":  kdr.namespace,
-		"uid":        kdr.uid,
+		"deployment":        kdr.deployment,
+		GetNamespaceLabel(): kdr.namespace,
+		"uid":               kdr.uid,
 	}
 	return prometheus.NewDesc(kdr.fqName, kdr.help, []string{}, l)
 }
@@ -223,7 +223,7 @@ func (kdr KubeDeploymentReplicasMetric) Write(m *dto.Metric) error {
 	}
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kdr.namespace,
 		},
 		{
@@ -269,9 +269,9 @@ func newKubeDeploymentStatusAvailableReplicasMetric(fqname, deployment, namespac
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kdr KubeDeploymentStatusAvailableReplicasMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"deployment": kdr.deployment,
-		"namespace":  kdr.namespace,
-		"uid":        kdr.uid,
+		"deployment":        kdr.deployment,
+		GetNamespaceLabel(): kdr.namespace,
+		"uid":               kdr.uid,
 	}
 	return prometheus.NewDesc(kdr.fqName, kdr.help, []string{}, l)
 }
@@ -284,7 +284,7 @@ func (kdr KubeDeploymentStatusAvailableReplicasMetric) Write(m *dto.Metric) erro
 	}
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("namespace"),
+			Name:  toStringPtr(GetNamespaceLabel()),
 			Value: &kdr.namespace,
 		},
 		{
