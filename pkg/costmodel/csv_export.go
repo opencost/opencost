@@ -14,6 +14,7 @@ import (
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/opencost"
+	"github.com/opencost/opencost/core/pkg/util/promutil"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/filemanager"
 )
@@ -314,7 +315,10 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 		csvDef = append(csvDef, columnDef{
 			column: "Label_" + label,
 			value: func(data rowData) string {
-				value := data.alloc.Properties.Labels[label]
+				// Allocation label keys are Prometheus-sanitized ("app.kubernetes.io/name"
+				// becomes "app_kubernetes_io_name"), while the configured names are
+				// usually the Kubernetes ones, so fall back to the sanitized form.
+				value, _ := promutil.LookupWithSanitizedFallback(data.alloc.Properties.Labels, label)
 				return value
 			},
 		})
