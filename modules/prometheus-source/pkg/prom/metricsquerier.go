@@ -2,10 +2,12 @@ package prom
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/opencost/opencost/core/pkg/log"
 	"github.com/opencost/opencost/core/pkg/source"
+	"github.com/opencost/opencost/core/pkg/util"
 	"github.com/opencost/opencost/core/pkg/util/timeutil"
 	prometheus "github.com/prometheus/client_golang/api"
 )
@@ -739,27 +741,25 @@ func (pds *PrometheusMetricsQuerier) QueryClusterManagementPricePerHr(start, end
 // AllocationMetricQuerier
 
 func (pds *PrometheusMetricsQuerier) QueryPods(start, end time.Time) *source.Future[source.PodsResult] {
-	const queryName = "QueryPods"
-	const queryFmtPods = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, uid, %s)[%s:%dm]`
-
-	cfg := pds.promConfig
-	minsPerResolution := cfg.DataResolutionMinutes
-
-	durStr := pds.durationStringFor(start, end, minsPerResolution, false)
-	if durStr == "" {
-		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
-	}
-
-	queryPods := fmt.Sprintf(queryFmtPods, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
-	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryPods)
-
-	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodePodsResult, ctx.QueryAtTime(queryPods, end))
+	return pds.queryPodsStartEnd("QueryPods", start, end)
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodsUID(start, end time.Time) *source.Future[source.PodsResult] {
-	const queryName = "QueryPodsUID"
-	const queryFmtPodsUID = `avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, uid, %s)[%s:%dm]`
+	return pds.queryPodsStartEnd("QueryPodsUID", start, end)
+}
+
+// queryPodsStartEnd resolves the timespan during which each pod was running
+// within the window. The consumers of these results only inspect the first and
+// last timestamp of each series, so instead of requesting the full
+// [window:resolution] range vector for every pod, issue two aggregated instant
+// queries that resolve the first and last timestamp at which each pod was seen
+// running and synthesize a two-point series from them. This keeps the response
+// size and the decoded result set O(pods) rather than
+// O(pods * window/resolution), which is a substantial memory reduction on
+// large clusters and long windows.
+func (pds *PrometheusMetricsQuerier) queryPodsStartEnd(queryName string, start, end time.Time) *source.Future[source.PodsResult] {
+	const queryFmtPodsStart = `min_over_time(timestamp(avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, uid, %s))[%s:%dm])`
+	const queryFmtPodsEnd = `max_over_time(timestamp(avg(kube_pod_container_status_running{%s} != 0) by (pod, namespace, uid, %s))[%s:%dm])`
 
 	cfg := pds.promConfig
 	minsPerResolution := cfg.DataResolutionMinutes
@@ -769,11 +769,106 @@ func (pds *PrometheusMetricsQuerier) QueryPodsUID(start, end time.Time) *source.
 		panic(fmt.Sprintf("failed to parse duration string passed to %s", queryName))
 	}
 
-	queryPodsUID := fmt.Sprintf(queryFmtPodsUID, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
-	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryPodsUID)
+	queryPodsStart := fmt.Sprintf(queryFmtPodsStart, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	queryPodsEnd := fmt.Sprintf(queryFmtPodsEnd, cfg.ClusterFilter, cfg.ClusterLabel, durStr, minsPerResolution)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryPodsStart)
+	log.Debugf(PrometheusMetricsQueryLogFormat, queryName, end.Unix(), queryPodsEnd)
 
 	ctx := pds.promContexts.NewNamedContext(AllocationContextName)
-	return source.NewFuture(source.DecodePodsResult, ctx.QueryAtTime(queryPodsUID, end))
+	resStartCh := ctx.QueryAtTime(queryPodsStart, end)
+	resEndCh := ctx.QueryAtTime(queryPodsEnd, end)
+
+	// Await both channels before checking either error so that neither query
+	// goroutine is left blocked sending on an unbuffered channel.
+	resStart, errStart := resStartCh.Await()
+	resEnd, errEnd := resEndCh.Await()
+
+	resCh := make(source.QueryResultsChan, 1)
+	if errStart != nil {
+		resCh <- &source.QueryResults{Query: queryPodsStart, Error: errStart}
+	} else if errEnd != nil {
+		resCh <- &source.QueryResults{Query: queryPodsEnd, Error: errEnd}
+	} else {
+		resCh <- &source.QueryResults{Query: queryPodsStart, Results: mergePodStartEndResults(resStart, resEnd)}
+	}
+
+	return source.NewFuture(source.DecodePodsResult, resCh)
+}
+
+// podSeriesKey identifies a pod series across the start and end timestamp
+// query results, mirroring the "by" clause of the queries.
+type podSeriesKey struct {
+	cluster   string
+	namespace string
+	pod       string
+	uid       string
+}
+
+func newPodSeriesKey(qr *source.QueryResult) podSeriesKey {
+	cluster, _ := qr.GetCluster()
+	namespace, _ := qr.GetNamespace()
+	pod, _ := qr.GetPod()
+	uid, _ := qr.GetString(source.UIDLabel)
+	return podSeriesKey{
+		cluster:   cluster,
+		namespace: namespace,
+		pod:       pod,
+		uid:       uid,
+	}
+}
+
+// roundPodTimestamp rounds a timestamp to the nearest 10 seconds, matching the
+// rounding applied by parseDataPoint to range vector timestamps.
+func roundPodTimestamp(ts float64) float64 {
+	return math.Round(ts/10) * 10
+}
+
+// mergePodStartEndResults combines the results of the pod start and end
+// timestamp queries into a single result set in which each series carries
+// exactly two points: the first and last timestamps at which the pod was seen
+// running. The timestamps are returned by Prometheus as sample values, so they
+// are moved into the vector timestamps that downstream consumers read. A
+// series missing from one side, which can happen if samples are ingested
+// between the two query executions, falls back to the timestamp of the side
+// that is present.
+func mergePodStartEndResults(resStart, resEnd []*source.QueryResult) []*source.QueryResult {
+	endByKey := make(map[podSeriesKey]*source.QueryResult, len(resEnd))
+	for _, qr := range resEnd {
+		if len(qr.Values) == 0 {
+			continue
+		}
+		endByKey[newPodSeriesKey(qr)] = qr
+	}
+
+	merged := make([]*source.QueryResult, 0, len(resStart))
+	for _, qr := range resStart {
+		if len(qr.Values) == 0 {
+			continue
+		}
+		key := newPodSeriesKey(qr)
+
+		startTs := roundPodTimestamp(qr.Values[0].Value)
+		endTs := startTs
+		if endQR, ok := endByKey[key]; ok {
+			endTs = roundPodTimestamp(endQR.Values[0].Value)
+			delete(endByKey, key)
+		}
+		if endTs < startTs {
+			endTs = startTs
+		}
+
+		qr.Values = []*util.Vector{{Timestamp: startTs}, {Timestamp: endTs}}
+		merged = append(merged, qr)
+	}
+
+	// Series that only appeared in the end timestamp results
+	for _, qr := range endByKey {
+		endTs := roundPodTimestamp(qr.Values[0].Value)
+		qr.Values = []*util.Vector{{Timestamp: endTs}, {Timestamp: endTs}}
+		merged = append(merged, qr)
+	}
+
+	return merged
 }
 
 func (pds *PrometheusMetricsQuerier) QueryPodInfo(start, end time.Time) *source.Future[source.PodInfoResult] {
