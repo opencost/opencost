@@ -47,7 +47,8 @@ func (cm *CostModel) GetNetworkInsightSet(start, end time.Time) (*opencost.Netwo
 	resultingSet := &opencost.NetworkInsightSet{}
 	resultingSet.Window = opencost.NewClosedWindow(start, end)
 
-	querier := cm.DataSource.Metrics()
+	querier, release := source.PinMetrics(cm.DataSource.Metrics())
+	defer release()
 	grp := source.NewQueryGroup()
 
 	// Egress Cross Zone

@@ -257,7 +257,12 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 		log.Debugf("CostModel.ComputeAllocation: ingesting UID data from KSM metrics...")
 	}
 
-	err := cm.buildPodMap(window, podMap, ingestPodUID, podUIDKeyMap)
+	// Pin the metrics querier so that every query for this window, including the pod map, is served
+	// from one consistent state of the data source.
+	ds, release := source.PinMetrics(cm.DataSource.Metrics())
+	defer release()
+
+	err := cm.buildPodMap(ds, window, podMap, ingestPodUID, podUIDKeyMap)
 	if err != nil {
 		log.Errorf("CostModel.ComputeAllocation: failed to build pod map: %s", err.Error())
 	}
@@ -270,7 +275,6 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	}
 
 	grp := source.NewQueryGroup()
-	ds := cm.DataSource.Metrics()
 
 	resChRAMBytesAllocated := source.WithGroup(grp, ds.QueryRAMBytesAllocated(start, end))
 	resChRAMRequests := source.WithGroup(grp, ds.QueryRAMRequests(start, end))
