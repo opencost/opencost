@@ -205,7 +205,8 @@ func (c *Collector) queryAllocationCostsWithIdle(ctx context.Context, start, end
 		return nil, fmt.Errorf("AggregateBy label:%s: %w", c.config.ModelLabel, err)
 	}
 
-	return c.extractAllocationResults(as, true)
+	// Handle idle/shared unscaled costs
+	return c.extractAllocationResults(as, true, false)
 }
 
 // queryAllocationCostsWithoutIdle queries allocations without idle or shared
@@ -215,6 +216,10 @@ func (c *Collector) queryAllocationCostsWithoutIdle(ctx context.Context, start, 
 	if err != nil {
 		return nil, err
 	}
+
+	// Scale CPU/RAM costs per-container BEFORE aggregation to prevent
+	// cross-container dilution of unobserved containers (usage=0 from missing telemetry).
+	as = scaleContainerCostsForUsage(as)
 
 	// Create a filter to match shared infrastructure allocations by label
 	// Even though we're not sharing costs (ShareSplit: ShareNone), we still need
@@ -237,11 +242,56 @@ func (c *Collector) queryAllocationCostsWithoutIdle(ctx context.Context, start, 
 		return nil, fmt.Errorf("AggregateBy label:%s: %w", c.config.ModelLabel, err)
 	}
 
-	return c.extractAllocationResults(as, false)
+	// Usage costs are already scaled per-container; skip re-scaling
+	return c.extractAllocationResults(as, false, true)
+}
+
+// clampRatio clamps a utilisation ratio to [0,1]. Values outside this range
+// (negative, or exceeding 1.0 from overcommit) are clamped rather than
+// propagated, so a single out-of-range sample can't produce a negative or
+// inflated scaled cost.
+func clampRatio(ratio float64) float64 {
+	if ratio < 0 {
+		return 0
+	} else if ratio > 1 {
+		return 1
+	}
+	return ratio
+}
+
+// scaleContainerCostsForUsage clones an AllocationSet and scales each container's
+// CPU and RAM costs by its actual utilization ratio (clamped to [0,1]).
+// GPU is already handled correctly via pointer (nil = no data).
+// This prevents cross-container dilution where an unobserved container (usage=0
+// from missing telemetry) drags down the average utilization of its pod/namespace peers.
+func scaleContainerCostsForUsage(as *opencost.AllocationSet) *opencost.AllocationSet {
+	scaled := as.Clone()
+	for _, alloc := range scaled.Allocations {
+		if alloc == nil || strings.HasPrefix(alloc.Name, "__") {
+			continue
+		}
+		// CPU: scale by usage/request ratio
+		if alloc.CPUCoreRequestAverage > 0 {
+			cpuUtil := clampRatio(alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage)
+			alloc.CPUCost = alloc.CPUCost * cpuUtil
+			alloc.CPUCostAdjustment = alloc.CPUCostAdjustment * cpuUtil
+		}
+		// RAM: scale by usage/request ratio
+		if alloc.RAMBytesRequestAverage > 0 {
+			ramUtil := clampRatio(alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage)
+			alloc.RAMCost = alloc.RAMCost * ramUtil
+			alloc.RAMCostAdjustment = alloc.RAMCostAdjustment * ramUtil
+		}
+		// GPU: already correct (GPUUsageAverage is *float64, nil = no data)
+	}
+	return scaled
 }
 
 // extractAllocationResults extracts cost data from an AllocationSet.
-func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAllocationCost bool) (map[string]*allocationResult, error) {
+// If costsPreScaled is true, the allocation's CPU/RAM costs have already been
+// scaled per-container (before aggregation) and we should not re-scale them.
+// GPU scaling is always applied (GPU is not scaled in scaleContainerCostsForUsage).
+func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAllocationCost bool, costsPreScaled bool) (map[string]*allocationResult, error) {
 	results := make(map[string]*allocationResult)
 	for name, alloc := range as.Allocations {
 		if alloc == nil {
@@ -292,6 +342,24 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 		if isAllocationCost {
 			// For allocation cost: use TotalCost() which includes idle and shared
 			existing.allocationTotalCost += alloc.TotalCost()
+		} else if costsPreScaled {
+			// CPU/RAM costs already scaled per-container before aggregation; apply only GPU scaling.
+			// This path is used when scaleContainerCostsForUsage was applied
+			// to the raw allocations prior to AggregateBy.
+			cost := alloc.TotalCost()
+
+			// GPU: scale by SM duty cycle (GPUUsageAverage ∈ [0,1]).
+			// GPU is NOT scaled in scaleContainerCostsForUsage (handled via pointer here).
+			if alloc.GPUAllocation != nil && alloc.GPUAllocation.GPUUsageAverage != nil {
+				util := clampRatio(*alloc.GPUAllocation.GPUUsageAverage)
+				scaledGPUCost := alloc.GPUTotalCost() * util
+				cost = cost - alloc.GPUTotalCost() + scaledGPUCost
+				log.Debugf("InferenceCost usage: GPU scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
+					modelName, namespace, alloc.GPUTotalCost(), scaledGPUCost, util*100)
+			}
+
+			// CPU/RAM: already scaled per-container in scaleContainerCostsForUsage; do not re-scale.
+			existing.usageTotalCost += cost
 		} else {
 			// For usage cost: use TotalCost() from the ShareNone query (no idle),
 			// then scale GPU, CPU, and RAM by their actual utilisation when available.
@@ -312,24 +380,17 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 			// correctly reduces cost to $0 and out-of-range values are handled
 			// deterministically rather than silently ignored.
 			if alloc.GPUAllocation != nil && alloc.GPUAllocation.GPUUsageAverage != nil {
-				util := *alloc.GPUAllocation.GPUUsageAverage
-				if util < 0 {
-					util = 0
-				} else if util > 1 {
-					util = 1
-				}
+				util := clampRatio(*alloc.GPUAllocation.GPUUsageAverage)
 				scaledGPUCost := alloc.GPUTotalCost() * util
 				cost = cost - alloc.GPUTotalCost() + scaledGPUCost
 				log.Debugf("InferenceCost usage: GPU scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
 					modelName, namespace, alloc.GPUTotalCost(), scaledGPUCost, util*100)
 			}
 
-			// CPU: scale by core utilisation ratio (usage / request).
+			// CPU: scale by core utilisation ratio (usage / request). clamped to [0,1].
 			// CPUCoreRequestAverage and CPUCoreUsageAverage are plain float64 (not pointers).
-			if alloc.CPUCoreRequestAverage > 0 &&
-				alloc.CPUCoreUsageAverage > 0 &&
-				alloc.CPUCoreUsageAverage < alloc.CPUCoreRequestAverage {
-				cpuUtil := alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage
+			if alloc.CPUCoreRequestAverage > 0 {
+				cpuUtil := clampRatio(alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage)
 				scaledCPUCost := alloc.CPUTotalCost() * cpuUtil
 				cost = cost - alloc.CPUTotalCost() + scaledCPUCost
 				log.Debugf("InferenceCost usage: CPU scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
@@ -338,10 +399,8 @@ func (c *Collector) extractAllocationResults(as *opencost.AllocationSet, isAlloc
 
 			// RAM: scale by byte utilisation ratio (usage / request).
 			// RAMBytesRequestAverage and RAMBytesUsageAverage are plain float64 (not pointers).
-			if alloc.RAMBytesRequestAverage > 0 &&
-				alloc.RAMBytesUsageAverage > 0 &&
-				alloc.RAMBytesUsageAverage < alloc.RAMBytesRequestAverage {
-				ramUtil := alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage
+			if alloc.RAMBytesRequestAverage > 0 {
+				ramUtil := clampRatio(alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage)
 				scaledRAMCost := alloc.RAMTotalCost() * ramUtil
 				cost = cost - alloc.RAMTotalCost() + scaledRAMCost
 				log.Debugf("InferenceCost usage: RAM scaled model=%s ns=%s orig=$%.4f scaled=$%.4f util=%.1f%%",
