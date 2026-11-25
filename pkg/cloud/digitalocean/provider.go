@@ -604,13 +604,16 @@ func (do *DOKS) sizeToNode(size *DOSize, arch string) (*models.Node, models.Pric
 	vcpu := size.VCPUs
 	ramGiB := float64(size.Memory) / 1024.0 // Convert MB to GiB
 
-	// Distribute cost proportionally between CPU and RAM based on resource counts.
-	// VCPUCost = total CPU cost portion, RAMCost = total RAM cost portion.
+	// VCPUCost and RAMCost are per-unit rates, a price per vCPU-hour and per
+	// GiB-hour, which the cost model multiplies back out by the node's vCPU
+	// count and RAM. Spread the droplet price over its units, the same way
+	// fallbackNode does below.
 	totalUnits := float64(vcpu) + ramGiB
 	var vcpuCost, ramCost float64
 	if totalUnits > 0 {
-		vcpuCost = hourlyCost * float64(vcpu) / totalUnits
-		ramCost = hourlyCost * ramGiB / totalUnits
+		unitCost := hourlyCost / totalUnits
+		vcpuCost = unitCost
+		ramCost = unitCost
 	}
 
 	if arch == "" {
