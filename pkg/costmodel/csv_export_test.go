@@ -107,6 +107,39 @@ func Test_UpdateCSV(t *testing.T) {
 `, string(storage.Data))
 	})
 
+	// Allocation label keys come from Prometheus, so they are sanitized
+	// ("jira-project-key" -> "jira_project_key"). Label names in
+	// EXPORT_CSV_LABELS_LIST are usually the Kubernetes names, so the
+	// lookup must fall back to the sanitized form. See #3587.
+	t.Run("export labels configured with unsanitized names", func(t *testing.T) {
+		storage := &filemanager.InMemoryFile{}
+		model := &AllocationModelMock{
+			DateRangeFunc: func(_ int) (time.Time, time.Time, error) {
+				return time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), nil
+			},
+			ComputeAllocationFunc: func(start time.Time, end time.Time) (*opencost.AllocationSet, error) {
+				return &opencost.AllocationSet{
+					Allocations: map[string]*opencost.Allocation{
+						"test": {
+							Properties: &opencost.AllocationProperties{
+								Namespace: "test-namespace",
+								Labels: map[string]string{
+									"jira_project_key":       "OPS",
+									"app_kubernetes_io_team": "platform",
+								},
+							},
+						},
+					},
+				}, nil
+			},
+		}
+		err := UpdateCSV(context.TODO(), storage, model, false, []string{"jira-project-key", "app.kubernetes.io/team", "missing-label"})
+		require.NoError(t, err)
+		assert.Equal(t, `Date,Namespace,Cluster,ControllerKind,ControllerName,Pod,Container,CPUCoreUsageAverage,CPUCoreRequestAverage,RAMBytesUsageAverage,RAMBytesRequestAverage,NetworkReceiveBytes,NetworkTransferBytes,GPUs,PVBytes,CPUCost,RAMCost,NetworkCost,PVCost,GPUCost,TotalCost,Label_jira-project-key,Label_app.kubernetes.io/team,Label_missing-label
+2021-01-01,test-namespace,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,OPS,platform,
+`, string(storage.Data))
+	})
+
 	t.Run("merge new data with previous data (with different CSV structure)", func(t *testing.T) {
 		storage := &filemanager.InMemoryFile{
 			Data: []byte(`Date,Namespace,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost,Label_app
