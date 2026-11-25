@@ -84,12 +84,12 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 	if env.IsKubeRbacProxyEnabled() {
 		restConfig, err := restclient.InClusterConfig()
 		if err != nil {
-			log.Errorf("%s was set to true but failed to get in-cluster config: %s", env.KubeRbacProxyEnabledEnvVar, err)
+			return nil, fmt.Errorf("%s was set to true but failed to get in-cluster config: %w", env.KubeRbacProxyEnabledEnvVar, err)
 		}
 		auth.BearerToken = restConfig.BearerToken
 		tlsCaCert, err = certutil.NewPool(ServiceCA)
 		if err != nil {
-			log.Errorf("%s was set to true but failed to load service-ca.crt: %s", env.KubeRbacProxyEnabledEnvVar, err)
+			return nil, fmt.Errorf("%s was set to true but failed to load service-ca.crt: %w", env.KubeRbacProxyEnabledEnvVar, err)
 		}
 	} else if env.IsPromMtlsAuthEnabled() {
 		tlsCaCert = x509.NewCertPool()
@@ -100,18 +100,21 @@ func NewOpenCostPrometheusConfigFromEnv() (*OpenCostPrometheusConfig, error) {
 		} else {
 			tlsCaCert.AppendCertsFromPEM(systemCa)
 		}
-		mTlsCa, err := os.ReadFile(env.GetPromMtlsAuthCAFile())
+		mTlsCaFile := env.GetPromMtlsAuthCAFile()
+		// A broken mTLS setup must stop startup: carrying on would talk to
+		// Prometheus without the configured CA or client certificate.
+		mTlsCa, err := os.ReadFile(mTlsCaFile)
 		if err != nil {
-			log.Errorf("mTLS options were set but failed to load PROM_MTLS_AUTH_CA_FILE: %s", err)
-		} else {
-			tlsCaCert.AppendCertsFromPEM(mTlsCa)
+			return nil, fmt.Errorf("mTLS options were set but failed to load %s: %w", env.PromMtlsAuthCAFile, err)
+		}
+		if !tlsCaCert.AppendCertsFromPEM(mTlsCa) {
+			return nil, fmt.Errorf("mTLS options were set but %s %s contains no valid PEM certificates", env.PromMtlsAuthCAFile, mTlsCaFile)
 		}
 		mTlsKeyPair, err := tls.LoadX509KeyPair(env.GetPromMtlsAuthCrtFile(), env.GetPromMtlsAuthKeyFile())
 		if err != nil {
-			log.Errorf("mTLS options were set but failed to load PROM_MTLS_AUTH_CRT_FILE or PROM_MTLS_AUTH_KEY_FILE: %s", err)
-		} else {
-			tlsClientCertificates = []tls.Certificate{mTlsKeyPair}
+			return nil, fmt.Errorf("mTLS options were set but failed to load %s or %s: %w", env.PromMtlsAuthCrtFile, env.PromMtlsAuthKeyFile, err)
 		}
+		tlsClientCertificates = []tls.Certificate{mTlsKeyPair}
 	}
 
 	dataResolution := env.GetPrometheusQueryResolution()
