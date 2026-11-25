@@ -635,6 +635,29 @@ func TestStorageConfiguration_JSON(t *testing.T) {
 				},
 			},
 		},
+		"Missing Path and Cloud": {
+			input: map[string]interface{}{
+				"subscriptionID": "subscriptionID",
+				"account":        "account",
+				"container":      "container",
+				"authorizer": map[string]interface{}{
+					"authorizerType": "AzureAccessKey",
+					"accessKey":      "accessKey",
+					"account":        "account",
+				},
+			},
+			afterUnmarshal: StorageConfiguration{
+				SubscriptionID: "subscriptionID",
+				Account:        "account",
+				Container:      "container",
+				Path:           "",
+				Cloud:          "",
+				Authorizer: &SharedKeyCredential{
+					AccessKey: "accessKey",
+					Account:   "account",
+				},
+			},
+		},
 		"StorageConnectionStringCredential Authorizer": {
 			input: map[string]interface{}{
 				"subscriptionID": "subscriptionID",
