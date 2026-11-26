@@ -44,6 +44,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/jszwec/csvutil"
 )
 
@@ -633,6 +635,9 @@ type awsKey struct {
 	SpotLabelValue string
 	Labels         map[string]string
 	ProviderID     string
+	// Node capacity as the kubelet reports it; on Fargate this is the underlying VM, not the billed pod size.
+	CPUCapacity      float64
+	RAMCapacityBytes float64
 }
 
 func (k *awsKey) GPUCount() int {
@@ -792,13 +797,20 @@ func getStorageClassTypeFrom(provisioner string) string {
 
 // GetKey maps node labels to information needed to retrieve pricing data
 func (aws *AWS) GetKey(labels map[string]string, n *clustercache.Node) models.Key {
-	return &awsKey{
+	k := &awsKey{
 		Name:           n.Name,
 		SpotLabelName:  aws.SpotLabelName,
 		SpotLabelValue: aws.SpotLabelValue,
 		Labels:         labels,
 		ProviderID:     labels["providerID"],
 	}
+	if cpu, ok := n.Status.Capacity[v1.ResourceCPU]; ok {
+		k.CPUCapacity = cpu.AsApproximateFloat64()
+	}
+	if mem, ok := n.Status.Capacity[v1.ResourceMemory]; ok {
+		k.RAMCapacityBytes = mem.AsApproximateFloat64()
+	}
+	return k
 }
 
 func (aws *AWS) isPreemptible(key string) bool {
@@ -1725,13 +1737,26 @@ func (aws *AWS) createFargateNode(awsKey *awsKey, usageType string) (*models.Nod
 	}
 
 	cost := hourlyCPU*vCPU + hourlyRAM*memory
+
+	// Cost model multiplies the per-unit prices by the node capacity from kube-state-metrics, which on Fargate
+	// is the underlying VM (e.g. 2 vCPU / 8 GiB), not the billed pod size. Report that capacity and scale the
+	// per-unit prices so that capacity x price still equals the billed cost.
+	cpuPrice, ramPrice := hourlyCPU, hourlyRAM
+	nodeCPU, nodeRAMGiB := vCPU, memory
+	if awsKey.CPUCapacity > 0 && awsKey.RAMCapacityBytes > 0 {
+		nodeCPU = awsKey.CPUCapacity
+		nodeRAMGiB = awsKey.RAMCapacityBytes / 1024 / 1024 / 1024
+		cpuPrice = hourlyCPU * vCPU / nodeCPU
+		ramPrice = hourlyRAM * memory / nodeRAMGiB
+	}
+
 	return &models.Node{
 		Cost:         strconv.FormatFloat(cost, 'f', -1, 64),
-		VCPU:         strconv.FormatFloat(vCPU, 'f', -1, 64),
-		RAM:          strconv.FormatFloat(memory, 'f', -1, 64),
-		RAMBytes:     strconv.FormatFloat(memory*1024*1024*1024, 'f', -1, 64),
-		VCPUCost:     strconv.FormatFloat(hourlyCPU, 'f', -1, 64),
-		RAMCost:      strconv.FormatFloat(hourlyRAM, 'f', -1, 64),
+		VCPU:         strconv.FormatFloat(nodeCPU, 'f', -1, 64),
+		RAM:          strconv.FormatFloat(nodeRAMGiB, 'f', -1, 64),
+		RAMBytes:     strconv.FormatFloat(nodeRAMGiB*1024*1024*1024, 'f', -1, 64),
+		VCPUCost:     strconv.FormatFloat(cpuPrice, 'f', -1, 64),
+		RAMCost:      strconv.FormatFloat(ramPrice, 'f', -1, 64),
 		BaseCPUPrice: aws.BaseCPUPrice,
 		BaseRAMPrice: aws.BaseRAMPrice,
 		BaseGPUPrice: aws.BaseGPUPrice,
