@@ -102,3 +102,22 @@ func TestKubeModelHandler_EmptyResults_Returns200(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 }
+
+func TestAssetsHandlers_InvalidFilter_Returns400(t *testing.T) {
+	a := &Accesses{}
+	handlers := map[string]func(http.ResponseWriter, *http.Request, httprouter.Params){
+		"/assets":        a.ComputeAssetsHandler,
+		"/assets/carbon": a.ComputeAssetsCarbonHandler,
+	}
+
+	for path, handler := range handlers {
+		t.Run(path, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, path+"?window=1d&filter=notafield:%22x%22", nil)
+			w := httptest.NewRecorder()
+			handler(w, r, httprouter.Params{})
+
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			require.Contains(t, w.Body.String(), `notafield:"x"`)
+		})
+	}
+}
