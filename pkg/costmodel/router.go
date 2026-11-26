@@ -83,6 +83,31 @@ type Accesses struct {
 	// settings will be published in a pub/sub model
 	settingsSubscribers map[string][]chan string
 	settingsMutex       sync.Mutex
+	allocationLimitOnce sync.Once
+	allocationLimiter   chan struct{}
+}
+
+func (a *Accesses) tryAcquireAllocationRequest() bool {
+	a.allocationLimitOnce.Do(func() {
+		if limit := env.GetMaxConcurrentAllocationRequests(); limit > 0 {
+			a.allocationLimiter = make(chan struct{}, limit)
+		}
+	})
+	if a.allocationLimiter == nil {
+		return true
+	}
+	select {
+	case a.allocationLimiter <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *Accesses) releaseAllocationRequest() {
+	if a.allocationLimiter != nil {
+		<-a.allocationLimiter
+	}
 }
 
 func filterFields(fields string, data map[string]*CostData) map[string]CostData {

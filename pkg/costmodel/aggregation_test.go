@@ -1,6 +1,8 @@
 package costmodel
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,6 +13,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 func TestParseAggregationProperties_Default(t *testing.T) {
@@ -501,6 +504,42 @@ func TestComputeAllocationHandler_MissingWindow_Returns400(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestAllocationRequestLimit(t *testing.T) {
+	t.Setenv(env.MaxConcurrentAllocationRequestsEnvVar, "1")
+	a := &Accesses{}
+
+	if !a.tryAcquireAllocationRequest() {
+		t.Fatal("expected first allocation request to acquire the only slot")
+	}
+	if a.tryAcquireAllocationRequest() {
+		t.Fatal("expected second allocation request to be rejected")
+	}
+	a.releaseAllocationRequest()
+	if !a.tryAcquireAllocationRequest() {
+		t.Fatal("expected released allocation slot to be reusable")
+	}
+	a.releaseAllocationRequest()
+}
+
+func TestQueryAllocationContextAlreadyCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := (&CostModel{}).QueryAllocationContext(
+		ctx,
+		opencost.NewClosedWindow(time.Now().Add(-time.Hour), time.Now()),
+		time.Hour,
+		nil,
+		false, false, false, false, false,
+		opencost.AccumulateOptionNone,
+		false,
+		"",
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context cancellation, got %v", err)
 	}
 }
 

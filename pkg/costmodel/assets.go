@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -38,29 +39,53 @@ func clampTimeToRange(t time.Time, start, end time.Time) time.Time {
 }
 
 func (cm *CostModel) ComputeAssets(start, end time.Time) (*opencost.AssetSet, error) {
+	return cm.ComputeAssetsContext(context.Background(), start, end)
+}
+
+// ComputeAssetsContext computes assets while honoring caller cancellation
+// between the major asset categories and construction loops.
+func (cm *CostModel) ComputeAssetsContext(ctx context.Context, start, end time.Time) (*opencost.AssetSet, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	assetSet := opencost.NewAssetSet(start, end)
 
 	nodeMap, err := cm.ClusterNodes(start, end)
 	if err != nil {
 		return nil, fmt.Errorf("error computing node assets for %s: %w", opencost.NewClosedWindow(start, end), err)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	lbMap, err := cm.ClusterLoadBalancers(start, end)
 	if err != nil {
 		return nil, fmt.Errorf("error computing load balancer assets for %s: %w", opencost.NewClosedWindow(start, end), err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	diskMap, err := cm.ClusterDisks(start, end)
 	if err != nil {
 		return nil, fmt.Errorf("error computing disk assets for %s: %w", opencost.NewClosedWindow(start, end), err)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	clusterManagement, err := cm.ClusterManagement(start, end)
 	if err != nil {
 		return nil, fmt.Errorf("error computing cluster management assets for %s: %w", opencost.NewClosedWindow(start, end), err)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	for _, d := range diskMap {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		// Clamp the start and end fields to the start and end of the window.
 		// In the case that start and end are missing (e.g. due to the "active
 		// minutes" metric being absent), both times will be set to the start
@@ -100,6 +125,9 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*opencost.AssetSet, er
 	}
 
 	for _, lb := range lbMap {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		// Clamp the start and end fields to the start and end of the window.
 		// In the case that start and end are missing (e.g. due to the "active
 		// minutes" metric being absent), both times will be set to the start
@@ -115,6 +143,9 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*opencost.AssetSet, er
 	}
 
 	for _, cman := range clusterManagement {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		cmAsset := opencost.NewClusterManagement(cman.Provisioner, cman.Cluster, opencost.NewClosedWindow(start, end))
 		cm.PropertiesFromCluster(cmAsset.Properties)
 		cmAsset.Cost = cman.Cost
@@ -123,6 +154,9 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*opencost.AssetSet, er
 	}
 
 	for _, n := range nodeMap {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		// check label, to see if node from fargate, if so ignore.
 		if n.Labels != nil {
 			if value, ok := n.Labels["label_eks_amazonaws_com_compute_type"]; ok && value == "fargate" {

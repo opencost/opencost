@@ -57,6 +57,17 @@ func TestGetMCPQueryTimeout_Default(t *testing.T) {
 	assert.Equal(t, 60*time.Second, timeout, "Default timeout should be 60 seconds")
 }
 
+func TestGetMaxConcurrentAllocationRequests(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		t.Setenv(MaxConcurrentAllocationRequestsEnvVar, "")
+		assert.Equal(t, 2, GetMaxConcurrentAllocationRequests())
+	})
+	t.Run("configured", func(t *testing.T) {
+		t.Setenv(MaxConcurrentAllocationRequestsEnvVar, "4")
+		assert.Equal(t, 4, GetMaxConcurrentAllocationRequests())
+	})
+}
+
 func TestGetMCPQueryTimeout_CustomValue(t *testing.T) {
 	// Set custom timeout
 	err := os.Setenv(MCPQueryTimeoutSecondsEnvVar, "120")
