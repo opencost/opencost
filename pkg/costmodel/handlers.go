@@ -6,7 +6,6 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	assetfilter "github.com/opencost/opencost/core/pkg/filter/asset"
-	"github.com/opencost/opencost/core/pkg/filter/ast"
 	"github.com/opencost/opencost/core/pkg/filter/matcher"
 	"github.com/opencost/opencost/core/pkg/opencost"
 	"github.com/opencost/opencost/core/pkg/util/httputil"
@@ -28,9 +27,13 @@ func (a *Accesses) ComputeAssetsHandler(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	filterString := qp.Get("filter", "")
+	filter, err := parseAssetFilter(qp.Get("filter", ""))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'filter' parameter: %s", err), http.StatusBadRequest)
+		return
+	}
 
-	assetSet, err := a.ComputeAssetsFromCostmodel(window, filterString)
+	assetSet, err := a.ComputeAssetsFromCostmodel(window, filter)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error getting assets: %s", err), http.StatusInternalServerError)
 		return
@@ -53,9 +56,13 @@ func (a *Accesses) ComputeAssetsCarbonHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	filterString := qp.Get("filter", "")
+	filter, err := parseAssetFilter(qp.Get("filter", ""))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'filter' parameter: %s", err), http.StatusBadRequest)
+		return
+	}
 
-	assetSet, err := a.ComputeAssetsFromCostmodel(window, filterString)
+	assetSet, err := a.ComputeAssetsFromCostmodel(window, filter)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error getting assets: %s", err), http.StatusInternalServerError)
 		return
@@ -70,31 +77,33 @@ func (a *Accesses) ComputeAssetsCarbonHandler(w http.ResponseWriter, r *http.Req
 	WriteData(w, carbonEstimates, nil)
 }
 
-func (a *Accesses) ComputeAssetsFromCostmodel(window opencost.Window, filterString string) (*opencost.AssetSet, error) {
+// parseAssetFilter parses and compiles a v2 asset filter. An empty string
+// matches every asset.
+func parseAssetFilter(filterString string) (opencost.AssetMatcher, error) {
+	if filterString == "" {
+		return &matcher.AllPass[opencost.Asset]{}, nil
+	}
+
+	tree, err := assetfilter.NewAssetFilterParser().Parse(filterString)
+	if err != nil {
+		return nil, fmt.Errorf("err parsing filter '%s': %v", filterString, err)
+	}
+	filter, err := opencost.NewAssetMatchCompiler().Compile(tree)
+	if err != nil {
+		return nil, fmt.Errorf("err compiling filter '%s': %v", filterString, err)
+	}
+	if filter == nil {
+		return nil, fmt.Errorf("unexpected nil filter")
+	}
+
+	return filter, nil
+}
+
+func (a *Accesses) ComputeAssetsFromCostmodel(window opencost.Window, filter opencost.AssetMatcher) (*opencost.AssetSet, error) {
 
 	assetSet, err := a.Model.ComputeAssets(*window.Start(), *window.End())
 	if err != nil {
 		return nil, fmt.Errorf("error computing asset set: %s", err)
-	}
-
-	var filter opencost.AssetMatcher
-	if filterString == "" {
-		filter = &matcher.AllPass[opencost.Asset]{}
-	} else {
-		parser := assetfilter.NewAssetFilterParser()
-		tree, errParse := parser.Parse(filterString)
-		if errParse != nil {
-			return nil, fmt.Errorf("err parsing filter '%s': %v", ast.ToPreOrderShortString(tree), errParse)
-		}
-		compiler := opencost.NewAssetMatchCompiler()
-		var err error
-		filter, err = compiler.Compile(tree)
-		if err != nil {
-			return nil, fmt.Errorf("err compiling filter '%s': %v", ast.ToPreOrderShortString(tree), err)
-		}
-	}
-	if filter == nil {
-		return nil, fmt.Errorf("unexpected nil filter")
 	}
 
 	for key, asset := range assetSet.Assets {
