@@ -399,7 +399,12 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// Filtering is done BEFORE aggregation inside QueryAllocation to ensure
 	// filters can match on all allocation properties (like cluster, node, etc.)
 	// before they are potentially lost or merged during aggregation.
-	asr, err := a.Model.QueryAllocation(window, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy, shareIdle, allocationFilter)
+	if !a.tryAcquireAllocationRequest() {
+		http.Error(w, "too many concurrent allocation requests", http.StatusTooManyRequests)
+		return
+	}
+	defer a.releaseAllocationRequest()
+	asr, err := a.Model.QueryAllocationContext(r.Context(), window, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy, shareIdle, allocationFilter)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
 			proto.WriteError(w, proto.BadRequest(err.Error()))

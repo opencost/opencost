@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -1648,6 +1649,15 @@ func measureTime(start time.Time, threshold time.Duration, name string) {
 }
 
 func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool, filterString string) (*opencost.AllocationSetRange, error) {
+	return cm.QueryAllocationContext(context.Background(), window, step, aggregate, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer, accumulateBy, shareIdle, filterString)
+}
+
+// QueryAllocationContext computes allocations while honoring cancellation from
+// the caller, such as an HTTP client disconnect or request deadline.
+func (cm *CostModel) QueryAllocationContext(ctx context.Context, window opencost.Window, step time.Duration, aggregate []string, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata, sharedLoadBalancer bool, accumulateBy opencost.AccumulateOption, shareIdle bool, filterString string) (*opencost.AllocationSetRange, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	// Validate window is legal
 	if window.IsOpen() || window.IsNegative() {
 		return nil, fmt.Errorf("illegal window: %s", window)
@@ -1675,13 +1685,16 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 	stepEnd := stepStart.Add(step)
 	var isAKS bool
 	for queryWindow.End().After(stepStart) {
-		allocSet, err := cm.ComputeAllocation(stepStart, stepEnd)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		allocSet, err := cm.ComputeAllocationContext(ctx, stepStart, stepEnd)
 		if err != nil {
 			return nil, fmt.Errorf("error computing allocations for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
 		}
 
 		if includeIdle {
-			assetSet, err := cm.ComputeAssets(stepStart, stepEnd)
+			assetSet, err := cm.ComputeAssetsContext(ctx, stepStart, stepEnd)
 			if err != nil {
 				return nil, fmt.Errorf("error computing assets for %s: %w", opencost.NewClosedWindow(stepStart, stepEnd), err)
 			}
@@ -1722,6 +1735,9 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 	}
 
 	// Apply allocation filter BEFORE aggregation if provided
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if filterString != "" {
 		parser := allocation.NewAllocationFilterParser()
 		filterNode, err := parser.Parse(filterString)
@@ -1735,6 +1751,9 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 		}
 		filteredASR := opencost.NewAllocationSetRange()
 		for _, as := range asr.Allocations {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			filteredAS := opencost.NewAllocationSet(as.Start(), as.End())
 			for _, alloc := range as.Allocations {
 				if matcher.Matches(alloc) {
@@ -1764,6 +1783,9 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 	}
 
 	// Aggregate
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	err = asr.AggregateBy(aggregate, opts)
 	if err != nil {
 		return nil, fmt.Errorf("error aggregating for %s: %w", window, err)
@@ -1782,7 +1804,7 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 		// when accumulating and returning PARCs, we need the totals for the
 		// accumulated windows to accurately compute a fraction
 		if includeProportionalAssetResourceCosts {
-			assetSet, err := cm.ComputeAssets(*asr.Window().Start(), *asr.Window().End())
+			assetSet, err := cm.ComputeAssetsContext(ctx, *asr.Window().Start(), *asr.Window().End())
 			if err != nil {
 				return nil, fmt.Errorf("error computing assets for %s: %w", opencost.NewClosedWindow(*asr.Window().Start(), *asr.Window().End()), err)
 			}
@@ -1798,6 +1820,9 @@ func (cm *CostModel) QueryAllocation(window opencost.Window, step time.Duration,
 	if includeProportionalAssetResourceCosts {
 
 		for _, as := range asr.Allocations {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			totalStoreByNode, ok := totalsStore.GetAssetTotalsByNode(as.Start(), as.End())
 			if !ok {
 				log.Errorf("unable to locate allocation totals for node for window %v - %v", as.Start(), as.End())

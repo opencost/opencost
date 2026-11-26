@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -30,10 +31,19 @@ func (cm *CostModel) Name() string {
 // for the window defined by the given start and end times. The Allocations
 // returned are unaggregated (i.e. down to the container level).
 func (cm *CostModel) ComputeAllocation(start, end time.Time) (*opencost.AllocationSet, error) {
+	return cm.ComputeAllocationContext(context.Background(), start, end)
+}
+
+// ComputeAllocationContext computes an AllocationSet and stops between major
+// processing phases when the caller's context is cancelled.
+func (cm *CostModel) ComputeAllocationContext(ctx context.Context, start, end time.Time) (*opencost.AllocationSet, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	// If the duration is short enough, compute the AllocationSet directly
 	if end.Sub(start) <= cm.BatchDuration {
-		as, _, err := cm.computeAllocation(start, end)
+		as, _, err := cm.computeAllocationContext(ctx, start, end)
 		return as, err
 	}
 
@@ -49,6 +59,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*opencost.Allocati
 	asr := opencost.NewAllocationSetRange()
 
 	for e.Before(end) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		// By default, query for the full remaining duration. But do not let
 		// any individual query duration exceed the configured max Prometheus
 		// query duration.
@@ -61,7 +74,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*opencost.Allocati
 		e = s.Add(duration)
 
 		// Compute the individual AllocationSet for just (s, e)
-		as, _, err := cm.computeAllocation(s, e)
+		as, _, err := cm.computeAllocationContext(ctx, s, e)
 		if err != nil {
 			return opencost.NewAllocationSet(start, end), fmt.Errorf("error computing allocation for %s: %s", opencost.NewClosedWindow(s, e), err)
 		}
@@ -217,6 +230,13 @@ func (cm *CostModel) DateRange(limitDays int) (time.Time, time.Time, error) {
 }
 
 func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.AllocationSet, map[nodeKey]*nodePricing, error) {
+	return cm.computeAllocationContext(context.Background(), start, end)
+}
+
+func (cm *CostModel) computeAllocationContext(ctx context.Context, start, end time.Time) (*opencost.AllocationSet, map[nodeKey]*nodePricing, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
 	// 1. Build out Pod map from resolution-tuned, batched Pod start/end query
 	// 2. Run and apply the results of the remaining queries to
 	// 3. Build out AllocationSet from completed Pod map
@@ -260,6 +280,9 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	err := cm.buildPodMap(window, podMap, ingestPodUID, podUIDKeyMap)
 	if err != nil {
 		log.Errorf("CostModel.ComputeAllocation: failed to build pod map: %s", err.Error())
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
 	}
 	// (2) Run and apply remaining queries
 
@@ -418,6 +441,9 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	resPodsWithJobOwner, _ := resChPodsWithJobOwner.Await()
 	resLBCostPerHr, _ := resChLBCostPerHr.Await()
 	resLBActiveMins, _ := resChLBActiveMins.Await()
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
 
 	if grp.HasErrors() {
 		// Many concurrent sub-queries can fail with the exact same underlying
@@ -464,6 +490,9 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetPricePerGiB, podUIDKeyMap, applyInternetNetworkAllocation)
 	applyNetworkAllocation(podMap, resNetNatGatewayGiB, resNetNatGatewayEgressPricePerGiB, podUIDKeyMap, applyNatGatewayEgressAllocation)
 	applyNetworkAllocation(podMap, resNetNatGatewayIngressGiB, resNetNatGatewayIngressPricePerGiB, podUIDKeyMap, applyNatGatewayIngressAllocation)
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
 
 	// In the case that a two pods with the same name had different containers,
 	// we will double-count the containers. There is no way to associate each
@@ -497,6 +526,9 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	applyControllersToPods(podMap, podDaemonSetMap)
 	applyControllersToPods(podMap, podJobMap)
 	applyControllersToPods(podMap, podReplicaSetMap)
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
 
 	serviceSelectorLabels := getServiceSelectorLabels(resServiceSelectorLabels)
 	allocsByService := map[serviceKey][]*opencost.Allocation{}
@@ -536,6 +568,9 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 	lbMap := make(map[serviceKey]*lbCost)
 	getLoadBalancerCosts(lbMap, resLBCostPerHr, resLBActiveMins, resolution, window)
 	applyLoadBalancersToPods(window, podMap, lbMap, allocsByService)
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
 
 	// Build out a map of Nodes with resource costs, discounts, and node types
 	// for converting resource allocation data to cumulative costs.
@@ -551,6 +586,9 @@ func (cm *CostModel) computeAllocation(start, end time.Time) (*opencost.Allocati
 
 	// (3) Build out AllocationSet from Pod map
 	for _, pod := range podMap {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
 		for _, alloc := range pod.Allocations {
 			cluster := alloc.Properties.Cluster
 			nodeName := alloc.Properties.Node

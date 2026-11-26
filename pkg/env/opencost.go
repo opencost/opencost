@@ -15,12 +15,20 @@ const (
 )
 
 const (
-	UTCOffsetEnvVar              = "UTC_OFFSET"
-	MCPQueryTimeoutSecondsEnvVar = "MCP_QUERY_TIMEOUT_SECONDS"
+	UTCOffsetEnvVar                       = "UTC_OFFSET"
+	MCPQueryTimeoutSecondsEnvVar          = "MCP_QUERY_TIMEOUT_SECONDS"
+	MaxConcurrentAllocationRequestsEnvVar = "MAX_CONCURRENT_ALLOCATION_REQUESTS"
 )
 
 func GetOpencostAPIPort() int {
 	return env.GetAPIPortWithDefault(DefaultAPIPort)
+}
+
+// GetMaxConcurrentAllocationRequests returns the number of allocation HTTP
+// requests that may execute concurrently. Values less than one disable the
+// limit.
+func GetMaxConcurrentAllocationRequests() int {
+	return env.GetInt(MaxConcurrentAllocationRequestsEnvVar, 2)
 }
 
 // GetOpencostNamespace returns the environment variable value that is set for the kubernetes namespace
