@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1612,4 +1614,56 @@ func TestAWS_createNode_nilOnDemandTerm(t *testing.T) {
 			t.Fatalf("Expected an error for a product without OnDemand term, got node %+v", node)
 		}
 	})
+}
+
+func TestAWS_createFargateNode_scalesToNodeCapacity(t *testing.T) {
+	pricing := NewFargatePricing()
+	pricing.regions["us-east-1"] = testRegionPricing
+	aws := &AWS{
+		FargatePricing: pricing,
+		Clientset: &clustercache.MockClusterCache{Pods: []*clustercache.Pod{{
+			Name:        "karpenter-0",
+			Annotations: map[string]string{fargatePodCapacityAnnotation: "1vCPU 2GB"},
+			Spec:        clustercache.PodSpec{NodeName: "fargate-ip-10-0-0-1"},
+		}}},
+	}
+	labels := map[string]string{
+		eksComputeTypeLabel:    "fargate",
+		v1.LabelTopologyRegion: "us-east-1",
+		nodeOSLabel:            "linux",
+		nodeArchLabel:          "amd64",
+	}
+	const billed = 1*0.04048 + 2*0.004445
+
+	tests := []struct {
+		name             string
+		cpuCapacity      float64
+		ramCapacityBytes float64
+		wantVCPU         float64
+		wantRAMGiB       float64
+	}{
+		{name: "VM larger than the billed pod", cpuCapacity: 2, ramCapacityBytes: 8 * 1024 * 1024 * 1024, wantVCPU: 2, wantRAMGiB: 8},
+		{name: "node capacity unknown keeps the billed size", wantVCPU: 1, wantRAMGiB: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key := &awsKey{Name: "fargate-ip-10-0-0-1", Labels: labels, CPUCapacity: tt.cpuCapacity, RAMCapacityBytes: tt.ramCapacityBytes}
+			node, _, err := aws.createFargateNode(key, "ondemand")
+			if err != nil {
+				t.Fatalf("createFargateNode: %v", err)
+			}
+			f := func(s string) float64 { v, _ := strconv.ParseFloat(s, 64); return v }
+			if got := f(node.VCPU); math.Abs(got-tt.wantVCPU) > 1e-9 {
+				t.Errorf("VCPU = %v, want %v", got, tt.wantVCPU)
+			}
+			if got := f(node.RAMBytes) / 1024 / 1024 / 1024; math.Abs(got-tt.wantRAMGiB) > 1e-9 {
+				t.Errorf("RAM GiB = %v, want %v", got, tt.wantRAMGiB)
+			}
+			// what the cost model computes downstream: unit price x reported capacity
+			downstream := f(node.VCPU)*f(node.VCPUCost) + f(node.RAMBytes)/1024/1024/1024*f(node.RAMCost)
+			if math.Abs(downstream-billed) > 1e-9 || math.Abs(f(node.Cost)-billed) > 1e-9 {
+				t.Errorf("capacity x price = %v, Cost = %v, want billed %v", downstream, node.Cost, billed)
+			}
+		})
+	}
 }
