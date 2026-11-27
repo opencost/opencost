@@ -151,7 +151,7 @@ func TestConfigMapWatcherWithAdd(t *testing.T) {
 // 2. Closes an active stop channel and clears the reference to nil.
 // 3. Is idempotent (calling Stop multiple times does not panic on a closed channel).
 func TestConfigMapWatchersStop(t *testing.T){
-	// Test calling Stop on a nil stop channel (should not panic)
+	// Test calling Stop on an active stop channel.
 	stopChan:= make(chan struct{})
 	cmw := &ConfigMapWatchers{
 		stop: stopChan,
