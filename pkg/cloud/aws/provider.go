@@ -1538,17 +1538,17 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k models.Ke
 
 	meta := models.PricingMetadata{}
 	var cost string
-	publicPricingFound := true
-	c, ok := terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCode}, ".")]
-	if ok {
-		cost = c.PricePerUnit.USD
-	} else {
-		// Check for Chinese pricing
-		c, ok = terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCodeCn}, ".")]
-		if ok {
+	publicPricingFound := false
+	// A product can be present in the public price list without an OnDemand term (observed for newly launched
+	// instance types). Treat it as "public price not found" instead of dereferencing a nil term.
+	if terms.OnDemand != nil {
+		if c, ok := terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCode}, ".")]; ok {
+			cost = c.PricePerUnit.USD
+			publicPricingFound = true
+		} else if c, ok := terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCodeCn}, ".")]; ok {
+			// Check for Chinese pricing
 			cost = c.PricePerUnit.CNY
-		} else {
-			publicPricingFound = false
+			publicPricingFound = true
 		}
 	}
 
@@ -2350,14 +2350,8 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 	queryResultsInput := &athena.GetQueryResultsInput{
 		QueryExecutionId: startQueryExecutionOutput.QueryExecutionId,
 	}
-	getQueryResultsPaginator := athena.NewGetQueryResultsPaginator(cli, queryResultsInput)
-	for getQueryResultsPaginator.HasMorePages() {
-		pg, err := getQueryResultsPaginator.NextPage(ctx)
-		if err != nil {
-			log.Errorf("QueryAthenaPaginated: NextPage error: %s", err.Error())
-			continue
-		}
-		fn(pg)
+	if err := readQueryResults(ctx, cli, queryResultsInput, fn); err != nil {
+		return fmt.Errorf("QueryAthenaPaginated: %w", err)
 	}
 	return nil
 }
