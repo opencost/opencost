@@ -254,7 +254,7 @@ func (rq *RepositoryQuerier) QueryViewTable(ctx context.Context, request ViewQue
 	for key, cloudCost := range acc.CloudCosts {
 		costMetric, err2 := cloudCost.GetCostMetric(request.CostMetricName)
 		if err2 != nil {
-			return nil, fmt.Errorf("QueryViewTable: failed to retrieve cost metric: %w", err)
+			return nil, fmt.Errorf("QueryViewTable: failed to retrieve cost metric: %w", err2)
 		}
 		var labels map[string]string
 		if cloudCost.Properties != nil {
